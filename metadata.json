@@ -1,0 +1,6 @@
+{
+  "name": "AK TEST SERIES",
+  "description": "Comprehensive AK Test Series platform supporting 20+ competitive exams including NEET, JEE, UPSC, SSC, Banking, CUET, GATE, RRB, NDA, State PCS & School Boards. Private tests, performance analytics & solution reviews.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

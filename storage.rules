@@ -1,0 +1,35 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // Question diagram images and charts
+    match /tests/{testId}/questions/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.resource.size < 15 * 1024 * 1024;
+    }
+
+    match /chart_images/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.resource.size < 15 * 1024 * 1024;
+    }
+
+    // Live Test PDFs: Only Admins can upload or overwrite test PDFs
+    match /LiveTests/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && request.resource.size < 50 * 1024 * 1024;
+    }
+
+    // Default deny for unclassified paths
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

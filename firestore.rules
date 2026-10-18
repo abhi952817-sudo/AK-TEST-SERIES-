@@ -1,0 +1,248 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS
+    // =========================================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.get('admin', false) == true
+        || (request.auth.token.get('email', '') == 'abhi952817@gmail.com' && request.auth.token.email_verified == true)
+      );
+    }
+
+    // =========================================================================
+    // CONFIGURATION & ADMIN SETTINGS
+    // Read: Authenticated users only (prevents public web scraping of app settings)
+    // Write: Verified Admins only
+    // =========================================================================
+    match /Config/{configDoc} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /admin_settings/{settingDoc} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // =========================================================================
+    // USERS DATA & PRIVATE PROFILES
+    // Read: Owner or Admin only (strictly protects student email, phone & private info)
+    // Create: Owner only, strictly blocking privileged fields
+    // Update: Owner only, strictly preventing self-assigning VIP, ban, admin, rank, or XP
+    // Delete: Admin only
+    // =========================================================================
+    match /Users_Data/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+
+      // Students can create their own profile, but cannot set banned, VIP, admin, rank, or XP privileges
+      allow create: if isOwner(userId)
+                    && (!('isBanned' in request.resource.data) || request.resource.data.isBanned == false)
+                    && (!('isVip' in request.resource.data) || request.resource.data.isVip == false)
+                    && !('role' in request.resource.data)
+                    && !('admin' in request.resource.data)
+                    && !('xp' in request.resource.data)
+                    && !('totalXP' in request.resource.data)
+                    && !('rank' in request.resource.data)
+                    && !('userRank' in request.resource.data);
+
+      // Students can update their profile and scores, but cannot self-assign VIP, ban status, admin roles, rank, or XP
+      allow update: if (isOwner(userId)
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isBanned', 'isVip', 'vipExpiresAt', 'role', 'admin', 'xp', 'totalXP', 'rank', 'userRank']))
+                    || isAdmin();
+
+      allow delete: if isAdmin();
+
+      // Test Attempts: Private detailed results and answers
+      // Students can create/submit new test attempts, but cannot edit, alter, or delete submitted attempts
+      // Admins retain full audit and moderation access
+      match /Attempts/{attemptId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) || isAdmin();
+        allow update, delete: if isAdmin();
+      }
+
+      match /attempts/{attemptId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) || isAdmin();
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // =========================================================================
+    // PUBLIC LEADERBOARDS & RANKINGS
+    // Read: Authenticated students (competitive rankings across exams)
+    // Write: Verified Admins & Server Functions only (tamper-proof)
+    // =========================================================================
+    match /Leaderboard/{entryDoc} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /Leaderboards/{entryDoc} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // =========================================================================
+    // OFFICIAL TESTS & QUESTION BANKS
+    // Read: Published/Approved tests are readable by authenticated students
+    //       Draft/Under Review tests are restricted to Admins or the creator
+    // Write: Verified Admins only (students cannot overwrite or tamper with official tests)
+    // =========================================================================
+    match /Tests/{testId} {
+      allow read: if isAuthenticated() && (
+        isAdmin()
+        || resource.data.status in ['APPROVED', 'Published']
+        || resource.data.isPublic == true
+        || resource.data.creatorId == request.auth.uid
+        || (!('status' in resource.data) && !('isPublic' in resource.data))
+      );
+      allow write: if isAdmin();
+
+      match /questions/{questionId} {
+        allow read: if isAuthenticated() && (
+          isAdmin()
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.status in ['APPROVED', 'Published']
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.isPublic == true
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.creatorId == request.auth.uid
+        );
+        allow write: if isAdmin();
+      }
+
+      match /Questions/{questionId} {
+        allow read: if isAuthenticated() && (
+          isAdmin()
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.status in ['APPROVED', 'Published']
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.isPublic == true
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.creatorId == request.auth.uid
+        );
+        allow write: if isAdmin();
+      }
+    }
+
+    match /Tests_Data/{testId} {
+      allow read: if isAuthenticated() && (
+        isAdmin()
+        || resource.data.status in ['APPROVED', 'Published']
+        || resource.data.isPublic == true
+        || resource.data.creatorId == request.auth.uid
+        || (!('status' in resource.data) && !('isPublic' in resource.data))
+      );
+      allow write: if isAdmin();
+
+      match /questions/{questionId} {
+        allow read: if isAuthenticated() && (
+          isAdmin()
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.status in ['APPROVED', 'Published']
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.isPublic == true
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.creatorId == request.auth.uid
+        );
+        allow write: if isAdmin();
+      }
+
+      match /Questions/{questionId} {
+        allow read: if isAuthenticated() && (
+          isAdmin()
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.status in ['APPROVED', 'Published']
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.isPublic == true
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.creatorId == request.auth.uid
+        );
+        allow write: if isAdmin();
+      }
+    }
+
+    // =========================================================================
+    // LIVE TESTS & SCHEDULING
+    // Read: Authenticated students
+    // Write: Verified Admins only
+    // Participants: Students can register only themselves
+    // =========================================================================
+    match /LiveTests/{testId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+
+      match /Participants/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // =========================================================================
+    // COMMUNITY TESTS & DISCUSSIONS
+    // Read: Authenticated students
+    // Create: Authenticated students (must be creator)
+    // Update/Delete: Creator or Verified Admin
+    // =========================================================================
+    match /Shared_Community_Tests/{testId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
+    }
+
+    match /Community_Posts/{postId} {
+      allow read: if isAuthenticated();
+      
+      // Author can create posts, but cannot self-assign pinned or official badges
+      allow create: if isAuthenticated()
+                    && request.resource.data.creatorId == request.auth.uid
+                    && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
+                    && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
+                    && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false);
+
+      // Authors can edit their content without altering badges or creatorId;
+      // Other students can only interact via upvotes, views, comments, or personal bookmark;
+      // Admins have full moderation rights
+      allow update: if isAdmin()
+                    || (isAuthenticated()
+                        && resource.data.creatorId == request.auth.uid 
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isPinned', 'isOfficial', 'isMonitor', 'creatorId']))
+                    || (isAuthenticated()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'views', 'comments', 'isBookmarked']));
+
+      allow delete: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || isAdmin());
+    }
+
+    // =========================================================================
+    // IN-APP NOTIFICATIONS & ANNOUNCEMENTS
+    // Read: Authenticated students
+    // Write: Verified Admins only
+    // =========================================================================
+    match /UserNotifications/{notifId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // =========================================================================
+    // FEEDBACK & ANALYTICS
+    // Create: Authenticated students
+    // Read/Update/Delete: Verified Admins only
+    // =========================================================================
+    match /test_feedbacks/{feedbackId} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /User_Analytics/{eventId} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // DEFAULT DENY FOR ALL OTHER PATHS
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

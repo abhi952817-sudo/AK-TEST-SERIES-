@@ -1,0 +1,41 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "Users_Data",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "targetExam",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cumulativeScore_NEET",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Users_Data",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "targetExam",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "maxScore",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
