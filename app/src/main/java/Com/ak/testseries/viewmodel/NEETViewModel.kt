@@ -3610,11 +3610,30 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun selectAnswer(questionId: String, answer: String): Boolean {
         val questions = _activeQuestions.value
         val question = questions.find { it.id == questionId }
-        if (question != null && question.section == "SECTION_B") {
-            val answeredSectionBCount = questions.count { q ->
-                q.section == "SECTION_B" && _userAnswers.value.containsKey(q.id) && q.id != questionId
+        val test = _activeTest.value
+        if (question != null && test != null) {
+            val limit = Com.ak.testseries.exam.UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+                examName = test.targetExam,
+                sectionNameOrId = question.section,
+                subjectName = question.subject
+            )
+            if (limit != null) {
+                val answeredInSectionCount = questions.count { q ->
+                    q.section.equals(question.section, ignoreCase = true) &&
+                    (question.subject.isBlank() || q.subject.equals(question.subject, ignoreCase = true)) &&
+                    _userAnswers.value.containsKey(q.id) && q.id != questionId
+                }
+                if (answeredInSectionCount >= limit) {
+                    return false
+                }
             }
-            if (answeredSectionBCount >= 5) {
+        } else if (question != null && (question.section.equals("SECTION_B", ignoreCase = true) || question.section.contains("Section B", ignoreCase = true))) {
+            val answeredSectionBCount = questions.count { q ->
+                (q.section.equals("SECTION_B", ignoreCase = true) || q.section.contains("Section B", ignoreCase = true)) &&
+                (question.subject.isBlank() || q.subject.equals(question.subject, ignoreCase = true)) &&
+                _userAnswers.value.containsKey(q.id) && q.id != questionId
+            }
+            if (answeredSectionBCount >= 10) {
                 return false
             }
         }

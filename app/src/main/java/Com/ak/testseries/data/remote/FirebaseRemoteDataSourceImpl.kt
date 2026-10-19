@@ -34,6 +34,9 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
             if (snapshot != null) {
                 val newTests = snapshot.documents.mapNotNull { doc ->
                     try {
+                        val isOfficialVal = doc.getBoolean("isOfficial") ?: false
+                        val statusVal = doc.getString("status") ?: if (isOfficialVal) "Published" else "Draft"
+                        val isPublicVal = doc.getBoolean("isPublic") ?: (isOfficialVal || statusVal == "Published")
                         TestEntity(
                             id = doc.id,
                             title = doc.getString("title") ?: "Unknown Test",
@@ -46,8 +49,11 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             difficulty = doc.getString("difficulty") ?: "Medium",
                             testType = doc.getString("testType") ?: "Mock Test",
                             questionsCount = doc.getLong("questionsCount")?.toInt() ?: 0,
-                            isOfficial = doc.getBoolean("isOfficial") ?: true,
-                            isVerifiedCommunity = doc.getBoolean("isVerifiedCommunity") ?: true,
+                            isOfficial = isOfficialVal,
+                            isVerifiedCommunity = doc.getBoolean("isVerifiedCommunity") ?: false,
+                            isPublic = isPublicVal,
+                            status = statusVal,
+                            uploaderId = doc.getString("uploaderId") ?: doc.getString("creatorId") ?: "",
                             countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: true,
                             durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 0,
                             classLevel = doc.getString("classLevel") ?: "11th",

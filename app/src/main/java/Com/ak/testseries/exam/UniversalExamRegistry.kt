@@ -1361,6 +1361,52 @@ object UniversalExamRegistry {
         return if (totalComp in 1 until totalPaper) totalComp else null
     }
 
+    fun getMaximumAttemptQuestionsCountForSection(
+        examName: String,
+        sectionNameOrId: String,
+        subjectName: String? = null
+    ): Int? {
+        val config = findExamByNameOrShortName(examName) ?: return null
+        val secClean = sectionNameOrId.trim().lowercase()
+        val subClean = subjectName?.trim()?.lowercase() ?: ""
+
+        val allPapers = config.stages.flatMap { it.papers }
+        for (paper in allPapers) {
+            for (subject in paper.subjects) {
+                if (subClean.isNotEmpty() &&
+                    !subject.subjectId.equals(subClean, ignoreCase = true) &&
+                    !subject.subjectName.equals(subClean, ignoreCase = true) &&
+                    !subClean.contains(subject.subjectId.lowercase()) &&
+                    !subject.subjectName.lowercase().contains(subClean)
+                ) {
+                    continue
+                }
+                for (sec in subject.sections) {
+                    val idMatch = sec.sectionId.equals(secClean, ignoreCase = true)
+                    val nameMatch = sec.sectionName.equals(secClean, ignoreCase = true)
+                    val isSecB = (secClean == "section_b" || secClean == "section b") &&
+                            (sec.sectionId.contains("sec_b") || sec.sectionName.contains("Section B"))
+                    val isSecA = (secClean == "section_a" || secClean == "section a") &&
+                            (sec.sectionId.contains("sec_a") || sec.sectionName.contains("Section A"))
+
+                    if (idMatch || nameMatch || isSecB || isSecA) {
+                        if (sec.compulsoryQuestions in 1 until sec.totalQuestions) {
+                            return sec.compulsoryQuestions
+                        }
+                    }
+                }
+            }
+        }
+        // Fallback for Section B when subject is generic or not matched
+        if (secClean == "section_b" || secClean.contains("section b")) {
+            val isNeet = config.shortName.equals("NEET", ignoreCase = true) || config.examId.contains("neet", ignoreCase = true)
+            if (isNeet) return 10
+            val isJee = config.shortName.equals("JEE", ignoreCase = true) || config.examId.contains("jee", ignoreCase = true)
+            if (isJee) return 5
+        }
+        return null
+    }
+
     fun updateExamStatus(examId: String, active: Boolean) {
         defaultExams[examId]?.let {
             defaultExams[examId] = it.copy(active = active)

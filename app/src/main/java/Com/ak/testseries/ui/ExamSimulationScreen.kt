@@ -311,9 +311,19 @@ fun ExamSimulationScreen(
                         onSelectAnswer = { opt ->
                             val success = viewModel.selectAnswer(question.id, opt)
                             if (!success) {
+                                val limit = Com.ak.testseries.exam.UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+                                    examName = targetExamName,
+                                    sectionNameOrId = question.section,
+                                    subjectName = question.subject
+                                ) ?: 10
+                                val limitMsg = if (isHindi) {
+                                    "${question.subject.ifBlank { "इस विषय" }} के ${question.section} में अधिकतम $limit प्रश्नों की अनुमति है!"
+                                } else {
+                                    "Attempt limit reached: Max $limit questions allowed in ${question.subject.ifBlank { "this section" }}"
+                                }
                                 Toast.makeText(
                                     context,
-                                    if (isHindi) "सेक्शन B में अधिकतम 5 प्रश्नों की अनुमति है!" else "Section B limit reached (Max 5 allowed)",
+                                    limitMsg,
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -896,8 +906,13 @@ private fun ExamQuestionPageView(
                         .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
+                    val badgeText = if (negMark <= 0.0) {
+                        "+${ExamScoringEngine.formatMark(posMark)} / 0"
+                    } else {
+                        "+${ExamScoringEngine.formatMark(posMark)} / -${ExamScoringEngine.formatMark(negMark)}"
+                    }
                     Text(
-                        text = "+${ExamScoringEngine.formatMark(posMark)} / -${ExamScoringEngine.formatMark(negMark)}",
+                        text = badgeText,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

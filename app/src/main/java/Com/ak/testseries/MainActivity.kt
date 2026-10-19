@@ -8283,17 +8283,20 @@ fun PreTestModals(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    var posMark = 4.0
-                    var negMark = 1.0
-                    val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getAllExams().find { it.examName == test.targetExam }
-                    examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.let {
-                        posMark = it.positiveMarks
-                        negMark = it.negativeMarks
+                    val (posMark, negMark) = Com.ak.testseries.exam.ExamScoringEngine.getMarkingScheme(test.targetExam)
+                    val formattedPos = Com.ak.testseries.exam.ExamScoringEngine.formatMark(posMark)
+                    val formattedNeg = Com.ak.testseries.exam.ExamScoringEngine.formatMark(negMark)
+                    val markingSummary = if (negMark <= 0.0) {
+                        if (isHindi) "${test.targetExam} मोड: +${formattedPos} अंक (सही), 0 अंक (कोई नेगेटिव नहीं), 0 अंक (छोड़ा गया)"
+                        else "${test.targetExam} Mode: +${formattedPos} marks (correct), 0 marks (no penalty), 0 mark (skipped)"
+                    } else {
+                        if (isHindi) "${test.targetExam} मोड: +${formattedPos} अंक (सही), -${formattedNeg} अंक (गलत), 0 अंक (छोड़ा गया)"
+                        else "${test.targetExam} Mode: +${formattedPos} marks (correct), -${formattedNeg} mark (incorrect), 0 mark (skipped)"
                     }
                     
                     Text(if (isHindi) "मार्किंग स्कीम" else "Marking Scheme", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Text(
-                        if (isHindi) "${test.targetExam} मोड: +${posMark} अंक (सही), -${negMark} अंक (गलत), 0 अंक (छोड़ा गया)" else "${test.targetExam} Mode: +${posMark} marks (correct), -${negMark} mark (incorrect), 0 mark (skipped)",
+                        markingSummary,
                         fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     
@@ -8304,8 +8307,6 @@ fun PreTestModals(
                     val indicatorSize = Modifier.size(20.dp)
                     val rowMod = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     
-                    val formattedPos = Com.ak.testseries.exam.ExamScoringEngine.formatMark(posMark)
-                    val formattedNeg = Com.ak.testseries.exam.ExamScoringEngine.formatMark(negMark)
                     val correctLegendText = if (isHindi) "सही उत्तर (+$formattedPos अंक)" else "Correct Answer (+$formattedPos Marks)"
                     val incorrectLegendText = if (negMark <= 0.0) {
                         if (isHindi) "गलत उत्तर (0 अंक)" else "Incorrect Answer (0 Marks)"
