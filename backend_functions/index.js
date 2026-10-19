@@ -3,13 +3,15 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 const db = admin.firestore();
+const { evaluateTestAttempt } = require("./examScoring");
 
 /**
  * Cloud Function: submitTestAttemptServerSide
- * Validates test answers against server-side official questions, computes score,
- * and atomically updates user's cumulative ranking score using a transaction.
+ * Authoritatively validates test answers against server-side official questions,
+ * computes score using exam-specific rules (marking schemes, negative penalty, optional section limits,
+ * option equivalence), and atomically updates user's cumulative ranking score and public leaderboard.
  * 
- * Idempotent: Keys attempt record by `${testId}_${firstAttempt}`.
+ * Idempotent: Keys attempt record by session token or `${testId}_${timestamp}`.
  */
 exports.submitTestAttemptServerSide = functions.https.onCall(async (data, context) => {
   // 1. Verify Authentication
@@ -21,7 +23,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const userId = context.auth.uid;
-  const { testId, answers, timeSpentSeconds, clientTimestamp } = data;
+  const { testId, answers, timeSpentSeconds, clientTimestamp, attemptSessionToken } = data;
 
   if (!testId || !answers) {
     throw new functions.https.HttpsError(
@@ -30,8 +32,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     );
   }
 
-  // 2. Fetch official test from Firestore
-  const testDoc = await db.collection("Tests_Data").doc(testId).get();
+  // 2. Fetch test document from Tests_Data or Tests
+  let testDoc = await db.collection("Tests_Data").doc(testId).get();
+  if (!testDoc.exists) {
+    testDoc = await db.collection("Tests").doc(testId).get();
+  }
   if (!testDoc.exists) {
     throw new functions.https.HttpsError(
       "not-found",
@@ -40,51 +45,62 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const testData = testDoc.data();
-  const countsTowardRanking = testData.countsTowardRanking === true && testData.isOfficial === true;
-  const targetExam = testData.targetExam || "NEET";
 
-  // Parse questions and official answers
-  let questions = [];
-  try {
-    questions = JSON.parse(testData.questionsJson || "[]");
-  } catch (e) {
+  // 3. Authorization check: reject attempts on draft/unpublished tests unless creator or admin
+  const isCallerAdmin = context.auth.token && (
+    context.auth.token.admin === true ||
+    (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+  );
+  const isPublished = testData.status === "APPROVED" || testData.status === "Published" || testData.isPublic === true;
+  const isCreator = testData.creatorId === userId || testData.uploaderId === userId;
+
+  if (!isCallerAdmin && !isPublished && !isCreator) {
     throw new functions.https.HttpsError(
-      "internal",
-      "Failed to parse test questions."
+      "permission-denied",
+      "Cannot submit an attempt for an unpublished or restricted test."
     );
   }
 
-  // 3. Compute score server-side
-  let correctCount = 0;
-  let incorrectCount = 0;
-  let skippedCount = 0;
-  let score = 0;
+  const countsTowardRanking = testData.countsTowardRanking === true && (testData.isOfficial === true || testData.isPublic === true);
+  const targetExam = testData.targetExam || testData.subject || "NEET";
 
-  for (const q of questions) {
-    const qId = q.id;
-    const userAnswer = answers[qId] ? answers[qId].ans : null;
-    const correctAnswer = q.correctAnswer;
-
-    if (!userAnswer || userAnswer === "SKIPPED" || userAnswer === "") {
-      skippedCount++;
-    } else if (userAnswer === correctAnswer) {
-      correctCount++;
-      score += 4; // NEET marking (+4)
-    } else {
-      incorrectCount++;
-      score -= 1; // NEET marking (-1)
+  // 4. Parse official questions
+  let questions = [];
+  if (testData.questionsJson) {
+    try {
+      questions = JSON.parse(testData.questionsJson);
+    } catch (e) {
+      questions = [];
     }
   }
 
-  const maxScore = questions.length * 4;
-  const accuracy = questions.length > 0 ? (correctCount / (correctCount + incorrectCount || 1)) * 100 : 0;
-  const percentile = Math.min(99.99, Math.max(0, (80.0 + (correctCount / (questions.length || 1)) * 19.5)));
+  if (!questions || questions.length === 0) {
+    const qSnap = await testDoc.ref.collection("questions").get();
+    if (!qSnap.empty) {
+      questions = qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+      const qSnapUpper = await testDoc.ref.collection("Questions").get();
+      if (!qSnapUpper.empty) {
+        questions = qSnapUpper.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+    }
+  }
 
-  const attemptDocId = `${testId}_${clientTimestamp || Date.now()}`;
+  if (questions.length === 0) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Test contains no questions to evaluate."
+    );
+  }
+
+  // 5. Authoritatively evaluate score on the server
+  const evalResult = evaluateTestAttempt(targetExam, questions, answers, timeSpentSeconds || 0);
+
+  const attemptDocId = attemptSessionToken || `${testId}_${clientTimestamp || Date.now()}`;
   const userRef = db.collection("Users_Data").doc(userId);
   const attemptsRef = userRef.collection("Attempts");
 
-  // 4. Atomic, Idempotent Transaction for Competitive Ranking
+  // 6. Atomic, Idempotent Transaction for Competitive Ranking and Persistence
   return db.runTransaction(async (transaction) => {
     // Check if user has previously attempted this test
     const existingAttemptsSnap = await transaction.get(
@@ -101,51 +117,69 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const currentMaxScore = userData.maxScore || 0;
     const totalTests = userData.totalTestsAttempted || 0;
 
+    const attemptDocRef = attemptsRef.doc(attemptDocId);
+    const existingAttemptSnap = await transaction.get(attemptDocRef);
+    const isAlreadyRecorded = existingAttemptSnap.exists;
+
     const updates = {
-      totalTestsAttempted: totalTests + 1,
       lastActiveAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    if (score > currentMaxScore) {
-      updates.maxScore = score;
-      updates.lastPercentile = percentile;
+    if (!isAlreadyRecorded) {
+      updates.totalTestsAttempted = totalTests + 1;
     }
 
-    // Only award ranking points on FIRST valid attempt on QUALIFYING OFFICIAL tests
-    if (isFirstAttempt && countsTowardRanking) {
+    if (evalResult.finalScore > currentMaxScore) {
+      updates.maxScore = Math.round(evalResult.finalScore);
+      updates.lastPercentile = evalResult.percentile;
+    }
+
+    // Award ranking points only on FIRST valid attempt on QUALIFYING OFFICIAL tests
+    if (isFirstAttempt && countsTowardRanking && !isAlreadyRecorded) {
       const currentQCount = userData.qualifyingTestsCount || 0;
       const examKey = `cumulativeScore_${targetExam}`;
       const currentExamScore = userData[examKey] || userData.totalCumulativeScore || 0;
       const currentTotalScore = userData.totalCumulativeScore || 0;
 
       updates.qualifyingTestsCount = currentQCount + 1;
-      updates[examKey] = currentExamScore + score;
-      updates.totalCumulativeScore = currentTotalScore + score;
+      updates[examKey] = currentExamScore + Math.round(evalResult.finalScore);
+      updates.totalCumulativeScore = currentTotalScore + Math.round(evalResult.finalScore);
     }
 
     transaction.update(userRef, updates);
 
-    // Save attempt record in Attempts collection
+    // Persist detailed authoritative attempt record in Attempts collection
     const attemptRecord = {
+      userId,
       testId,
       testTitle: testData.title || "",
-      score,
-      maxScore,
-      percentile,
-      accuracy,
-      correctCount,
-      incorrectCount,
-      skippedCount,
+      targetExam,
+      score: Math.round(evalResult.finalScore),
+      rawScore: evalResult.rawScore,
+      maxScore: Math.round(evalResult.maxScore),
+      percentile: evalResult.percentile,
+      accuracy: evalResult.accuracyPercent,
+      correctCount: evalResult.correctCount,
+      incorrectCount: evalResult.wrongCount,
+      skippedCount: evalResult.unansweredCount,
+      positiveMarksEarned: evalResult.positiveMarksEarned,
+      negativeMarksPenalty: evalResult.negativeMarksPenalty,
       timeSpentSeconds: timeSpentSeconds || 0,
       dateTaken: clientTimestamp || Date.now(),
-      answersJson: JSON.stringify(answers),
+      answersJson: typeof answers === "string" ? answers : JSON.stringify(answers),
+      attemptSessionToken: attemptDocId,
       isFirstAttempt,
       countsTowardRanking,
       verifiedServerSide: true,
+      authoritativeScore: evalResult.finalScore,
+      submittedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    const newAttemptRef = attemptsRef.doc(attemptDocId);
-    transaction.set(newAttemptRef, attemptRecord);
+    transaction.set(attemptDocRef, attemptRecord, { merge: true });
+
+    // Also mirror to legacy lowercase attempts subcollection for backwards compatibility
+    const legacyAttemptRef = userRef.collection("attempts").doc(attemptDocId);
+    transaction.set(legacyAttemptRef, attemptRecord, { merge: true });
 
     // Atomically maintain public Leaderboard without exposing private user data
     const leaderboardRef = db.collection("Leaderboard").doc(`${targetExam}_${userId}`);
@@ -154,17 +188,28 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       displayName: userData.name || "Student",
       targetExam,
       score: updates.maxScore || currentMaxScore,
-      totalTestsAttempted: updates.totalTestsAttempted,
-      percentile,
+      totalTestsAttempted: updates.totalTestsAttempted || totalTests,
+      percentile: evalResult.percentile,
+      totalCumulativeScore: updates.totalCumulativeScore || userData.totalCumulativeScore || 0,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
     return {
       success: true,
-      score,
-      maxScore,
-      percentile,
-      accuracy,
+      verifiedServerSide: true,
+      attemptId: attemptDocId,
+      testId,
+      targetExam,
+      score: Math.round(evalResult.finalScore),
+      rawScore: evalResult.rawScore,
+      maxScore: Math.round(evalResult.maxScore),
+      percentile: evalResult.percentile,
+      accuracy: evalResult.accuracyPercent,
+      correctCount: evalResult.correctCount,
+      incorrectCount: evalResult.wrongCount,
+      skippedCount: evalResult.unansweredCount,
+      positiveMarksEarned: evalResult.positiveMarksEarned,
+      negativeMarksPenalty: evalResult.negativeMarksPenalty,
       isFirstAttempt,
       countsTowardRanking,
     };

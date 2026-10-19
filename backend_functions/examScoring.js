@@ -1,0 +1,249 @@
+/**
+ * Authoritative Server-Side Exam Scoring Engine
+ * Strictly mirrors UniversalExamRegistry.kt and ExamScoringEngine.kt.
+ */
+
+const VALID_ANSWER_OPTIONS = new Set(["A", "B", "C", "D", "E", "1", "2", "3", "4", "5"]);
+
+function isAnswerKeyVerified(key) {
+  if (!key) return false;
+  const clean = String(key).trim().toUpperCase();
+  if (clean.length === 0) return false;
+  if (VALID_ANSWER_OPTIONS.has(clean) || !isNaN(Number(clean))) return true;
+  if (clean.includes(",")) {
+    const parts = clean.split(",").map(p => p.trim());
+    if (parts.length > 0 && parts.every(p => VALID_ANSWER_OPTIONS.has(p) || !isNaN(Number(p)))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
+  if (!ans1 || !ans2) return false;
+  const a = String(ans1).trim().toUpperCase();
+  const b = String(ans2).trim().toUpperCase();
+  if (a === b) return true;
+
+  if (!isNumerical) {
+    const mapIndex = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
+    if (mapIndex[a] === b || mapIndex[b] === a) return true;
+  }
+
+  const num1 = parseFloat(a);
+  const num2 = parseFloat(b);
+  if (!isNaN(num1) && !isNaN(num2)) {
+    return Math.abs(num1 - num2) < 0.0001;
+  }
+  return false;
+}
+
+function isUserAnswerCorrect(userAns, correctAns, isNumerical = false) {
+  if (!userAns || !correctAns) return false;
+  const u = String(userAns).trim().toUpperCase();
+  const c = String(correctAns).trim().toUpperCase();
+  if (u.length === 0 || c.length === 0) return false;
+  if (areOptionsEquivalent(u, c, isNumerical)) return true;
+
+  if (c.includes(",")) {
+    const acceptedKeys = c.split(",").map(k => k.trim());
+    const userParts = u.split(",").map(k => k.trim()).sort();
+    const correctParts = acceptedKeys.slice().sort();
+
+    if (userParts.join(",") === correctParts.join(",")) return true;
+    if (acceptedKeys.some(k => areOptionsEquivalent(u, k, isNumerical))) return true;
+  }
+  return false;
+}
+
+function getMarkingSchemeForExam(examName) {
+  const name = String(examName || "").trim().toLowerCase();
+  if (name.includes("neet")) return { pos: 4.0, neg: 1.0 };
+  if (name.includes("jee main") || name === "jee_main" || name === "jee") return { pos: 4.0, neg: 1.0 };
+  if (name.includes("jee adv") || name === "jee_advanced") return { pos: 4.0, neg: 2.0 };
+  if (name.includes("cuet")) return { pos: 5.0, neg: 1.0 };
+  if (name.includes("upsc") || name.includes("civil services")) return { pos: 2.0, neg: 0.66 };
+  if (name.includes("cgl") || name.includes("ssc_cgl")) return { pos: 2.0, neg: 0.50 };
+  if (name.includes("chsl") || name.includes("ssc_chsl")) return { pos: 2.0, neg: 0.50 };
+  if (name.includes("mts") || name.includes("ssc_mts")) return { pos: 3.0, neg: 1.0 };
+  if (name.includes("gate")) return { pos: 1.0, neg: 0.33 };
+  if (name.includes("nda")) return { pos: 4.0, neg: 1.33 };
+  if (name.includes("cds")) return { pos: 1.0, neg: 0.33 };
+  if (name.includes("cat")) return { pos: 3.0, neg: 1.0 };
+  if (name.includes("ctet") || name.includes("uptet")) return { pos: 1.0, neg: 0.0 };
+  if (name.includes("rrb") || name.includes("ntpc")) return { pos: 1.0, neg: 0.33 };
+  return { pos: 4.0, neg: 1.0 };
+}
+
+function getMarkingSchemeForQuestion(examName, sectionIdOrName = "", subjectName = "", questionType = "") {
+  const name = String(examName || "").trim().toLowerCase();
+  const sec = String(sectionIdOrName || "").trim().toLowerCase();
+  const sub = String(subjectName || "").trim().toLowerCase();
+  const type = String(questionType || "").trim().toUpperCase();
+
+  // JEE Advanced
+  if (name.includes("jee adv") || name === "jee_advanced") {
+    const isMulti = sec.includes("multi") || type === "MCQ_MULTIPLE" || type === "MULTIPLE";
+    const isNum = sec.includes("num") || sec.includes("nvq") || type === "NUMERICAL" || type === "NUMERICAL_VALUE" || type === "TITA";
+    const isSingle = sec.includes("single") || type === "MCQ_SINGLE" || type === "MCQ";
+    if (isMulti) return { pos: 4.0, neg: 2.0 };
+    if (isNum) return { pos: 3.0, neg: 0.0 };
+    if (isSingle) return { pos: 3.0, neg: 1.0 };
+  }
+
+  // NDA
+  if (name.includes("nda")) {
+    const isMath = sec.includes("math") || sub.includes("math");
+    const isGat = sec.includes("gat") || sec.includes("eng") || sec.includes("gk") || sub.includes("gat") || sub.includes("eng") || sub.includes("gk") || sub.includes("science");
+    if (isMath && !isGat) return { pos: 2.5, neg: 0.83 };
+    if (isGat) return { pos: 4.0, neg: 1.33 };
+  }
+
+  // CDS
+  if (name.includes("cds")) {
+    const isMath = sec.includes("math") || sub.includes("math");
+    if (isMath) return { pos: 1.0, neg: 0.33 };
+    return { pos: 0.83, neg: 0.27 };
+  }
+
+  // GATE
+  if (name.includes("gate")) {
+    const is2Mark = sec.includes("2m") || sec.includes("2-mark") || sec.includes("2_mark") || sec.includes("2 mark") || sub.includes("2m");
+    const isTechOrNum = sec.includes("tech") || type === "NUMERICAL_VALUE" || type === "NUMERICAL" || type === "TITA" || sub.includes("tech") || sub.includes("engineering");
+    if (isTechOrNum) {
+      return is2Mark ? { pos: 2.0, neg: 0.0 } : { pos: 1.0, neg: 0.0 };
+    } else {
+      return is2Mark ? { pos: 2.0, neg: 0.66 } : { pos: 1.0, neg: 0.33 };
+    }
+  }
+
+  // SSC MTS
+  if (name.includes("mts") || name.includes("ssc_mts")) {
+    const isSession1 = sec.includes("session_1") || sec.includes("math") || sec.includes("reason") || sub.includes("session_1") || sub.includes("math") || sub.includes("reason");
+    const isSession2 = sec.includes("session_2") || sec.includes("ga") || sec.includes("eng") || sub.includes("session_2") || sub.includes("awareness") || sub.includes("english");
+    if (isSession2 && !isSession1) return { pos: 3.0, neg: 1.0 };
+    if (isSession1) return { pos: 3.0, neg: 0.0 };
+  }
+
+  return getMarkingSchemeForExam(examName);
+}
+
+function hasMultipleMarkingSchemes(examName) {
+  const name = String(examName || "").trim().toLowerCase();
+  return name.includes("nda") || name.includes("cds") || name.includes("gate") || name.includes("mts") || name.includes("jee adv") || name === "jee_advanced";
+}
+
+function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, subjectName = "") {
+  const name = String(examName || "").trim().toLowerCase();
+  const sec = String(sectionNameOrId || "").trim().toLowerCase();
+
+  if (sec === "section_b" || sec.includes("section b") || sec.includes("sec_b")) {
+    if (name.includes("neet")) return 10;
+    if (name.includes("jee")) return 5;
+  }
+  return null;
+}
+
+/**
+ * Authoritative Evaluation of Test Attempt
+ */
+function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0) {
+  const exam = String(targetExam || "NEET");
+  const baseScheme = getMarkingSchemeForExam(exam);
+  const isMultiScheme = hasMultipleMarkingSchemes(exam);
+  const isCat = exam.toLowerCase().includes("cat");
+
+  let correctCount = 0;
+  let wrongCount = 0;
+  let unansweredCount = 0;
+
+  let positiveMarksEarned = 0.0;
+  let negativeMarksPenalty = 0.0;
+  let maxPossible = 0.0;
+
+  const sectionAttemptCounts = {};
+
+  for (const q of questions) {
+    const qId = q.id;
+    const rawUserOpt = userAnswers[qId] ? (typeof userAnswers[qId] === "object" ? userAnswers[qId].ans : userAnswers[qId]) : null;
+    const userOpt = rawUserOpt ? String(rawUserOpt).trim().toUpperCase() : "";
+    const correctOpt = q.correctAnswer ? String(q.correctAnswer).trim().toUpperCase() : "";
+    const isKeyVerified = isAnswerKeyVerified(correctOpt);
+
+    const scheme = isMultiScheme
+      ? getMarkingSchemeForQuestion(exam, q.section, q.subject, q.questionType)
+      : baseScheme;
+
+    maxPossible += scheme.pos;
+
+    const isTitaOrNumerical = (q.questionType || "").toUpperCase() === "TITA" ||
+      (q.questionType || "").toUpperCase() === "NUMERICAL" ||
+      (q.questionType || "").toUpperCase() === "NUMERICAL_VALUE";
+
+    const effectiveNegMark = (isCat && isTitaOrNumerical) ? 0.0 : scheme.neg;
+
+    if (!userOpt || userOpt === "SKIPPED") {
+      unansweredCount++;
+    } else {
+      const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
+      const secLimit = getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
+      const currentAttempts = sectionAttemptCounts[secKey] || 0;
+
+      if (secLimit !== null && currentAttempts >= secLimit) {
+        // Surplus question beyond section limit - ignored per exam rules
+        unansweredCount++;
+      } else {
+        if (secLimit !== null) {
+          sectionAttemptCounts[secKey] = currentAttempts + 1;
+        }
+
+        if (!isKeyVerified) {
+          // Unverified answer key: 0 marks and no penalty
+        } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
+          correctCount++;
+          positiveMarksEarned += scheme.pos;
+        } else {
+          wrongCount++;
+          negativeMarksPenalty += effectiveNegMark;
+        }
+      }
+    }
+  }
+
+  // Round maxPossible and calculate final scores
+  const rawScore = positiveMarksEarned - negativeMarksPenalty;
+  const finalScore = Math.max(0.0, rawScore);
+  const attemptedCount = correctCount + wrongCount;
+  const accuracyPercent = attemptedCount > 0 ? Math.round((correctCount / attemptedCount) * 10000) / 100 : 0.0;
+  const percentile = Math.min(99.99, Math.max(0.0, 80.0 + (correctCount / Math.max(1, questions.length)) * 19.5));
+
+  return {
+    totalQuestions: questions.length,
+    attemptedCount,
+    correctCount,
+    wrongCount,
+    unansweredCount,
+    positiveMarksEarned: Math.round(positiveMarksEarned * 100) / 100,
+    negativeMarksPenalty: Math.round(negativeMarksPenalty * 100) / 100,
+    rawScore: Math.round(rawScore * 100) / 100,
+    finalScore: Math.round(finalScore * 100) / 100,
+    maxScore: Math.round(maxPossible * 100) / 100,
+    accuracyPercent,
+    percentile: Math.round(percentile * 100) / 100,
+    timeSpentSeconds,
+    correctMarksPerQuestion: baseScheme.pos,
+    negativeMarksPerQuestion: baseScheme.neg,
+  };
+}
+
+module.exports = {
+  VALID_ANSWER_OPTIONS,
+  isAnswerKeyVerified,
+  areOptionsEquivalent,
+  isUserAnswerCorrect,
+  getMarkingSchemeForExam,
+  getMarkingSchemeForQuestion,
+  hasMultipleMarkingSchemes,
+  getMaximumAttemptQuestionsCountForSection,
+  evaluateTestAttempt,
+};
