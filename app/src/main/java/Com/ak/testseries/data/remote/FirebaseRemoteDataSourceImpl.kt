@@ -14,7 +14,7 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
 
     private val firestore: FirebaseFirestore? by lazy {
         try {
-            FirebaseFirestore.getInstance()
+            FirestoreHelper.getInstance()
         } catch (e: Exception) {
             null
         }

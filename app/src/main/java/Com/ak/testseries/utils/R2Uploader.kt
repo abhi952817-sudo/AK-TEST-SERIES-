@@ -31,7 +31,7 @@ object R2Uploader {
 
         private val firestore: FirebaseFirestore? by lazy {
         try {
-            FirebaseFirestore.getInstance()
+            Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         } catch (e: Exception) {
             null
         }

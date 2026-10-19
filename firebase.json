@@ -1,8 +1,11 @@
 {
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
+  "firestore": [
+    {
+      "database": "ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    }
+  ],
   "emulators": {
     "firestore": {
       "host": "127.0.0.1",

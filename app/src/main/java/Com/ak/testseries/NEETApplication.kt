@@ -14,22 +14,27 @@ class NEETApplication : Application() {
 
         // 1. Initialize Firebase and configure Crashlytics stability monitoring
         try {
-            FirebaseApp.initializeApp(this)
-
-            val crashlytics = FirebaseCrashlytics.getInstance()
-            crashlytics.setCrashlyticsCollectionEnabled(true)
-            crashlytics.setCustomKey("app_version", BuildConfig.VERSION_NAME)
-            crashlytics.setCustomKey("build_type", BuildConfig.BUILD_TYPE)
-            crashlytics.log("NEETApplication: Crashlytics initialized successfully")
-        } catch (e: Exception) {
-            Log.e("NEETApplication", "Failed to initialize Firebase or Crashlytics", e)
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                FirebaseApp.initializeApp(this)
+            }
+            try {
+                val crashlytics = FirebaseCrashlytics.getInstance()
+                crashlytics.setCrashlyticsCollectionEnabled(true)
+                crashlytics.setCustomKey("app_version", BuildConfig.VERSION_NAME)
+                crashlytics.setCustomKey("build_type", BuildConfig.BUILD_TYPE)
+                crashlytics.log("NEETApplication: Crashlytics initialized successfully")
+            } catch (e: Throwable) {
+                Log.w("NEETApplication", "Crashlytics setup skipped: ${e.message}")
+            }
+        } catch (e: Throwable) {
+            Log.e("NEETApplication", "Failed to initialize Firebase", e)
         }
 
         // 2. Uncaught exception handler: log to Crashlytics before showing fallback recovery screen
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
                 FirebaseCrashlytics.getInstance().recordException(throwable)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e("NEETApplication", "Error recording fatal crash to Crashlytics", e)
             }
 
@@ -54,7 +59,7 @@ class NEETApplication : Application() {
                     crashlytics.log(message)
                 }
                 crashlytics.recordException(throwable)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e("NEETApplication", "Failed to report non-fatal to Crashlytics: ${message ?: throwable.message}", throwable)
             }
         }
@@ -65,7 +70,7 @@ class NEETApplication : Application() {
         fun log(message: String) {
             try {
                 FirebaseCrashlytics.getInstance().log(message)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.d("NEETApplication", message)
             }
         }
@@ -76,7 +81,7 @@ class NEETApplication : Application() {
         fun setCustomKey(key: String, value: String) {
             try {
                 FirebaseCrashlytics.getInstance().setCustomKey(key, value)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.d("NEETApplication", "Failed to set custom key $key: $value")
             }
         }

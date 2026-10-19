@@ -79,7 +79,7 @@ class SuperAdminViewModel : ViewModel() {
             addLog("System", "Dashboard initialized. Starting system diagnostics...", false)
 
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
                 
                 // Fetch Users Count
                 var usersCount = 0

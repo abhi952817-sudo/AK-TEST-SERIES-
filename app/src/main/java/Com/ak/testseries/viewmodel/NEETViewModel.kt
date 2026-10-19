@@ -92,6 +92,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val repository = DatabaseRepository(db)
     private val testRepository = Com.ak.testseries.data.repository.TestRepositoryImpl(repository)
+    private val firestoreDb: com.google.firebase.firestore.FirebaseFirestore
+        get() = Com.ak.testseries.data.remote.FirestoreHelper.getInstance(getApplication())
 
     private var _isAdminOverride: Boolean? = null
     val isAdminFlow = MutableStateFlow(false)
@@ -103,7 +105,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
         
     fun checkAdminCustomClaim() {
-        val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        val user = try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        } catch (e: Exception) {
+            null
+        }
         if (user != null) {
             val isOwnerEmail = user.email?.equals("abhi952817@gmail.com", ignoreCase = true) == true
             if (isOwnerEmail) {
@@ -200,7 +206,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 if (!isInitial) isLoadingMoreAdminUsers = true
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 var query = db.collection("Users_Data")
                     .orderBy("email")
                     .limit(20)
@@ -245,7 +251,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleUserBan(userId: String, isBanned: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 db.collection("Users_Data").document(userId).update("isBanned", isBanned).await()
                 _adminUsers.value = _adminUsers.value.map {
                     if (it.id == userId) it.copy(isBanned = isBanned) else it
@@ -263,7 +269,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
                 val user = auth.currentUser
                 if (user != null) {
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val userRef = db.collection("Users_Data").document(user.uid)
                     val snapshot = userRef.get().await()
                     if (snapshot.exists()) {
@@ -341,7 +347,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         leaderboardExamFilter.value = targetExam
         leaderboardListener?.remove()
         try {
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = firestoreDb
             
             leaderboardListener = db.collection("Leaderboard")
                 .whereEqualTo("targetExam", targetExam)
@@ -389,7 +395,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun fetchLeaderboardFallback(targetExam: String) {
         try {
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = firestoreDb
             db.collection("Leaderboard")
                 .whereEqualTo("targetExam", targetExam)
                 .limit(20)
@@ -449,7 +455,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun listenToAdminSettings() {
         adminSettingsListener?.remove()
         try {
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = firestoreDb
             adminSettingsListener = db.collection("Config").document("admin_settings")
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
@@ -483,7 +489,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         _isOfflineMockFallbackEnabled.value = enabled
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val data = hashMapOf<String, Any>("offlineMockFallbackEnabled" to enabled)
                 db.collection("Config").document("admin_settings")
                     .set(data, com.google.firebase.firestore.SetOptions.merge())
@@ -515,7 +521,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         _dailyUploadLimitUsed.value = _dailyGenerationsCount.value >= limit
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val data = hashMapOf<String, Any>("dailyFreeTestLimit" to limit)
                 db.collection("Config").document("admin_settings")
                     .set(data, com.google.firebase.firestore.SetOptions.merge())
@@ -542,7 +548,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         _isGlobalAiEnabled.value = enabled
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val data = hashMapOf<String, Any>("globalAiEnabled" to enabled)
                 db.collection("Config").document("admin_settings")
                     .set(data, com.google.firebase.firestore.SetOptions.merge())
@@ -563,7 +569,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun setMasterPrivateCommunityTests(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val data = hashMapOf<String, Any>("masterPrivateCommunityTests" to enabled)
                 db.collection("Config").document("admin_settings")
                     .set(data, com.google.firebase.firestore.SetOptions.merge())
@@ -718,7 +724,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
                 val user = auth.currentUser
                 if (user != null) {
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val userRef = db.collection("Users_Data").document(user.uid)
                     val userData = hashMapOf(
                         "name" to name,
@@ -764,7 +770,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         liveTestListener?.remove()
         liveTestCountListener?.remove()
         
-        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        val db = firestoreDb
         liveTestListener = db.collection("LiveTests").document(testId).collection("Participants")
             .orderBy("joinedAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(5)
@@ -790,7 +796,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
         val user = auth.currentUser
         if (user != null) {
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = firestoreDb
             val participantData = hashMapOf(
                 "uid" to user.uid,
                 "profileImageUri" to _userProfile.value.profileImageUri,
@@ -804,7 +810,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun addNotification(title: String, message: String, imageUrl: String? = null, linkUrl: String? = null, targetGroup: String = "All", targetEmail: String? = null, isPinned: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val notifData = hashMapOf<String, Any>(
                     "title" to title,
                     "message" to message,
@@ -825,7 +831,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun updateNotification(id: String, title: String, message: String, imageUrl: String? = null, linkUrl: String? = null, targetGroup: String = "All", targetEmail: String? = null, isPinned: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val notifData = hashMapOf<String, Any>(
                     "title" to title,
                     "message" to message,
@@ -845,7 +851,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteNotification(id: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 db.collection("UserNotifications").document(id).delete().await()
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -856,7 +862,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun listenToUserNotifications() {
         notificationsListener?.remove()
         try {
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = firestoreDb
             notificationsListener = db.collection("UserNotifications")
                 .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(50)
@@ -1084,7 +1090,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val testId = "live_" + System.currentTimeMillis()
 
                 val questions = mutableListOf<QuestionEntity>()
@@ -1524,7 +1530,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 if (!isInitial) isLoadingMoreAllUsers = true
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 var query = db.collection("Users_Data")
                     .orderBy("email")
                     .limit(20)
@@ -1598,7 +1604,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 
                 // Delete from Firebase Firestore across all collections
                 try {
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     db.collection("Tests").document(test.id).delete()
                     db.collection("Tests_Data").document(test.id).delete()
                     db.collection("LiveTests").document(test.id).delete()
@@ -1909,7 +1915,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "questionsJson" to sanitizedQuestionsJson
                 )
 
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
 
                 // Create or update canonical copy: Shared_Community_Tests/{testId}
                 // CRITICAL: Original local test remains isPublic = false and untouched!
@@ -2097,7 +2103,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 
                 // Save report to Firestore Question_Reports with deterministic idempotency key
                 try {
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val uid = currentUserId.value.ifBlank { "anonymous" }
                     val reportDocId = "report_${testId}_${category.replace(" ", "_")}_${uid}"
                     val reportMap = hashMapOf<String, Any>(
@@ -2502,7 +2508,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val tTitle = if (testTitle.isNotBlank()) testTitle else (_activeTest.value?.title ?: "Test")
                     val reportDocId = "report_${tCleanId}_${qCleanId}_${uid}"
 
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val reportMap = hashMapOf<String, Any>(
                         "reportId" to reportDocId,
                         "testId" to tCleanId,
@@ -2533,7 +2539,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchQuestionReports() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val snapshot = db.collection("Question_Reports")
                     .orderBy("updatedAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
                     .limit(50)
@@ -2571,7 +2577,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun updateQuestionReportStatus(reportId: String, newStatus: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 db.collection("Question_Reports").document(reportId)
                     .update("status", newStatus, "updatedAt", System.currentTimeMillis()).await()
                 fetchQuestionReports()
@@ -2839,7 +2845,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // 2. Firebase lookup:
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = firestoreDb
             var testAndQuestions: Pair<TestEntity, List<QuestionEntity>>? = null
 
             var lastNetworkException: Exception? = null
@@ -3265,7 +3271,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
                 val user = auth.currentUser
                 if (user != null) {
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val bookmarkRef = db.collection("Users_Data").document(user.uid)
                         .collection("Bookmarked_Tests").document(test.id)
                     if (newStatus) {
@@ -3292,7 +3298,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
                 val user = auth.currentUser
                 if (user != null) {
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val bookmarkRef = db.collection("Users_Data").document(user.uid)
                         .collection("Bookmarked_Questions").document(question.id)
                     if (newStatus) {
@@ -3760,7 +3766,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
             val user = auth.currentUser ?: return@launch
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val attempts = repository.allAttempts.firstOrNull() ?: emptyList()
                 val tests = repository.allTests.firstOrNull() ?: emptyList()
                 val q = repository.getBookmarkedQuestions().firstOrNull() ?: emptyList()
@@ -3793,7 +3799,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun submitTestFeedback(testId: String, testTitle: String, rating: Int, selectedShortcuts: List<String>, customComments: String) {
         viewModelScope.launch {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val feedbackMap = hashMapOf(
                     "testId" to testId,
                     "testTitle" to testTitle,
@@ -3885,7 +3891,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
                         val user = auth.currentUser
                         if (user != null) {
-                            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            val db = firestoreDb
                             val userRef = db.collection("Users_Data").document(user.uid)
                             
                             // Check if user has previously attempted this test
@@ -4883,7 +4889,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 repository.updateTest(newTest.copy(questionsJson = sanitizedQuestionsJson))
             }
 
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = firestoreDb
             val testData = hashMapOf(
                 "id" to newTest.id,
                 "title" to newTest.title,
@@ -5060,7 +5066,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
             if (isLiveTest) {
                 try {
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val liveTestData = hashMapOf(
                         "id" to testId,
                         "title" to genTestName.value,
@@ -5811,7 +5817,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
                 val user = auth.currentUser
                 if (user != null) {
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val attemptsSnapshot = db.collection("Users_Data").document(user.uid).collection("Attempts").get().await()
                     
                     val existingAttempts = repository.allAttempts.firstOrNull()?.map { "${it.testId}_${it.dateTaken}" }?.toSet() ?: emptySet()
@@ -5883,7 +5889,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     repository.updateTest(updatedTest)
                     
                     // Update in Firestore
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val updates = hashMapOf<String, Any>("isPublic" to isPublic)
                     if (isPublic) {
                         updates["status"] = "Published"
@@ -5918,7 +5924,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     repository.updateTest(updatedTest)
                     
                     // Update in Firestore
-                    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val db = firestoreDb
                     val updates = hashMapOf<String, Any>(
                         "status" to "Published",
                         "isPublic" to true,
@@ -5964,7 +5970,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val db = firestoreDb
                 val allBundled = Com.ak.testseries.exam.BundledExamCatalog.getAllBundledTests()
                 for ((test, questions) in allBundled) {
                     // 1. Ensure saved locally
@@ -6145,7 +6151,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         if (sanitizedQuestionsJson != qJsonArray.toString()) {
                             repository.updateTest(finalTestEntity.copy(questionsJson = sanitizedQuestionsJson))
                         }
-                        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                        val db = firestoreDb
                         val firestoreMap = hashMapOf(
                             "id" to testId,
                             "title" to finalTestEntity.title,
