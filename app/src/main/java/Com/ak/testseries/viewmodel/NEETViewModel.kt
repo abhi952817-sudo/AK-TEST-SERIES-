@@ -5926,6 +5926,65 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val user = auth.currentUser
                 if (user != null) {
                     val db = firestoreDb
+                    
+                    // 1. Flush pending offline or unconfirmed attempts to server via Cloud Function
+                    val pendingLocalAttempts = repository.getPendingAttemptsForUser(user.uid)
+                    if (pendingLocalAttempts.isNotEmpty()) {
+                        val functions = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                        val callable = functions.getHttpsCallable("submitTestAttemptServerSide")
+                        
+                        for (localAttempt in pendingLocalAttempts) {
+                            try {
+                                val sessionToken = localAttempt.attemptSessionToken.ifBlank { "att_${user.uid}_${localAttempt.testId}_${localAttempt.dateTaken}" }
+                                
+                                // Parse answersJson to map if possible
+                                val answersMap = mutableMapOf<String, Any>()
+                                try {
+                                    val jsonObj = org.json.JSONObject(localAttempt.answersJson)
+                                    val keys = jsonObj.keys()
+                                    while (keys.hasNext()) {
+                                        val key = keys.next()
+                                        val valObj = jsonObj.get(key)
+                                        answersMap[key] = valObj
+                                    }
+                                } catch (e: Exception) {
+                                    // Fallback
+                                }
+
+                                val payload = hashMapOf<String, Any>(
+                                    "testId" to localAttempt.testId,
+                                    "answers" to answersMap,
+                                    "timeSpentSeconds" to localAttempt.timeSpentSeconds,
+                                    "clientTimestamp" to localAttempt.dateTaken,
+                                    "attemptSessionToken" to sessionToken
+                                )
+
+                                val callResult = callable.call(payload).await()
+                                val resultMap = callResult.data as? Map<*, *>
+                                if (resultMap != null && (resultMap["success"] == true || resultMap["verifiedServerSide"] == true)) {
+                                    val serverScore = (resultMap["score"] as? Number)?.toInt() ?: localAttempt.score
+                                    val serverMaxScore = (resultMap["maxScore"] as? Number)?.toInt() ?: localAttempt.maxScore
+                                    val serverPercentile = (resultMap["percentile"] as? Number)?.toDouble() ?: 0.0
+                                    val serverAccuracy = (resultMap["accuracy"] as? Number)?.toDouble() ?: localAttempt.accuracy
+
+                                    val confirmedAttempt = localAttempt.copy(
+                                        score = serverScore,
+                                        maxScore = serverMaxScore,
+                                        percentile = serverPercentile,
+                                        accuracy = serverAccuracy,
+                                        verifiedServerSide = true,
+                                        submissionStatus = "CONFIRMED"
+                                    )
+                                    repository.insertAttempt(confirmedAttempt)
+                                }
+                            } catch (syncEx: Exception) {
+                                // Keep pending if offline or network fails
+                                android.util.Log.e("NEETViewModel", "Failed to sync pending attempt ${localAttempt.testId}: ${syncEx.message}")
+                            }
+                        }
+                    }
+
+                    // 2. Fetch cloud attempts and mirror to local Room cache
                     val attemptsSnapshot = db.collection("Users_Data").document(user.uid).collection("Attempts").get().await()
                     
                     val existingAttempts = repository.allAttempts.firstOrNull()?.map { "${it.testId}_${it.dateTaken}" }?.toSet() ?: emptySet()
@@ -5949,7 +6008,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 skippedCount = doc.getLong("skippedCount")?.toInt() ?: 0,
                                 timeSpentSeconds = doc.getLong("timeSpentSeconds") ?: 0L,
                                 dateTaken = dateTaken,
-                                answersJson = doc.getString("answersJson") ?: "{}"
+                                answersJson = doc.getString("answersJson") ?: "{}",
+                                attemptSessionToken = doc.getString("attemptSessionToken") ?: "",
+                                verifiedServerSide = doc.getBoolean("verifiedServerSide") ?: true,
+                                submissionStatus = "CONFIRMED"
                             )
                             repository.insertAttempt(attempt)
                         }

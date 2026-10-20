@@ -11,20 +11,46 @@ service firebase.storage {
     }
 
     // Question diagram images and charts
+    // Read: Public for exam rendering
+    // Create: Authenticated users can upload diagrams (< 10MB, image content type)
+    // Update/Delete: Admins only (prevents unauthorized overwrites)
     match /tests/{testId}/questions/{fileName} {
       allow read: if true;
-      allow write: if isAuthenticated() && request.resource.size < 15 * 1024 * 1024;
+      allow create: if isAuthenticated() 
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+      allow update, delete: if isAdmin();
     }
 
     match /chart_images/{fileName} {
       allow read: if true;
-      allow write: if isAuthenticated() && request.resource.size < 15 * 1024 * 1024;
+      allow create: if isAuthenticated() 
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+      allow update, delete: if isAdmin();
     }
 
-    // Live Test PDFs: Only Admins can upload or overwrite test PDFs
+    match /question_images/{fileName} {
+      allow read: if true;
+      allow create: if isAuthenticated() 
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+      allow update, delete: if isAdmin();
+    }
+
+    // Live Test PDFs: Only verified Admins can upload or overwrite test PDFs
     match /LiveTests/{fileName} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() && request.resource.size < 50 * 1024 * 1024;
+      allow write: if isAdmin() 
+                    && request.resource.size < 50 * 1024 * 1024
+                    && request.resource.contentType == 'application/pdf';
+    }
+
+    match /pdfs/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() 
+                    && request.resource.size < 50 * 1024 * 1024
+                    && request.resource.contentType == 'application/pdf';
     }
 
     // Default deny for unclassified paths

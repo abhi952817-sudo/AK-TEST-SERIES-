@@ -93,6 +93,9 @@ interface AttemptDao {
     @Query("SELECT * FROM attempts WHERE userId = :userId AND attemptSessionToken = :sessionToken LIMIT 1")
     suspend fun getAttemptBySessionToken(userId: String, sessionToken: String): AttemptEntity?
 
+    @Query("SELECT * FROM attempts WHERE userId = :userId AND submissionStatus != 'CONFIRMED' ORDER BY dateTaken DESC")
+    suspend fun getPendingAttemptsForUser(userId: String): List<AttemptEntity>
+
     @Query("DELETE FROM attempts WHERE userId = :userId")
     suspend fun clearAttemptsForUser(userId: String)
 

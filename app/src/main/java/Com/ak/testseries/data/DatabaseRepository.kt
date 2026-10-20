@@ -158,6 +158,11 @@ class DatabaseRepository(private val db: AppDatabase) {
         return db.attemptDao().getAttemptBySessionToken(userId, sessionToken)
     }
 
+    suspend fun getPendingAttemptsForUser(userId: String): List<AttemptEntity> {
+        if (userId.isBlank()) return emptyList()
+        return db.attemptDao().getPendingAttemptsForUser(userId)
+    }
+
     suspend fun insertAttempt(attempt: AttemptEntity) {
         if (attempt.attemptSessionToken.isNotBlank()) {
             val existing = db.attemptDao().getAttemptBySessionToken(attempt.userId, attempt.attemptSessionToken)

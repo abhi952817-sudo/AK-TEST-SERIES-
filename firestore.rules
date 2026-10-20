@@ -213,6 +213,11 @@ service cloud.firestore {
       }
     }
 
+    // Server-protected answer keys: admin/server only
+    match /TestAnswerKeys/{testId} {
+      allow read, write: if isAdmin();
+    }
+
     // =========================================================================
     // LIVE TESTS & SCHEDULING
     // Read: Authenticated students
