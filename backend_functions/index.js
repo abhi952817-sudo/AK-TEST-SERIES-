@@ -159,30 +159,48 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     privateKeyDoc = await db.collection("TestAnswerKeys").doc(cleanTestId).get();
   }
 
+  const keyMap = new Map();
   if (privateKeyDoc.exists) {
     const keyData = privateKeyDoc.data() || {};
     const keyList = keyData.questions || keyData.keys || [];
-    const keyMap = new Map();
     for (const item of keyList) {
       if (item && item.id) {
         keyMap.set(String(item.id), item);
       }
     }
-
-    // Merge authoritative grading key and explanation into question models for scoring
-    questions = questions.map(q => {
-      const qId = String(q.id);
-      if (keyMap.has(qId)) {
-        const trusted = keyMap.get(qId);
-        return {
-          ...q,
-          correctAnswer: trusted.correctAnswer || q.correctAnswer || "",
-          explanation: trusted.explanation || q.explanation || ""
-        };
-      }
-      return q;
-    });
   }
+
+  if (countsTowardRanking && (!privateKeyDoc.exists || keyMap.size === 0)) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Official ranking-eligible test requires verified server-side answer keys. None found in private storage."
+    );
+  }
+
+  // Merge authoritative grading key and explanation into question models for scoring (Fail-closed)
+  questions = questions.map(q => {
+    const qId = String(q.id);
+    if (keyMap.has(qId)) {
+      const trusted = keyMap.get(qId);
+      return {
+        ...q,
+        correctAnswer: trusted.correctAnswer,
+        explanation: trusted.explanation || q.explanation || ""
+      };
+    } else {
+      if (countsTowardRanking) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          `Official ranking-eligible test is missing trusted grading key for question ID: ${qId}`
+        );
+      }
+      return {
+        ...q,
+        correctAnswer: q.correctAnswer || "",
+        explanation: q.explanation || ""
+      };
+    }
+  });
 
   if (questions.length === 0) {
     throw new functions.https.HttpsError(
@@ -246,9 +264,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       testTotalCandidates = Math.max(1, existingCount + 1);
       attemptPercentile = calculatePopulationPercentile(testRank, testTotalCandidates);
     } catch (e) {
-      testRank = 1;
-      testTotalCandidates = 1;
-      attemptPercentile = 100.0;
+      testRank = 0;
+      testTotalCandidates = 0;
+      attemptPercentile = 0.0;
     }
   }
 
@@ -330,23 +348,25 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     // Award ranking points only on FIRST valid attempt on QUALIFYING OFFICIAL tests
     const examScoreKey = `cumulativeScore_${canonicalExam}`;
+    const examQCountKey = `qualifyingTestsCount_${canonicalExam}`;
     const currentExamScore = userData[examScoreKey] || 0;
+    const currentExamQCount = userData[examQCountKey] || 0;
     const currentTotalScore = userData.totalCumulativeScore || 0;
     let newExamScore = currentExamScore;
 
     if (isFirstAttempt && countsTowardRanking) {
-      const currentQCount = userData.qualifyingTestsCount || 0;
       newExamScore = currentExamScore + Math.round(evalResult.finalScore);
-      updates.qualifyingTestsCount = currentQCount + 1;
+      updates[examQCountKey] = currentExamQCount + 1;
+      updates.qualifyingTestsCount = (userData.qualifyingTestsCount || 0) + 1;
       updates[examScoreKey] = newExamScore;
       updates.totalCumulativeScore = currentTotalScore + Math.round(evalResult.finalScore);
     }
 
     transaction.update(userRef, updates);
 
-    const qualifyingTests = updates.qualifyingTestsCount !== undefined
-      ? updates.qualifyingTestsCount
-      : (userData.qualifyingTestsCount || 0);
+    const qualifyingTests = updates[examQCountKey] !== undefined
+      ? updates[examQCountKey]
+      : currentExamQCount;
 
     const isEligible = qualifyingTests >= 2;
     const competitiveScore = updates[examScoreKey] !== undefined ? updates[examScoreKey] : currentExamScore;
@@ -484,7 +504,8 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   }
 
   const userData = userDoc.data();
-  const qualifyingCount = userData.qualifyingTestsCount || 0;
+  const examQCountKey = `qualifyingTestsCount_${canonicalExam}`;
+  const qualifyingCount = userData[examQCountKey] || userData.qualifyingTestsCount || 0;
   const examScoreKey = `cumulativeScore_${canonicalExam}`;
   const competitiveScore = userData[examScoreKey] || 0;
 
