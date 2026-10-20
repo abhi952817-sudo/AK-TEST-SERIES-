@@ -126,7 +126,7 @@ interface RecentSearchDao {
 
 @Database(
     entities = [TestEntity::class, QuestionEntity::class, AttemptEntity::class, SyllabusEntity::class, RecentSearchEntity::class],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -152,6 +152,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE attempts ADD COLUMN verifiedServerSide INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE attempts ADD COLUMN submissionStatus TEXT NOT NULL DEFAULT 'CONFIRMED'")
+            }
+        }
+
         fun getDatabase(context: android.content.Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -159,7 +166,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "neet_test_series_db"
                 )
-                .addMigrations(MIGRATION_15_16, MIGRATION_16_17)
+                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

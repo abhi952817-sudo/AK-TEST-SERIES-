@@ -7,6 +7,8 @@ const {
   getMarkingSchemeForExam,
   getMarkingSchemeForQuestion,
   evaluateTestAttempt,
+  calculatePopulationPercentile,
+  calculateScorePercentileFromCounts,
 } = require("./examScoring.js");
 
 test("Answer verification: standard options, numbers, and multiple keys", () => {
@@ -109,4 +111,46 @@ test("CAT TITA questions have zero negative penalty", () => {
   const result = evaluateTestAttempt("CAT", questions, answers, 100);
   assert.strictEqual(result.wrongCount, 2);
   assert.strictEqual(result.negativeMarksPenalty, 1.0);
+});
+
+test("Population Percentile: standard ranking formula and boundary cases", () => {
+  // Candidate Rank 1 out of 1
+  assert.strictEqual(calculatePopulationPercentile(1, 1), 100.0);
+
+  // Candidate Rank 1 out of 10
+  assert.strictEqual(calculatePopulationPercentile(1, 10), 100.0);
+
+  // Candidate Rank 2 out of 10: ((10 - 2 + 1) / 10) * 100 = 90.0%
+  assert.strictEqual(calculatePopulationPercentile(2, 10), 90.0);
+
+  // Candidate Rank 5 out of 10: ((10 - 5 + 1) / 10) * 100 = 60.0%
+  assert.strictEqual(calculatePopulationPercentile(5, 10), 60.0);
+
+  // Candidate Rank 10 out of 10: ((10 - 10 + 1) / 10) * 100 = 10.0%
+  assert.strictEqual(calculatePopulationPercentile(10, 10), 10.0);
+
+  // Boundary: Invalid or zero cohort
+  assert.strictEqual(calculatePopulationPercentile(1, 0), 0.0);
+  assert.strictEqual(calculatePopulationPercentile(0, 10), 0.0);
+  assert.strictEqual(calculatePopulationPercentile(-1, 10), 0.0);
+
+  // Rank exceeding cohort size gracefully clamped to lowest percentile bracket (1/N * 100)
+  assert.strictEqual(calculatePopulationPercentile(15, 10), 10.0);
+});
+
+test("Score Percentile From Counts: exact testing formula with ties", () => {
+  // Top score: 9 candidates below, 1 equal out of 10 total -> 100.0%
+  assert.strictEqual(calculateScorePercentileFromCounts(9, 1, 10), 100.0);
+
+  // Median score: 4 below, 1 equal out of 10 total -> 50.0%
+  assert.strictEqual(calculateScorePercentileFromCounts(4, 1, 10), 50.0);
+
+  // Ties: 3 below, 3 equal (tied with 2 others) out of 10 -> (3 + 3)/10 * 100 = 60.0%
+  assert.strictEqual(calculateScorePercentileFromCounts(3, 3, 10), 60.0);
+
+  // Lowest score: 0 below, 1 equal out of 10 -> 10.0%
+  assert.strictEqual(calculateScorePercentileFromCounts(0, 1, 10), 10.0);
+
+  // Zero candidates edge case
+  assert.strictEqual(calculateScorePercentileFromCounts(0, 0, 0), 0.0);
 });

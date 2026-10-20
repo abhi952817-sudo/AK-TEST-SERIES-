@@ -215,7 +215,6 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   const finalScore = Math.max(0.0, rawScore);
   const attemptedCount = correctCount + wrongCount;
   const accuracyPercent = attemptedCount > 0 ? Math.round((correctCount / attemptedCount) * 10000) / 100 : 0.0;
-  const percentile = Math.min(99.99, Math.max(0.0, 80.0 + (correctCount / Math.max(1, questions.length)) * 19.5));
 
   return {
     totalQuestions: questions.length,
@@ -229,11 +228,43 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     finalScore: Math.round(finalScore * 100) / 100,
     maxScore: Math.round(maxPossible * 100) / 100,
     accuracyPercent,
-    percentile: Math.round(percentile * 100) / 100,
+    percentile: 0.0, // Population-based percentile computed against candidate cohort
     timeSpentSeconds,
     correctMarksPerQuestion: baseScheme.pos,
     negativeMarksPerQuestion: baseScheme.neg,
   };
+}
+
+/**
+ * Calculates genuine population-based percentile rank:
+ * P = ((totalEligible - rank + 1) / totalEligible) * 100
+ * Handles all boundary conditions deterministically.
+ */
+function calculatePopulationPercentile(rank, totalEligible) {
+  const n = Number(totalEligible);
+  const r = Number(rank);
+  if (isNaN(n) || n <= 0) return 0.0;
+  if (isNaN(r) || r <= 0) return 0.0;
+  if (n === 1) return 100.0;
+  if (r > n) return Math.round((1.0 / n) * 10000) / 100;
+
+  const raw = ((n - r + 1) / n) * 100.0;
+  const rounded = Math.round(raw * 100) / 100;
+  return r === 1 ? 100.0 : Math.min(99.99, Math.max(0.01, rounded));
+}
+
+/**
+ * Standard NTA/testing score-based percentile:
+ * P = 100 * (Number of candidates with score <= candidate's score) / totalCandidates
+ */
+function calculateScorePercentileFromCounts(countBelow, countEqual, totalCount) {
+  const n = Number(totalCount);
+  if (isNaN(n) || n <= 0) return 0.0;
+  const below = Math.max(0, Number(countBelow) || 0);
+  const equal = Math.max(1, Number(countEqual) || 1);
+  const raw = ((below + equal) / n) * 100.0;
+  const rounded = Math.round(raw * 100) / 100;
+  return Math.min(100.0, Math.max(0.01, rounded));
 }
 
 module.exports = {
@@ -246,4 +277,6 @@ module.exports = {
   hasMultipleMarkingSchemes,
   getMaximumAttemptQuestionsCountForSection,
   evaluateTestAttempt,
+  calculatePopulationPercentile,
+  calculateScorePercentileFromCounts,
 };

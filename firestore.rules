@@ -35,46 +35,75 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Helper: checks whether map contains any server-authoritative score, ranking, role, or privilege fields
+    function hasAuthoritativeKeys(dataMap) {
+      return dataMap.keys().hasAny([
+        'isBanned', 'isVip', 'vipExpiresAt', 'role', 'admin', 'xp', 'totalXP', 'rank', 'userRank',
+        'maxScore', 'totalTestsAttempted', 'qualifyingTestsCount', 'totalCumulativeScore', 'lastPercentile',
+        'authoritativeScore', 'verifiedServerSide', 'cumulativeScore_NEET', 'cumulativeScore_JEE_MAIN',
+        'cumulativeScore_JEE_ADVANCED', 'cumulativeScore_CUET', 'cumulativeScore_UPSC', 'cumulativeScore_SSC_CGL',
+        'cumulativeScore_SSC_CHSL', 'cumulativeScore_SSC_MTS', 'cumulativeScore_GATE', 'cumulativeScore_NDA',
+        'cumulativeScore_CDS', 'cumulativeScore_CAT', 'cumulativeScore_CTET', 'cumulativeScore_RRB_NTPC'
+      ]);
+    }
+
+    // Helper: test publication policy requires explicit approved/published status and public/official flag
+    function isTestPublishedAndApproved(data) {
+      return (data.get('status', '') in ['APPROVED', 'Published'])
+        && data.get('status', '') != 'Under Review'
+        && data.get('status', '') != 'REJECTED'
+        && data.get('status', '') != 'DRAFT'
+        && (data.get('isPublic', false) == true || data.get('isOfficial', false) == true);
+    }
+
     // =========================================================================
     // USERS DATA & PRIVATE PROFILES
     // Read: Owner or Admin only (strictly protects student email, phone & private info)
-    // Create: Owner only, strictly blocking privileged fields
-    // Update: Owner only, strictly preventing self-assigning VIP, ban, admin, rank, or XP
+    // Create: Owner only, strictly blocking all privileged and authoritative fields
+    // Update: Owner only, preventing client modification of any authoritative score or ranking fields
     // Delete: Admin only
     // =========================================================================
     match /Users_Data/{userId} {
       allow read: if isOwner(userId) || isAdmin();
 
-      // Students can create their own profile, but cannot set banned, VIP, admin, rank, or XP privileges
-      allow create: if isOwner(userId)
-                    && (!('isBanned' in request.resource.data) || request.resource.data.isBanned == false)
-                    && (!('isVip' in request.resource.data) || request.resource.data.isVip == false)
-                    && !('role' in request.resource.data)
-                    && !('admin' in request.resource.data)
-                    && !('xp' in request.resource.data)
-                    && !('totalXP' in request.resource.data)
-                    && !('rank' in request.resource.data)
-                    && !('userRank' in request.resource.data);
+      // Students can create their own profile, but cannot set banned, VIP, admin, rank, XP, or score statistics
+      allow create: if isOwner(userId) && !hasAuthoritativeKeys(request.resource.data);
 
-      // Students can update their profile and scores, but cannot self-assign VIP, ban status, admin roles, rank, or XP
+      // Students can update non-authoritative profile data (name, email, phone, targetExam, bookmarks),
+      // but cannot self-assign VIP, roles, ban status, rank, XP, or server-authoritative scores/statistics
       allow update: if (isOwner(userId)
-                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isBanned', 'isVip', 'vipExpiresAt', 'role', 'admin', 'xp', 'totalXP', 'rank', 'userRank']))
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                      'isBanned', 'isVip', 'vipExpiresAt', 'role', 'admin', 'xp', 'totalXP', 'rank', 'userRank',
+                      'maxScore', 'totalTestsAttempted', 'qualifyingTestsCount', 'totalCumulativeScore', 'lastPercentile',
+                      'authoritativeScore', 'verifiedServerSide', 'cumulativeScore_NEET', 'cumulativeScore_JEE_MAIN',
+                      'cumulativeScore_JEE_ADVANCED', 'cumulativeScore_CUET', 'cumulativeScore_UPSC', 'cumulativeScore_SSC_CGL',
+                      'cumulativeScore_SSC_CHSL', 'cumulativeScore_SSC_MTS', 'cumulativeScore_GATE', 'cumulativeScore_NDA',
+                      'cumulativeScore_CDS', 'cumulativeScore_CAT', 'cumulativeScore_CTET', 'cumulativeScore_RRB_NTPC'
+                    ]))
                     || isAdmin();
 
       allow delete: if isAdmin();
 
       // Test Attempts: Private detailed results and answers
-      // Students can create/submit new test attempts, but cannot edit, alter, or delete submitted attempts
-      // Admins retain full audit and moderation access
+      // Authoritative attempts are recorded by Cloud Functions via the Admin SDK.
+      // Direct client creation of verified or ranking-eligible attempts is strictly blocked.
       match /Attempts/{attemptId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) || isAdmin();
+        allow create: if (isOwner(userId)
+                          && request.resource.data.get('verifiedServerSide', false) == false
+                          && request.resource.data.get('countsTowardRanking', false) == false
+                          && !('authoritativeScore' in request.resource.data))
+                      || isAdmin();
         allow update, delete: if isAdmin();
       }
 
       match /attempts/{attemptId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) || isAdmin();
+        allow create: if (isOwner(userId)
+                          && request.resource.data.get('verifiedServerSide', false) == false
+                          && request.resource.data.get('countsTowardRanking', false) == false
+                          && !('authoritativeScore' in request.resource.data))
+                      || isAdmin();
         allow update, delete: if isAdmin();
       }
     }
@@ -94,28 +123,46 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Per-Test Competitive Leaderboard & Rankings
+    // Read: Authenticated students
+    // Write: Verified Admins & Server Functions only
+    match /Test_Leaderboards/{testId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+
+      match /Entries/{entryDoc} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+      }
+    }
+
     // =========================================================================
     // OFFICIAL TESTS & QUESTION BANKS
-    // Read: Published/Approved tests are readable by authenticated students
-    //       Draft/Under Review tests are restricted to Admins or the creator
-    // Write: Verified Admins only (students cannot overwrite or tamper with official tests)
+    // Read: Only approved & published tests are readable by students
+    //       Draft/Under Review/Rejected tests are restricted to Admins or the creator
+    //       Private answer keys and grading metadata are restricted to Admins only
+    // Write: Verified Admins only
     // =========================================================================
     match /Tests/{testId} {
       allow read: if isAuthenticated() && (
         isAdmin()
-        || resource.data.status in ['APPROVED', 'Published']
-        || resource.data.isPublic == true
-        || resource.data.creatorId == request.auth.uid
-        || (!('status' in resource.data) && !('isPublic' in resource.data))
+        || resource.data.get('creatorId', '') == request.auth.uid
+        || resource.data.get('uploaderId', '') == request.auth.uid
+        || isTestPublishedAndApproved(resource.data)
       );
       allow write: if isAdmin();
+
+      // Protected answer keys: ordinary clients are forbidden from reading or writing
+      match /private_keys/{docId} {
+        allow read, write: if isAdmin();
+      }
 
       match /questions/{questionId} {
         allow read: if isAuthenticated() && (
           isAdmin()
-          || get(/databases/$(database)/documents/Tests/$(testId)).data.status in ['APPROVED', 'Published']
-          || get(/databases/$(database)/documents/Tests/$(testId)).data.isPublic == true
-          || get(/databases/$(database)/documents/Tests/$(testId)).data.creatorId == request.auth.uid
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.get('creatorId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.get('uploaderId', '') == request.auth.uid
+          || isTestPublishedAndApproved(get(/databases/$(database)/documents/Tests/$(testId)).data)
         );
         allow write: if isAdmin();
       }
@@ -123,9 +170,9 @@ service cloud.firestore {
       match /Questions/{questionId} {
         allow read: if isAuthenticated() && (
           isAdmin()
-          || get(/databases/$(database)/documents/Tests/$(testId)).data.status in ['APPROVED', 'Published']
-          || get(/databases/$(database)/documents/Tests/$(testId)).data.isPublic == true
-          || get(/databases/$(database)/documents/Tests/$(testId)).data.creatorId == request.auth.uid
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.get('creatorId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.get('uploaderId', '') == request.auth.uid
+          || isTestPublishedAndApproved(get(/databases/$(database)/documents/Tests/$(testId)).data)
         );
         allow write: if isAdmin();
       }
@@ -134,19 +181,23 @@ service cloud.firestore {
     match /Tests_Data/{testId} {
       allow read: if isAuthenticated() && (
         isAdmin()
-        || resource.data.status in ['APPROVED', 'Published']
-        || resource.data.isPublic == true
-        || resource.data.creatorId == request.auth.uid
-        || (!('status' in resource.data) && !('isPublic' in resource.data))
+        || resource.data.get('creatorId', '') == request.auth.uid
+        || resource.data.get('uploaderId', '') == request.auth.uid
+        || isTestPublishedAndApproved(resource.data)
       );
       allow write: if isAdmin();
+
+      // Protected answer keys: ordinary clients are forbidden from reading or writing
+      match /private_keys/{docId} {
+        allow read, write: if isAdmin();
+      }
 
       match /questions/{questionId} {
         allow read: if isAuthenticated() && (
           isAdmin()
-          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.status in ['APPROVED', 'Published']
-          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.isPublic == true
-          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.creatorId == request.auth.uid
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('creatorId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('uploaderId', '') == request.auth.uid
+          || isTestPublishedAndApproved(get(/databases/$(database)/documents/Tests_Data/$(testId)).data)
         );
         allow write: if isAdmin();
       }
@@ -154,9 +205,9 @@ service cloud.firestore {
       match /Questions/{questionId} {
         allow read: if isAuthenticated() && (
           isAdmin()
-          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.status in ['APPROVED', 'Published']
-          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.isPublic == true
-          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.creatorId == request.auth.uid
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('creatorId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('uploaderId', '') == request.auth.uid
+          || isTestPublishedAndApproved(get(/databases/$(database)/documents/Tests_Data/$(testId)).data)
         );
         allow write: if isAdmin();
       }

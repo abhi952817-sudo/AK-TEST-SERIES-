@@ -1,4 +1,16 @@
 {
+  "functions": [
+    {
+      "source": "backend_functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
+    }
+  ],
   "firestore": [
     {
       "database": "ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612",
@@ -6,7 +18,14 @@
       "indexes": "firestore.indexes.json"
     }
   ],
+  "storage": {
+    "rules": "storage.rules"
+  },
   "emulators": {
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5001
+    },
     "firestore": {
       "host": "127.0.0.1",
       "port": 8085
@@ -14,6 +33,10 @@
     "auth": {
       "host": "127.0.0.1",
       "port": 9099
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9199
     },
     "ui": {
       "enabled": false

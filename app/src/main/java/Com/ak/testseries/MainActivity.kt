@@ -4410,8 +4410,46 @@ fun ResultScreen(viewModel: NEETViewModel) {
                 ) {
                     Text(if (selectedLanguage == AppLanguage.HINDI) "आपका स्कोर" else "Your Score", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("${result.score} / ${result.maxScore}", fontWeight = FontWeight.Black, fontSize = 36.sp, color = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(if (selectedLanguage == AppLanguage.HINDI) "पर्सेंटाइल: ${String.format("%.2f", result.percentile)}" else "Percentile: ${String.format("%.2f", result.percentile)}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    val percentileDisplay = if (result.percentile > 0.0) {
+                        if (selectedLanguage == AppLanguage.HINDI) "पर्सेंटाइल: ${String.format("%.2f", result.percentile)}%" else "Percentile: ${String.format("%.2f", result.percentile)}%"
+                    } else if (!result.verifiedServerSide) {
+                        if (selectedLanguage == AppLanguage.HINDI) "पर्सेंटाइल: सत्यापन प्रतीक्षारत" else "Percentile: Verification Pending"
+                    } else {
+                        if (selectedLanguage == AppLanguage.HINDI) "पर्सेंटाइल: लागू नहीं (गैर-रैंकिंग)" else "Percentile: N/A (Non-ranking)"
+                    }
+                    Text(percentileDisplay, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (result.verifiedServerSide) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, if (result.verifiedServerSide) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (result.verifiedServerSide) Icons.Rounded.Verified else Icons.Rounded.Schedule,
+                                contentDescription = "Verification status",
+                                tint = if (result.verifiedServerSide) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val statusText = if (result.verifiedServerSide) {
+                                if (selectedLanguage == AppLanguage.HINDI) "सर्वर द्वारा प्रमाणित परिणाम" else "Verified Server Result"
+                            } else if (result.submissionStatus == "PENDING") {
+                                if (selectedLanguage == AppLanguage.HINDI) "सबमिशन प्रतीक्षारत (स्थानीय पूर्वावलोकन)" else "Submission Pending (Local Preview)"
+                            } else {
+                                if (selectedLanguage == AppLanguage.HINDI) "ऑफलाइन अभ्यास परिणाम" else "Offline Practice Result"
+                            }
+                            Text(
+                                text = statusText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (result.verifiedServerSide) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -7435,6 +7473,7 @@ fun MiniLeaderboardCard(
     val nextTargetMsg = viewModel?.nextTargetMessage?.collectAsStateWithLifecycle()?.value ?: ""
     val qCount = viewModel?.userQualifyingTestsCount?.collectAsStateWithLifecycle()?.value ?: 0
     val compScore = viewModel?.userCompetitiveScore?.collectAsStateWithLifecycle()?.value ?: 0
+    val userPercentile = viewModel?.userPercentile?.collectAsStateWithLifecycle()?.value ?: 0.0
 
     val examsList = remember {
         (listOf("All") + Com.ak.testseries.exam.UniversalExamRegistry.getAllExams().map { it.shortName }).distinct()
@@ -7610,7 +7649,11 @@ fun MiniLeaderboardCard(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Qualifying Tests: $qCount | Exam: $examFilter",
+                                    text = if (userPercentile > 0.0) {
+                                        "Qualifying: $qCount | Percentile: ${String.format("%.2f", userPercentile)}%"
+                                    } else {
+                                        "Qualifying Tests: $qCount | Exam: $examFilter"
+                                    },
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

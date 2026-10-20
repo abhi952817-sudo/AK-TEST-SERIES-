@@ -180,6 +180,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val _nextTargetMessage = MutableStateFlow("")
     val nextTargetMessage: StateFlow<String> = _nextTargetMessage.asStateFlow()
 
+    private val _userPercentile = MutableStateFlow(0.0)
+    val userPercentile: StateFlow<Double> = _userPercentile.asStateFlow()
+
     private val _userQualifyingTestsCount = MutableStateFlow(0)
     val userQualifyingTestsCount: StateFlow<Int> = _userQualifyingTestsCount.asStateFlow()
 
@@ -269,73 +272,117 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
                 val user = auth.currentUser
                 if (user != null) {
-                    val db = firestoreDb
-                    val userRef = db.collection("Users_Data").document(user.uid)
-                    val snapshot = userRef.get().await()
-                    if (snapshot.exists()) {
-                        val qualifyingTests = (snapshot.getLong("qualifyingTestsCount") ?: snapshot.getLong("totalTestsAttempted") ?: 0L).toInt()
-                        val examScoreKey = "cumulativeScore_$targetExam"
-                        val competitiveScore = (snapshot.getLong(examScoreKey) ?: snapshot.getLong("totalCumulativeScore") ?: snapshot.getLong("maxScore") ?: 0L).toInt()
-                        
-                        _userQualifyingTestsCount.value = qualifyingTests
-                        _userCompetitiveScore.value = competitiveScore
+                    var cloudRankSuccess = false
+                    try {
+                        val functions = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                        val callable = functions.getHttpsCallable("getUserRankingDetails")
+                        val result = callable.call(mapOf("targetExam" to targetExam)).await()
+                        val data = result.data as? Map<*, *>
+                        if (data != null) {
+                            val status = data["status"] as? String ?: "Rank Pending"
+                            val rankStr = data["rankString"] as? String ?: "Pending"
+                            val pct = (data["percentile"] as? Number)?.toDouble() ?: 0.0
+                            val compScore = (data["competitiveScore"] as? Number)?.toInt() ?: 0
+                            val qCount = (data["qualifyingTestsCount"] as? Number)?.toInt() ?: 0
+                            val totalElig = (data["totalEligible"] as? Number)?.toInt() ?: 0
+                            val isOfficial = data["isOfficialAir"] as? Boolean ?: false
+                            val msg = data["message"] as? String ?: ""
 
-                        // Query eligible participants count for this targetExam from public Leaderboard
-                        val eligibleQuery = db.collection("Leaderboard")
-                            .whereEqualTo("targetExam", targetExam)
-                        val eligibleSnapshot = eligibleQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
-                        val totalEligible = eligibleSnapshot.count.toInt()
-                        _eligibleParticipantsCount.value = totalEligible
-                        _isOfficialAirUnlocked.value = totalEligible >= airThreshold
-
-                        if (qualifyingTests < minQualifyingTests) {
-                            _userRankStatus.value = "Rank Pending"
-                            _userRank.value = "Pending"
-                            _nextTargetMessage.value = "Complete $minQualifyingTests qualifying tests to unlock your provisional ranking!"
-                        } else {
-                            val countQuery = db.collection("Leaderboard")
-                                .whereEqualTo("targetExam", targetExam)
-                                .whereGreaterThan("score", competitiveScore)
-                            val countSnapshot = countQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
-                            val rank = (countSnapshot.count + 1).toInt()
-                            
-                            val isOfficial = totalEligible >= airThreshold
-                            _userRankStatus.value = if (isOfficial) "Official AIR" else "Provisional Rank"
-                            _userRank.value = "#$rank"
-
-                            if (rank > 1) {
-                                val higherUsersQuery = db.collection("Leaderboard")
-                                    .whereEqualTo("targetExam", targetExam)
-                                    .whereGreaterThan("score", competitiveScore)
-                                    .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
-                                    .limit(1)
-                                    .get().await()
-                                val higherDoc = higherUsersQuery.documents.firstOrNull()
-                                if (higherDoc != null) {
-                                    val higherScore = (higherDoc.getLong("score") ?: higherDoc.getLong("maxScore") ?: 0L).toInt()
-                                    val ptsAway = (higherScore - competitiveScore) + 1
-                                    val targetName = higherDoc.getString("displayName") ?: higherDoc.getString("name") ?: "Student"
-                                    _nextTargetMessage.value = "Next target: $targetName (#${rank - 1}) — You are $ptsAway pts away! Take 1 test to overtake."
-                                } else {
-                                    _nextTargetMessage.value = "Keep practicing to climb higher on the $targetExam leaderboard!"
-                                }
-                            } else {
-                                _nextTargetMessage.value = "🎉 Congratulations! You are Rank #1 on the $targetExam Leaderboard!"
-                            }
+                            _userQualifyingTestsCount.value = qCount
+                            _userCompetitiveScore.value = compScore
+                            _eligibleParticipantsCount.value = totalElig
+                            _isOfficialAirUnlocked.value = isOfficial
+                            _userRankStatus.value = status
+                            _userRank.value = rankStr
+                            _userPercentile.value = pct
+                            _nextTargetMessage.value = msg
+                            cloudRankSuccess = true
                         }
-                    } else {
-                        _userRank.value = "-"
-                        _userRankStatus.value = "Rank Pending"
-                        _nextTargetMessage.value = "Complete $minQualifyingTests qualifying tests to unlock your provisional ranking."
+                    } catch (fe: Exception) {
+                        cloudRankSuccess = false
+                    }
+
+                    if (!cloudRankSuccess) {
+                        val db = firestoreDb
+                        val userRef = db.collection("Users_Data").document(user.uid)
+                        val snapshot = userRef.get().await()
+                        if (snapshot.exists()) {
+                            val qualifyingTests = (snapshot.getLong("qualifyingTestsCount") ?: 0L).toInt()
+                            val examScoreKey = "cumulativeScore_$targetExam"
+                            val competitiveScore = (snapshot.getLong(examScoreKey) ?: snapshot.getLong("totalCumulativeScore") ?: 0L).toInt()
+                            
+                            _userQualifyingTestsCount.value = qualifyingTests
+                            _userCompetitiveScore.value = competitiveScore
+
+                            // Query eligible participants count for this targetExam from public Leaderboard
+                            val eligibleQuery = db.collection("Leaderboard")
+                                .whereEqualTo("targetExam", targetExam)
+                                .whereEqualTo("isEligibleForRanking", true)
+                            val eligibleSnapshot = eligibleQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
+                            val totalEligible = eligibleSnapshot.count.toInt()
+                            _eligibleParticipantsCount.value = totalEligible
+                            _isOfficialAirUnlocked.value = totalEligible >= airThreshold
+
+                            if (qualifyingTests < minQualifyingTests) {
+                                _userRankStatus.value = "Rank Pending"
+                                _userRank.value = "Pending"
+                                _userPercentile.value = 0.0
+                                _nextTargetMessage.value = "Complete $minQualifyingTests qualifying tests to unlock your provisional ranking!"
+                            } else {
+                                val countQuery = db.collection("Leaderboard")
+                                    .whereEqualTo("targetExam", targetExam)
+                                    .whereEqualTo("isEligibleForRanking", true)
+                                    .whereGreaterThan("score", competitiveScore)
+                                val countSnapshot = countQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
+                                val rank = (countSnapshot.count + 1).toInt()
+                                
+                                val isOfficial = totalEligible >= airThreshold
+                                _userRankStatus.value = if (isOfficial) "Official AIR" else "Provisional Rank"
+                                _userRank.value = "#$rank"
+
+                                val rawPct = if (totalEligible > 0) {
+                                    if (rank == 1) 100.0 else (((totalEligible - rank + 1).toDouble() / totalEligible.toDouble()) * 100.0).coerceIn(0.01, 99.99)
+                                } else 0.0
+                                _userPercentile.value = Math.round(rawPct * 100.0) / 100.0
+
+                                if (rank > 1) {
+                                    val higherUsersQuery = db.collection("Leaderboard")
+                                        .whereEqualTo("targetExam", targetExam)
+                                        .whereEqualTo("isEligibleForRanking", true)
+                                        .whereGreaterThan("score", competitiveScore)
+                                        .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
+                                        .limit(1)
+                                        .get().await()
+                                    val higherDoc = higherUsersQuery.documents.firstOrNull()
+                                    if (higherDoc != null) {
+                                        val higherScore = (higherDoc.getLong("score") ?: 0L).toInt()
+                                        val ptsAway = (higherScore - competitiveScore) + 1
+                                        val targetName = higherDoc.getString("displayName") ?: higherDoc.getString("name") ?: "Student"
+                                        _nextTargetMessage.value = "Next target: $targetName (#${rank - 1}) — You are $ptsAway pts away! Take 1 test to overtake."
+                                    } else {
+                                        _nextTargetMessage.value = "Keep practicing to climb higher on the $targetExam leaderboard!"
+                                    }
+                                } else {
+                                    _nextTargetMessage.value = "🎉 Congratulations! You are Rank #1 on the $targetExam Leaderboard!"
+                                }
+                            }
+                        } else {
+                            _userRank.value = "-"
+                            _userRankStatus.value = "Rank Pending"
+                            _userPercentile.value = 0.0
+                            _nextTargetMessage.value = "Complete $minQualifyingTests qualifying tests to unlock your provisional ranking."
+                        }
                     }
                 } else {
                     _userRank.value = "-"
                     _userRankStatus.value = "Rank Pending"
+                    _userPercentile.value = 0.0
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 _userRank.value = "-"
                 _userRankStatus.value = "Rank Pending"
+                _userPercentile.value = 0.0
             }
         }
     }
@@ -351,6 +398,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             
             leaderboardListener = db.collection("Leaderboard")
                 .whereEqualTo("targetExam", targetExam)
+                .whereEqualTo("isEligibleForRanking", true)
                 .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(20)
                 .addSnapshotListener { snapshot, e ->
@@ -362,7 +410,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     var rank = 1
                     for (doc in snapshot.documents) {
                         val name = doc.getString("displayName") ?: doc.getString("name") ?: "Student"
-                        val score = (doc.getLong("score") ?: doc.getLong("maxScore") ?: 0L).toInt()
+                        val score = (doc.getLong("score") ?: 0L).toInt()
                         val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
                         val qCount = (doc.getLong("totalTestsAttempted") ?: doc.getLong("qualifyingTestsCount") ?: 0L).toInt()
                         val streakVal = (doc.getLong("streakDays") ?: doc.getLong("streak") ?: 0L).toInt()
@@ -398,6 +446,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val db = firestoreDb
             db.collection("Leaderboard")
                 .whereEqualTo("targetExam", targetExam)
+                .whereEqualTo("isEligibleForRanking", true)
+                .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(20)
                 .get()
                 .addOnSuccessListener { snapshot ->
@@ -406,7 +456,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         var rank = 1
                         for (doc in snapshot.documents) {
                             val name = doc.getString("displayName") ?: doc.getString("name") ?: "Student"
-                            val score = (doc.getLong("score") ?: doc.getLong("maxScore") ?: 0L).toInt()
+                            val score = (doc.getLong("score") ?: 0L).toInt()
                             val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
                             list.add(Com.ak.testseries.domain.auth.LeaderboardEntry(rank++, name, score, uid, targetExam = targetExam))
                         }
@@ -3705,7 +3755,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val maxScore = Math.round(breakdown.maxScore).toInt()
             val score = Math.round(breakdown.finalScore).toInt()
             val accuracy = breakdown.accuracyPercent
-            val percentile = (80.0 + (correct.toDouble() / questions.size.coerceAtLeast(1).toDouble()) * 19.5 + kotlin.random.Random.nextDouble(-1.0, 0.5)).coerceIn(0.0, 99.99)
+            val percentile = 0.0 // Offline/practice test has no population-based percentile
 
             val currentUid = currentUserId.value
             val attempt = AttemptEntity(
@@ -3786,7 +3836,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val user = auth.currentUser ?: return@launch
             try {
                 val db = firestoreDb
-                val attempts = repository.allAttempts.firstOrNull() ?: emptyList()
                 val tests = repository.allTests.firstOrNull() ?: emptyList()
                 val q = repository.getBookmarkedQuestions().firstOrNull() ?: emptyList()
                 
@@ -3797,12 +3846,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "lastBackupAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                 )
                 userRef.set(updateData, com.google.firebase.firestore.SetOptions.merge()).await()
-                
-                val attemptsCollection = userRef.collection("attempts")
-                for (attempt in attempts) {
-                    val docRefId = "${attempt.testId}_${attempt.dateTaken}"
-                    attemptsCollection.document(docRefId).set(attempt).await()
-                }
             } catch (e: Exception) { e.printStackTrace() }
         }
     }
@@ -3836,6 +3879,28 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun updateActiveQuestionsWithSolutions(solutionKeys: Map<*, *>) {
+        val currentQs = _activeQuestions.value
+        val updated = currentQs.map { q ->
+            val solMap = solutionKeys[q.id] as? Map<*, *>
+            if (solMap != null) {
+                val correctAns = solMap["correctAnswer"] as? String ?: q.correctAnswer
+                val explanation = solMap["explanation"] as? String ?: q.explanation
+                q.copy(correctAnswer = correctAns, explanation = explanation)
+            } else {
+                q
+            }
+        }
+        _activeQuestions.value = updated
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                repository.insertQuestions(updated)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun submitTest() {
         timerJob?.cancel()
         viewModelScope.launch {
@@ -3851,7 +3916,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val answers = _userAnswers.value
                 val timeSpentTotal = (questions.size * 60L) - _examTimeRemaining.value
 
-                // Dynamic scoring evaluation engine based on Universal Exam Registry
+                // Dynamic scoring evaluation engine for local/offline preview
                 val breakdown = Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
                     targetExam = test.targetExam,
                     questions = questions,
@@ -3859,18 +3924,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     timeSpentSeconds = timeSpentTotal
                 )
                 
-                val correct = breakdown.correctCount
-                val incorrect = breakdown.wrongCount
-                val skipped = breakdown.unansweredCount
-                val maxScore = Math.round(breakdown.maxScore).toInt()
-                val score = Math.round(breakdown.finalScore).toInt()
-                val accuracy = breakdown.accuracyPercent
+                val localCorrect = breakdown.correctCount
+                val localIncorrect = breakdown.wrongCount
+                val localSkipped = breakdown.unansweredCount
+                val localMaxScore = Math.round(breakdown.maxScore).toInt()
+                val localScore = Math.round(breakdown.finalScore).toInt()
+                val localAccuracy = breakdown.accuracyPercent
 
-                // Realistic percentile calculation
-                val percentile = 80.0 + (correct.toDouble() / questions.size.coerceAtLeast(1).toDouble()) * 19.5 + Random.nextDouble(-1.0, 0.5)
+                // Local percentile preview: 0.0 (unranked pending authoritative server evaluation)
+                val localPercentile = 0.0
 
-                // Construct answers JSON
+                // Construct answers JSON and map
                 val ansObj = org.json.JSONObject()
+                val answersPayloadMap = mutableMapOf<String, Any>()
                 val timeMap = _timeSpentPerQuestion.value
                 questions.forEach { q ->
                     val option = answers[q.id] ?: ""
@@ -3879,115 +3945,94 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("ans", option)
                     qObj.put("time", t)
                     ansObj.put(q.id, qObj)
+                    answersPayloadMap[q.id] = mapOf("ans" to option, "time" to t)
                 }
 
                 val currentUid = currentUserId.value
                 val sessionToken = if (activeAttemptSessionToken.isNotBlank()) activeAttemptSessionToken else "att_${currentUid.ifBlank { "anon" }}_${test.id}_${System.currentTimeMillis()}"
-                val attempt = AttemptEntity(
+
+                val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+                val user = auth.currentUser
+
+                var attempt = AttemptEntity(
                     userId = currentUid,
                     testId = test.id,
                     testTitle = test.title,
-                    score = score,
-                    maxScore = maxScore,
-                    percentile = percentile.coerceIn(0.0, 99.99),
-                    accuracy = accuracy,
-                    correctCount = correct,
-                    incorrectCount = incorrect,
-                    skippedCount = skipped,
+                    score = localScore,
+                    maxScore = localMaxScore,
+                    percentile = localPercentile,
+                    accuracy = localAccuracy,
+                    correctCount = localCorrect,
+                    incorrectCount = localIncorrect,
+                    skippedCount = localSkipped,
                     timeSpentSeconds = timeSpentTotal,
                     answersJson = ansObj.toString(),
-                    attemptSessionToken = sessionToken
+                    attemptSessionToken = sessionToken,
+                    verifiedServerSide = false,
+                    submissionStatus = if (user != null) "PENDING" else "OFFLINE"
                 )
 
                 withContext(Dispatchers.IO) {
                     repository.insertAttempt(attempt)
                 }
-                backupDataToCloud()
-                
-                // Sync to Firebase directly with competitive ranking calculation
-                viewModelScope.launch(Dispatchers.IO) {
+
+                // Call authoritative Firebase Callable Function if user is authenticated
+                if (user != null) {
                     try {
-                        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                        val user = auth.currentUser
-                        if (user != null) {
-                            val db = firestoreDb
-                            val userRef = db.collection("Users_Data").document(user.uid)
-                            
-                            // Check if user has previously attempted this test
-                            val existingAttemptsQuery = userRef.collection("Attempts")
-                                .whereEqualTo("testId", test.id)
-                                .get().await()
-                            
-                            val isFirstAttempt = existingAttemptsQuery.isEmpty
-                            
-                            val isQualifying = test.countsTowardRanking && test.isOfficial
-                            val attemptDocId = sessionToken
-                            val attemptDocRef = userRef.collection("Attempts").document(attemptDocId)
+                        val functions = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                        val callable = functions.getHttpsCallable("submitTestAttemptServerSide")
+                        val payload = hashMapOf<String, Any>(
+                            "testId" to test.id,
+                            "answers" to answersPayloadMap,
+                            "timeSpentSeconds" to timeSpentTotal,
+                            "clientTimestamp" to System.currentTimeMillis(),
+                            "attemptSessionToken" to sessionToken
+                        )
 
-                            db.runTransaction { transaction ->
-                                val userSnapshot = transaction.get(userRef)
-                                if (!userSnapshot.exists()) return@runTransaction
+                        val callResult = callable.call(payload).await()
+                        val resultMap = callResult.data as? Map<*, *>
 
-                                val existingAttemptDoc = transaction.get(attemptDocRef)
-                                val isAlreadyRecorded = existingAttemptDoc.exists()
+                        if (resultMap != null && (resultMap["success"] == true || resultMap["verifiedServerSide"] == true)) {
+                            val serverScore = (resultMap["score"] as? Number)?.toInt() ?: attempt.score
+                            val serverMaxScore = (resultMap["maxScore"] as? Number)?.toInt() ?: attempt.maxScore
+                            val serverPercentile = (resultMap["percentile"] as? Number)?.toDouble() ?: attempt.percentile
+                            val serverAccuracy = (resultMap["accuracy"] as? Number)?.toDouble() ?: attempt.accuracy
+                            val serverCorrect = (resultMap["correctCount"] as? Number)?.toInt() ?: attempt.correctCount
+                            val serverIncorrect = (resultMap["incorrectCount"] as? Number)?.toInt() ?: attempt.incorrectCount
+                            val serverSkipped = (resultMap["skippedCount"] as? Number)?.toInt() ?: attempt.skippedCount
 
-                                val currentMaxScore = userSnapshot.getLong("maxScore")?.toInt() ?: 0
-                                val totalTests = userSnapshot.getLong("totalTestsAttempted")?.toInt() ?: 0
-                                val updates = mutableMapOf<String, Any>()
+                            attempt = attempt.copy(
+                                score = serverScore,
+                                maxScore = serverMaxScore,
+                                percentile = serverPercentile,
+                                accuracy = serverAccuracy,
+                                correctCount = serverCorrect,
+                                incorrectCount = serverIncorrect,
+                                skippedCount = serverSkipped,
+                                verifiedServerSide = true,
+                                submissionStatus = "CONFIRMED"
+                            )
 
-                                if (!isAlreadyRecorded) {
-                                    updates["totalTestsAttempted"] = totalTests + 1
-                                }
-                                if (score > currentMaxScore) {
-                                    updates["maxScore"] = score
-                                    updates["lastPercentile"] = percentile
-                                }
+                            withContext(Dispatchers.IO) {
+                                repository.insertAttempt(attempt)
+                            }
 
-                                // Competitive ranking logic: First valid attempt on qualifying official test
-                                if (isFirstAttempt && isQualifying && !isAlreadyRecorded) {
-                                    val currentQCount = (userSnapshot.getLong("qualifyingTestsCount") ?: 0L).toInt()
-                                    val examKey = "cumulativeScore_${test.targetExam}"
-                                    val currentExamScore = (userSnapshot.getLong(examKey) ?: userSnapshot.getLong("totalCumulativeScore") ?: 0L).toInt()
-                                    val currentTotalScore = (userSnapshot.getLong("totalCumulativeScore") ?: 0L).toInt()
+                            // Update active questions with authoritative solution keys returned by server
+                            val solutionKeys = resultMap["solutionKeys"] as? Map<*, *>
+                            if (solutionKeys != null) {
+                                updateActiveQuestionsWithSolutions(solutionKeys)
+                            }
 
-                                    updates["qualifyingTestsCount"] = currentQCount + 1
-                                    updates[examKey] = currentExamScore + score
-                                    updates["totalCumulativeScore"] = currentTotalScore + score
-                                }
-
-                                if (updates.isNotEmpty()) {
-                                    transaction.update(userRef, updates)
-                                }
-
-                                // Save the detailed attempt in transaction with idempotency
-                                val attemptMap = hashMapOf(
-                                    "testId" to attempt.testId,
-                                    "testTitle" to attempt.testTitle,
-                                    "score" to attempt.score,
-                                    "maxScore" to attempt.maxScore,
-                                    "percentile" to attempt.percentile,
-                                    "accuracy" to attempt.accuracy,
-                                    "correctCount" to attempt.correctCount,
-                                    "incorrectCount" to attempt.incorrectCount,
-                                    "skippedCount" to attempt.skippedCount,
-                                    "timeSpentSeconds" to attempt.timeSpentSeconds,
-                                    "dateTaken" to attempt.dateTaken,
-                                    "answersJson" to attempt.answersJson,
-                                    "attemptSessionToken" to sessionToken,
-                                    "isFirstAttempt" to isFirstAttempt,
-                                    "countsTowardRanking" to isQualifying
-                                )
-                                transaction.set(attemptDocRef, attemptMap, com.google.firebase.firestore.SetOptions.merge())
-                            }.await()
-
-                            // Refresh leaderboard & rank
+                            // Refresh public leaderboard & rank
                             fetchLeaderboard(test.targetExam)
                             fetchUserRank(test.targetExam)
                         }
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        android.util.Log.e("NEETViewModel", "Server submission failed; stored locally as pending: ${e.message}", e)
                     }
                 }
+
+                backupDataToCloud()
 
                 _activeResult.value = attempt
                 _currentScreen.value = AppScreen.RESULT_ANALYSIS
@@ -4891,6 +4936,37 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun separatePublicAndSecretQuestions(questionsJsonString: String): Pair<String, List<Map<String, Any>>> {
+        if (questionsJsonString.isBlank()) return Pair(questionsJsonString, emptyList())
+        return try {
+            val jsonArray = org.json.JSONArray(questionsJsonString)
+            val publicArray = org.json.JSONArray()
+            val answerKeys = mutableListOf<Map<String, Any>>()
+            
+            for (i in 0 until jsonArray.length()) {
+                val qObj = jsonArray.getJSONObject(i)
+                val qId = qObj.optString("id", "q$i")
+                val correctAns = qObj.optString("correctAnswer", "")
+                val exp = qObj.optString("explanation", "")
+                
+                answerKeys.add(mapOf(
+                    "id" to qId,
+                    "correctAnswer" to correctAns,
+                    "explanation" to exp
+                ))
+
+                // Public copy without answer keys
+                val publicObj = org.json.JSONObject(qObj.toString())
+                publicObj.remove("correctAnswer")
+                publicObj.remove("explanation")
+                publicArray.put(publicObj)
+            }
+            Pair(publicArray.toString(), answerKeys)
+        } catch (e: Exception) {
+            Pair(questionsJsonString, emptyList())
+        }
+    }
+
     private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String) {
         if (!newTest.isPublic) {
             android.util.Log.d("NEETViewModel", "Test ${newTest.id} is PRIVATE. Scoped exclusively to local sandbox and skipped Firestore upload.")
@@ -4907,6 +4983,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             if (sanitizedQuestionsJson != questionsJsonString) {
                 repository.updateTest(newTest.copy(questionsJson = sanitizedQuestionsJson))
             }
+
+            val (publicQuestionsJson, answerKeys) = separatePublicAndSecretQuestions(sanitizedQuestionsJson)
 
             val db = firestoreDb
             val testData = hashMapOf(
@@ -4929,9 +5007,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "chapter" to newTest.chapter,
                 "topic" to newTest.topic,
                 "timestamp" to newTest.timestamp,
-                "questionsJson" to sanitizedQuestionsJson
+                "questionsJson" to publicQuestionsJson
             )
-            db.collection("Tests_Data").document(newTest.id).set(testData).await()
+            val testDocRef = db.collection("Tests_Data").document(newTest.id)
+            testDocRef.set(testData).await()
+
+            // Securely store answer keys under private_keys/answerKey (accessible only by server Admin SDK)
+            if (answerKeys.isNotEmpty()) {
+                val keysDoc = hashMapOf<String, Any>(
+                    "testId" to newTest.id,
+                    "questions" to answerKeys,
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                )
+                testDocRef.collection("private_keys").document("answerKey").set(keysDoc).await()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -5910,11 +5999,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     // Update in Firestore
                     val db = firestoreDb
                     val updates = hashMapOf<String, Any>("isPublic" to isPublic)
+                    val testDocRef = db.collection("Tests_Data").document(testId)
                     if (isPublic) {
+                        val (publicJson, answerKeys) = separatePublicAndSecretQuestions(sanitizedJson)
                         updates["status"] = "Published"
-                        updates["questionsJson"] = sanitizedJson
+                        updates["questionsJson"] = publicJson
+                        if (answerKeys.isNotEmpty()) {
+                            val keysDoc = hashMapOf<String, Any>(
+                                "testId" to testId,
+                                "questions" to answerKeys,
+                                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                            )
+                            testDocRef.collection("private_keys").document("answerKey").set(keysDoc).await()
+                        }
                     }
-                    db.collection("Tests_Data").document(testId).update(updates).await()
+                    testDocRef.update(updates).await()
                 }
                 
             } catch (e: Exception) {
@@ -5942,15 +6041,26 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val updatedTest = test.copy(status = "Published", isPublic = true, isVerifiedCommunity = true, questionsJson = sanitizedJson)
                     repository.updateTest(updatedTest)
                     
-                    // Update in Firestore
+                    // Update in Firestore: Strip answer keys from public doc, store in private_keys
+                    val (publicJson, answerKeys) = separatePublicAndSecretQuestions(sanitizedJson)
                     val db = firestoreDb
+                    val testDocRef = db.collection("Tests_Data").document(testId)
                     val updates = hashMapOf<String, Any>(
                         "status" to "Published",
                         "isPublic" to true,
                         "isVerifiedCommunity" to true,
-                        "questionsJson" to sanitizedJson
+                        "questionsJson" to publicJson
                     )
-                    db.collection("Tests_Data").document(testId).update(updates).await()
+                    testDocRef.update(updates).await()
+
+                    if (answerKeys.isNotEmpty()) {
+                        val keysDoc = hashMapOf<String, Any>(
+                            "testId" to testId,
+                            "questions" to answerKeys,
+                            "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                        )
+                        testDocRef.collection("private_keys").document("answerKey").set(keysDoc).await()
+                    }
                 }
                 
                 withContext(Dispatchers.Main) {

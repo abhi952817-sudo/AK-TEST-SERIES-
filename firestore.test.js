@@ -138,11 +138,27 @@ test("Student: CANNOT update protected fields (isBanned, isVip, role, admin, xp,
     })
   );
 
-  // Valid update: test attempt stats
+  // Valid update: non-authoritative profile info and bookmarks
   await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).update({
+      targetExam: "JEE Main",
+      bookmarkedTests: ["mock_neet_1"],
+    })
+  );
+
+  // Authoritative field update: student cannot directly alter maxScore or totalTestsAttempted -> FAILS
+  await assertFails(
     aliceDb.collection("Users_Data").doc(ALICE_UID).update({
       totalTestsAttempted: 3,
       maxScore: 680,
+    })
+  );
+
+  // Authoritative field update: student cannot alter cumulative ranking scores -> FAILS
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).update({
+      totalCumulativeScore: 1500,
+      cumulativeScore_NEET: 720,
     })
   );
 
@@ -179,25 +195,27 @@ test("Student: CANNOT update protected fields (isBanned, isVip, role, admin, xp,
 // 3. TEST ATTEMPT SUBMISSION & IMMUTABILITY (NO TAMPERING WITH PAST SCORES)
 // =========================================================================
 
-test("Student: CAN submit a new test attempt in Attempts and attempts", async () => {
+test("Student: CANNOT directly create authoritative server-verified attempts", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   
+  // Attempting to bypass Cloud Function by writing verifiedServerSide=true directly -> FAILS
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Attempts").doc("test_1_1700000000").set({
+      testId: "test_1",
+      score: 720,
+      verifiedServerSide: true,
+      countsTowardRanking: true,
+      authoritativeScore: 720,
+    })
+  );
+
+  // Writing unverified local attempt record with no ranking claims -> SUCCEEDS
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Attempts").doc("test_1_1700000000").set({
       testId: "test_1",
       score: 540,
-      maxScore: 720,
-      correctCount: 140,
-      incorrectCount: 20,
-      skippedCount: 20,
-      dateTaken: 1700000000,
-    })
-  );
-
-  await assertSucceeds(
-    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("attempts").doc("test_1_1700000000").set({
-      testId: "test_1",
-      score: 540,
+      verifiedServerSide: false,
+      countsTowardRanking: false,
       dateTaken: 1700000000,
     })
   );

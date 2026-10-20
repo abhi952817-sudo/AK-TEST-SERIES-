@@ -86,15 +86,17 @@ data class AttemptEntity(
     val testTitle: String,
     val score: Int, // e.g. 612 / 720
     val maxScore: Int, // e.g. 720
-    val percentile: Double = 92.45,
-    val accuracy: Double = 80.72,
+    val percentile: Double = 0.0,
+    val accuracy: Double = 0.0,
     val correctCount: Int,
     val incorrectCount: Int,
     val skippedCount: Int,
     val timeSpentSeconds: Long,
     val dateTaken: Long = System.currentTimeMillis(),
     val answersJson: String, // String-encoded state of user answers
-    val attemptSessionToken: String = "" // Stable idempotency key for deduplication
+    val attemptSessionToken: String = "", // Stable idempotency key for deduplication
+    val verifiedServerSide: Boolean = false, // Server verification guarantee
+    val submissionStatus: String = "CONFIRMED" // CONFIRMED, PENDING, OFFLINE
 )
 
 data class QuestionReport(
