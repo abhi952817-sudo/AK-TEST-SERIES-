@@ -257,14 +257,17 @@ service cloud.firestore {
                     && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false);
 
       // Authors can edit their content without altering badges or creatorId;
-      // Other students can only interact via upvotes, views, comments, or personal bookmark;
+      // Other students can only interact via bounded upvotes (+/-1), views, comments, or personal bookmark;
       // Admins have full moderation rights
       allow update: if isAdmin()
                     || (isAuthenticated()
                         && resource.data.creatorId == request.auth.uid 
                         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isPinned', 'isOfficial', 'isMonitor', 'creatorId']))
                     || (isAuthenticated()
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'views', 'comments', 'isBookmarked']));
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'views', 'comments', 'isBookmarked'])
+                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['upvotes'])
+                            || request.resource.data.upvotes == resource.data.upvotes + 1
+                            || request.resource.data.upvotes == resource.data.upvotes - 1));
 
       allow delete: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || isAdmin());
     }

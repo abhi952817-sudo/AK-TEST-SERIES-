@@ -336,8 +336,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 val countSnapshot = countQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
                                 val rank = (countSnapshot.count + 1).toInt()
                                 
-                                val isOfficial = totalEligible >= airThreshold
-                                _userRankStatus.value = if (isOfficial) "Official AIR" else "Provisional Rank"
+                                val hasSufficientCohort = totalEligible >= 50
+                                _userRankStatus.value = if (hasSufficientCohort) "Platform Rank" else "Provisional Rank"
+                                _isOfficialAirUnlocked.value = false
                                 _userRank.value = "#$rank"
 
                                 val rawPct = if (totalEligible > 0) {
@@ -6031,6 +6032,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             isAdminFlow.value = false
             checkAdminCustomClaim()
             saveUserProfile("", "", "", "", "")
+            _userRank.value = "-"
+            _userRankStatus.value = "Rank Pending"
+            _userPercentile.value = 0.0
+            _userQualifyingTestsCount.value = 0
+            _userCompetitiveScore.value = 0
+            _eligibleParticipantsCount.value = 0
+            _isOfficialAirUnlocked.value = false
+            _nextTargetMessage.value = ""
+            _activeTest.value = null
+            _userAnswers.value = emptyMap()
+            _markedForReview.value = emptySet()
+            _checkedQuestions.value = emptySet()
+            _timeSpentPerQuestion.value = emptyMap()
+            _visitedQuestions.value = emptySet()
             _currentScreen.value = AppScreen.LOGIN
         }
     }

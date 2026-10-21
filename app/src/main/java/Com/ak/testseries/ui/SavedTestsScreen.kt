@@ -43,13 +43,13 @@ fun SavedTestsScreen(viewModel: NEETViewModel) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSubjectFilter by remember { mutableStateOf("All") }
 
-    // Filter tests that are either bookmarked or downloaded offline
-    val allSavedTests = remember(tests) {
-        tests.filter { it.isBookmarked || it.isDownloaded }
+    val currentUid by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val allSavedTests = remember(tests, currentUid) {
+        tests.filter { (it.isBookmarked || it.isDownloaded) && Com.ak.testseries.data.TestVisibilityManager.isTestVisible(it, currentUid) }
     }
 
-    val bookmarkedCount = remember(tests) { tests.count { it.isBookmarked } }
-    val downloadedCount = remember(tests) { tests.count { it.isDownloaded } }
+    val bookmarkedCount = remember(allSavedTests) { allSavedTests.count { it.isBookmarked } }
+    val downloadedCount = remember(allSavedTests) { allSavedTests.count { it.isDownloaded } }
 
     val filteredTests = remember(allSavedTests, activeFilter, searchQuery, selectedSubjectFilter) {
         allSavedTests.filter { test ->

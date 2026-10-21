@@ -267,6 +267,106 @@ function calculateScorePercentileFromCounts(countBelow, countEqual, totalCount) 
   return Math.min(100.0, Math.max(0.01, rounded));
 }
 
+/**
+ * Merges trusted private answer keys into questions in a fail-closed manner.
+ * 
+ * Rules:
+ * 1. Ranking-eligible tests:
+ *    - privateKeyData must be non-null and contain a non-empty list of keys.
+ *    - EVERY question in rawQuestions must have a matching trusted answer key.
+ *    - Never falls back to public question.correctAnswer.
+ *    - Missing or incomplete private key throws failed-precondition error.
+ * 2. Non-ranking / practice tests:
+ *    - Merges private key if present.
+ *    - Falls back to public question properties if private key is absent.
+ */
+function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
+  const countsTowardRanking = (testData.countsTowardRanking === true || (testData.countsTowardRanking !== false && testData.isOfficial === true)) &&
+                              (testData.isOfficial === true || testData.isPublic === true);
+
+  const keyMap = new Map();
+  if (privateKeyData) {
+    const keyList = privateKeyData.questions || privateKeyData.keys || [];
+    for (const item of keyList) {
+      if (item && item.id) {
+        keyMap.set(String(item.id), item);
+      }
+    }
+  }
+
+  if (countsTowardRanking && (!privateKeyData || keyMap.size === 0)) {
+    const err = new Error("Official ranking-eligible test requires verified server-side answer keys. None found in private storage.");
+    err.code = "failed-precondition";
+    throw err;
+  }
+
+  const mergedQuestions = rawQuestions.map(q => {
+    const qId = String(q.id);
+    if (keyMap.has(qId)) {
+      const trusted = keyMap.get(qId);
+      return {
+        ...q,
+        correctAnswer: trusted.correctAnswer,
+        explanation: trusted.explanation || q.explanation || ""
+      };
+    } else {
+      if (countsTowardRanking) {
+        const err = new Error(`Official ranking-eligible test is missing trusted grading key for question ID: ${qId}`);
+        err.code = "failed-precondition";
+        throw err;
+      }
+      return {
+        ...q,
+        correctAnswer: q.correctAnswer || "",
+        explanation: q.explanation || ""
+      };
+    }
+  });
+
+  const solutionKeys = {};
+  for (const q of mergedQuestions) {
+    if (q.id) {
+      const qId = String(q.id);
+      const trusted = keyMap.get(qId);
+      solutionKeys[qId] = {
+        correctAnswer: trusted ? trusted.correctAnswer : (countsTowardRanking ? "" : (q.correctAnswer || "")),
+        explanation: trusted ? (trusted.explanation || "") : (countsTowardRanking ? "" : (q.explanation || ""))
+      };
+    }
+  }
+
+  return { questions: mergedQuestions, solutionKeys };
+}
+
+/**
+ * Calculates exam-specific eligibility and qualifying test counts.
+ * Strictly guarantees that qualifying tests in one exam (e.g. NEET) do not unlock
+ * eligibility or count towards another exam (e.g. JEE Main).
+ */
+function getExamEligibility(userData, canonicalExam) {
+  if (!userData) {
+    return {
+      qualifyingCount: 0,
+      isEligible: false,
+      competitiveScore: 0,
+      minQualifyingTests: 2
+    };
+  }
+
+  const examQCountKey = `qualifyingTestsCount_${canonicalExam}`;
+  const qualifyingCount = typeof userData[examQCountKey] === "number" ? userData[examQCountKey] : 0;
+  const examScoreKey = `cumulativeScore_${canonicalExam}`;
+  const competitiveScore = typeof userData[examScoreKey] === "number" ? userData[examScoreKey] : 0;
+  const isEligible = qualifyingCount >= 2;
+
+  return {
+    qualifyingCount,
+    isEligible,
+    competitiveScore,
+    minQualifyingTests: 2
+  };
+}
+
 module.exports = {
   VALID_ANSWER_OPTIONS,
   isAnswerKeyVerified,
@@ -279,4 +379,6 @@ module.exports = {
   evaluateTestAttempt,
   calculatePopulationPercentile,
   calculateScorePercentileFromCounts,
+  validateAndMergeAnswerKeys,
+  getExamEligibility,
 };

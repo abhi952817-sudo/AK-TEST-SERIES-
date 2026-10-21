@@ -1,6 +1,11 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { evaluateTestAttempt, calculatePopulationPercentile } = require("./examScoring");
+const {
+  evaluateTestAttempt,
+  calculatePopulationPercentile,
+  validateAndMergeAnswerKeys,
+  getExamEligibility,
+} = require("./examScoring");
 
 // Simulated logic mirroring submitTestAttemptServerSide verification rules
 function validateCallableSubmission(data, context, testDocData, privateKeyData = null, existingAttemptData = null, existingCandidates = null) {
@@ -78,27 +83,9 @@ function validateCallableSubmission(data, context, testDocData, privateKeyData =
     }
   }
 
-  // Merge private grading keys if available
-  if (privateKeyData && privateKeyData.questions) {
-    const keyMap = new Map();
-    for (const item of privateKeyData.questions) {
-      if (item && item.id) {
-        keyMap.set(String(item.id), item);
-      }
-    }
-    questions = questions.map(q => {
-      const qId = String(q.id);
-      if (keyMap.has(qId)) {
-        const trusted = keyMap.get(qId);
-        return {
-          ...q,
-          correctAnswer: trusted.correctAnswer || q.correctAnswer || "",
-          explanation: trusted.explanation || q.explanation || ""
-        };
-      }
-      return q;
-    });
-  }
+  const validated = validateAndMergeAnswerKeys(testDocData, questions, privateKeyData);
+  questions = validated.questions;
+  const solutionKeys = validated.solutionKeys;
 
   if (questions.length === 0) {
     const err = new Error("Test contains no questions to evaluate.");
@@ -148,15 +135,7 @@ function validateCallableSubmission(data, context, testDocData, privateKeyData =
   const targetExam = testDocData.targetExam || "NEET";
   const evalResult = evaluateTestAttempt(targetExam, questions, answers, cleanTimeSpent);
 
-  const solutionKeys = {};
-  for (const q of questions) {
-    if (q.id) {
-      solutionKeys[q.id] = {
-        correctAnswer: q.correctAnswer || "",
-        explanation: q.explanation || ""
-      };
-    }
-  }
+
 
   // Population percentile calculation
   let testRank = 0;
@@ -412,7 +391,15 @@ test("Official ranking test calculates population percentile against candidate c
     ])
   };
 
-  // 4 existing candidates with scores: 16 (4 correct), 11 (3 correct, 1 wrong), 6 (2 correct, 2 wrong), 0 (0 correct)
+  const privateKeyData = {
+    questions: [
+      { id: "q1", correctAnswer: "A" },
+      { id: "q2", correctAnswer: "B" },
+      { id: "q3", correctAnswer: "C" },
+      { id: "q4", correctAnswer: "D" }
+    ]
+  };
+
   const existingCandidates = [
     { userId: "c1", score: 16 },
     { userId: "c2", score: 11 },
@@ -434,7 +421,7 @@ test("Official ranking test calculates population percentile against candidate c
     },
     context,
     officialTest,
-    null,
+    privateKeyData,
     null,
     existingCandidates
   );
@@ -445,4 +432,129 @@ test("Official ranking test calculates population percentile against candidate c
   assert.strictEqual(bobResult.testRank, 2);
   assert.strictEqual(bobResult.testTotalCandidates, 5);
   assert.strictEqual(bobResult.percentile, 80.0);
+});
+
+test("Official ranking test: fails closed if private answer key is missing", () => {
+  const context = { auth: { uid: "student_alice" } };
+  const officialTest = {
+    id: "neet_ranking_test",
+    status: "Published",
+    isPublic: true,
+    isOfficial: true,
+    countsTowardRanking: true,
+    targetExam: "NEET UG",
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Question 1" }])
+  };
+
+  assert.throws(
+    () => validateCallableSubmission(
+      { testId: "neet_ranking_test", attemptSessionToken: "att_fail_1", answers: { q1: "A" }, timeSpentSeconds: 10 },
+      context,
+      officialTest,
+      null // missing privateKeyData
+    ),
+    { code: "failed-precondition" }
+  );
+});
+
+test("Official ranking test: fails closed if private answer key is incomplete (missing a question ID)", () => {
+  const context = { auth: { uid: "student_alice" } };
+  const officialTest = {
+    id: "neet_ranking_test",
+    status: "Published",
+    isPublic: true,
+    isOfficial: true,
+    countsTowardRanking: true,
+    targetExam: "NEET UG",
+    questionsJson: JSON.stringify([
+      { id: "q1", questionText: "Question 1" },
+      { id: "q2", questionText: "Question 2" }
+    ])
+  };
+
+  const incompleteKeys = {
+    questions: [
+      { id: "q1", correctAnswer: "A" }
+      // q2 is missing!
+    ]
+  };
+
+  assert.throws(
+    () => validateCallableSubmission(
+      { testId: "neet_ranking_test", attemptSessionToken: "att_fail_2", answers: { q1: "A", q2: "B" }, timeSpentSeconds: 20 },
+      context,
+      officialTest,
+      incompleteKeys
+    ),
+    { code: "failed-precondition" }
+  );
+});
+
+test("Official ranking test: rejects public correctAnswer fallback when private key is missing", () => {
+  const context = { auth: { uid: "student_alice" } };
+  const testWithPublicAnswer = {
+    id: "neet_with_public_key",
+    status: "Published",
+    isPublic: true,
+    isOfficial: true,
+    countsTowardRanking: true,
+    targetExam: "NEET UG",
+    // Attacker or unmigrated test has public correctAnswer
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Question 1", correctAnswer: "A" }])
+  };
+
+  // Submission without trusted private answer key document must throw
+  assert.throws(
+    () => validateCallableSubmission(
+      { testId: "neet_with_public_key", attemptSessionToken: "att_fail_3", answers: { q1: "A" }, timeSpentSeconds: 10 },
+      context,
+      testWithPublicAnswer,
+      null
+    ),
+    { code: "failed-precondition" }
+  );
+});
+
+test("Exam-specific qualifying counts: NEET attempts do not unlock JEE Main eligibility", () => {
+  // User with 5 qualifying NEET attempts but 0 JEE Main attempts
+  const userWithNeetAttempts = {
+    uid: "student_multi_1",
+    targetExam: "NEET",
+    qualifyingTestsCount: 5, // legacy/global total
+    qualifyingTestsCount_NEET: 5,
+    cumulativeScore_NEET: 2500,
+    qualifyingTestsCount_JEE_MAIN: 0,
+    cumulativeScore_JEE_MAIN: 0
+  };
+
+  const jeeEligibility = getExamEligibility(userWithNeetAttempts, "JEE_MAIN");
+  assert.strictEqual(jeeEligibility.qualifyingCount, 0, "JEE Main qualifying count must be 0");
+  assert.strictEqual(jeeEligibility.isEligible, false, "User must NOT be eligible for JEE Main ranking");
+  assert.strictEqual(jeeEligibility.competitiveScore, 0, "JEE Main score must be 0");
+
+  const neetEligibility = getExamEligibility(userWithNeetAttempts, "NEET");
+  assert.strictEqual(neetEligibility.qualifyingCount, 5, "NEET qualifying count must be 5");
+  assert.strictEqual(neetEligibility.isEligible, true, "User must be eligible for NEET ranking");
+  assert.strictEqual(neetEligibility.competitiveScore, 2500, "NEET score must be 2500");
+});
+
+test("Exam-specific qualifying counts: JEE Main attempts unlock JEE Main independently", () => {
+  const userWithJeeAttempts = {
+    uid: "student_multi_2",
+    targetExam: "JEE_MAIN",
+    qualifyingTestsCount: 2,
+    qualifyingTestsCount_JEE_MAIN: 2,
+    cumulativeScore_JEE_MAIN: 480
+    // No NEET fields at all
+  };
+
+  const jeeEligibility = getExamEligibility(userWithJeeAttempts, "JEE_MAIN");
+  assert.strictEqual(jeeEligibility.qualifyingCount, 2);
+  assert.strictEqual(jeeEligibility.isEligible, true);
+  assert.strictEqual(jeeEligibility.competitiveScore, 480);
+
+  const neetEligibility = getExamEligibility(userWithJeeAttempts, "NEET");
+  assert.strictEqual(neetEligibility.qualifyingCount, 0);
+  assert.strictEqual(neetEligibility.isEligible, false);
+  assert.strictEqual(neetEligibility.competitiveScore, 0);
 });

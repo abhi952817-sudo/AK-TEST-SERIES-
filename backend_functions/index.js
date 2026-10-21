@@ -3,7 +3,12 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 const db = admin.firestore();
-const { evaluateTestAttempt, calculatePopulationPercentile } = require("./examScoring");
+const {
+  evaluateTestAttempt,
+  calculatePopulationPercentile,
+  validateAndMergeAnswerKeys,
+  getExamEligibility,
+} = require("./examScoring");
 
 /**
  * Normalizes exam titles to canonical group identifiers to guarantee
@@ -159,48 +164,15 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     privateKeyDoc = await db.collection("TestAnswerKeys").doc(cleanTestId).get();
   }
 
-  const keyMap = new Map();
-  if (privateKeyDoc.exists) {
-    const keyData = privateKeyDoc.data() || {};
-    const keyList = keyData.questions || keyData.keys || [];
-    for (const item of keyList) {
-      if (item && item.id) {
-        keyMap.set(String(item.id), item);
-      }
-    }
+  const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+  let solutionKeys = {};
+  try {
+    const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
+    questions = validated.questions;
+    solutionKeys = validated.solutionKeys;
+  } catch (err) {
+    throw new functions.https.HttpsError(err.code || "failed-precondition", err.message);
   }
-
-  if (countsTowardRanking && (!privateKeyDoc.exists || keyMap.size === 0)) {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "Official ranking-eligible test requires verified server-side answer keys. None found in private storage."
-    );
-  }
-
-  // Merge authoritative grading key and explanation into question models for scoring (Fail-closed)
-  questions = questions.map(q => {
-    const qId = String(q.id);
-    if (keyMap.has(qId)) {
-      const trusted = keyMap.get(qId);
-      return {
-        ...q,
-        correctAnswer: trusted.correctAnswer,
-        explanation: trusted.explanation || q.explanation || ""
-      };
-    } else {
-      if (countsTowardRanking) {
-        throw new functions.https.HttpsError(
-          "failed-precondition",
-          `Official ranking-eligible test is missing trusted grading key for question ID: ${qId}`
-        );
-      }
-      return {
-        ...q,
-        correctAnswer: q.correctAnswer || "",
-        explanation: q.explanation || ""
-      };
-    }
-  });
 
   if (questions.length === 0) {
     throw new functions.https.HttpsError(
@@ -230,17 +202,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
   // 5. Authoritatively evaluate score on the server
   const evalResult = evaluateTestAttempt(canonicalExam, questions, answers, cleanTimeSpent);
-
-  // Construct authorized post-submission solutions for review screen
-  const solutionKeys = {};
-  for (const q of questions) {
-    if (q.id) {
-      solutionKeys[q.id] = {
-        correctAnswer: q.correctAnswer || "",
-        explanation: q.explanation || ""
-      };
-    }
-  }
 
   const attemptDocId = attemptSessionToken.trim();
   const userRef = db.collection("Users_Data").doc(userId);
@@ -354,12 +315,27 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const currentTotalScore = userData.totalCumulativeScore || 0;
     let newExamScore = currentExamScore;
 
+    // Full Test vs Part Test weighting for cumulative ranking:
+    // Full Syllabus mock tests = 1.0x; Chapterwise / Topic / Part syllabus tests = 0.2x
+    const testCategory = String(testData.category || testData.testType || "").toLowerCase();
+    const isPartTest = testData.isPartTest === true ||
+      testCategory.includes("chapter") ||
+      testCategory.includes("topic") ||
+      testCategory.includes("subject") ||
+      testCategory.includes("part");
+    
+    const rankingWeight = typeof testData.rankingWeight === "number"
+      ? testData.rankingWeight
+      : (isPartTest ? 0.2 : 1.0);
+    
+    const weightedScore = Math.round(evalResult.finalScore * rankingWeight);
+
     if (isFirstAttempt && countsTowardRanking) {
-      newExamScore = currentExamScore + Math.round(evalResult.finalScore);
+      newExamScore = currentExamScore + weightedScore;
       updates[examQCountKey] = currentExamQCount + 1;
       updates.qualifyingTestsCount = (userData.qualifyingTestsCount || 0) + 1;
       updates[examScoreKey] = newExamScore;
-      updates.totalCumulativeScore = currentTotalScore + Math.round(evalResult.finalScore);
+      updates.totalCumulativeScore = currentTotalScore + weightedScore;
     }
 
     transaction.update(userRef, updates);
@@ -434,8 +410,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         isEligibleForRanking: isEligible,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
-    } else if (userData.qualifyingTestsCount && userData.qualifyingTestsCount >= 2) {
-      // User is already an eligible ranked participant; keep test count updated without altering score
+    } else if (userData[examQCountKey] && userData[examQCountKey] >= 2) {
+      // User is already an eligible ranked participant for this canonicalExam; keep test count updated without altering score
       const leaderboardRef = db.collection("Leaderboard").doc(`${canonicalExam}_${userId}`);
       transaction.set(leaderboardRef, {
         totalTestsAttempted: updates.totalTestsAttempted || totalTests + 1,
@@ -504,10 +480,9 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   }
 
   const userData = userDoc.data();
-  const examQCountKey = `qualifyingTestsCount_${canonicalExam}`;
-  const qualifyingCount = userData[examQCountKey] || userData.qualifyingTestsCount || 0;
-  const examScoreKey = `cumulativeScore_${canonicalExam}`;
-  const competitiveScore = userData[examScoreKey] || 0;
+  const eligibility = getExamEligibility(userData, canonicalExam);
+  const qualifyingCount = eligibility.qualifyingCount;
+  const competitiveScore = eligibility.competitiveScore;
 
   // Query eligible participant population for this specific exam
   const eligibleQuery = db.collection("Leaderboard")
@@ -548,8 +523,8 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   // P = ((N - rank + 1) / N) * 100
   const percentile = calculatePopulationPercentile(rank, totalEligible);
 
-  const isOfficialAir = totalEligible >= 1000;
-  const status = isOfficialAir ? "Official AIR" : "Provisional Rank";
+  const isOfficialAir = false; // Platform rankings are never disguised as official national AIR
+  const status = totalEligible >= 50 ? "Platform Rank" : "Provisional Rank";
 
   // Next target motivation
   let nextTarget = null;

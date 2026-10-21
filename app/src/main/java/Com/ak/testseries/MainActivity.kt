@@ -7597,13 +7597,13 @@ fun MiniLeaderboardCard(
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             color = when (userRankStatus) {
-                                "Official AIR" -> Color(0xFF1B5E20)
+                                "Platform Rank" -> Color(0xFF1B5E20)
                                 "Provisional Rank" -> Color(0xFFBF360C)
                                 else -> Color(0xFF311B92)
                             }
                         )
                         Text(
-                            text = if (isOfficialAir) "Exam pool reached 1,000+ verified test takers." else "Official All India Rank unlocks when $examFilter pool hits 1,000 active takers.",
+                            text = "Platform rank across verified test series candidates.",
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

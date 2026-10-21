@@ -74,7 +74,6 @@ test("Student: CAN create own profile with standard fields", async () => {
       name: "Alice Sharma",
       email: "alice@test.com",
       targetExam: "NEET",
-      totalTestsAttempted: 0,
       averageScore: 0.0,
     })
   );
