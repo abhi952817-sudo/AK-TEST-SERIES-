@@ -111,7 +111,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             null
         }
         if (user != null) {
-            val isOwnerEmail = user.email?.equals("abhi952817@gmail.com", ignoreCase = true) == true
+            val isOwnerEmail = user.email?.equals("abhi952817@gmail.com", ignoreCase = true) == true && user.isEmailVerified
             if (isOwnerEmail) {
                 _isAdminOverride = true
                 isAdminFlow.value = true
@@ -6051,6 +6051,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun logout(authManager: Com.ak.testseries.domain.auth.AuthManager) {
         viewModelScope.launch {
             authManager.signOut()
+            leaderboardListener?.remove()
+            leaderboardListener = null
             currentUserId.value = ""
             _isAdminOverride = false
             isAdminFlow.value = false
@@ -6066,6 +6068,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _isOfficialAirUnlocked.value = false
             _nextTargetMessage.value = ""
             _activeTest.value = null
+            _activeResult.value = null
             _userAnswers.value = emptyMap()
             _markedForReview.value = emptySet()
             _checkedQuestions.value = emptySet()
@@ -6282,6 +6285,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         questions: List<UniversalQuestionModel>,
         durationMinutes: Int = 0
     ) {
+        if (!isAdmin) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val testId = "universal_${System.currentTimeMillis()}"

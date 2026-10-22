@@ -53,10 +53,16 @@ fun PrivateTestsVaultScreen(
     var showImportDialog by remember { mutableStateOf(false) }
     var activePreviewTest by remember { mutableStateOf<TestEntity?>(null) }
 
-    // Filter private tests (isPublic == false OR uploaded by user in private mode)
-    val privateTests = remember(tests, currentUserId) {
+    // Filter private tests: Authenticated students see only tests they created; Admins can see all
+    val privateTests = remember(tests, currentUserId, viewModel.isAdmin) {
         tests.filter { test ->
-            !test.isPublic || test.institute.contains("Private", ignoreCase = true) || test.uploaderId == currentUserId
+            val isOwner = currentUserId.isNotBlank() && test.uploaderId == currentUserId
+            val isPrivateTest = !test.isPublic || test.institute.contains("Private", ignoreCase = true)
+            if (viewModel.isAdmin) {
+                isPrivateTest || isOwner
+            } else {
+                isOwner && isPrivateTest
+            }
         }
     }
 

@@ -9,6 +9,7 @@ const {
   validateAndMergeAnswerKeys,
   getExamEligibility,
 } = require("./examScoring");
+const { validateSetAdminRoleAuth } = require("./authHelper");
 
 /**
  * Normalizes exam titles to canonical group identifiers to guarantee
@@ -573,20 +574,12 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
  * Restricted to existing super-admins or verified primary owner (abhi952817@gmail.com).
  */
 exports.setAdminRole = functions.https.onCall(async (data, context) => {
-  if (!context || !context.auth || !context.auth.uid) {
+  try {
+    validateSetAdminRoleAuth(context);
+  } catch (err) {
     throw new functions.https.HttpsError(
-      "unauthenticated",
-      "User must be authenticated to manage administrator roles."
-    );
-  }
-
-  const isCallerAdmin = context.auth.token && context.auth.token.admin === true;
-  const isOwnerEmail = context.auth.token && context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true;
-
-  if (!isCallerAdmin && !isOwnerEmail) {
-    throw new functions.https.HttpsError(
-      "permission-denied",
-      "Only authorized super administrators with verified credentials can assign admin roles."
+      err.code || "permission-denied",
+      err.message
     );
   }
 

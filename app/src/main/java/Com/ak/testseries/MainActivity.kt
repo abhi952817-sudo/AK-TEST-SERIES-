@@ -313,7 +313,58 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         AppScreen.ADMIN_PANEL -> {
-                            AdminPanelScreen(viewModel = viewModel)
+                            if (!viewModel.isAdmin) {
+                                androidx.activity.compose.BackHandler {
+                                    viewModel.navigateToScreen(AppScreen.DASHBOARD)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(0.9f),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                Icons.Rounded.Security,
+                                                contentDescription = "Access Restricted",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(56.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Text(
+                                                text = "Access Restricted",
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "Administrator privileges are required to access the Master Admin Panel.",
+                                                fontSize = 14.sp,
+                                                textAlign = TextAlign.Center,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                            )
+                                            Spacer(modifier = Modifier.height(24.dp))
+                                            Button(
+                                                onClick = { viewModel.navigateToScreen(AppScreen.DASHBOARD) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                            ) {
+                                                Text("Return to Dashboard")
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                AdminPanelScreen(viewModel = viewModel)
+                            }
                         }
                         AppScreen.USER_NOTIFICATIONS -> {
                             UserNotificationsScreen(viewModel = viewModel)
@@ -616,7 +667,9 @@ fun DashboardScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val isOwner = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email?.equals("abhi952817@gmail.com", ignoreCase = true) == true
+                    val isOwner = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.let {
+                        it.email?.equals("abhi952817@gmail.com", ignoreCase = true) == true && it.isEmailVerified
+                    } == true
                     if (!viewModel.isAdmin && !isOwner) {
                         errorMsg = "Unauthorized: Admin privileges required on your account."
                     } else if (isOwner || (currentPassword.isNotBlank() && passwordInput == currentPassword)) {

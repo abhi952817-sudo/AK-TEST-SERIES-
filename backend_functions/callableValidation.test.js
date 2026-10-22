@@ -6,6 +6,7 @@ const {
   validateAndMergeAnswerKeys,
   getExamEligibility,
 } = require("./examScoring");
+const { validateSetAdminRoleAuth } = require("./authHelper");
 
 // Simulated logic mirroring submitTestAttemptServerSide verification rules
 function validateCallableSubmission(data, context, testDocData, privateKeyData = null, existingAttemptData = null, existingCandidates = null) {
@@ -559,24 +560,6 @@ test("Exam-specific qualifying counts: JEE Main attempts unlock JEE Main indepen
   assert.strictEqual(neetEligibility.competitiveScore, 0);
 });
 
-// Validation logic mirroring setAdminRole authorization rules
-function validateSetAdminRoleAuth(context) {
-  if (!context || !context.auth || !context.auth.uid) {
-    const err = new Error("User must be authenticated to manage administrator roles.");
-    err.code = "unauthenticated";
-    throw err;
-  }
-
-  const isCallerAdmin = context.auth.token && context.auth.token.admin === true;
-  const isOwnerEmail = context.auth.token && context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true;
-
-  if (!isCallerAdmin && !isOwnerEmail) {
-    const err = new Error("Only authorized super administrators with verified credentials can assign admin roles.");
-    err.code = "permission-denied";
-    throw err;
-  }
-  return true;
-}
 
 test("setAdminRole: Unauthenticated calls are rejected with unauthenticated", () => {
   assert.throws(
