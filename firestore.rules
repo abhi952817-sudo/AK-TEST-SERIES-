@@ -148,6 +148,7 @@ service cloud.firestore {
         isAdmin()
         || resource.data.get('creatorId', '') == request.auth.uid
         || resource.data.get('uploaderId', '') == request.auth.uid
+        || resource.data.get('ownerId', '') == request.auth.uid
         || isTestPublishedAndApproved(resource.data)
       );
       allow write: if isAdmin();
@@ -162,6 +163,7 @@ service cloud.firestore {
           isAdmin()
           || get(/databases/$(database)/documents/Tests/$(testId)).data.get('creatorId', '') == request.auth.uid
           || get(/databases/$(database)/documents/Tests/$(testId)).data.get('uploaderId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.get('ownerId', '') == request.auth.uid
           || isTestPublishedAndApproved(get(/databases/$(database)/documents/Tests/$(testId)).data)
         );
         allow write: if isAdmin();
@@ -172,6 +174,7 @@ service cloud.firestore {
           isAdmin()
           || get(/databases/$(database)/documents/Tests/$(testId)).data.get('creatorId', '') == request.auth.uid
           || get(/databases/$(database)/documents/Tests/$(testId)).data.get('uploaderId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/Tests/$(testId)).data.get('ownerId', '') == request.auth.uid
           || isTestPublishedAndApproved(get(/databases/$(database)/documents/Tests/$(testId)).data)
         );
         allow write: if isAdmin();
@@ -183,6 +186,7 @@ service cloud.firestore {
         isAdmin()
         || resource.data.get('creatorId', '') == request.auth.uid
         || resource.data.get('uploaderId', '') == request.auth.uid
+        || resource.data.get('ownerId', '') == request.auth.uid
         || isTestPublishedAndApproved(resource.data)
       );
       allow write: if isAdmin();
@@ -197,6 +201,7 @@ service cloud.firestore {
           isAdmin()
           || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('creatorId', '') == request.auth.uid
           || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('uploaderId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('ownerId', '') == request.auth.uid
           || isTestPublishedAndApproved(get(/databases/$(database)/documents/Tests_Data/$(testId)).data)
         );
         allow write: if isAdmin();
@@ -207,6 +212,7 @@ service cloud.firestore {
           isAdmin()
           || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('creatorId', '') == request.auth.uid
           || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('uploaderId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/Tests_Data/$(testId)).data.get('ownerId', '') == request.auth.uid
           || isTestPublishedAndApproved(get(/databases/$(database)/documents/Tests_Data/$(testId)).data)
         );
         allow write: if isAdmin();
@@ -237,13 +243,24 @@ service cloud.firestore {
     // =========================================================================
     // COMMUNITY TESTS & DISCUSSIONS
     // Read: Authenticated students
-    // Create: Authenticated students (must be creator)
-    // Update/Delete: Creator or Verified Admin
+    // Create: Authenticated students (must be creator or uploader)
+    // Update/Delete: Creator or Verified Admin (creatorId and uploaderId cannot be forged or altered)
     // =========================================================================
     match /Shared_Community_Tests/{testId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
-      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
+      allow create: if isAuthenticated() && (
+        request.resource.data.get('creatorId', '') == request.auth.uid
+        || request.resource.data.get('uploaderId', '') == request.auth.uid
+      );
+      allow update: if isAdmin() || (
+        isAuthenticated()
+        && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'uploaderId'])
+      );
+      allow delete: if isAdmin() || (
+        isAuthenticated()
+        && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
+      );
     }
 
     match /Community_Posts/{postId} {
@@ -293,7 +310,7 @@ service cloud.firestore {
     }
 
     match /User_Analytics/{eventId} {
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow read, update, delete: if isAdmin();
     }
 

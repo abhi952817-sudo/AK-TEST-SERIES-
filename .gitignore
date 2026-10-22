@@ -17,6 +17,7 @@ local.properties
 .env
 debug.keystore
 *-debug.log
+.aistudio/
 
 # Ensure Gradle wrapper files are checked in
 !gradlew

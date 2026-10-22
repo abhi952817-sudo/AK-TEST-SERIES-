@@ -183,6 +183,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val _userPercentile = MutableStateFlow(0.0)
     val userPercentile: StateFlow<Double> = _userPercentile.asStateFlow()
 
+    private val _rankLastUpdatedTime = MutableStateFlow(0L)
+    val rankLastUpdatedTime: StateFlow<Long> = _rankLastUpdatedTime.asStateFlow()
+
     private val _userQualifyingTestsCount = MutableStateFlow(0)
     val userQualifyingTestsCount: StateFlow<Int> = _userQualifyingTestsCount.asStateFlow()
 
@@ -296,6 +299,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             _userRank.value = rankStr
                             _userPercentile.value = pct
                             _nextTargetMessage.value = msg
+                            _rankLastUpdatedTime.value = System.currentTimeMillis()
                             cloudRankSuccess = true
                         }
                     } catch (fe: Exception) {
@@ -307,9 +311,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         val userRef = db.collection("Users_Data").document(user.uid)
                         val snapshot = userRef.get().await()
                         if (snapshot.exists()) {
-                            val qualifyingTests = (snapshot.getLong("qualifyingTestsCount") ?: 0L).toInt()
+                            val examQCountKey = "qualifyingTestsCount_$targetExam"
+                            val qualifyingTests = (snapshot.getLong(examQCountKey) ?: 0L).toInt()
                             val examScoreKey = "cumulativeScore_$targetExam"
-                            val competitiveScore = (snapshot.getLong(examScoreKey) ?: snapshot.getLong("totalCumulativeScore") ?: 0L).toInt()
+                            val competitiveScore = (snapshot.getLong(examScoreKey) ?: 0L).toInt()
                             
                             _userQualifyingTestsCount.value = qualifyingTests
                             _userCompetitiveScore.value = competitiveScore
@@ -323,54 +328,70 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             _eligibleParticipantsCount.value = totalEligible
                             _isOfficialAirUnlocked.value = totalEligible >= airThreshold
 
-                            if (qualifyingTests < minQualifyingTests) {
+                            if (qualifyingTests < minQualifyingTests || competitiveScore <= 0 || totalEligible <= 0) {
                                 _userRankStatus.value = "Rank Pending"
                                 _userRank.value = "Pending"
                                 _userPercentile.value = 0.0
-                                _nextTargetMessage.value = "Complete $minQualifyingTests qualifying tests to unlock your provisional ranking!"
+                                _rankLastUpdatedTime.value = 0L
+                                _nextTargetMessage.value = if (qualifyingTests < minQualifyingTests) {
+                                    "Complete $minQualifyingTests qualifying tests to unlock your provisional ranking!"
+                                } else {
+                                    "Establish an active competitive score to view your platform rank."
+                                }
                             } else {
                                 val countQuery = db.collection("Leaderboard")
                                     .whereEqualTo("targetExam", targetExam)
                                     .whereEqualTo("isEligibleForRanking", true)
                                     .whereGreaterThan("score", competitiveScore)
                                 val countSnapshot = countQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
-                                val rank = (countSnapshot.count + 1).toInt()
-                                
-                                val hasSufficientCohort = totalEligible >= 50
-                                _userRankStatus.value = if (hasSufficientCohort) "Platform Rank" else "Provisional Rank"
-                                _isOfficialAirUnlocked.value = false
-                                _userRank.value = "#$rank"
+                                val higherCount = countSnapshot.count.toInt()
+                                val rank = higherCount + 1
 
-                                val rawPct = if (totalEligible > 0) {
-                                    if (rank == 1) 100.0 else (((totalEligible - rank + 1).toDouble() / totalEligible.toDouble()) * 100.0).coerceIn(0.01, 99.99)
-                                } else 0.0
-                                _userPercentile.value = Math.round(rawPct * 100.0) / 100.0
-
-                                if (rank > 1) {
-                                    val higherUsersQuery = db.collection("Leaderboard")
-                                        .whereEqualTo("targetExam", targetExam)
-                                        .whereEqualTo("isEligibleForRanking", true)
-                                        .whereGreaterThan("score", competitiveScore)
-                                        .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
-                                        .limit(1)
-                                        .get().await()
-                                    val higherDoc = higherUsersQuery.documents.firstOrNull()
-                                    if (higherDoc != null) {
-                                        val higherScore = (higherDoc.getLong("score") ?: 0L).toInt()
-                                        val ptsAway = (higherScore - competitiveScore) + 1
-                                        val targetName = higherDoc.getString("displayName") ?: higherDoc.getString("name") ?: "Student"
-                                        _nextTargetMessage.value = "Next target: $targetName (#${rank - 1}) — You are $ptsAway pts away! Take 1 test to overtake."
-                                    } else {
-                                        _nextTargetMessage.value = "Keep practicing to climb higher on the $targetExam leaderboard!"
-                                    }
+                                if (rank > totalEligible) {
+                                    _userRankStatus.value = "Rank Pending"
+                                    _userRank.value = "Pending"
+                                    _userPercentile.value = 0.0
+                                    _rankLastUpdatedTime.value = 0L
+                                    _nextTargetMessage.value = "Ranking is being calculated against current cohort."
                                 } else {
-                                    _nextTargetMessage.value = "🎉 Congratulations! You are Rank #1 on the $targetExam Leaderboard!"
+                                    val hasSufficientCohort = totalEligible >= 50
+                                    _userRankStatus.value = if (hasSufficientCohort) "Platform Rank" else "Provisional Rank"
+                                    _isOfficialAirUnlocked.value = false
+                                    _userRank.value = "#$rank"
+                                    _rankLastUpdatedTime.value = System.currentTimeMillis()
+
+                                    val rawPct = if (totalEligible > 0) {
+                                        if (rank == 1) 100.0 else (((totalEligible - rank + 1).toDouble() / totalEligible.toDouble()) * 100.0).coerceIn(0.01, 99.99)
+                                    } else 0.0
+                                    _userPercentile.value = Math.round(rawPct * 100.0) / 100.0
+
+                                    if (rank > 1) {
+                                        val higherUsersQuery = db.collection("Leaderboard")
+                                            .whereEqualTo("targetExam", targetExam)
+                                            .whereEqualTo("isEligibleForRanking", true)
+                                            .whereGreaterThan("score", competitiveScore)
+                                            .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
+                                            .limit(1)
+                                            .get().await()
+                                        val higherDoc = higherUsersQuery.documents.firstOrNull()
+                                        if (higherDoc != null) {
+                                            val higherScore = (higherDoc.getLong("score") ?: 0L).toInt()
+                                            val ptsAway = (higherScore - competitiveScore) + 1
+                                            val targetName = higherDoc.getString("displayName") ?: higherDoc.getString("name") ?: "Student"
+                                            _nextTargetMessage.value = "Next target: $targetName (#${rank - 1}) — You are $ptsAway pts away! Take 1 test to overtake."
+                                        } else {
+                                            _nextTargetMessage.value = "Keep practicing to climb higher on the $targetExam leaderboard!"
+                                        }
+                                    } else {
+                                        _nextTargetMessage.value = "🎉 Congratulations! You are Rank #1 on the $targetExam Leaderboard!"
+                                    }
                                 }
                             }
                         } else {
                             _userRank.value = "-"
                             _userRankStatus.value = "Rank Pending"
                             _userPercentile.value = 0.0
+                            _rankLastUpdatedTime.value = 0L
                             _nextTargetMessage.value = "Complete $minQualifyingTests qualifying tests to unlock your provisional ranking."
                         }
                     }
@@ -378,12 +399,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     _userRank.value = "-"
                     _userRankStatus.value = "Rank Pending"
                     _userPercentile.value = 0.0
+                    _rankLastUpdatedTime.value = 0L
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 _userRank.value = "-"
                 _userRankStatus.value = "Rank Pending"
                 _userPercentile.value = 0.0
+                _rankLastUpdatedTime.value = 0L
+                _nextTargetMessage.value = "Unable to fetch ranking details. Please check connection."
             }
         }
     }
@@ -6035,6 +6059,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _userRank.value = "-"
             _userRankStatus.value = "Rank Pending"
             _userPercentile.value = 0.0
+            _rankLastUpdatedTime.value = 0L
             _userQualifyingTestsCount.value = 0
             _userCompetitiveScore.value = 0
             _eligibleParticipantsCount.value = 0

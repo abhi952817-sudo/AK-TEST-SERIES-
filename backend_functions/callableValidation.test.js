@@ -558,3 +558,91 @@ test("Exam-specific qualifying counts: JEE Main attempts unlock JEE Main indepen
   assert.strictEqual(neetEligibility.isEligible, false);
   assert.strictEqual(neetEligibility.competitiveScore, 0);
 });
+
+// Validation logic mirroring setAdminRole authorization rules
+function validateSetAdminRoleAuth(context) {
+  if (!context || !context.auth || !context.auth.uid) {
+    const err = new Error("User must be authenticated to manage administrator roles.");
+    err.code = "unauthenticated";
+    throw err;
+  }
+
+  const isCallerAdmin = context.auth.token && context.auth.token.admin === true;
+  const isOwnerEmail = context.auth.token && context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true;
+
+  if (!isCallerAdmin && !isOwnerEmail) {
+    const err = new Error("Only authorized super administrators with verified credentials can assign admin roles.");
+    err.code = "permission-denied";
+    throw err;
+  }
+  return true;
+}
+
+test("setAdminRole: Unauthenticated calls are rejected with unauthenticated", () => {
+  assert.throws(
+    () => validateSetAdminRoleAuth(null),
+    (err) => err.code === "unauthenticated"
+  );
+  assert.throws(
+    () => validateSetAdminRoleAuth({ auth: null }),
+    (err) => err.code === "unauthenticated"
+  );
+});
+
+test("setAdminRole: Normal student is rejected with permission-denied", () => {
+  const normalStudentContext = {
+    auth: {
+      uid: "student_456",
+      token: {
+        email: "student@example.com",
+        email_verified: true,
+        admin: false
+      }
+    }
+  };
+  assert.throws(
+    () => validateSetAdminRoleAuth(normalStudentContext),
+    (err) => err.code === "permission-denied"
+  );
+});
+
+test("setAdminRole: Caller with unverified owner email is rejected with permission-denied", () => {
+  const unverifiedAttackerContext = {
+    auth: {
+      uid: "attacker_789",
+      token: {
+        email: "abhi952817@gmail.com",
+        email_verified: false,
+        admin: false
+      }
+    }
+  };
+  assert.throws(
+    () => validateSetAdminRoleAuth(unverifiedAttackerContext),
+    (err) => err.code === "permission-denied"
+  );
+});
+
+test("setAdminRole: Verified owner or admin claim is authorized", () => {
+  const verifiedOwnerContext = {
+    auth: {
+      uid: "owner_123",
+      token: {
+        email: "abhi952817@gmail.com",
+        email_verified: true
+      }
+    }
+  };
+  assert.strictEqual(validateSetAdminRoleAuth(verifiedOwnerContext), true);
+
+  const adminClaimContext = {
+    auth: {
+      uid: "admin_123",
+      token: {
+        email: "staff@example.com",
+        admin: true
+      }
+    }
+  };
+  assert.strictEqual(validateSetAdminRoleAuth(adminClaimContext), true);
+});

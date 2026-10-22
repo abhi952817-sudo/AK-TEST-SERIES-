@@ -543,3 +543,101 @@ test("Super Admin: abhi952817@gmail.com with verified email has full admin privi
   );
 });
 
+test("User_Analytics: Student can log own analytics, but cannot forge events for other users", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+
+  // Alice can log her own analytics event
+  await assertSucceeds(
+    aliceDb.collection("User_Analytics").doc("alice_event_1").set({
+      userId: ALICE_UID,
+      eventType: "SCREEN_TIME",
+      screenName: "Dashboard",
+      durationSeconds: 120,
+      timestamp: Date.now()
+    })
+  );
+
+  // Alice CANNOT log an event claiming to be Bob (forgery prevented)
+  await assertFails(
+    aliceDb.collection("User_Analytics").doc("forged_event_1").set({
+      userId: BOB_UID,
+      eventType: "FEATURE_USAGE",
+      featureName: "AdminPanel",
+      timestamp: Date.now()
+    })
+  );
+});
+
+test("Private Test Ownership: Creator can read private test, another student is denied", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  // Admin creates Alice's private test
+  await adminDb.collection("Tests_Data").doc("alice_private_test").set({
+    title: "Alice Private Test",
+    creatorId: ALICE_UID,
+    isPublic: false,
+    isOfficial: false,
+    status: "Published"
+  });
+
+  // Alice can read her own private test
+  await assertSucceeds(aliceDb.collection("Tests_Data").doc("alice_private_test").get());
+
+  // Bob CANNOT read Alice's private test
+  await assertFails(bobDb.collection("Tests_Data").doc("alice_private_test").get());
+});
+
+test("Private Test Ownership: ownerId and uploaderId are supported, missing owner fails closed", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  // Test with ownerId
+  await adminDb.collection("Tests_Data").doc("alice_owner_test").set({
+    title: "Alice Owner Test",
+    ownerId: ALICE_UID,
+    isPublic: false,
+    isOfficial: false,
+    status: "Published"
+  });
+  await assertSucceeds(aliceDb.collection("Tests_Data").doc("alice_owner_test").get());
+  await assertFails(bobDb.collection("Tests_Data").doc("alice_owner_test").get());
+
+  // Legacy test with missing owner/creator fails closed (not public)
+  await adminDb.collection("Tests_Data").doc("orphan_private_test").set({
+    title: "Orphan Private Test",
+    isPublic: false,
+    isOfficial: false,
+    status: "Published"
+  });
+  await assertFails(aliceDb.collection("Tests_Data").doc("orphan_private_test").get());
+});
+
+test("Shared_Community_Tests: Creator can update, but cannot alter creatorId or uploaderId", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  // Alice creates community test
+  await assertSucceeds(
+    aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").set({
+      title: "Shared Community Test",
+      creatorId: ALICE_UID,
+      targetExam: "NEET"
+    })
+  );
+
+  // Bob cannot delete or alter Alice's community test
+  await assertFails(
+    bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").delete()
+  );
+
+  // Alice cannot reassign creatorId to Bob
+  await assertFails(
+    aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").update({
+      creatorId: BOB_UID
+    })
+  );
+});
+

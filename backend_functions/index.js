@@ -573,13 +573,20 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
  * Restricted to existing super-admins or verified primary owner (abhi952817@gmail.com).
  */
 exports.setAdminRole = functions.https.onCall(async (data, context) => {
-  const isCallerAdmin = context.auth && context.auth.token && context.auth.token.admin === true;
-  const isOwnerEmail = context.auth && context.auth.token && context.auth.token.email === "abhi952817@gmail.com";
+  if (!context || !context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated to manage administrator roles."
+    );
+  }
+
+  const isCallerAdmin = context.auth.token && context.auth.token.admin === true;
+  const isOwnerEmail = context.auth.token && context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true;
 
   if (!isCallerAdmin && !isOwnerEmail) {
     throw new functions.https.HttpsError(
       "permission-denied",
-      "Only authorized super administrators can assign admin roles."
+      "Only authorized super administrators with verified credentials can assign admin roles."
     );
   }
 
