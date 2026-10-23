@@ -264,8 +264,87 @@
 
 ---
 
+- **Phase 7.6 — Server-Authoritative User Ban Enforcement**: COMPLETED & VERIFIED.
+  - **Server-Authoritative User Account Status Helper (`authHelper.js`)**: Implemented and exported `assertActiveUserStatus(userData, userId)`. Derives identity exclusively from trusted `context.auth.uid`. Rejects suspended users (`isBanned: true`) with standard `permission-denied`, and missing or unverified profile data with `not-found`, enforcing a strict fail-closed security boundary.
+  - **Cloud Functions Ban Enforcement (`index.js`)**:
+    - `submitTestAttemptServerSide`: Added upfront ban verification immediately following argument parsing, preventing banned users from triggering question retrieval, private answer key decryptions, or candidate cohort counts. Inside the atomic Firestore transaction, re-verified ban status against the locked user snapshot before committing attempt records, incrementing `totalTestsAttempted`, updating `maxScore`, or writing leaderboard entries. Both new attempts and retries by banned users are rejected before scoring or persistence.
+    - `getUserRankingDetails`: Gated ranking and percentile computations with `assertActiveUserStatus`, preventing suspended accounts from retrieving competitive ranking data.
+  - **Firestore Security Rules Hardening (`firestore.rules`)**:
+    - Added `isUserBanned(uid)` helper checking `exists(...) && get(...).data.get('isBanned', false) == true`.
+    - Hardened attempt creation rules (`/Users_Data/{userId}/Attempts/{attemptId}` and `/attempts/{attemptId}`) to deny creation if `isUserBanned(userId)`.
+    - Hardened `/Shared_Community_Tests/{testId}`, `/Community_Posts/{postId}`, and `/LiveTests/{testId}/Participants/{userId}` rules to strictly deny creates, updates, and deletes by banned users (`!isUserBanned(request.auth.uid)`).
+    - Enabled administrative profile initialization (`allow create: if (isOwner(userId) && !hasAuthoritativeKeys(...)) || isAdmin()`).
+  - **Automated Rule & Backend Test Verification**:
+    - `firestore.test.js`: Added automated emulator tests verifying active student writes, blocked writes for banned students across attempts, community tests, community posts, and live test participation, and instant privileges restoration upon admin unban. All 26 rules tests passed (26/26 passed in Firestore emulator).
+    - `callableValidation.test.js`: Added 7 unit tests covering valid student submissions, banned student rejections, missing profile fail-closed behavior, identical attempt retries by banned users, conflicting attempt retries, and client-side ban forgery prevention. All 35 backend unit tests passed (35/35 passed).
+  - **Android Client Parity & Non-Blocking Account Exit (`NEETViewModel.kt` & `MainActivity.kt`)**:
+    - Added `isCurrentUserBanned = MutableStateFlow(false)` and `accountStatusError = MutableStateFlow<String?>(null)`.
+    - Attached real-time Firestore snapshot listener `listenToCurrentUserAccountStatus(uid)` to the user's `Users_Data` document on auth state changes. Removed listener and reset state on logout or `onCleared()`.
+    - Added defense-in-depth UI guards in `startTest()`, `submitTest()`, `shareTestToCommunity()`, and `generateTestFromPdf()`.
+    - In `MainActivity.kt`: Added high-contrast Material 3 account suspension banner (`testTag("user_suspension_banner")`) when `isCurrentUserBanned == true`. Provided an immediate "Sign Out" button (`testTag("suspended_sign_out_button")`) ensuring banned students are never trapped in the app and can easily switch accounts or sign out.
+
+---
+
+## Section B: Repository Inventory & Files Changed
+
+### Files Modified in Phase 7.6:
+1. **`backend_functions/authHelper.js`**:
+   - Added and exported pure `assertActiveUserStatus(userData, userId)` helper function.
+2. **`backend_functions/index.js`**:
+   - Integrated `assertActiveUserStatus` in `submitTestAttemptServerSide` (upfront and in transaction) and `getUserRankingDetails`.
+3. **`firestore.rules`**:
+   - Added `isUserBanned(uid)` helper and hardened attempts, community posts, community tests, and live test participation rules.
+4. **`backend_functions/callableValidation.test.js`**:
+   - Updated test callable helper and added 7 unit test cases for user ban enforcement and idempotency (35/35 passed).
+5. **`firestore.test.js`**:
+   - Added 3 rules test cases for banned user rejection and real-time unban in Firestore emulator (26/26 passed).
+6. **`app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt`**:
+   - Added real-time user account status listener, ban state flows, and defense-in-depth action gating.
+7. **`app/src/main/java/Com/ak/testseries/MainActivity.kt`**:
+   - Added user suspension banner with sign-out button and test tags.
+8. **`app/MASTER_IMPLEMENTATION_TRACKER.md`**:
+   - Documented Phase 7.6 audit, implementation, and verification outcomes.
+
+---
+
+## Section C: Feature Status Matrix
+
+| Feature | Current Status | Evidence | Existing Implementation | Security/Correctness State | Verification Status |
+|---|---|---|---|---|---|
+| Server-Authoritative User Ban | IMPLEMENTED_VERIFIED | `authHelper.js`, `index.js`, `callableValidation.test.js` | Cloud Functions enforce `assertActiveUserStatus` upfront and in transactions | Banned accounts cannot score, create attempts, increment counters, or update leaderboards | 35/35 Node tests pass |
+| Firestore Rules Ban Enforcement | VERIFIED_EMULATOR | `firestore.rules`, `firestore.test.js` | `isUserBanned(uid)` blocks attempts, community posts, community tests, live tests | Direct writes by banned students fail with permission-denied; admin unban restores in real-time | 26/26 Emulator tests pass |
+| Real-Time Ban Listener & UI Banner | IMPLEMENTED_VERIFIED | `NEETViewModel.kt`, `MainActivity.kt` | Firestore snapshot listener on `Users_Data/{uid}`, non-blocking suspension banner with Sign Out button | Immediate UI reaction to admin bans/unbans; no user entrapment | App compiled successfully |
+| Super-Admin Email Verified Rule | IMPLEMENTED_VERIFIED | `NEETViewModel.kt`, `MainActivity.kt`, `authHelper.js`, `firestore.rules` | Checks `email == "abhi952817@gmail.com"` AND `isEmailVerified == true` across client, backend, rules | Unverified email accounts cannot claim owner privileges | Unit tests pass; Android builds |
+| Admin Panel Navigation Guard | IMPLEMENTED_VERIFIED | `MainActivity.kt` | UI guard intercepts `AppScreen.ADMIN_PANEL` if `!viewModel.isAdmin` | Non-admin users cannot render admin controls; redirected to Dashboard | Verified via compilation |
+| Private Vault Account Isolation | IMPLEMENTED_VERIFIED | `PrivateTestsVaultScreen.kt`, `AuthorizationBoundaryTest.kt` | Tests filtered by `uploaderId == currentUserId` for students | Students cannot inspect other candidates' private tests | Unit tests pass |
+| Universal Test Publish Guard | IMPLEMENTED_VERIFIED | `NEETViewModel.kt` | `publishUniversalTest` asserts `isAdmin` before execution | Non-admins cannot publish universal official tests | Unit tests pass |
+| Real Room Migration Execution | IMPLEMENTED_VERIFIED | `AppDatabase.kt`, `AppDatabaseMigrationTest.kt` | Real SQLite execution of `MIGRATION_15_16`, `MIGRATION_16_17`, `MIGRATION_17_18` via `SupportSQLiteDatabase` | Existing data preserved across 15->18; defaults populated | 4/4 Robolectric migration tests pass |
+| Fail-Closed Answer Keys | IMPLEMENTED_VERIFIED | `examScoring.js`, `index.js`, `callableValidation.test.js` | Official tests require trusted private keys; missing/incomplete keys trigger `failed-precondition` | No public `correctAnswer` fallback; shared pure function | 35/35 Node tests pass |
+
+---
+
+## Section D: Test and Verification Baseline
+
+### Tests Actually Executed & Observed Results:
+1. **Android App Compilation (`compile_applet`)**:
+   - Status: **PASSED (Build succeeded - the applet is compiled)**.
+2. **Android Local JVM & Robolectric Unit Tests (`gradle :app:testDebugUnitTest`)**:
+   - Status: **PASSED (BUILD SUCCESSFUL in 1m 12s, 34 tasks, all unit tests passed including AppDatabaseMigrationTest real SQLite migrations and AuthorizationBoundaryTest)**.
+3. **Firestore Emulator Rules Testing (`NODE_PATH=/usr/local/lib/node_modules firebase emulators:exec --only firestore "NODE_PATH=/usr/local/lib/node_modules node --test firestore.test.js"`)**:
+   - Status: **PASSED (26/26 tests passed, zero failures)**.
+4. **Backend Unit Tests (`node --test backend_functions/examScoring.test.js backend_functions/callableValidation.test.js`)**:
+   - Status: **PASSED (35/35 tests passed successfully)**.
+5. **Clean Dependency Installation (`npm ci --dry-run --prefix backend_functions`)**:
+   - Status: **PASSED (added 239 packages, verified lockfile consistency)**.
+
+### Tests Not Executed:
+- Live Firebase production deployment verification (forbidden by safety rules: **NOT DEPLOYED**).
+- Physical device / streaming emulator touch tests.
+
+---
+
 ## Section E: Final Technical Summary & Deployment Note
 - **Firebase Deployment**: **NOT DEPLOYED** (per safety rules, changes validated locally and via unit tests).
-- **Phase 7.5 Status**: **PASS — AUTHORIZATION BOUNDARIES & ACCOUNT ISOLATION VERIFIED**.
+- **Phase 7.6 Status**: **PASS — BAN ENFORCEMENT VERIFIED**.
 
 

@@ -641,3 +641,117 @@ test("Shared_Community_Tests: Creator can update, but cannot alter creatorId or 
   );
 });
 
+// =========================================================================
+// PHASE 7.6: USER BAN ENFORCEMENT FIRESTORE RULES TESTS
+// =========================================================================
+
+test("Ban Enforcement Rules: Active student can write attempts and community posts", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+
+  // Admin sets active student profile
+  await adminDb.collection("Users_Data").doc(ALICE_UID).set({
+    uid: ALICE_UID,
+    name: "Alice Active",
+    isBanned: false
+  });
+
+  // Active student can create unverified attempt
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Attempts").doc("att_active_1").set({
+      testId: "test_1",
+      score: 100,
+      verifiedServerSide: false,
+      countsTowardRanking: false
+    })
+  );
+
+  // Active student can create community post
+  await assertSucceeds(
+    aliceDb.collection("Community_Posts").doc("post_active_1").set({
+      title: "Active Post",
+      creatorId: ALICE_UID,
+      createdAt: new Date().toISOString()
+    })
+  );
+});
+
+test("Ban Enforcement Rules: Banned student is blocked from writing attempts, community tests, or community posts", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  // Admin sets Bob as suspended (isBanned: true)
+  await adminDb.collection("Users_Data").doc(BOB_UID).set({
+    uid: BOB_UID,
+    name: "Bob Suspended",
+    isBanned: true
+  });
+
+  // Banned student CANNOT create attempt in /Users_Data/{userId}/Attempts
+  await assertFails(
+    bobDb.collection("Users_Data").doc(BOB_UID).collection("Attempts").doc("att_banned_1").set({
+      testId: "test_1",
+      score: 100,
+      verifiedServerSide: false,
+      countsTowardRanking: false
+    })
+  );
+
+  // Banned student CANNOT create post in /Community_Posts
+  await assertFails(
+    bobDb.collection("Community_Posts").doc("post_banned_1").set({
+      title: "Spam Post",
+      creatorId: BOB_UID,
+      createdAt: new Date().toISOString()
+    })
+  );
+
+  // Banned student CANNOT create community test in /Shared_Community_Tests
+  await assertFails(
+    bobDb.collection("Shared_Community_Tests").doc("comm_test_banned_1").set({
+      title: "Banned Test",
+      creatorId: BOB_UID,
+      targetExam: "NEET"
+    })
+  );
+
+  // Banned student CANNOT register for live test in /LiveTests/{testId}/Participants/{userId}
+  await assertFails(
+    bobDb.collection("LiveTests").doc("live_test_1").collection("Participants").doc(BOB_UID).set({
+      registeredAt: new Date().toISOString()
+    })
+  );
+});
+
+test("Ban Enforcement Rules: Admin can unban student and restore privileges in real-time", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  // Bob is initially banned
+  await adminDb.collection("Users_Data").doc(BOB_UID).set({
+    uid: BOB_UID,
+    name: "Bob",
+    isBanned: true
+  });
+  await assertFails(
+    bobDb.collection("Community_Posts").doc("post_bob_reinstated").set({
+      title: "Hello Again",
+      creatorId: BOB_UID
+    })
+  );
+
+  // Admin unbans Bob
+  await adminDb.collection("Users_Data").doc(BOB_UID).update({
+    isBanned: false
+  });
+
+  // Bob can now write immediately without caching failure
+  await assertSucceeds(
+    bobDb.collection("Community_Posts").doc("post_bob_reinstated").set({
+      title: "Hello Again",
+      creatorId: BOB_UID
+    })
+  );
+});
+
+

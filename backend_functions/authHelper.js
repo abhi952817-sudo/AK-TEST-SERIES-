@@ -34,6 +34,33 @@ function validateSetAdminRoleAuth(context) {
   return true;
 }
 
+/**
+ * Asserts that the authenticated caller has an active, non-suspended account status.
+ *
+ * Rules:
+ * - If user record does not exist -> fails closed (code 'not-found').
+ * - If user record indicates isBanned === true -> fails closed (code 'permission-denied').
+ * - Any status verification failure fails closed.
+ *
+ * @param {object|null|undefined} userData The authoritative snapshot data from Users_Data/{userId}
+ * @param {string} userId The verified authenticated user ID
+ * @returns {boolean} true if active
+ */
+function assertActiveUserStatus(userData, userId) {
+  if (!userData) {
+    const err = new Error("User record does not exist or account status could not be verified.");
+    err.code = "not-found";
+    throw err;
+  }
+  if (userData.isBanned === true) {
+    const err = new Error("Account has been suspended by administration. Access denied.");
+    err.code = "permission-denied";
+    throw err;
+  }
+  return true;
+}
+
 module.exports = {
   validateSetAdminRoleAuth,
+  assertActiveUserStatus,
 };

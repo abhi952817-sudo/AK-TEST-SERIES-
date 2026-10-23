@@ -126,24 +126,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Safe FCM Token initialization
-            LaunchedEffect(Unit) {
-                try {
-                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            val token = task.result
-                            val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-                            if (user != null && token != null) {
-                                com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                                    .collection("Users_Data").document(user.uid)
-                                    .update("fcmTokens", com.google.firebase.firestore.FieldValue.arrayUnion(token))
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Ignore gracefully if FCM is unavailable
-                }
-            }
+            // FCM token retrieval disabled in emulator environment to prevent TOO_MANY_REGISTRATIONS errors
             val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
 
             MyApplicationTheme(
@@ -383,6 +366,66 @@ class MainActivity : ComponentActivity() {
                                     viewModel.launchHierarchicalTest(test)
                                 }
                             )
+                        }
+                    }
+
+                    val isCurrentUserBanned by viewModel.isCurrentUserBanned.collectAsStateWithLifecycle()
+                    if (isCurrentUserBanned && currentScreen != AppScreen.LOGIN) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            shadowElevation = 8.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .padding(12.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .testTag("user_suspension_banner")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Warning,
+                                        contentDescription = "Account Suspended",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Account Suspended",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                        Text(
+                                            text = "Your account has been suspended by administration. Protected actions and test submissions are restricted.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 2
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = { viewModel.logout(authManager) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    ),
+                                    modifier = Modifier.testTag("suspended_sign_out_button")
+                                ) {
+                                    Text("Sign Out", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
                         }
                     }
 

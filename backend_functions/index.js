@@ -9,7 +9,7 @@ const {
   validateAndMergeAnswerKeys,
   getExamEligibility,
 } = require("./examScoring");
-const { validateSetAdminRoleAuth } = require("./authHelper");
+const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
 /**
  * Normalizes exam titles to canonical group identifiers to guarantee
@@ -91,6 +91,35 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     throw new functions.https.HttpsError(
       "invalid-argument",
       "Invalid timeSpentSeconds: must be non-negative and less than 24 hours."
+    );
+  }
+
+  // 1b. Verify Authoritative Account Status & Ban Enforcement (Fail closed)
+  const userRef = db.collection("Users_Data").doc(userId);
+  let userSnap;
+  try {
+    userSnap = await userRef.get();
+  } catch (err) {
+    throw new functions.https.HttpsError(
+      "internal",
+      "Failed to verify account status. Please try again."
+    );
+  }
+
+  if (!userSnap.exists) {
+    throw new functions.https.HttpsError(
+      "not-found",
+      "User record does not exist."
+    );
+  }
+
+  const initialUserData = userSnap.data();
+  try {
+    assertActiveUserStatus(initialUserData, userId);
+  } catch (err) {
+    throw new functions.https.HttpsError(
+      err.code || "permission-denied",
+      err.message
     );
   }
 
@@ -296,6 +325,14 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     }
 
     const userData = userSnap.data();
+    try {
+      assertActiveUserStatus(userData, userId);
+    } catch (err) {
+      throw new functions.https.HttpsError(
+        err.code || "permission-denied",
+        err.message
+      );
+    }
     const currentMaxScore = userData.maxScore || 0;
     const totalTests = userData.totalTestsAttempted || 0;
 
@@ -481,6 +518,15 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   }
 
   const userData = userDoc.data();
+  try {
+    assertActiveUserStatus(userData, userId);
+  } catch (err) {
+    throw new functions.https.HttpsError(
+      err.code || "permission-denied",
+      err.message
+    );
+  }
+
   const eligibility = getExamEligibility(userData, canonicalExam);
   const qualifyingCount = eligibility.qualifyingCount;
   const competitiveScore = eligibility.competitiveScore;

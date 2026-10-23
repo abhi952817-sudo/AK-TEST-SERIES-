@@ -6,10 +6,18 @@ const {
   validateAndMergeAnswerKeys,
   getExamEligibility,
 } = require("./examScoring");
-const { validateSetAdminRoleAuth } = require("./authHelper");
+const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
 // Simulated logic mirroring submitTestAttemptServerSide verification rules
-function validateCallableSubmission(data, context, testDocData, privateKeyData = null, existingAttemptData = null, existingCandidates = null) {
+function validateCallableSubmission(
+  data,
+  context,
+  testDocData,
+  privateKeyData = null,
+  existingAttemptData = null,
+  existingCandidates = null,
+  userData = { isBanned: false }
+) {
   // 1. Authentication check
   if (!context || !context.auth || !context.auth.uid) {
     const err = new Error("User must be authenticated to submit test attempts.");
@@ -45,6 +53,9 @@ function validateCallableSubmission(data, context, testDocData, privateKeyData =
     err.code = "invalid-argument";
     throw err;
   }
+
+  // 2.5 Authoritative Account Status & Ban Check (derived from context.auth.uid)
+  assertActiveUserStatus(userData, userId);
 
   if (!testDocData) {
     const err = new Error("Test document not found.");
@@ -629,3 +640,209 @@ test("setAdminRole: Verified owner or admin claim is authorized", () => {
   };
   assert.strictEqual(validateSetAdminRoleAuth(adminClaimContext), true);
 });
+
+// =========================================================================
+// PHASE 7.6: SERVER-AUTHORITATIVE USER BAN ENFORCEMENT TESTS
+// =========================================================================
+
+test("Ban enforcement: Active non-banned student can submit valid test attempt", () => {
+  const context = { auth: { uid: "active_student_1" } };
+  const testDoc = {
+    id: "neet_mock_active",
+    status: "APPROVED",
+    isPublic: true,
+    isOfficial: true,
+    countsTowardRanking: true,
+    targetExam: "NEET UG",
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+  };
+  const privateKeys = { questions: [{ id: "q1", correctAnswer: "A" }] };
+  const activeUserData = { uid: "active_student_1", isBanned: false, name: "Active Student" };
+
+  const res = validateCallableSubmission(
+    { testId: "neet_mock_active", attemptSessionToken: "att_act_1", answers: { q1: "A" }, timeSpentSeconds: 30 },
+    context,
+    testDoc,
+    privateKeys,
+    null,
+    [],
+    activeUserData
+  );
+
+  assert.strictEqual(res.success, true);
+  assert.strictEqual(res.verifiedServerSide, true);
+  assert.strictEqual(res.score, 4);
+});
+
+test("Ban enforcement: Banned student (isBanned: true) is rejected with permission-denied before scoring", () => {
+  const context = { auth: { uid: "banned_student_1" } };
+  const testDoc = {
+    id: "neet_mock_banned",
+    status: "APPROVED",
+    isPublic: true,
+    isOfficial: true,
+    countsTowardRanking: true,
+    targetExam: "NEET UG",
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+  };
+  const privateKeys = { questions: [{ id: "q1", correctAnswer: "A" }] };
+  const bannedUserData = { uid: "banned_student_1", isBanned: true, name: "Banned Student" };
+
+  assert.throws(
+    () => validateCallableSubmission(
+      { testId: "neet_mock_banned", attemptSessionToken: "att_ban_1", answers: { q1: "A" }, timeSpentSeconds: 30 },
+      context,
+      testDoc,
+      privateKeys,
+      null,
+      [],
+      bannedUserData
+    ),
+    (err) => err.code === "permission-denied"
+  );
+});
+
+test("Ban enforcement: Missing user profile fails closed with not-found", () => {
+  const context = { auth: { uid: "ghost_student_1" } };
+  const testDoc = {
+    id: "neet_mock_ghost",
+    status: "APPROVED",
+    isPublic: true,
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+  };
+
+  assert.throws(
+    () => validateCallableSubmission(
+      { testId: "neet_mock_ghost", attemptSessionToken: "att_ghost_1", answers: { q1: "A" }, timeSpentSeconds: 30 },
+      context,
+      testDoc,
+      { questions: [{ id: "q1", correctAnswer: "A" }] },
+      null,
+      [],
+      null // No user record exists
+    ),
+    (err) => err.code === "not-found"
+  );
+});
+
+test("Ban enforcement: Identical retry by banned student is rejected with permission-denied", () => {
+  const context = { auth: { uid: "banned_student_retry" } };
+  const testDoc = {
+    id: "neet_mock_retry",
+    status: "APPROVED",
+    isPublic: true,
+    isOfficial: true,
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+  };
+  const privateKeys = { questions: [{ id: "q1", correctAnswer: "A" }] };
+  const existingAttempt = {
+    attemptId: "att_prev_1",
+    userId: "banned_student_retry",
+    testId: "neet_mock_retry",
+    answersJson: JSON.stringify({ q1: "A" }),
+    score: 4
+  };
+  const bannedUserData = { uid: "banned_student_retry", isBanned: true };
+
+  // Even though answers match existing attempt, banned status MUST reject before returning cached result
+  assert.throws(
+    () => validateCallableSubmission(
+      { testId: "neet_mock_retry", attemptSessionToken: "att_prev_1", answers: { q1: "A" }, timeSpentSeconds: 30 },
+      context,
+      testDoc,
+      privateKeys,
+      existingAttempt,
+      [],
+      bannedUserData
+    ),
+    (err) => err.code === "permission-denied"
+  );
+});
+
+test("Ban enforcement: Conflicting retry by banned student is rejected with permission-denied", () => {
+  const context = { auth: { uid: "banned_student_conflict" } };
+  const testDoc = {
+    id: "neet_mock_conflict",
+    status: "APPROVED",
+    isPublic: true,
+    isOfficial: true,
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+  };
+  const existingAttempt = {
+    attemptId: "att_conf_1",
+    userId: "banned_student_conflict",
+    testId: "neet_mock_conflict",
+    answersJson: JSON.stringify({ q1: "A" }),
+    score: 4
+  };
+  const bannedUserData = { uid: "banned_student_conflict", isBanned: true };
+
+  assert.throws(
+    () => validateCallableSubmission(
+      { testId: "neet_mock_conflict", attemptSessionToken: "att_conf_1", answers: { q1: "B" }, timeSpentSeconds: 30 },
+      context,
+      testDoc,
+      { questions: [{ id: "q1", correctAnswer: "A" }] },
+      existingAttempt,
+      [],
+      bannedUserData
+    ),
+    (err) => err.code === "permission-denied"
+  );
+});
+
+test("Ban enforcement: Client-supplied payload cannot forge active ban status", () => {
+  const context = { auth: { uid: "sneaky_banned_student" } };
+  const testDoc = {
+    id: "neet_mock_forge",
+    status: "APPROVED",
+    isPublic: true,
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+  };
+  // Attacker sends isBanned: false in request payload, but authoritative server record is isBanned: true
+  const authoritativeUserData = { uid: "sneaky_banned_student", isBanned: true };
+
+  assert.throws(
+    () => validateCallableSubmission(
+      {
+        testId: "neet_mock_forge",
+        attemptSessionToken: "att_forge_1",
+        answers: { q1: "A" },
+        timeSpentSeconds: 30,
+        isBanned: false, // Injected client forgery
+        role: "admin"
+      },
+      context,
+      testDoc,
+      { questions: [{ id: "q1", correctAnswer: "A" }] },
+      null,
+      [],
+      authoritativeUserData
+    ),
+    (err) => err.code === "permission-denied"
+  );
+});
+
+test("assertActiveUserStatus helper behavior", () => {
+  // Active user
+  assert.strictEqual(assertActiveUserStatus({ uid: "u1", isBanned: false }, "u1"), true);
+  // Default isBanned omitted (falsy)
+  assert.strictEqual(assertActiveUserStatus({ uid: "u2" }, "u2"), true);
+
+  // Explicitly banned
+  assert.throws(
+    () => assertActiveUserStatus({ uid: "u3", isBanned: true }, "u3"),
+    (err) => err.code === "permission-denied"
+  );
+
+  // Missing or null data
+  assert.throws(
+    () => assertActiveUserStatus(null, "u4"),
+    (err) => err.code === "not-found"
+  );
+  assert.throws(
+    () => assertActiveUserStatus(undefined, "u5"),
+    (err) => err.code === "not-found"
+  );
+});
+

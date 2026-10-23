@@ -56,10 +56,16 @@ service cloud.firestore {
         && (data.get('isPublic', false) == true || data.get('isOfficial', false) == true);
     }
 
+    // Helper: checks whether user account has been suspended by administration
+    function isUserBanned(uid) {
+      return exists(/databases/$(database)/documents/Users_Data/$(uid))
+        && get(/databases/$(database)/documents/Users_Data/$(uid)).data.get('isBanned', false) == true;
+    }
+
     // =========================================================================
     // USERS DATA & PRIVATE PROFILES
     // Read: Owner or Admin only (strictly protects student email, phone & private info)
-    // Create: Owner only, strictly blocking all privileged and authoritative fields
+    // Create: Owner only (blocking privileged/authoritative fields) or Verified Admin
     // Update: Owner only, preventing client modification of any authoritative score or ranking fields
     // Delete: Admin only
     // =========================================================================
@@ -67,7 +73,7 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin();
 
       // Students can create their own profile, but cannot set banned, VIP, admin, rank, XP, or score statistics
-      allow create: if isOwner(userId) && !hasAuthoritativeKeys(request.resource.data);
+      allow create: if (isOwner(userId) && !hasAuthoritativeKeys(request.resource.data)) || isAdmin();
 
       // Students can update non-authoritative profile data (name, email, phone, targetExam, bookmarks),
       // but cannot self-assign VIP, roles, ban status, rank, XP, or server-authoritative scores/statistics
@@ -90,6 +96,7 @@ service cloud.firestore {
       match /Attempts/{attemptId} {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if (isOwner(userId)
+                          && !isUserBanned(userId)
                           && request.resource.data.get('verifiedServerSide', false) == false
                           && request.resource.data.get('countsTowardRanking', false) == false
                           && !('authoritativeScore' in request.resource.data))
@@ -100,6 +107,7 @@ service cloud.firestore {
       match /attempts/{attemptId} {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if (isOwner(userId)
+                          && !isUserBanned(userId)
                           && request.resource.data.get('verifiedServerSide', false) == false
                           && request.resource.data.get('countsTowardRanking', false) == false
                           && !('authoritativeScore' in request.resource.data))
@@ -236,29 +244,31 @@ service cloud.firestore {
 
       match /Participants/{userId} {
         allow read: if isAuthenticated();
-        allow write: if isOwner(userId) || isAdmin();
+        allow write: if (isOwner(userId) && !isUserBanned(userId)) || isAdmin();
       }
     }
 
     // =========================================================================
     // COMMUNITY TESTS & DISCUSSIONS
     // Read: Authenticated students
-    // Create: Authenticated students (must be creator or uploader)
+    // Create: Authenticated students (must be creator or uploader, non-banned)
     // Update/Delete: Creator or Verified Admin (creatorId and uploaderId cannot be forged or altered)
     // =========================================================================
     match /Shared_Community_Tests/{testId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (
+      allow create: if isAuthenticated() && !isUserBanned(request.auth.uid) && (
         request.resource.data.get('creatorId', '') == request.auth.uid
         || request.resource.data.get('uploaderId', '') == request.auth.uid
       );
       allow update: if isAdmin() || (
         isAuthenticated()
+        && !isUserBanned(request.auth.uid)
         && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'uploaderId'])
       );
       allow delete: if isAdmin() || (
         isAuthenticated()
+        && !isUserBanned(request.auth.uid)
         && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
       );
     }
@@ -266,27 +276,30 @@ service cloud.firestore {
     match /Community_Posts/{postId} {
       allow read: if isAuthenticated();
       
-      // Author can create posts, but cannot self-assign pinned or official badges
+      // Author can create posts, but cannot self-assign pinned or official badges, and cannot be banned
       allow create: if isAuthenticated()
+                    && !isUserBanned(request.auth.uid)
                     && request.resource.data.creatorId == request.auth.uid
                     && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
                     && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
                     && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false);
 
       // Authors can edit their content without altering badges or creatorId;
-      // Other students can only interact via bounded upvotes (+/-1), views, comments, or personal bookmark;
+      // Other non-banned students can only interact via bounded upvotes (+/-1), views, comments, or personal bookmark;
       // Admins have full moderation rights
       allow update: if isAdmin()
                     || (isAuthenticated()
+                        && !isUserBanned(request.auth.uid)
                         && resource.data.creatorId == request.auth.uid 
                         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isPinned', 'isOfficial', 'isMonitor', 'creatorId']))
                     || (isAuthenticated()
+                        && !isUserBanned(request.auth.uid)
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'views', 'comments', 'isBookmarked'])
                         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['upvotes'])
                             || request.resource.data.upvotes == resource.data.upvotes + 1
                             || request.resource.data.upvotes == resource.data.upvotes - 1));
 
-      allow delete: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin() || (isAuthenticated() && !isUserBanned(request.auth.uid) && resource.data.creatorId == request.auth.uid);
     }
 
     // =========================================================================

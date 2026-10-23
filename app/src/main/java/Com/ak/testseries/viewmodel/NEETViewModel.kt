@@ -657,6 +657,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private var notificationsListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var authStateListener: com.google.firebase.auth.FirebaseAuth.AuthStateListener? = null
+    private var userAccountListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+    val isCurrentUserBanned = MutableStateFlow<Boolean>(false)
+    val accountStatusError = MutableStateFlow<String?>(null)
 
     val currentUserId = MutableStateFlow<String>(
         try {
@@ -666,14 +670,49 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     )
 
+    fun listenToCurrentUserAccountStatus(uid: String) {
+        userAccountListener?.remove()
+        userAccountListener = null
+        if (uid.isBlank()) {
+            isCurrentUserBanned.value = false
+            accountStatusError.value = null
+            return
+        }
+        try {
+            userAccountListener = firestoreDb.collection("Users_Data").document(uid)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null && snapshot.exists()) {
+                        val banned = snapshot.getBoolean("isBanned") ?: false
+                        isCurrentUserBanned.value = banned
+                        if (banned) {
+                            accountStatusError.value = "Your account has been suspended by administration. Protected features and test submissions are disabled."
+                        } else {
+                            accountStatusError.value = null
+                        }
+                    } else {
+                        isCurrentUserBanned.value = false
+                        accountStatusError.value = null
+                    }
+                }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     init {
         try {
             val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-            currentUserId.value = auth.currentUser?.uid ?: ""
+            val initialUid = auth.currentUser?.uid ?: ""
+            currentUserId.value = initialUid
+            listenToCurrentUserAccountStatus(initialUid)
             authStateListener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { firebaseAuth ->
                 val uid = firebaseAuth.currentUser?.uid ?: ""
                 currentUserId.value = uid
                 checkAdminCustomClaim()
+                listenToCurrentUserAccountStatus(uid)
             }
             auth.addAuthStateListener(authStateListener!!)
         } catch (e: Exception) {
@@ -704,6 +743,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         adminSettingsListener?.remove()
         leaderboardListener?.remove()
         notificationsListener?.remove()
+        userAccountListener?.remove()
         try {
             authStateListener?.let {
                 com.google.firebase.auth.FirebaseAuth.getInstance().removeAuthStateListener(it)
@@ -1706,6 +1746,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             if (currentUid.isNullOrEmpty()) {
                 withContext(Dispatchers.Main) {
                     android.widget.Toast.makeText(getApplication(), "Please sign in to share tests", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
+            if (isCurrentUserBanned.value) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(getApplication(), "Your account has been suspended by administration. Community sharing is disabled.", android.widget.Toast.LENGTH_LONG).show()
                 }
                 return@launch
             }
@@ -3520,6 +3567,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startTest(test: TestEntity) {
+        if (isCurrentUserBanned.value) {
+            android.widget.Toast.makeText(getApplication(), "Your account has been suspended by administration. Access to tests is restricted.", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         viewModelScope.launch {
             val uid = currentUserId.value.ifBlank { "anon" }
             activeAttemptSessionToken = "att_${uid}_${test.id}_${System.currentTimeMillis()}"
@@ -3927,6 +3978,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun submitTest() {
+        if (isCurrentUserBanned.value) {
+            android.widget.Toast.makeText(getApplication(), "Your account has been suspended by administration. Test submission is disabled.", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         timerJob?.cancel()
         viewModelScope.launch {
             if (_isSubmittingExam.value) return@launch
@@ -4070,6 +4125,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     // --- AI Generator Engine with Gemini ---
     fun generateTestFromPdf(resume: Boolean = false) {
         viewModelScope.launch {
+            if (isCurrentUserBanned.value) {
+                val bannedMsg = "Your account has been suspended by administration. AI test generation is disabled."
+                _aiGenState.value = AiGenerationState.Error(bannedMsg)
+                aiGenStatusMessage.value = bannedMsg
+                return@launch
+            }
             if (!_isGlobalAiEnabled.value) {
                 val disabledMsg = "AI test generation is temporarily disabled by Admin."
                 _aiGenState.value = AiGenerationState.Error(disabledMsg)
@@ -6051,6 +6112,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun logout(authManager: Com.ak.testseries.domain.auth.AuthManager) {
         viewModelScope.launch {
             authManager.signOut()
+            userAccountListener?.remove()
+            userAccountListener = null
+            isCurrentUserBanned.value = false
+            accountStatusError.value = null
             leaderboardListener?.remove()
             leaderboardListener = null
             currentUserId.value = ""
@@ -6074,6 +6139,26 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _checkedQuestions.value = emptySet()
             _timeSpentPerQuestion.value = emptyMap()
             _visitedQuestions.value = emptySet()
+            _currentScreen.value = AppScreen.LOGIN
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            try {
+                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            userAccountListener?.remove()
+            userAccountListener = null
+            isCurrentUserBanned.value = false
+            accountStatusError.value = null
+            leaderboardListener?.remove()
+            leaderboardListener = null
+            currentUserId.value = ""
+            _isAdminOverride = false
+            isAdminFlow.value = false
             _currentScreen.value = AppScreen.LOGIN
         }
     }
