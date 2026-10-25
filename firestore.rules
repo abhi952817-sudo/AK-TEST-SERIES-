@@ -35,15 +35,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Helper: checks whether map contains any server-authoritative score, ranking, role, or privilege fields
-    function hasAuthoritativeKeys(dataMap) {
-      return dataMap.keys().hasAny([
-        'isBanned', 'isVip', 'vipExpiresAt', 'role', 'admin', 'xp', 'totalXP', 'rank', 'userRank',
-        'maxScore', 'totalTestsAttempted', 'qualifyingTestsCount', 'totalCumulativeScore', 'lastPercentile',
-        'authoritativeScore', 'verifiedServerSide', 'cumulativeScore_NEET', 'cumulativeScore_JEE_MAIN',
-        'cumulativeScore_JEE_ADVANCED', 'cumulativeScore_CUET', 'cumulativeScore_UPSC', 'cumulativeScore_SSC_CGL',
-        'cumulativeScore_SSC_CHSL', 'cumulativeScore_SSC_MTS', 'cumulativeScore_GATE', 'cumulativeScore_NDA',
-        'cumulativeScore_CDS', 'cumulativeScore_CAT', 'cumulativeScore_CTET', 'cumulativeScore_RRB_NTPC'
+    // Helper: verifies that only safe, non-privileged student profile fields can be modified
+    function isAllowedStudentProfileKeys(keysList) {
+      return keysList.hasOnly([
+        'name', 'displayName', 'email', 'phoneNumber', 'stateName', 'cityName',
+        'profileImageUri', 'targetExam', 'bookmarkedTests', 'bookmarkedQuestions',
+        'lastBackupAt', 'createdAt', 'updatedAt', 'lastActive', 'batch', 'institute',
+        'fcmToken', 'language', 'theme', 'selectedLanguage'
       ]);
     }
 
@@ -65,27 +63,18 @@ service cloud.firestore {
     // =========================================================================
     // USERS DATA & PRIVATE PROFILES
     // Read: Owner or Admin only (strictly protects student email, phone & private info)
-    // Create: Owner only (blocking privileged/authoritative fields) or Verified Admin
-    // Update: Owner only, preventing client modification of any authoritative score or ranking fields
+    // Create: Owner only (strictly limited to safe profile fields) or Verified Admin
+    // Update: Owner only (strictly limited to safe profile fields) or Verified Admin
     // Delete: Admin only
     // =========================================================================
     match /Users_Data/{userId} {
       allow read: if isOwner(userId) || isAdmin();
 
-      // Students can create their own profile, but cannot set banned, VIP, admin, rank, XP, or score statistics
-      allow create: if (isOwner(userId) && !hasAuthoritativeKeys(request.resource.data)) || isAdmin();
+      // Students can create their own profile with permitted non-authoritative fields only
+      allow create: if (isOwner(userId) && isAllowedStudentProfileKeys(request.resource.data.keys())) || isAdmin();
 
-      // Students can update non-authoritative profile data (name, email, phone, targetExam, bookmarks),
-      // but cannot self-assign VIP, roles, ban status, rank, XP, or server-authoritative scores/statistics
-      allow update: if (isOwner(userId)
-                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-                      'isBanned', 'isVip', 'vipExpiresAt', 'role', 'admin', 'xp', 'totalXP', 'rank', 'userRank',
-                      'maxScore', 'totalTestsAttempted', 'qualifyingTestsCount', 'totalCumulativeScore', 'lastPercentile',
-                      'authoritativeScore', 'verifiedServerSide', 'cumulativeScore_NEET', 'cumulativeScore_JEE_MAIN',
-                      'cumulativeScore_JEE_ADVANCED', 'cumulativeScore_CUET', 'cumulativeScore_UPSC', 'cumulativeScore_SSC_CGL',
-                      'cumulativeScore_SSC_CHSL', 'cumulativeScore_SSC_MTS', 'cumulativeScore_GATE', 'cumulativeScore_NDA',
-                      'cumulativeScore_CDS', 'cumulativeScore_CAT', 'cumulativeScore_CTET', 'cumulativeScore_RRB_NTPC'
-                    ]))
+      // Students can update only whitelisted non-authoritative fields, blocking any spoofing of scores, ranks, bans or roles
+      allow update: if (isOwner(userId) && isAllowedStudentProfileKeys(request.resource.data.diff(resource.data).affectedKeys()))
                     || isAdmin();
 
       allow delete: if isAdmin();
@@ -113,6 +102,14 @@ service cloud.firestore {
                           && !('authoritativeScore' in request.resource.data))
                       || isAdmin();
         allow update, delete: if isAdmin();
+      }
+
+      match /Bookmarked_Tests/{testId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /Bookmarked_Questions/{questionId} {
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 

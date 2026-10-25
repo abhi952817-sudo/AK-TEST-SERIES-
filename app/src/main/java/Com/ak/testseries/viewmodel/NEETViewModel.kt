@@ -269,7 +269,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun fetchUserRank(selectedExam: String? = null) {
-        val targetExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
+        val rawExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
+        val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
@@ -279,7 +280,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         val functions = com.google.firebase.functions.FirebaseFunctions.getInstance()
                         val callable = functions.getHttpsCallable("getUserRankingDetails")
-                        val result = callable.call(mapOf("targetExam" to targetExam)).await()
+                        val result = callable.call(mapOf("targetExam" to canonicalExam)).await()
                         val data = result.data as? Map<*, *>
                         if (data != null) {
                             val status = data["status"] as? String ?: "Rank Pending"
@@ -311,17 +312,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         val userRef = db.collection("Users_Data").document(user.uid)
                         val snapshot = userRef.get().await()
                         if (snapshot.exists()) {
-                            val examQCountKey = "qualifyingTestsCount_$targetExam"
+                            val examQCountKey = "qualifyingTestsCount_$canonicalExam"
                             val qualifyingTests = (snapshot.getLong(examQCountKey) ?: 0L).toInt()
-                            val examScoreKey = "cumulativeScore_$targetExam"
+                            val examScoreKey = "cumulativeScore_$canonicalExam"
                             val competitiveScore = (snapshot.getLong(examScoreKey) ?: 0L).toInt()
                             
                             _userQualifyingTestsCount.value = qualifyingTests
                             _userCompetitiveScore.value = competitiveScore
 
-                            // Query eligible participants count for this targetExam from public Leaderboard
+                            // Query eligible participants count for this canonicalExam from public Leaderboard
                             val eligibleQuery = db.collection("Leaderboard")
-                                .whereEqualTo("targetExam", targetExam)
+                                .whereEqualTo("targetExam", canonicalExam)
                                 .whereEqualTo("isEligibleForRanking", true)
                             val eligibleSnapshot = eligibleQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
                             val totalEligible = eligibleSnapshot.count.toInt()
@@ -340,7 +341,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                             } else {
                                 val countQuery = db.collection("Leaderboard")
-                                    .whereEqualTo("targetExam", targetExam)
+                                    .whereEqualTo("targetExam", canonicalExam)
                                     .whereEqualTo("isEligibleForRanking", true)
                                     .whereGreaterThan("score", competitiveScore)
                                 val countSnapshot = countQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
@@ -367,7 +368,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                                     if (rank > 1) {
                                         val higherUsersQuery = db.collection("Leaderboard")
-                                            .whereEqualTo("targetExam", targetExam)
+                                            .whereEqualTo("targetExam", canonicalExam)
                                             .whereEqualTo("isEligibleForRanking", true)
                                             .whereGreaterThan("score", competitiveScore)
                                             .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
@@ -380,10 +381,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                             val targetName = higherDoc.getString("displayName") ?: higherDoc.getString("name") ?: "Student"
                                             _nextTargetMessage.value = "Next target: $targetName (#${rank - 1}) — You are $ptsAway pts away! Take 1 test to overtake."
                                         } else {
-                                            _nextTargetMessage.value = "Keep practicing to climb higher on the $targetExam leaderboard!"
+                                            _nextTargetMessage.value = "Keep practicing to climb higher on the $rawExam leaderboard!"
                                         }
                                     } else {
-                                        _nextTargetMessage.value = "🎉 Congratulations! You are Rank #1 on the $targetExam Leaderboard!"
+                                        _nextTargetMessage.value = "🎉 Congratulations! You are Rank #1 on the $rawExam Leaderboard!"
                                     }
                                 }
                             }
@@ -415,20 +416,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private var leaderboardListener: com.google.firebase.firestore.ListenerRegistration? = null
 
     fun fetchLeaderboard(selectedExam: String? = null) {
-        val targetExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
-        leaderboardExamFilter.value = targetExam
+        val rawExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
+        leaderboardExamFilter.value = rawExam
+        val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
         leaderboardListener?.remove()
         try {
             val db = firestoreDb
             
             leaderboardListener = db.collection("Leaderboard")
-                .whereEqualTo("targetExam", targetExam)
+                .whereEqualTo("targetExam", canonicalExam)
                 .whereEqualTo("isEligibleForRanking", true)
                 .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(20)
                 .addSnapshotListener { snapshot, e ->
                     if (e != null || snapshot == null || snapshot.isEmpty) {
-                        fetchLeaderboardFallback(targetExam)
+                        fetchLeaderboardFallback(rawExam)
                         return@addSnapshotListener
                     }
                     val list = mutableListOf<Com.ak.testseries.domain.auth.LeaderboardEntry>()
@@ -451,7 +453,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 name = name,
                                 score = score,
                                 uid = uid,
-                                targetExam = targetExam,
+                                targetExam = rawExam,
                                 qualifyingTestsCount = qCount,
                                 streak = streakVal,
                                 league = leagueVal
@@ -462,15 +464,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
         } catch (e: Exception) {
             e.printStackTrace()
-            fetchLeaderboardFallback(targetExam)
+            fetchLeaderboardFallback(rawExam)
         }
     }
 
     private fun fetchLeaderboardFallback(targetExam: String) {
         try {
+            val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(targetExam)
             val db = firestoreDb
             db.collection("Leaderboard")
-                .whereEqualTo("targetExam", targetExam)
+                .whereEqualTo("targetExam", canonicalExam)
                 .whereEqualTo("isEligibleForRanking", true)
                 .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(20)
@@ -5104,6 +5107,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "isOfficial" to newTest.isOfficial,
                 "isVerifiedCommunity" to newTest.isVerifiedCommunity,
                 "isPublic" to newTest.isPublic,
+                "countsTowardRanking" to (newTest.countsTowardRanking && (newTest.isOfficial || newTest.isPublic)),
                 "status" to newTest.status,
                 "uploaderId" to newTest.uploaderId,
                 "targetExam" to newTest.targetExam,
@@ -6148,6 +6152,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             isAdminFlow.value = false
             checkAdminCustomClaim()
             saveUserProfile("", "", "", "", "")
+            _leaderboard.value = emptyList()
             _userRank.value = "-"
             _userRankStatus.value = "Rank Pending"
             _userPercentile.value = 0.0
@@ -6184,6 +6189,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             currentUserId.value = ""
             _isAdminOverride = false
             isAdminFlow.value = false
+            saveUserProfile("", "", "", "", "")
+            _leaderboard.value = emptyList()
+            _userRank.value = "-"
+            _userRankStatus.value = "Rank Pending"
+            _userPercentile.value = 0.0
+            _rankLastUpdatedTime.value = 0L
+            _userQualifyingTestsCount.value = 0
+            _userCompetitiveScore.value = 0
+            _eligibleParticipantsCount.value = 0
+            _isOfficialAirUnlocked.value = false
+            _nextTargetMessage.value = ""
+            _activeTest.value = null
+            _activeResult.value = null
+            _userAnswers.value = emptyMap()
+            _markedForReview.value = emptySet()
+            _checkedQuestions.value = emptySet()
+            _timeSpentPerQuestion.value = emptyMap()
+            _visitedQuestions.value = emptySet()
             _currentScreen.value = AppScreen.LOGIN
         }
     }

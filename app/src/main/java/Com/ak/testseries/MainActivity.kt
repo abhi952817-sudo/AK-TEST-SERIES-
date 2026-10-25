@@ -4500,8 +4500,11 @@ fun ResultScreen(viewModel: NEETViewModel) {
                 ) {
                     Text(if (selectedLanguage == AppLanguage.HINDI) "आपका स्कोर" else "Your Score", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("${result.score} / ${result.maxScore}", fontWeight = FontWeight.Black, fontSize = 36.sp, color = MaterialTheme.colorScheme.primary)
-                    val percentileDisplay = if (result.percentile > 0.0) {
-                        if (selectedLanguage == AppLanguage.HINDI) "पर्सेंटाइल: ${String.format("%.2f", result.percentile)}%" else "Percentile: ${String.format("%.2f", result.percentile)}%"
+                    val isPrivateTest = activeTest?.isPublic == false || activeTest?.countsTowardRanking == false
+                    val percentileDisplay = if (isPrivateTest) {
+                        if (selectedLanguage == AppLanguage.HINDI) "पर्सेंटाइल: लागू नहीं (निजी टेस्ट)" else "Percentile: N/A (Private Test)"
+                    } else if (result.percentile > 0.0) {
+                        if (selectedLanguage == AppLanguage.HINDI) "पर्सेंटाइल: ${String.format(java.util.Locale.US, "%.2f", result.percentile)}%" else "Percentile: ${String.format(java.util.Locale.US, "%.2f", result.percentile)}%"
                     } else if (!result.verifiedServerSide) {
                         if (selectedLanguage == AppLanguage.HINDI) "पर्सेंटाइल: सत्यापन प्रतीक्षारत" else "Percentile: Verification Pending"
                     } else {
@@ -4511,32 +4514,59 @@ fun ResultScreen(viewModel: NEETViewModel) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (result.verifiedServerSide) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
-                        border = BorderStroke(1.dp, if (result.verifiedServerSide) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                        color = when {
+                            isPrivateTest -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                            result.verifiedServerSide -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        border = BorderStroke(1.dp, when {
+                            isPrivateTest -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
+                            result.verifiedServerSide -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        })
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = if (result.verifiedServerSide) Icons.Rounded.Verified else Icons.Rounded.Schedule,
+                                imageVector = when {
+                                    isPrivateTest -> Icons.Rounded.Lock
+                                    result.verifiedServerSide -> Icons.Rounded.Verified
+                                    else -> Icons.Rounded.Schedule
+                                },
                                 contentDescription = "Verification status",
-                                tint = if (result.verifiedServerSide) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = when {
+                                    isPrivateTest -> MaterialTheme.colorScheme.secondary
+                                    result.verifiedServerSide -> MaterialTheme.colorScheme.tertiary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                },
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            val statusText = if (result.verifiedServerSide) {
-                                if (selectedLanguage == AppLanguage.HINDI) "सर्वर द्वारा प्रमाणित परिणाम" else "Verified Server Result"
-                            } else if (result.submissionStatus == "PENDING") {
-                                if (selectedLanguage == AppLanguage.HINDI) "सबमिशन प्रतीक्षारत (स्थानीय पूर्वावलोकन)" else "Submission Pending (Local Preview)"
-                            } else {
-                                if (selectedLanguage == AppLanguage.HINDI) "ऑफलाइन अभ्यास परिणाम" else "Offline Practice Result"
+                            val statusText = when {
+                                isPrivateTest -> {
+                                    if (selectedLanguage == AppLanguage.HINDI) "निजी टेस्ट • गैर-रैंकिंग (व्यक्तिगत अभ्यास)" else "Private Test • Non-Ranking (Personal Practice)"
+                                }
+                                result.verifiedServerSide -> {
+                                    if (selectedLanguage == AppLanguage.HINDI) "सर्वर द्वारा प्रमाणित परिणाम" else "Verified Server Result"
+                                }
+                                result.submissionStatus == "PENDING" -> {
+                                    if (selectedLanguage == AppLanguage.HINDI) "सबमिशन प्रतीक्षारत (स्थानीय पूर्वावलोकन)" else "Submission Pending (Local Preview)"
+                                }
+                                else -> {
+                                    if (selectedLanguage == AppLanguage.HINDI) "ऑफलाइन अभ्यास परिणाम" else "Offline Practice Result"
+                                }
                             }
                             Text(
                                 text = statusText,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (result.verifiedServerSide) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = when {
+                                    isPrivateTest -> MaterialTheme.colorScheme.secondary
+                                    result.verifiedServerSide -> MaterialTheme.colorScheme.tertiary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
                             )
                         }
                     }

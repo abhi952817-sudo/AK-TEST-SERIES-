@@ -1116,6 +1116,43 @@ object UniversalExamRegistry {
 
     fun getExam(query: String): ExamConfig? = getExamById(query) ?: findExamByNameOrShortName(query)
 
+    fun getCanonicalExamKey(query: String?): String {
+        if (query.isNullOrBlank() || query.equals("All", ignoreCase = true)) return "NEET"
+        val q = query.trim().lowercase()
+        return when {
+            q.contains("neet") -> "NEET"
+            q.contains("jee adv") || q == "jee_advanced" -> "JEE_ADVANCED"
+            q.contains("jee main") || q == "jee_main" || q.contains("jee") -> "JEE_MAIN"
+            q.contains("gate") -> "GATE"
+            q.contains("cuet") -> "CUET"
+            q.contains("upsc") || q.contains("civil services") -> "UPSC"
+            q.contains("nda") -> "NDA"
+            q.contains("cds") -> "CDS"
+            q.contains("cgl") || q.contains("ssc_cgl") -> "SSC_CGL"
+            q.contains("chsl") || q.contains("ssc_chsl") -> "SSC_CHSL"
+            q.contains("mts") || q.contains("ssc_mts") -> "SSC_MTS"
+            q.contains("cpo") || q.contains("ssc_cpo") -> "SSC_CPO"
+            q.contains("ssc_gd") || q.contains("ssc gd") || q == "gd" -> "SSC_GD"
+            q.contains("ibps_po") || q.contains("ibps po") -> "IBPS_PO"
+            q.contains("ibps_clerk") || q.contains("ibps clerk") -> "IBPS_CLERK"
+            q.contains("sbi_po") || q.contains("sbi po") -> "SBI_PO"
+            q.contains("sbi_clerk") || q.contains("sbi clerk") -> "SBI_CLERK"
+            q.contains("ctet") || q.contains("uptet") -> "CTET"
+            q.contains("ugc_net") || q.contains("ugc net") || q == "ugc" || (q.contains("net") && !q.contains("neet")) -> "UGC_NET"
+            q.contains("cat") -> "CAT"
+            q.contains("group_d") || q.contains("group d") || q.contains("level 1") -> "RRB_GROUP_D"
+            q.contains("alp") || q.contains("loco pilot") -> "RRB_ALP"
+            q.contains("technician") || q.contains("rrb_tech") -> "RRB_TECHNICIAN"
+            q.contains("rrb_je") || q.contains("rrb je") || q.contains("junior engineer") -> "RRB_JE"
+            q.contains("ntpc") || q.contains("rrb_ntpc") -> "RRB_NTPC"
+            q == "rrb" || q == "railways" || q == "railway" -> "RRB_NTPC"
+            else -> {
+                val config = findExamByNameOrShortName(query)
+                config?.shortName?.uppercase()?.replace(" ", "_") ?: query.trim().uppercase().replace(" ", "_")
+            }
+        }
+    }
+
     fun findExamByNameOrShortName(query: String): ExamConfig? {
         val q = query.trim().lowercase()
         val exact = defaultExams.values.find {
