@@ -179,12 +179,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        try {
-                            // com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("all_users")
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-
                         if (authManager.getSignedInUser() != null) {
                             // If logged in, skip login screen
                             if (viewModel.currentScreen.value == AppScreen.LOGIN) {

@@ -597,6 +597,7 @@ fun LocalPreformattedQuestionModal(
                             optionB = qObj.optString("optionB", qObj.optString("optionBEn", "Option B")),
                             optionC = qObj.optString("optionC", qObj.optString("optionCEn", "Option C")),
                             optionD = qObj.optString("optionD", qObj.optString("optionDEn", "Option D")),
+                            optionE = qObj.optString("optionE", qObj.optString("optionEEn", "")).takeIf { it.isNotEmpty() },
                             correctAnswer = qObj.optString("correctAnswer", "").uppercase().take(1),
                             explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")),
                             subject = qObj.optString("subject", test.subject),
@@ -608,6 +609,7 @@ fun LocalPreformattedQuestionModal(
                             optionBHi = qObj.optString("optionBHi", "").takeIf { it.isNotEmpty() },
                             optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                             optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
+                            optionEHi = qObj.optString("optionEHi", "").takeIf { it.isNotEmpty() },
                             explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
                             questionType = qObj.optString("questionType", "MCQ"),
                             section = qObj.optString("section", "SECTION_A"),
@@ -784,13 +786,17 @@ fun LocalPreformattedQuestionModal(
                         val optionB = if (isHindiMode && !currentQ.optionBHi.isNullOrBlank()) currentQ.optionBHi else currentQ.optionB
                         val optionC = if (isHindiMode && !currentQ.optionCHi.isNullOrBlank()) currentQ.optionCHi else currentQ.optionC
                         val optionD = if (isHindiMode && !currentQ.optionDHi.isNullOrBlank()) currentQ.optionDHi else currentQ.optionD
+                        val optionE = if (isHindiMode && !currentQ.optionEHi.isNullOrBlank()) currentQ.optionEHi else currentQ.optionE
 
-                        val optionList = listOf(
-                            "A" to optionA,
-                            "B" to optionB,
-                            "C" to optionC,
-                            "D" to optionD
-                        )
+                        val optionList = buildList {
+                            add("A" to optionA)
+                            add("B" to optionB)
+                            add("C" to optionC)
+                            add("D" to optionD)
+                            if (!optionE.isNullOrBlank()) {
+                                add("E" to optionE)
+                            }
+                        }
 
                         optionList.forEach { (key, valText) ->
                             val isSelected = userSelectedOpt == key

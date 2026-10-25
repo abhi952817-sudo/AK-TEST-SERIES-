@@ -129,7 +129,7 @@ interface RecentSearchDao {
 
 @Database(
     entities = [TestEntity::class, QuestionEntity::class, AttemptEntity::class, SyllabusEntity::class, RecentSearchEntity::class],
-    version = 18,
+    version = 19,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -162,6 +162,60 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_18_19 = object : androidx.room.migration.Migration(18, 19) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // 1. Tests table: Add canonical identity and scoring version fields
+                db.execSQL("ALTER TABLE tests ADD COLUMN examId TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tests ADD COLUMN stageId TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tests ADD COLUMN paperId TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tests ADD COLUMN scoringVersion INTEGER DEFAULT NULL")
+
+                // 2. Questions table: Add five-option support (Option E & Hindi Option E)
+                db.execSQL("ALTER TABLE questions ADD COLUMN optionE TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE questions ADD COLUMN optionEHi TEXT DEFAULT NULL")
+
+                // 3. Attempts table: Migrate score and maxScore to REAL without loss of existing data
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS attempts_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL DEFAULT '',
+                        testId TEXT NOT NULL,
+                        testTitle TEXT NOT NULL,
+                        score REAL NOT NULL,
+                        maxScore REAL NOT NULL,
+                        percentile REAL NOT NULL,
+                        accuracy REAL NOT NULL,
+                        correctCount INTEGER NOT NULL,
+                        incorrectCount INTEGER NOT NULL,
+                        skippedCount INTEGER NOT NULL,
+                        timeSpentSeconds INTEGER NOT NULL,
+                        dateTaken INTEGER NOT NULL,
+                        answersJson TEXT NOT NULL,
+                        attemptSessionToken TEXT NOT NULL DEFAULT '',
+                        verifiedServerSide INTEGER NOT NULL DEFAULT 0,
+                        submissionStatus TEXT NOT NULL DEFAULT 'CONFIRMED'
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO attempts_new (
+                        id, userId, testId, testTitle, score, maxScore, percentile, accuracy,
+                        correctCount, incorrectCount, skippedCount, timeSpentSeconds, dateTaken,
+                        answersJson, attemptSessionToken, verifiedServerSide, submissionStatus
+                    )
+                    SELECT 
+                        id, userId, testId, testTitle, CAST(score AS REAL), CAST(maxScore AS REAL), percentile, accuracy,
+                        correctCount, incorrectCount, skippedCount, timeSpentSeconds, dateTaken,
+                        answersJson, attemptSessionToken, verifiedServerSide, submissionStatus
+                    FROM attempts
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE attempts")
+                db.execSQL("ALTER TABLE attempts_new RENAME TO attempts")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_attempts_userId_attemptSessionToken ON attempts(userId, attemptSessionToken)")
+            }
+        }
+
         fun getDatabase(context: android.content.Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -169,7 +223,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "neet_test_series_db"
                 )
-                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

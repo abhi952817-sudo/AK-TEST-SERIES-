@@ -1130,6 +1130,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("optionB", q.optionB)
             qObj.put("optionC", q.optionC)
             qObj.put("optionD", q.optionD)
+            q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
             qObj.put("subject", q.subject)
@@ -1142,6 +1143,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("optionBHi", q.optionBHi ?: "")
             qObj.put("optionCHi", q.optionCHi ?: "")
             qObj.put("optionDHi", q.optionDHi ?: "")
+            qObj.put("optionEHi", q.optionEHi ?: "")
             qObj.put("explanationHi", q.explanationHi ?: "")
             qObj.put("questionType", q.questionType)
             qObj.put("section", q.section)
@@ -3157,6 +3159,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val optB = qObj.optString("optionB", qObj.optString("optionBEn", "")).trim()
                     val optC = qObj.optString("optionC", qObj.optString("optionCEn", "")).trim()
                     val optD = qObj.optString("optionD", qObj.optString("optionDEn", "")).trim()
+                    val optE = qObj.optString("optionE", qObj.optString("optionEEn", "")).trim().takeIf { it.isNotBlank() }
 
                     val qType = qObj.optString("questionType", "MCQ")
                     val correctAns = qObj.optString("correctAnswer", "").trim()
@@ -3192,6 +3195,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             optionB = optB,
                             optionC = optC,
                             optionD = optD,
+                            optionE = optE,
                             correctAnswer = correctAns,
                             explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")).trim(),
                             subject = qObj.optString("subject", subject).trim(),
@@ -3203,6 +3207,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             optionBHi = qObj.optString("optionBHi").trim().takeIf { it.isNotBlank() },
                             optionCHi = qObj.optString("optionCHi").trim().takeIf { it.isNotBlank() },
                             optionDHi = qObj.optString("optionDHi").trim().takeIf { it.isNotBlank() },
+                            optionEHi = qObj.optString("optionEHi").trim().takeIf { it.isNotBlank() },
                             explanationHi = qObj.optString("explanationHi").trim().takeIf { it.isNotBlank() },
                             questionType = qType,
                             section = qObj.optString("section", "SECTION_A"),
@@ -3242,6 +3247,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             status = "Published",
             uploaderId = creatorId,
             targetExam = targetExam,
+            examId = doc.getString("examId") ?: targetExam,
+            stageId = doc.getString("stageId"),
+            paperId = doc.getString("paperId"),
+            scoringVersion = doc.getLong("scoringVersion")?.toInt() ?: 1,
             durationMinutes = durationMinutes,
             classLevel = classLevel,
             chapter = chapter,
@@ -3289,6 +3298,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val optB = qObj.optString("optionB", qObj.optString("optionBEn", "")).trim()
                 val optC = qObj.optString("optionC", qObj.optString("optionCEn", "")).trim()
                 val optD = qObj.optString("optionD", qObj.optString("optionDEn", "")).trim()
+                val optE = qObj.optString("optionE", qObj.optString("optionEEn", "")).trim().takeIf { it.isNotBlank() }
 
                 val qType = qObj.optString("questionType", "MCQ")
                 val correctAns = qObj.optString("correctAnswer", "").trim()
@@ -3324,6 +3334,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionB = optB,
                         optionC = optC,
                         optionD = optD,
+                        optionE = optE,
                         correctAnswer = correctAns,
                         explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")).trim(),
                         subject = qObj.optString("subject", subject).trim(),
@@ -3335,6 +3346,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionBHi = qObj.optString("optionBHi").trim().takeIf { it.isNotBlank() },
                         optionCHi = qObj.optString("optionCHi").trim().takeIf { it.isNotBlank() },
                         optionDHi = qObj.optString("optionDHi").trim().takeIf { it.isNotBlank() },
+                        optionEHi = qObj.optString("optionEHi").trim().takeIf { it.isNotBlank() },
                         explanationHi = qObj.optString("explanationHi").trim().takeIf { it.isNotBlank() },
                         questionType = qType,
                         section = qObj.optString("section", "SECTION_A"),
@@ -3370,6 +3382,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             status = "Published",
             uploaderId = creatorId,
             targetExam = targetExam,
+            examId = doc.getString("examId") ?: targetExam,
+            stageId = doc.getString("stageId"),
+            paperId = doc.getString("paperId"),
+            scoringVersion = doc.getLong("scoringVersion")?.toInt() ?: 1,
             durationMinutes = durationMinutes,
             classLevel = classLevel,
             chapter = chapter,
@@ -3828,8 +3844,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val correct = breakdown.correctCount
             val incorrect = breakdown.wrongCount
             val skipped = breakdown.unansweredCount
-            val maxScore = Math.round(breakdown.maxScore).toInt()
-            val score = Math.round(breakdown.finalScore).toInt()
+            val maxScore = breakdown.maxScore
+            val score = breakdown.finalScore
             val accuracy = breakdown.accuracyPercent
             val percentile = 0.0 // Offline/practice test has no population-based percentile
 
@@ -4007,8 +4023,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val localCorrect = breakdown.correctCount
                 val localIncorrect = breakdown.wrongCount
                 val localSkipped = breakdown.unansweredCount
-                val localMaxScore = Math.round(breakdown.maxScore).toInt()
-                val localScore = Math.round(breakdown.finalScore).toInt()
+                val localMaxScore = breakdown.maxScore
+                val localScore = breakdown.finalScore
                 val localAccuracy = breakdown.accuracyPercent
 
                 // Local percentile preview: 0.0 (unranked pending authoritative server evaluation)
@@ -4073,8 +4089,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         val resultMap = callResult.data as? Map<*, *>
 
                         if (resultMap != null && (resultMap["success"] == true || resultMap["verifiedServerSide"] == true)) {
-                            val serverScore = (resultMap["score"] as? Number)?.toInt() ?: attempt.score
-                            val serverMaxScore = (resultMap["maxScore"] as? Number)?.toInt() ?: attempt.maxScore
+                            val serverScore = (resultMap["score"] as? Number)?.toDouble() ?: attempt.score
+                            val serverMaxScore = (resultMap["maxScore"] as? Number)?.toDouble() ?: attempt.maxScore
                             val serverPercentile = (resultMap["percentile"] as? Number)?.toDouble() ?: attempt.percentile
                             val serverAccuracy = (resultMap["accuracy"] as? Number)?.toDouble() ?: attempt.accuracy
                             val serverCorrect = (resultMap["correctCount"] as? Number)?.toInt() ?: attempt.correctCount
@@ -5090,6 +5106,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "isPublic" to newTest.isPublic,
                 "status" to newTest.status,
                 "uploaderId" to newTest.uploaderId,
+                "targetExam" to newTest.targetExam,
+                "examId" to (newTest.examId ?: newTest.targetExam),
+                "stageId" to newTest.stageId,
+                "paperId" to newTest.paperId,
+                "scoringVersion" to (newTest.scoringVersion ?: 1),
                 "chapter" to newTest.chapter,
                 "topic" to newTest.topic,
                 "timestamp" to newTest.timestamp,
@@ -5167,6 +5188,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionB = qObj.optString("optionBEn", "Option B"),
                     optionC = qObj.optString("optionCEn", "Option C"),
                     optionD = qObj.optString("optionDEn", "Option D"),
+                    optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
                     subject = genSubject.value,
@@ -5177,6 +5199,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionBHi = qObj.optString("optionBHi", "").takeIf { it.isNotEmpty() },
                     optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                     optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
+                    optionEHi = qObj.optString("optionEHi", "").takeIf { it.isNotEmpty() },
                     explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
                     needsImage = finalNeedsImage,
                     imageUrl = finalImageUrl
@@ -5195,6 +5218,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("optionB", q.optionB)
             qObj.put("optionC", q.optionC)
             qObj.put("optionD", q.optionD)
+            q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
             qObj.put("subject", q.subject)
@@ -5207,6 +5231,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("optionBHi", q.optionBHi ?: "")
             qObj.put("optionCHi", q.optionCHi ?: "")
             qObj.put("optionDHi", q.optionDHi ?: "")
+            qObj.put("optionEHi", q.optionEHi ?: "")
             qObj.put("explanationHi", q.explanationHi ?: "")
             qJsonArray.put(qObj)
         }
@@ -6048,8 +6073,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 val callResult = callable.call(payload).await()
                                 val resultMap = callResult.data as? Map<*, *>
                                 if (resultMap != null && (resultMap["success"] == true || resultMap["verifiedServerSide"] == true)) {
-                                    val serverScore = (resultMap["score"] as? Number)?.toInt() ?: localAttempt.score
-                                    val serverMaxScore = (resultMap["maxScore"] as? Number)?.toInt() ?: localAttempt.maxScore
+                                    val serverScore = (resultMap["score"] as? Number)?.toDouble() ?: localAttempt.score
+                                    val serverMaxScore = (resultMap["maxScore"] as? Number)?.toDouble() ?: localAttempt.maxScore
                                     val serverPercentile = (resultMap["percentile"] as? Number)?.toDouble() ?: 0.0
                                     val serverAccuracy = (resultMap["accuracy"] as? Number)?.toDouble() ?: localAttempt.accuracy
 
@@ -6085,8 +6110,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 userId = user.uid,
                                 testId = testId,
                                 testTitle = doc.getString("testTitle") ?: "",
-                                score = doc.getLong("score")?.toInt() ?: 0,
-                                maxScore = doc.getLong("maxScore")?.toInt() ?: 0,
+                                score = doc.getDouble("score") ?: doc.getLong("score")?.toDouble() ?: 0.0,
+                                maxScore = doc.getDouble("maxScore") ?: doc.getLong("maxScore")?.toDouble() ?: 0.0,
                                 percentile = doc.getDouble("percentile") ?: 0.0,
                                 accuracy = doc.getDouble("accuracy") ?: 0.0,
                                 correctCount = doc.getLong("correctCount")?.toInt() ?: 0,
@@ -6378,6 +6403,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val subjectStr = questions.firstOrNull()?.subjectId?.replaceFirstChar { it.uppercase() } ?: "General"
                 val diffStr = questions.firstOrNull()?.difficulty?.name ?: "Medium"
                 
+                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examName)
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
                     title = "$examName - Universal Mock Test",
@@ -6392,7 +6418,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     questionsCount = questions.size,
                     isOfficial = true,
                     isVerifiedCommunity = true,
-                    targetExam = examName,
+                    targetExam = examConfig?.examId ?: examName,
+                    examId = examConfig?.examId ?: examName,
+                    stageId = examConfig?.stages?.firstOrNull()?.stageId,
+                    paperId = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
+                    scoringVersion = 1,
                     status = "Published",
                     durationMinutes = durationMinutes
                 )
@@ -6408,11 +6438,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("optionBEn", uq.options.getOrElse(1) { "Option B" })
                     qObj.put("optionCEn", uq.options.getOrElse(2) { "Option C" })
                     qObj.put("optionDEn", uq.options.getOrElse(3) { "Option D" })
+                    uq.options.getOrNull(4)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionEEn", it) }
                     if (!uq.questionTextHi.isNullOrBlank()) qObj.put("questionTextHi", uq.questionTextHi)
                     uq.optionsHi?.getOrNull(0)?.let { qObj.put("optionAHi", it) }
                     uq.optionsHi?.getOrNull(1)?.let { qObj.put("optionBHi", it) }
                     uq.optionsHi?.getOrNull(2)?.let { qObj.put("optionCHi", it) }
                     uq.optionsHi?.getOrNull(3)?.let { qObj.put("optionDHi", it) }
+                    uq.optionsHi?.getOrNull(4)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionEHi", it) }
                     qObj.put("correctAnswer", uq.correctAnswer)
                     qObj.put("explanationEn", uq.explanation)
                     if (!uq.explanationHi.isNullOrBlank()) qObj.put("explanationHi", uq.explanationHi)
@@ -6434,6 +6466,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionB = uq.options.getOrElse(1) { "Option B" },
                         optionC = uq.options.getOrElse(2) { "Option C" },
                         optionD = uq.options.getOrElse(3) { "Option D" },
+                        optionE = uq.options.getOrNull(4)?.takeIf { it.isNotBlank() },
                         correctAnswer = uq.correctAnswer,
                         explanation = uq.explanation,
                         subject = uq.subjectId,
@@ -6445,6 +6478,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionBHi = uq.optionsHi?.getOrNull(1),
                         optionCHi = uq.optionsHi?.getOrNull(2),
                         optionDHi = uq.optionsHi?.getOrNull(3),
+                        optionEHi = uq.optionsHi?.getOrNull(4)?.takeIf { it.isNotBlank() },
                         explanationHi = uq.explanationHi,
                         questionType = uq.questionType.name,
                         section = uq.sectionId.ifBlank { "SECTION_A" },
@@ -6541,7 +6575,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val optB = sq.options.find { it.key.equals("B", ignoreCase = true) || it.key == "2" }?.text ?: sq.options.getOrNull(1)?.text ?: "Option B"
                     val optC = sq.options.find { it.key.equals("C", ignoreCase = true) || it.key == "3" }?.text ?: sq.options.getOrNull(2)?.text ?: "Option C"
                     val optD = sq.options.find { it.key.equals("D", ignoreCase = true) || it.key == "4" }?.text ?: sq.options.getOrNull(3)?.text ?: "Option D"
-                    val optionsList = listOf(optA, optB, optC, optD).filter { it.isNotBlank() }
+                    val optE = sq.options.find { it.key.equals("E", ignoreCase = true) || it.key == "5" }?.text ?: sq.options.getOrNull(4)?.text
+                    val optionsList = listOfNotNull(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
                     // OCR questions extracted without an official answer key have no verified answer or explanation
                     val rawAnswer = ""
@@ -6566,6 +6601,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionB = optB,
                         optionC = optC,
                         optionD = optD,
+                        optionE = optE?.takeIf { it.isNotBlank() },
                         correctAnswer = rawAnswer,
                         explanation = rawExplanation,
                         subject = subject.ifBlank { "Full Syllabus" },
@@ -6583,6 +6619,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         put("optionB", optB)
                         put("optionC", optC)
                         put("optionD", optD)
+                        if (!optE.isNullOrBlank()) put("optionE", optE)
                         put("correctAnswer", rawAnswer)
                         put("explanation", rawExplanation)
                         put("imageUrl", imagePath ?: "")
@@ -6595,6 +6632,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val currentUid = currentUserId.value.ifBlank { "local_sandbox_user" }
+                val resolvedExam = if (targetExam.isBlank()) _userProfile.value.targetExam else targetExam
+                val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getExam(resolvedExam)
                 val testEntity = TestEntity(
                     id = testId,
                     title = if (testTitle.isBlank()) "Private Extracted Test" else testTitle,
@@ -6617,7 +6656,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     status = "Under Review",
                     aiConfidence = 50,
                     uploaderId = currentUid,
-                    targetExam = if (targetExam.isBlank()) _userProfile.value.targetExam else targetExam,
+                    targetExam = canonicalExam?.examId ?: resolvedExam,
+                    examId = canonicalExam?.examId ?: resolvedExam,
+                    stageId = canonicalExam?.stages?.firstOrNull()?.stageId,
+                    paperId = canonicalExam?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
+                    scoringVersion = 1,
                     durationMinutes = questionEntities.size,
                     questionsJson = questionsJsonArray.toString()
                 )

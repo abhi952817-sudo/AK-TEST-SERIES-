@@ -55,13 +55,18 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             status = statusVal,
                             uploaderId = doc.getString("uploaderId") ?: doc.getString("creatorId") ?: "",
                             countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: true,
+                            targetExam = doc.getString("targetExam") ?: "NEET",
                             durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 0,
                             classLevel = doc.getString("classLevel") ?: "11th",
                             chapter = doc.getString("chapter") ?: "",
                             topic = doc.getString("topic") ?: "",
                             timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
                             imageUrl = doc.getString("imageUrl"),
-                            questionsJson = doc.getString("questionsJson")
+                            questionsJson = doc.getString("questionsJson"),
+                            examId = doc.getString("examId"),
+                            stageId = doc.getString("stageId"),
+                            paperId = doc.getString("paperId"),
+                            scoringVersion = doc.getLong("scoringVersion")?.toInt()
                         )
                     } catch (e: Exception) { null }
                 }

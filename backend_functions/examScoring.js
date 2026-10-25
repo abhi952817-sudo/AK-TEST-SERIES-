@@ -56,23 +56,121 @@ function isUserAnswerCorrect(userAns, correctAns, isNumerical = false) {
   return false;
 }
 
+/**
+ * Normalizes exam titles to canonical group identifiers.
+ * Strictly preserves the distinct identities of all Railway exams (RRB NTPC, RRB Group D,
+ * RRB ALP, RRB Technician, RRB JE) and other canonical exam IDs without loss.
+ */
+function normalizeExamKey(examName) {
+  if (!examName || typeof examName !== "string" || examName.trim().length === 0) {
+    return "UNKNOWN";
+  }
+  const name = examName.trim().toLowerCase();
+
+  // Medical
+  if (name.includes("neet")) return "NEET";
+
+  // Engineering
+  if (name.includes("jee adv") || name === "jee_advanced") return "JEE_ADVANCED";
+  if (name.includes("jee main") || name === "jee_main" || name.includes("jee")) return "JEE_MAIN";
+  if (name.includes("gate")) return "GATE";
+
+  // University
+  if (name.includes("cuet")) return "CUET";
+
+  // Civil Services & Defence
+  if (name.includes("upsc") || name.includes("civil services")) return "UPSC";
+  if (name.includes("nda")) return "NDA";
+  if (name.includes("cds")) return "CDS";
+
+  // SSC
+  if (name.includes("cgl") || name.includes("ssc_cgl")) return "SSC_CGL";
+  if (name.includes("chsl") || name.includes("ssc_chsl")) return "SSC_CHSL";
+  if (name.includes("mts") || name.includes("ssc_mts")) return "SSC_MTS";
+  if (name.includes("cpo") || name.includes("ssc_cpo")) return "SSC_CPO";
+  if (name.includes("ssc_gd") || name.includes("ssc gd") || name === "gd") return "SSC_GD";
+
+  // Banking
+  if (name.includes("ibps_po") || name.includes("ibps po")) return "IBPS_PO";
+  if (name.includes("ibps_clerk") || name.includes("ibps clerk")) return "IBPS_CLERK";
+  if (name.includes("sbi_po") || name.includes("sbi po")) return "SBI_PO";
+  if (name.includes("sbi_clerk") || name.includes("sbi clerk")) return "SBI_CLERK";
+
+  // Teaching
+  if (name.includes("ctet") || name.includes("uptet")) return "CTET";
+  if (name.includes("ugc_net") || name.includes("ugc net") || name === "ugc" || (name.includes("net") && !name.includes("neet"))) return "UGC_NET";
+
+  // Management
+  if (name.includes("cat")) return "CAT";
+
+  // Railways - DISTINCT CANONICAL IDENTITIES (Do not collapse!)
+  if (name.includes("group_d") || name.includes("group d") || name.includes("level 1")) return "RRB_GROUP_D";
+  if (name.includes("alp") || name.includes("loco pilot")) return "RRB_ALP";
+  if (name.includes("technician") || name.includes("rrb_tech")) return "RRB_TECHNICIAN";
+  if (name.includes("rrb_je") || name.includes("rrb je") || name.includes("junior engineer")) return "RRB_JE";
+  if (name.includes("ntpc") || name.includes("rrb_ntpc")) return "RRB_NTPC";
+  if (name === "rrb" || name === "railways" || name === "railway") return "RRB_NTPC"; // Legacy fallback only for bare generic string
+
+  // Preserve canonical string format without collapsing into NEET or RRB NTPC
+  return examName.trim().toUpperCase().replace(/\s+/g, "_");
+}
+
 function getMarkingSchemeForExam(examName) {
   const name = String(examName || "").trim().toLowerCase();
+  if (!name) {
+    const err = new Error("Exam name cannot be empty");
+    err.code = "invalid-argument";
+    throw err;
+  }
+
+  // Medical
   if (name.includes("neet")) return { pos: 4.0, neg: 1.0 };
-  if (name.includes("jee main") || name === "jee_main" || name === "jee") return { pos: 4.0, neg: 1.0 };
+
+  // Engineering
   if (name.includes("jee adv") || name === "jee_advanced") return { pos: 4.0, neg: 2.0 };
+  if (name.includes("jee main") || name === "jee_main" || name === "jee") return { pos: 4.0, neg: 1.0 };
+  if (name.includes("gate")) return { pos: 1.0, neg: 0.33 };
+
+  // University
   if (name.includes("cuet")) return { pos: 5.0, neg: 1.0 };
+
+  // Civil Services & Defence
   if (name.includes("upsc") || name.includes("civil services")) return { pos: 2.0, neg: 0.66 };
+  if (name.includes("nda")) return { pos: 4.0, neg: 1.33 };
+  if (name.includes("cds")) return { pos: 1.0, neg: 0.33 };
+
+  // SSC
   if (name.includes("cgl") || name.includes("ssc_cgl")) return { pos: 2.0, neg: 0.50 };
   if (name.includes("chsl") || name.includes("ssc_chsl")) return { pos: 2.0, neg: 0.50 };
   if (name.includes("mts") || name.includes("ssc_mts")) return { pos: 3.0, neg: 1.0 };
-  if (name.includes("gate")) return { pos: 1.0, neg: 0.33 };
-  if (name.includes("nda")) return { pos: 4.0, neg: 1.33 };
-  if (name.includes("cds")) return { pos: 1.0, neg: 0.33 };
-  if (name.includes("cat")) return { pos: 3.0, neg: 1.0 };
+  if (name.includes("cpo") || name.includes("ssc_cpo")) return { pos: 1.0, neg: 0.25 };
+  if (name.includes("ssc_gd") || name.includes("ssc gd") || name === "gd") return { pos: 2.0, neg: 0.25 };
+
+  // Banking (Confirmed from UniversalExamRegistry.kt: +1.0 / -0.25)
+  if (name.includes("ibps_po") || name.includes("ibps po")) return { pos: 1.0, neg: 0.25 };
+  if (name.includes("ibps_clerk") || name.includes("ibps clerk")) return { pos: 1.0, neg: 0.25 };
+  if (name.includes("sbi_po") || name.includes("sbi po")) return { pos: 1.0, neg: 0.25 };
+  if (name.includes("sbi_clerk") || name.includes("sbi clerk")) return { pos: 1.0, neg: 0.25 };
+  if (name.includes("ibps") || name.includes("sbi") || name.includes("banking")) return { pos: 1.0, neg: 0.25 };
+
+  // Teaching
   if (name.includes("ctet") || name.includes("uptet")) return { pos: 1.0, neg: 0.0 };
+  if (name.includes("ugc_net") || name.includes("ugc net") || name === "ugc" || (name.includes("net") && !name.includes("neet"))) return { pos: 2.0, neg: 0.0 };
+
+  // Management
+  if (name.includes("cat")) return { pos: 3.0, neg: 1.0 };
+
+  // Railways
+  if (name.includes("alp") || name.includes("loco pilot")) return { pos: 1.0, neg: 0.33 };
+  if (name.includes("technician")) return { pos: 1.0, neg: 0.33 };
+  if (name.includes("group_d") || name.includes("group d")) return { pos: 1.0, neg: 0.33 };
+  if (name.includes("rrb_je") || name.includes("rrb je") || name.includes("junior engineer")) return { pos: 1.0, neg: 0.33 };
   if (name.includes("rrb") || name.includes("ntpc")) return { pos: 1.0, neg: 0.33 };
-  return { pos: 4.0, neg: 1.0 };
+
+  // Controlled error for unsupported/unrecognized exams (DO NOT SILENTLY RETURN NEET!)
+  const err = new Error(`Unsupported or unrecognized exam scheme: "${examName}"`);
+  err.code = "invalid-argument";
+  throw err;
 }
 
 function getMarkingSchemeForQuestion(examName, sectionIdOrName = "", subjectName = "", questionType = "") {
@@ -80,6 +178,13 @@ function getMarkingSchemeForQuestion(examName, sectionIdOrName = "", subjectName
   const sec = String(sectionIdOrName || "").trim().toLowerCase();
   const sub = String(subjectName || "").trim().toLowerCase();
   const type = String(questionType || "").trim().toUpperCase();
+
+  // CAT
+  if (name.includes("cat")) {
+    const isTitaOrNumerical = type === "TITA" || type === "NUMERICAL" || type === "NUMERICAL_VALUE";
+    if (isTitaOrNumerical) return { pos: 3.0, neg: 0.0 };
+    return { pos: 3.0, neg: 1.0 };
+  }
 
   // JEE Advanced
   if (name.includes("jee adv") || name === "jee_advanced") {
@@ -130,7 +235,7 @@ function getMarkingSchemeForQuestion(examName, sectionIdOrName = "", subjectName
 
 function hasMultipleMarkingSchemes(examName) {
   const name = String(examName || "").trim().toLowerCase();
-  return name.includes("nda") || name.includes("cds") || name.includes("gate") || name.includes("mts") || name.includes("jee adv") || name === "jee_advanced";
+  return name.includes("nda") || name.includes("cds") || name.includes("gate") || name.includes("mts") || name.includes("jee adv") || name === "jee_advanced" || name.includes("cat");
 }
 
 function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, subjectName = "") {
@@ -381,4 +486,5 @@ module.exports = {
   calculateScorePercentileFromCounts,
   validateAndMergeAnswerKeys,
   getExamEligibility,
+  normalizeExamKey,
 };

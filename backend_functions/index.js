@@ -8,31 +8,11 @@ const {
   calculatePopulationPercentile,
   validateAndMergeAnswerKeys,
   getExamEligibility,
+  normalizeExamKey,
 } = require("./examScoring");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
-/**
- * Normalizes exam titles to canonical group identifiers to guarantee
- * that rankings and percentiles compare candidates within identical exam categories.
- */
-function normalizeExamKey(examName) {
-  const name = String(examName || "").trim().toLowerCase();
-  if (name.includes("neet")) return "NEET";
-  if (name.includes("jee adv") || name === "jee_advanced") return "JEE_ADVANCED";
-  if (name.includes("jee")) return "JEE_MAIN";
-  if (name.includes("cuet")) return "CUET";
-  if (name.includes("upsc") || name.includes("civil services")) return "UPSC";
-  if (name.includes("cgl") || name.includes("ssc_cgl")) return "SSC_CGL";
-  if (name.includes("chsl") || name.includes("ssc_chsl")) return "SSC_CHSL";
-  if (name.includes("mts") || name.includes("ssc_mts")) return "SSC_MTS";
-  if (name.includes("gate")) return "GATE";
-  if (name.includes("nda")) return "NDA";
-  if (name.includes("cds")) return "CDS";
-  if (name.includes("cat")) return "CAT";
-  if (name.includes("ctet") || name.includes("uptet")) return "CTET";
-  if (name.includes("rrb") || name.includes("ntpc")) return "RRB_NTPC";
-  return String(examName || "NEET").trim().toUpperCase().replace(/\s+/g, "_");
-}
+exports.normalizeExamKey = normalizeExamKey;
 
 /**
  * Cloud Function: submitTestAttemptServerSide

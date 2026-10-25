@@ -878,6 +878,7 @@ private fun ExamQuestionPageView(
     val optB = if (viewLang == AppLanguage.HINDI && !question.optionBHi.isNullOrBlank()) question.optionBHi else question.optionB
     val optC = if (viewLang == AppLanguage.HINDI && !question.optionCHi.isNullOrBlank()) question.optionCHi else question.optionC
     val optD = if (viewLang == AppLanguage.HINDI && !question.optionDHi.isNullOrBlank()) question.optionDHi else question.optionD
+    val optE = if (viewLang == AppLanguage.HINDI && !question.optionEHi.isNullOrBlank()) question.optionEHi else question.optionE
 
     Column(
         modifier = Modifier
@@ -1109,6 +1110,15 @@ private fun ExamQuestionPageView(
                 fontScale = fontScale,
                 onClick = { onSelectAnswer("D") }
             )
+            if (!optE.isNullOrBlank()) {
+                OmrOptionCard(
+                    optionLabel = "E",
+                    optionText = optE,
+                    isSelected = selectedAnswer == "E",
+                    fontScale = fontScale,
+                    onClick = { onSelectAnswer("E") }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

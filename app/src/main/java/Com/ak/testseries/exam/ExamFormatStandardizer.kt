@@ -65,9 +65,22 @@ object ExamFormatStandardizer {
                     section.questionType == QuestionType.NUMERICAL ||
                     section.questionType == QuestionType.TITA)
 
-            // Strictly sanitize options to prevent format pollution
+            // Strictly sanitize options to prevent format pollution while preserving 5-option formats for Banking
+            val isFiveOption = examConfig.defaultOptionCount == 5 || q.options.size >= 5
             val sanitizedOptions = if (isNumerical) {
                 emptyList()
+            } else if (isFiveOption) {
+                if (q.options.size == 5) {
+                    q.options
+                } else {
+                    listOf(
+                        q.options.getOrElse(0) { "Option A" },
+                        q.options.getOrElse(1) { "Option B" },
+                        q.options.getOrElse(2) { "Option C" },
+                        q.options.getOrElse(3) { "Option D" },
+                        q.options.getOrElse(4) { "Option E" }
+                    )
+                }
             } else if (q.options.size == 4) {
                 q.options
             } else {

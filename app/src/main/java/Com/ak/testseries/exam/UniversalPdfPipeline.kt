@@ -278,6 +278,14 @@ object UniversalPdfPipeline {
 
                         val options = if (isNumerical) {
                             emptyList()
+                        } else if (examConfig.defaultOptionCount == 5) {
+                            listOf(
+                                "Standard Assertion A (Correct Property)",
+                                "Distractor B (Plausible misconception)",
+                                "Distractor C (Inverted relationship)",
+                                "Distractor D (Out of boundary condition)",
+                                "Distractor E (None of the above / Alternative condition)"
+                            )
                         } else {
                             listOf(
                                 "Standard Assertion A (Correct Property)",

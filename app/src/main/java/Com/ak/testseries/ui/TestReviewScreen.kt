@@ -317,6 +317,9 @@ fun QuestionReviewCard(
                     OptionRowIndicator("B", question.optionB, question.correctAnswer == "B")
                     OptionRowIndicator("C", question.optionC, question.correctAnswer == "C")
                     OptionRowIndicator("D", question.optionD, question.correctAnswer == "D")
+                    if (!question.optionE.isNullOrBlank()) {
+                        OptionRowIndicator("E", question.optionE, question.correctAnswer == "E")
+                    }
                 }
             } else {
                 Spacer(modifier = Modifier.height(12.dp))

@@ -26,8 +26,8 @@ class GlobalDeduplicationTest {
             userId = userId,
             testId = testId,
             testTitle = "NEET Full Mock 1",
-            score = 620,
-            maxScore = 720,
+            score = 620.0,
+            maxScore = 720.0,
             correctCount = 155,
             incorrectCount = 20,
             skippedCount = 25,
@@ -36,7 +36,7 @@ class GlobalDeduplicationTest {
             attemptSessionToken = token1
         )
 
-        val attempt2 = attempt1.copy(id = 2, score = 620)
+        val attempt2 = attempt1.copy(id = 2, score = 620.0)
 
         // Verifying deduplication logic: identical (userId, attemptSessionToken) should be treated as the same session
         val isDuplicateSession = (attempt1.userId == attempt2.userId) && (attempt1.attemptSessionToken == attempt2.attemptSessionToken)
@@ -59,8 +59,8 @@ class GlobalDeduplicationTest {
             userId = userId,
             testId = testId,
             testTitle = "NEET Full Mock 1",
-            score = 580,
-            maxScore = 720,
+            score = 580.0,
+            maxScore = 720.0,
             correctCount = 145,
             incorrectCount = 30,
             skippedCount = 25,
@@ -74,8 +74,8 @@ class GlobalDeduplicationTest {
             userId = userId,
             testId = testId,
             testTitle = "NEET Full Mock 1",
-            score = 640, // Score improved
-            maxScore = 720,
+            score = 640.0, // Score improved
+            maxScore = 720.0,
             correctCount = 160,
             incorrectCount = 15,
             skippedCount = 25,

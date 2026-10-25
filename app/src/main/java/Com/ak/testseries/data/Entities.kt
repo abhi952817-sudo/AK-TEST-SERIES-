@@ -44,7 +44,13 @@ data class TestEntity(
     val chapter: String = "All",
     val topic: String = "All",
     val imageUrl: String? = null,
-    val questionsJson: String? = null
+    val questionsJson: String? = null,
+
+    // Canonical Exam Identity Persistence (Phase 8.2)
+    val examId: String? = null,
+    val stageId: String? = null,
+    val paperId: String? = null,
+    val scoringVersion: Int? = null
 )
 
 @Entity(tableName = "questions")
@@ -56,7 +62,7 @@ data class QuestionEntity(
     val optionB: String,
     val optionC: String,
     val optionD: String,
-    val correctAnswer: String, // "A", "B", "C", "D"
+    val correctAnswer: String, // "A", "B", "C", "D", "E"
     val explanation: String,
     val subject: String, // "Physics", "Chemistry", "Biology"
     val chapter: String,
@@ -72,7 +78,11 @@ data class QuestionEntity(
     val questionType: String = "MCQ", // "MCQ" or "NUMERICAL"
     val section: String = "SECTION_A", // "SECTION_A" or "SECTION_B"
     val needsImage: Boolean = false,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+
+    // Five-Option Support for Banking & Multi-Choice (Phase 8.2)
+    val optionE: String? = null,
+    val optionEHi: String? = null
 )
 
 @Entity(
@@ -84,8 +94,8 @@ data class AttemptEntity(
     val userId: String = "", // Partition attempt history by authenticated user
     val testId: String,
     val testTitle: String,
-    val score: Int, // e.g. 612 / 720
-    val maxScore: Int, // e.g. 720
+    val score: Double = 0.0, // Fractional marks supported without integer truncation (Phase 8.2)
+    val maxScore: Double = 0.0,
     val percentile: Double = 0.0,
     val accuracy: Double = 0.0,
     val correctCount: Int,

@@ -1114,6 +1114,8 @@ object UniversalExamRegistry {
 
     fun getExamById(examId: String): ExamConfig? = defaultExams[examId]
 
+    fun getExam(query: String): ExamConfig? = getExamById(query) ?: findExamByNameOrShortName(query)
+
     fun findExamByNameOrShortName(query: String): ExamConfig? {
         val q = query.trim().lowercase()
         val exact = defaultExams.values.find {

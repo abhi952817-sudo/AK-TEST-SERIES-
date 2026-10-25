@@ -191,4 +191,161 @@ class AppDatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testRealMigration18To19AddsCanonicalExamOptionEAndRealScores() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val callback = object : SupportSQLiteOpenHelper.Callback(18) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS tests (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        institute TEXT NOT NULL,
+                        batchName TEXT NOT NULL,
+                        facultyName TEXT NOT NULL,
+                        language TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        difficulty TEXT NOT NULL,
+                        testType TEXT NOT NULL,
+                        questionsCount INTEGER NOT NULL,
+                        isOfficial INTEGER NOT NULL,
+                        isVerifiedCommunity INTEGER NOT NULL,
+                        isPublic INTEGER NOT NULL,
+                        countsTowardRanking INTEGER NOT NULL,
+                        downloadsCount INTEGER NOT NULL,
+                        isDownloaded INTEGER NOT NULL,
+                        timestamp INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        aiConfidence INTEGER NOT NULL,
+                        uploaderId TEXT NOT NULL,
+                        targetExam TEXT NOT NULL,
+                        durationMinutes INTEGER NOT NULL,
+                        classLevel TEXT NOT NULL,
+                        chapter TEXT NOT NULL,
+                        topic TEXT NOT NULL,
+                        questionsJson TEXT NOT NULL
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS questions (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        testId TEXT NOT NULL,
+                        questionText TEXT NOT NULL,
+                        optionA TEXT NOT NULL,
+                        optionB TEXT NOT NULL,
+                        optionC TEXT NOT NULL,
+                        optionD TEXT NOT NULL,
+                        correctAnswer TEXT NOT NULL,
+                        explanation TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        chapter TEXT NOT NULL,
+                        topic TEXT NOT NULL,
+                        difficulty TEXT NOT NULL,
+                        isBookmarked INTEGER NOT NULL,
+                        questionTextHi TEXT,
+                        optionAHi TEXT,
+                        optionBHi TEXT,
+                        optionCHi TEXT,
+                        optionDHi TEXT,
+                        explanationHi TEXT,
+                        questionType TEXT NOT NULL,
+                        section TEXT NOT NULL,
+                        needsImage INTEGER NOT NULL,
+                        imageUrl TEXT
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS attempts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL,
+                        testId TEXT NOT NULL,
+                        testTitle TEXT NOT NULL,
+                        score INTEGER NOT NULL,
+                        maxScore INTEGER NOT NULL,
+                        percentile REAL NOT NULL,
+                        accuracy REAL NOT NULL,
+                        correctCount INTEGER NOT NULL,
+                        incorrectCount INTEGER NOT NULL,
+                        skippedCount INTEGER NOT NULL,
+                        timeSpentSeconds INTEGER NOT NULL,
+                        dateTaken INTEGER NOT NULL,
+                        answersJson TEXT NOT NULL,
+                        attemptSessionToken TEXT NOT NULL,
+                        verifiedServerSide INTEGER NOT NULL,
+                        submissionStatus TEXT NOT NULL
+                    )
+                """.trimIndent())
+            }
+
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+        }
+
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(null)
+            .callback(callback)
+            .build()
+
+        val db = FrameworkSQLiteOpenHelperFactory().create(config).writableDatabase
+
+        // Insert row at v18
+        db.execSQL("""
+            INSERT INTO tests (id, title, description, institute, batchName, facultyName, language, subject, difficulty, testType, questionsCount, isOfficial, isVerifiedCommunity, isPublic, countsTowardRanking, downloadsCount, isDownloaded, timestamp, status, aiConfidence, uploaderId, targetExam, durationMinutes, classLevel, chapter, topic, questionsJson)
+            VALUES ('t_v18', 'Test v18', 'Desc', 'Inst', 'Batch', 'Fac', 'Eng', 'Phy', 'Med', 'Mock', 10, 1, 1, 0, 0, 0, 1, 1700000000, 'Published', 90, 'admin', 'NEET', 60, '12th', 'Ch1', 'Top1', '[]')
+        """.trimIndent())
+
+        db.execSQL("""
+            INSERT INTO questions (id, testId, questionText, optionA, optionB, optionC, optionD, correctAnswer, explanation, subject, chapter, topic, difficulty, isBookmarked, questionTextHi, optionAHi, optionBHi, optionCHi, optionDHi, explanationHi, questionType, section, needsImage, imageUrl)
+            VALUES ('q_v18_1', 't_v18', 'What is velocity?', 'A', 'B', 'C', 'D', 'A', 'Exp', 'Phy', 'Ch1', 'Top1', 'Med', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'MCQ', 'SECTION_A', 0, NULL)
+        """.trimIndent())
+
+        db.execSQL("""
+            INSERT INTO attempts (testId, testTitle, score, maxScore, percentile, accuracy, correctCount, incorrectCount, skippedCount, timeSpentSeconds, dateTaken, answersJson, userId, attemptSessionToken, verifiedServerSide, submissionStatus)
+            VALUES ('t_v18', 'Test v18', 650, 720, 98.0, 90.0, 165, 10, 5, 7200, 1700400000, '{}', 'user_1', 'token_1', 1, 'CONFIRMED')
+        """.trimIndent())
+
+        // Execute MIGRATION_18_19
+        AppDatabase.MIGRATION_18_19.migrate(db)
+
+        // Verify tests columns
+        val testColumns = getTableColumns(db, "tests")
+        assertTrue("tests must have examId", testColumns.contains("examId"))
+        assertTrue("tests must have stageId", testColumns.contains("stageId"))
+        assertTrue("tests must have paperId", testColumns.contains("paperId"))
+        assertTrue("tests must have scoringVersion", testColumns.contains("scoringVersion"))
+
+        // Verify questions columns
+        val questionColumns = getTableColumns(db, "questions")
+        assertTrue("questions must have optionE", questionColumns.contains("optionE"))
+        assertTrue("questions must have optionEHi", questionColumns.contains("optionEHi"))
+
+        // Verify attempts columns & data preservation
+        val attemptColumns = getTableColumns(db, "attempts")
+        assertTrue(attemptColumns.contains("score"))
+        assertTrue(attemptColumns.contains("maxScore"))
+
+        val cursor = db.query("SELECT score, maxScore FROM attempts WHERE testId = 't_v18'")
+        assertTrue(cursor.moveToFirst())
+        assertEquals(650.0, cursor.getDouble(cursor.getColumnIndexOrThrow("score")), 0.001)
+        assertEquals(720.0, cursor.getDouble(cursor.getColumnIndexOrThrow("maxScore")), 0.001)
+        cursor.close()
+
+        // Insert new attempt with fractional score in v19 schema
+        db.execSQL("""
+            INSERT INTO attempts (testId, testTitle, score, maxScore, percentile, accuracy, correctCount, incorrectCount, skippedCount, timeSpentSeconds, dateTaken, answersJson, userId, attemptSessionToken, verifiedServerSide, submissionStatus)
+            VALUES ('t_v19', 'Banking Test', 68.25, 100.0, 99.1, 92.5, 70, 7, 23, 3600, 1700500000, '{}', 'user_2', 'token_2', 1, 'CONFIRMED')
+        """.trimIndent())
+
+        val cursorV19 = db.query("SELECT score, maxScore FROM attempts WHERE testId = 't_v19'")
+        assertTrue(cursorV19.moveToFirst())
+        assertEquals(68.25, cursorV19.getDouble(cursorV19.getColumnIndexOrThrow("score")), 0.001)
+        assertEquals(100.0, cursorV19.getDouble(cursorV19.getColumnIndexOrThrow("maxScore")), 0.001)
+        cursorV19.close()
+
+        db.close()
+    }
 }
+

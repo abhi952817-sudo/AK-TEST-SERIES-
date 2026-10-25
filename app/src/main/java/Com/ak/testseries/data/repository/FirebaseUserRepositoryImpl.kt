@@ -91,8 +91,10 @@ class FirebaseUserRepositoryImpl : UserRepository {
 
                     val testId = doc.getString("testId") ?: ""
                     val testTitle = doc.getString("testTitle") ?: ""
-                    val score = doc.getLong("score")?.toInt() ?: 0
-                    val maxScore = doc.getLong("maxScore")?.toInt() ?: 0
+                    val score = (doc.get("authoritativeScore") as? Number)?.toDouble()
+                        ?: (doc.get("score") as? Number)?.toDouble()
+                        ?: 0.0
+                    val maxScore = (doc.get("maxScore") as? Number)?.toDouble() ?: 0.0
                     val percentile = doc.getDouble("percentile") ?: 0.0
                     val accuracy = doc.getDouble("accuracy") ?: 0.0
                     val correctCount = doc.getLong("correctCount")?.toInt() ?: 0

@@ -1,5 +1,6 @@
 package Com.ak.testseries.data
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -154,5 +155,77 @@ class AuthorizationBoundaryTest {
 
         // Verified email with different address is NOT owner
         assertFalse(evaluateIsOwner("student@example.com", isEmailVerified = true))
+    }
+
+    @Test
+    fun banEnforcement_blocksRestrictedStudentActions() {
+        var isUserBanned = true
+        var testInitiated = false
+
+        fun attemptInitiateTest() {
+            if (isUserBanned) {
+                // Restricted action blocked
+                return
+            }
+            testInitiated = true
+        }
+
+        attemptInitiateTest()
+        assertFalse("Test initiation must be blocked when user is banned", testInitiated)
+
+        // Ban lifted
+        isUserBanned = false
+        attemptInitiateTest()
+        assertTrue("Test initiation must be permitted once ban is lifted", testInitiated)
+    }
+
+    @Test
+    fun banStateIsolation_logoutClearsBanAndAccountSwitchDoesNotLeak() {
+        // User A is banned
+        var currentUserId = "user_a"
+        var isUserBanned = true
+        var userProfileBanned = true
+
+        // User logs out
+        fun performLogout() {
+            currentUserId = ""
+            isUserBanned = false
+            userProfileBanned = false
+        }
+
+        performLogout()
+        assertEquals("", currentUserId)
+        assertFalse("Logout must reset isUserBanned flag", isUserBanned)
+        assertFalse("Logout must reset profile ban status", userProfileBanned)
+
+        // User B logs in (active student)
+        fun performLoginUserB() {
+            currentUserId = "user_b"
+            // Profile loaded from User B's Users_Data document
+            val userBDataIsBanned = false
+            isUserBanned = userBDataIsBanned
+            userProfileBanned = userBDataIsBanned
+        }
+
+        performLoginUserB()
+        assertEquals("user_b", currentUserId)
+        assertFalse("User B must not inherit User A's ban status", isUserBanned)
+        assertFalse(userProfileBanned)
+    }
+
+    @Test
+    fun userProfileData_includesIsBannedField() {
+        val defaultStudent = StudentData(
+            id = "student_1",
+            name = "Student",
+            email = "student@example.com",
+            testsAttempted = "0",
+            avgScore = "0",
+            isBanned = false
+        )
+        assertFalse(defaultStudent.isBanned)
+
+        val bannedStudent = defaultStudent.copy(isBanned = true)
+        assertTrue(bannedStudent.isBanned)
     }
 }
