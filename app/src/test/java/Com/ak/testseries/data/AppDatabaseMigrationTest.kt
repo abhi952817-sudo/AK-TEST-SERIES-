@@ -347,5 +347,112 @@ class AppDatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testSequentialRealMigrationFrom15To19PreservesAllTablesAndIntegrity() {
+        val db = createV15Database()
+
+        // 1. Insert v15 attempt
+        db.execSQL("""
+            INSERT INTO attempts (testId, testTitle, score, maxScore, percentile, accuracy, correctCount, incorrectCount, skippedCount, timeSpentSeconds, dateTaken, answersJson)
+            VALUES ('test_seq_15', 'Sequential Test', 600, 720, 90.0, 85.0, 150, 20, 10, 7200, 1700000000, '{}')
+        """.trimIndent())
+
+        // 2. Run migrations 15 -> 16 -> 17 -> 18
+        AppDatabase.MIGRATION_15_16.migrate(db)
+        AppDatabase.MIGRATION_16_17.migrate(db)
+        AppDatabase.MIGRATION_17_18.migrate(db)
+
+        // 3. Create tests and questions tables as of v18
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS tests (
+                id TEXT PRIMARY KEY NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                institute TEXT NOT NULL,
+                batchName TEXT NOT NULL,
+                facultyName TEXT NOT NULL,
+                language TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                difficulty TEXT NOT NULL,
+                testType TEXT NOT NULL,
+                questionsCount INTEGER NOT NULL,
+                isOfficial INTEGER NOT NULL,
+                isVerifiedCommunity INTEGER NOT NULL,
+                isPublic INTEGER NOT NULL,
+                countsTowardRanking INTEGER NOT NULL,
+                downloadsCount INTEGER NOT NULL,
+                isDownloaded INTEGER NOT NULL,
+                timestamp INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                aiConfidence INTEGER NOT NULL,
+                uploaderId TEXT NOT NULL,
+                targetExam TEXT NOT NULL,
+                durationMinutes INTEGER NOT NULL,
+                classLevel TEXT NOT NULL,
+                chapter TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                questionsJson TEXT NOT NULL
+            )
+        """.trimIndent())
+
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS questions (
+                id TEXT PRIMARY KEY NOT NULL,
+                testId TEXT NOT NULL,
+                questionText TEXT NOT NULL,
+                optionA TEXT NOT NULL,
+                optionB TEXT NOT NULL,
+                optionC TEXT NOT NULL,
+                optionD TEXT NOT NULL,
+                correctAnswer TEXT NOT NULL,
+                explanation TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                chapter TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                difficulty TEXT NOT NULL,
+                isBookmarked INTEGER NOT NULL,
+                questionTextHi TEXT,
+                optionAHi TEXT,
+                optionBHi TEXT,
+                optionCHi TEXT,
+                optionDHi TEXT,
+                explanationHi TEXT,
+                questionType TEXT NOT NULL,
+                section TEXT NOT NULL,
+                needsImage INTEGER NOT NULL,
+                imageUrl TEXT
+            )
+        """.trimIndent())
+
+        db.execSQL("""
+            INSERT INTO tests (id, title, description, institute, batchName, facultyName, language, subject, difficulty, testType, questionsCount, isOfficial, isVerifiedCommunity, isPublic, countsTowardRanking, downloadsCount, isDownloaded, timestamp, status, aiConfidence, uploaderId, targetExam, durationMinutes, classLevel, chapter, topic, questionsJson)
+            VALUES ('test_seq_15', 'Sequential Test', 'Desc', 'Inst', 'Batch', 'Fac', 'Eng', 'Phy', 'Med', 'Mock', 10, 1, 1, 0, 0, 0, 1, 1700000000, 'Published', 90, 'admin', 'NEET', 60, '12th', 'Ch1', 'Top1', '[]')
+        """.trimIndent())
+
+        db.execSQL("""
+            INSERT INTO questions (id, testId, questionText, optionA, optionB, optionC, optionD, correctAnswer, explanation, subject, chapter, topic, difficulty, isBookmarked, questionType, section, needsImage)
+            VALUES ('q_seq_1', 'test_seq_15', 'Q1', 'A', 'B', 'C', 'D', 'A', 'Exp', 'Phy', 'Ch1', 'Top1', 'Med', 0, 'MCQ', 'SECTION_A', 0)
+        """.trimIndent())
+
+        // 4. Run migration 18 -> 19
+        AppDatabase.MIGRATION_18_19.migrate(db)
+
+        // 5. Verify all tables and fractional scores survived
+        val testCols = getTableColumns(db, "tests")
+        assertTrue(testCols.contains("examId"))
+        assertTrue(testCols.contains("scoringVersion"))
+
+        val qCols = getTableColumns(db, "questions")
+        assertTrue(qCols.contains("optionE"))
+
+        val attemptCursor = db.query("SELECT score, maxScore FROM attempts WHERE testId = 'test_seq_15'")
+        assertTrue(attemptCursor.moveToFirst())
+        assertEquals(600.0, attemptCursor.getDouble(attemptCursor.getColumnIndexOrThrow("score")), 0.001)
+        assertEquals(720.0, attemptCursor.getDouble(attemptCursor.getColumnIndexOrThrow("maxScore")), 0.001)
+        attemptCursor.close()
+
+        db.close()
+    }
 }
 

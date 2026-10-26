@@ -1815,6 +1815,7 @@ fun FilterBadge(label: String, active: Boolean, onClick: () -> Unit) {
 @Composable
 fun NcertTabScreen(viewModel: NEETViewModel) {
     val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
+    val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
     val syllabusList by viewModel.ncertSyllabus.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val targetExam = userProfile.targetExam
@@ -1980,9 +1981,19 @@ fun NcertTabScreen(viewModel: NEETViewModel) {
         Spacer(modifier = Modifier.height(8.dp))
 
         val context = LocalContext.current
-        val prefs = remember(context, targetExam) { context.getSharedPreferences("SyllabusProgress", android.content.Context.MODE_PRIVATE) }
-        var completedChapters by remember(targetExam) {
-            mutableStateOf(prefs.getStringSet("completed_chapters_${targetExam}", emptySet()) ?: emptySet())
+        val userScope = currentUserId.ifBlank { "guest" }
+        val prefs = remember(context, targetExam, userScope) { context.getSharedPreferences("SyllabusProgress", android.content.Context.MODE_PRIVATE) }
+        var completedChapters by remember(targetExam, userScope) {
+            val userKey = "completed_chapters_${userScope}_${targetExam}"
+            val existing = prefs.getStringSet(userKey, null)
+            val initial = if (existing != null) {
+                existing
+            } else if (userScope == "guest") {
+                prefs.getStringSet("completed_chapters_${targetExam}", emptySet()) ?: emptySet()
+            } else {
+                emptySet()
+            }
+            mutableStateOf(initial)
         }
 
         val catalogList = remember(targetExam) {
@@ -2080,7 +2091,11 @@ fun NcertTabScreen(viewModel: NEETViewModel) {
                                     onCheckedChange = { checked ->
                                         val updated = if (checked) completedChapters + chapterName else completedChapters - chapterName
                                         completedChapters = updated
-                                        prefs.edit().putStringSet("completed_chapters_${targetExam}", updated).apply()
+                                        val editor = prefs.edit().putStringSet("completed_chapters_${userScope}_${targetExam}", updated)
+                                        if (userScope == "guest") {
+                                            editor.putStringSet("completed_chapters_${targetExam}", updated)
+                                        }
+                                        editor.apply()
                                     }
                                 )
                                 Spacer(Modifier.width(4.dp))
@@ -3228,8 +3243,10 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
             if (selectedTab == 0) {
                 // Uploaded Tests
                 val currentUid = viewModel.currentUserId.value
-                val uploadedTests = testsList.filter { 
-                    !it.isOfficial && mappings[it.id] == currentFolderId && (currentUid.isEmpty() || it.uploaderId == currentUid)
+                val uploadedTests = testsList.filter { test ->
+                    !test.isOfficial && mappings[test.id] == currentFolderId && 
+                        Com.ak.testseries.data.TestVisibilityManager.isTestVisible(test, currentUid, viewModel.isAdmin) &&
+                        (test.isPublic || (currentUid.isNotBlank() && test.uploaderId == currentUid))
                 }
                 
                 if (uploadedTests.isEmpty()) {
@@ -5322,7 +5339,7 @@ fun FullScreenSolutionPage(
                         expanded = expanded,
                         onDismissRequest = { expanded = false }
                     ) {
-                        if (currentUserId == test.uploaderId) {
+                        if (currentUserId.isNotBlank() && currentUserId == test.uploaderId) {
                             DropdownMenuItem(
                                 text = { Text(stringRes("Edit")) },
                                 onClick = { expanded = false }

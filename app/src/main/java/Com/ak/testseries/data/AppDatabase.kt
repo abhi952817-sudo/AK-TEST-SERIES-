@@ -130,7 +130,7 @@ interface RecentSearchDao {
 @Database(
     entities = [TestEntity::class, QuestionEntity::class, AttemptEntity::class, SyllabusEntity::class, RecentSearchEntity::class],
     version = 19,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun testDao(): TestDao

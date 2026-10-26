@@ -714,6 +714,34 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     )
 
+    private val _userBookmarkedTestIds = MutableStateFlow<Set<String>>(emptySet())
+    val userBookmarkedTestIds: StateFlow<Set<String>> = _userBookmarkedTestIds.asStateFlow()
+
+    fun loadUserBookmarks(uid: String) {
+        if (uid.isBlank()) {
+            _userBookmarkedTestIds.value = emptySet()
+            return
+        }
+        val context = getApplication<Application>()
+        val prefs = context.getSharedPreferences("user_bookmarks_store", android.content.Context.MODE_PRIVATE)
+        val cached = prefs.getStringSet("bookmarks_$uid", emptySet()) ?: emptySet()
+        _userBookmarkedTestIds.value = cached
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val db = firestoreDb
+                val snap = db.collection("Users_Data").document(uid)
+                    .collection("Bookmarked_Tests").get().await()
+                val serverIds = snap.documents.map { it.id }.toSet()
+                val merged = (cached + serverIds)
+                _userBookmarkedTestIds.value = merged
+                prefs.edit().putStringSet("bookmarks_$uid", merged).apply()
+            } catch (e: Exception) {
+                // Offline fallback - use cached
+            }
+        }
+    }
+
     fun listenToCurrentUserAccountStatus(uid: String) {
         userAccountListener?.remove()
         userAccountListener = null
@@ -752,11 +780,28 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val initialUid = auth.currentUser?.uid ?: ""
             currentUserId.value = initialUid
             listenToCurrentUserAccountStatus(initialUid)
+            loadUserBookmarks(initialUid)
             authStateListener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { firebaseAuth ->
                 val uid = firebaseAuth.currentUser?.uid ?: ""
+                val previousUid = currentUserId.value
                 currentUserId.value = uid
                 checkAdminCustomClaim()
                 listenToCurrentUserAccountStatus(uid)
+                if (previousUid != uid) {
+                    timerJob?.cancel()
+                    _activeTest.value = null
+                    _activeResult.value = null
+                    _activeQuestions.value = emptyList()
+                    _userAnswers.value = emptyMap()
+                    _markedForReview.value = emptySet()
+                    _checkedQuestions.value = emptySet()
+                    _timeSpentPerQuestion.value = emptyMap()
+                    _visitedQuestions.value = emptySet()
+                    _currentQuestionIndex.value = 0
+                    _examTimeRemaining.value = 0L
+                    activeAttemptSessionToken = ""
+                    loadUserBookmarks(uid)
+                }
             }
             auth.addAuthStateListener(authStateListener!!)
         } catch (e: Exception) {
@@ -1394,7 +1439,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     // we'll update the usages in MainActivity to use filterState.value = filterState.value.copy(...)
     // Let's remove the old ones.
 
-    val userAuthFlow = combine(currentUserId, isAdminFlow) { uid, admin -> uid to admin }
+    val userAuthFlow = combine(currentUserId, isAdminFlow, _userBookmarkedTestIds) { uid, admin, bms -> Triple(uid, admin, bms) }
 
     // --- Real-time Data Observables from DB ---
     val testsList: StateFlow<List<TestEntity>> = combine(
@@ -1403,8 +1448,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         userProfile,
         masterPrivateSwitch,
         userAuthFlow
-    ) { allTests, filter, profile, isMasterPrivate, authPair ->
-        val (currentUid, adminUser) = authPair
+    ) { allTests, filter, profile, isMasterPrivate, authTriple ->
+        val (currentUid, adminUser, userBookmarks) = authTriple
         allTests.filter { test ->
             val matchQuery = filter.query.isEmpty() || 
                     test.title.contains(filter.query, ignoreCase = true) || 
@@ -1507,6 +1552,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val matchVisibility = TestVisibilityManager.isTestVisible(test, currentUid, adminUser)
             
             matchQuery && matchSubject && matchDiff && matchType && matchClass && matchBatch && matchChapter && matchTopic && matchTargetExam && matchMasterPrivate && matchVisibility
+        }.map { test ->
+            val effectiveIsBookmarked = if (currentUid.isNotBlank()) {
+                userBookmarks.contains(test.id)
+            } else {
+                test.isBookmarked
+            }
+            if (test.isBookmarked != effectiveIsBookmarked) {
+                test.copy(isBookmarked = effectiveIsBookmarked)
+            } else {
+                test
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -3447,14 +3503,31 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     // --- Bookmark Management (Reference-Based Storage Deduplication) ---
     fun toggleTestBookmark(test: TestEntity) {
         viewModelScope.launch(Dispatchers.IO) {
-            val newStatus = !test.isBookmarked
+            val uid = currentUserId.value
+            val isCurrentlyBookmarked = if (uid.isNotBlank()) {
+                _userBookmarkedTestIds.value.contains(test.id)
+            } else {
+                test.isBookmarked
+            }
+            val newStatus = !isCurrentlyBookmarked
+
+            if (uid.isNotBlank()) {
+                val updated = if (newStatus) {
+                    _userBookmarkedTestIds.value + test.id
+                } else {
+                    _userBookmarkedTestIds.value - test.id
+                }
+                _userBookmarkedTestIds.value = updated
+                val context = getApplication<Application>()
+                val prefs = context.getSharedPreferences("user_bookmarks_store", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putStringSet("bookmarks_$uid", updated).apply()
+            }
+
             repository.toggleBookmark(test.id, newStatus)
             try {
-                val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                val user = auth.currentUser
-                if (user != null) {
+                if (uid.isNotBlank()) {
                     val db = firestoreDb
-                    val bookmarkRef = db.collection("Users_Data").document(user.uid)
+                    val bookmarkRef = db.collection("Users_Data").document(uid)
                         .collection("Bookmarked_Tests").document(test.id)
                     if (newStatus) {
                         val refData = hashMapOf(
@@ -3607,8 +3680,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         _timeSpentPerQuestion.value.forEach { (k, v) -> timeSpentJson.put(k, v) }
         stateJson.put("timeSpent", timeSpentJson)
         
+        val uid = currentUserId.value.ifBlank { "guest" }
         val prefs = context.getSharedPreferences("test_progress", android.content.Context.MODE_PRIVATE)
-        prefs.edit().putString("progress_$testId", stateJson.toString()).apply()
+        prefs.edit().putString("progress_${uid}_$testId", stateJson.toString()).apply()
 
         timerJob?.cancel()
         _activeTest.value = null
@@ -3688,8 +3762,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 _activeQuestions.value = questions
                 
                 val context = getApplication<Application>()
+                val uid = currentUserId.value.ifBlank { "guest" }
                 val prefs = context.getSharedPreferences("test_progress", android.content.Context.MODE_PRIVATE)
-                val savedProgress = prefs.getString("progress_${test.id}", null)
+                val savedProgress = prefs.getString("progress_${uid}_${test.id}", null)
+                    ?: if (uid == "guest") prefs.getString("progress_${test.id}", null) else null
                 
                 if (savedProgress != null) {
                     try {
@@ -4049,8 +4125,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val test = _activeTest.value ?: return@launch
                 val context = getApplication<Application>()
+                val uid = currentUserId.value.ifBlank { "guest" }
                 val prefs = context.getSharedPreferences("test_progress", android.content.Context.MODE_PRIVATE)
-                prefs.edit().remove("progress_${test.id}").apply()
+                prefs.edit().remove("progress_${uid}_${test.id}").remove("progress_${test.id}").apply()
 
                 val questions = _activeQuestions.value
                 val answers = _userAnswers.value
@@ -6203,13 +6280,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _eligibleParticipantsCount.value = 0
             _isOfficialAirUnlocked.value = false
             _nextTargetMessage.value = ""
+            _userBookmarkedTestIds.value = emptySet()
+            timerJob?.cancel()
             _activeTest.value = null
             _activeResult.value = null
+            _activeQuestions.value = emptyList()
             _userAnswers.value = emptyMap()
             _markedForReview.value = emptySet()
             _checkedQuestions.value = emptySet()
             _timeSpentPerQuestion.value = emptyMap()
             _visitedQuestions.value = emptySet()
+            _currentQuestionIndex.value = 0
+            _examTimeRemaining.value = 0L
+            activeAttemptSessionToken = ""
             _currentScreen.value = AppScreen.LOGIN
         }
     }
@@ -6241,13 +6324,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _eligibleParticipantsCount.value = 0
             _isOfficialAirUnlocked.value = false
             _nextTargetMessage.value = ""
+            _userBookmarkedTestIds.value = emptySet()
+            timerJob?.cancel()
             _activeTest.value = null
             _activeResult.value = null
+            _activeQuestions.value = emptyList()
             _userAnswers.value = emptyMap()
             _markedForReview.value = emptySet()
             _checkedQuestions.value = emptySet()
             _timeSpentPerQuestion.value = emptyMap()
             _visitedQuestions.value = emptySet()
+            _currentQuestionIndex.value = 0
+            _examTimeRemaining.value = 0L
+            activeAttemptSessionToken = ""
             _currentScreen.value = AppScreen.LOGIN
         }
     }
