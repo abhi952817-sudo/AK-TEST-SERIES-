@@ -111,6 +111,10 @@ service cloud.firestore {
       match /Bookmarked_Questions/{questionId} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
+
+      match /Bookmarked_Posts/{postId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
     }
 
     // =========================================================================
@@ -291,7 +295,7 @@ service cloud.firestore {
                         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isPinned', 'isOfficial', 'isMonitor', 'creatorId']))
                     || (isAuthenticated()
                         && !isUserBanned(request.auth.uid)
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'views', 'comments', 'isBookmarked'])
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'views', 'comments', 'commentsList', 'isBookmarked'])
                         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['upvotes'])
                             || request.resource.data.upvotes == resource.data.upvotes + 1
                             || request.resource.data.upvotes == resource.data.upvotes - 1));

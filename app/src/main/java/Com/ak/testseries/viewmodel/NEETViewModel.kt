@@ -271,6 +271,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchUserRank(selectedExam: String? = null) {
         val rawExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
         val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
+
+        if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || rawExam.equals("All", ignoreCase = true)) {
+            _userQualifyingTestsCount.value = 0
+            _userCompetitiveScore.value = 0
+            _eligibleParticipantsCount.value = 0
+            _isOfficialAirUnlocked.value = false
+            _userRankStatus.value = "Select an Exam"
+            _userRank.value = "-"
+            _userPercentile.value = 0.0
+            _nextTargetMessage.value = "Select a specific exam to view your ranking and leaderboard."
+            _rankLastUpdatedTime.value = 0L
+            return
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
@@ -420,6 +434,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         leaderboardExamFilter.value = rawExam
         val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
         leaderboardListener?.remove()
+
+        if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || rawExam.equals("All", ignoreCase = true)) {
+            _leaderboard.value = emptyList()
+            return
+        }
+
         try {
             val db = firestoreDb
             
@@ -434,8 +454,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         return@addSnapshotListener
                     }
                     val list = mutableListOf<Com.ak.testseries.domain.auth.LeaderboardEntry>()
-                    var rank = 1
-                    for (doc in snapshot.documents) {
+                    var prevScore: Int? = null
+                    var prevRank = 1
+                    for ((index, doc) in snapshot.documents.withIndex()) {
                         val name = doc.getString("displayName") ?: doc.getString("name") ?: "Student"
                         val score = (doc.getLong("score") ?: 0L).toInt()
                         val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
@@ -447,13 +468,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             score >= 500 -> "Scholar"
                             else -> "Rookie"
                         }
+                        val assignedRank = if (prevScore != null && score == prevScore) {
+                            prevRank
+                        } else {
+                            index + 1
+                        }
+                        prevScore = score
+                        prevRank = assignedRank
+
                         list.add(
                             Com.ak.testseries.domain.auth.LeaderboardEntry(
-                                rank = rank++,
+                                rank = assignedRank,
                                 name = name,
                                 score = score,
                                 uid = uid,
-                                targetExam = rawExam,
+                                targetExam = canonicalExam,
                                 qualifyingTestsCount = qCount,
                                 streak = streakVal,
                                 league = leagueVal
@@ -471,6 +500,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private fun fetchLeaderboardFallback(targetExam: String) {
         try {
             val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(targetExam)
+            if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || targetExam.equals("All", ignoreCase = true)) {
+                _leaderboard.value = emptyList()
+                return
+            }
             val db = firestoreDb
             db.collection("Leaderboard")
                 .whereEqualTo("targetExam", canonicalExam)
@@ -481,12 +514,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 .addOnSuccessListener { snapshot ->
                     if (snapshot != null && !snapshot.isEmpty) {
                         val list = mutableListOf<Com.ak.testseries.domain.auth.LeaderboardEntry>()
-                        var rank = 1
-                        for (doc in snapshot.documents) {
+                        var prevScore: Int? = null
+                        var prevRank = 1
+                        for ((index, doc) in snapshot.documents.withIndex()) {
                             val name = doc.getString("displayName") ?: doc.getString("name") ?: "Student"
                             val score = (doc.getLong("score") ?: 0L).toInt()
                             val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
-                            list.add(Com.ak.testseries.domain.auth.LeaderboardEntry(rank++, name, score, uid, targetExam = targetExam))
+                            val assignedRank = if (prevScore != null && score == prevScore) {
+                                prevRank
+                            } else {
+                                index + 1
+                            }
+                            prevScore = score
+                            prevRank = assignedRank
+                            list.add(Com.ak.testseries.domain.auth.LeaderboardEntry(assignedRank, name, score, uid, targetExam = canonicalExam))
                         }
                         _leaderboard.value = list
                     }

@@ -59,6 +59,7 @@ object UniversalHierarchyCatalog {
     fun getAllExams(): List<ExamHierarchyItem> {
         return listOf(
             getJeeMainsHierarchy(),
+            getJeeAdvancedHierarchy(),
             getNeetUgHierarchy(),
             getUpscHierarchy(),
             getSscCglHierarchy(),
@@ -70,14 +71,50 @@ object UniversalHierarchyCatalog {
     fun getExamHierarchy(examId: String): ExamHierarchyItem {
         val upper = examId.uppercase()
         return when {
+            upper.contains("ADVANCED") || upper == "JEE_ADVANCED" -> getJeeAdvancedHierarchy()
             upper.contains("JEE") -> getJeeMainsHierarchy()
             upper.contains("NEET") -> getNeetUgHierarchy()
             upper.contains("UPSC") || upper.contains("CDS") || upper.contains("NDA") -> getUpscHierarchy()
             upper.contains("SSC") || upper.contains("CGL") -> getSscCglHierarchy()
             upper.contains("11") -> getClass11Hierarchy()
             upper.contains("12") -> getClass12Hierarchy()
-            else -> getJeeMainsHierarchy()
+            else -> getNeetUgHierarchy()
         }
+    }
+
+    fun getJeeAdvancedHierarchy(): ExamHierarchyItem {
+        return ExamHierarchyItem(
+            id = "jee_advanced",
+            nameEn = "JEE Advanced",
+            nameHi = "जेईई एडवांस्ड",
+            category = "Engineering",
+            subjects = listOf(
+                SubjectHierarchyItem(
+                    id = "jeeadv_phy",
+                    nameEn = "Physics",
+                    nameHi = "भौतिक विज्ञान",
+                    chaptersCount = 0,
+                    chapters = emptyList(),
+                    fullSubjectTest = TestMetaInfo("jeeadv_full_phy", "JEE Advanced Full Physics", "जेईई एडवांस्ड संपूर्ण भौतिकी", 18, 60)
+                ),
+                SubjectHierarchyItem(
+                    id = "jeeadv_chem",
+                    nameEn = "Chemistry",
+                    nameHi = "रसायन विज्ञान",
+                    chaptersCount = 0,
+                    chapters = emptyList(),
+                    fullSubjectTest = TestMetaInfo("jeeadv_full_chem", "JEE Advanced Full Chemistry", "जेईई एडवांस्ड संपूर्ण रसायन", 18, 60)
+                ),
+                SubjectHierarchyItem(
+                    id = "jeeadv_math",
+                    nameEn = "Mathematics",
+                    nameHi = "गणित",
+                    chaptersCount = 0,
+                    chapters = emptyList(),
+                    fullSubjectTest = TestMetaInfo("jeeadv_full_math", "JEE Advanced Full Mathematics", "जेईई एडवांस्ड संपूर्ण गणित", 18, 60)
+                )
+            )
+        )
     }
 
     // =========================================================================

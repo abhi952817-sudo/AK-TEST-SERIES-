@@ -66,6 +66,7 @@ function normalizeExamKey(examName) {
     return "UNKNOWN";
   }
   const name = examName.trim().toLowerCase();
+  if (name === "all") return "ALL";
 
   // Medical
   if (name.includes("neet")) return "NEET";

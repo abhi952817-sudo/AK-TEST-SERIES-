@@ -1117,7 +1117,8 @@ object UniversalExamRegistry {
     fun getExam(query: String): ExamConfig? = getExamById(query) ?: findExamByNameOrShortName(query)
 
     fun getCanonicalExamKey(query: String?): String {
-        if (query.isNullOrBlank() || query.equals("All", ignoreCase = true)) return "NEET"
+        if (query.isNullOrBlank()) return "UNKNOWN"
+        if (query.equals("All", ignoreCase = true)) return "ALL"
         val q = query.trim().lowercase()
         return when {
             q.contains("neet") -> "NEET"
@@ -1228,7 +1229,7 @@ object UniversalExamRegistry {
         return if (section != null) {
             Pair(section.positiveMarks, section.negativeMarks)
         } else {
-            Pair(4.0, 1.0)
+            throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
         }
     }
 
@@ -1238,7 +1239,8 @@ object UniversalExamRegistry {
         subjectName: String? = null,
         questionTypeStr: String? = null
     ): Pair<Double, Double> {
-        val config = findExamByNameOrShortName(examName) ?: return Pair(4.0, 1.0)
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
         val secQuery = sectionIdOrName?.trim()?.lowercase() ?: ""
         val subQuery = subjectName?.trim()?.lowercase() ?: ""
         val typeQuery = questionTypeStr?.trim()?.uppercase() ?: ""

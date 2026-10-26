@@ -87,6 +87,19 @@ data class CommunityComment(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+fun commentToMap(comment: CommunityComment): Map<String, Any?> {
+    return hashMapOf(
+        "id" to comment.id,
+        "authorName" to comment.authorName,
+        "timeAgo" to comment.timeAgo,
+        "content" to comment.content,
+        "upvotes" to comment.upvotes,
+        "isCorrectAnswer" to comment.isCorrectAnswer,
+        "userReaction" to comment.userReaction,
+        "timestamp" to comment.timestamp
+    )
+}
+
 fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
     return hashMapOf(
         "id" to post.id,
@@ -118,13 +131,22 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "difficulty" to post.difficulty,
         "classLevel" to post.classLevel,
         "totalMarks" to post.totalMarks,
-        "topic" to post.topic
+        "topic" to post.topic,
+        "userReaction" to post.userReaction,
+        "commentsList" to post.commentsList.map { commentToMap(it) }
     )
 }
 
 object CommunityShareManager {
-    fun shouldAutoShareNewTests(autoShareEnabled: Boolean, isLiveTest: Boolean, uploaderId: String, currentUid: String?, isPublic: Boolean = true): Boolean {
-        if (!isPublic) return false
+    fun shouldAutoShareNewTests(
+        autoShareEnabled: Boolean,
+        isLiveTest: Boolean,
+        uploaderId: String,
+        currentUid: String?,
+        isPublic: Boolean = true,
+        countsTowardRanking: Boolean = true
+    ): Boolean {
+        if (!isPublic || !countsTowardRanking) return false
         if (!autoShareEnabled) return false
         if (isLiveTest) return false
         return isEligibleToShare(uploaderId, currentUid)
@@ -201,80 +223,151 @@ fun CommunityScreen(
     var selectedPostId by remember { mutableStateOf<String?>(null) }
     
     val posts = remember { mutableStateListOf<CommunityPost>() }
+    val bookmarkedPostIds = remember { mutableStateListOf<String>() }
+
+    val currentAuthUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+    val currentUid = currentAuthUser?.uid
+
+    // Isolate bookmarks per user under Users_Data/{userId}/Bookmarked_Posts
+    DisposableEffect(currentUid) {
+        if (currentUid.isNullOrBlank()) {
+            bookmarkedPostIds.clear()
+            return@DisposableEffect onDispose {}
+        }
+        val db = FirebaseFirestore.getInstance()
+        val bookmarkListener = db.collection("Users_Data").document(currentUid)
+            .collection("Bookmarked_Posts")
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    bookmarkedPostIds.clear()
+                    bookmarkedPostIds.addAll(snapshot.documents.map { it.id })
+                }
+            }
+        onDispose {
+            bookmarkListener.remove()
+        }
+    }
 
     DisposableEffect(targetExam) {
         val db = FirebaseFirestore.getInstance()
+
+        fun parseDocument(doc: com.google.firebase.firestore.DocumentSnapshot): CommunityPost? {
+            return try {
+                val rawComments = doc.get("commentsList") as? List<Map<String, Any?>> ?: emptyList()
+                val parsedComments = rawComments.mapNotNull { cMap ->
+                    try {
+                        CommunityComment(
+                            id = cMap["id"] as? String ?: UUID.randomUUID().toString(),
+                            authorName = cMap["authorName"] as? String ?: "Student",
+                            timeAgo = cMap["timeAgo"] as? String ?: "Just now",
+                            content = cMap["content"] as? String ?: "",
+                            upvotes = (cMap["upvotes"] as? Number)?.toInt() ?: 0,
+                            isCorrectAnswer = cMap["isCorrectAnswer"] as? Boolean ?: false,
+                            userReaction = cMap["userReaction"] as? String,
+                            timestamp = (cMap["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+
+                CommunityPost(
+                    id = doc.id,
+                    authorName = doc.getString("authorName") ?: "Unknown",
+                    authorSubtitle = doc.getString("authorSubtitle") ?: "",
+                    isOfficial = doc.getBoolean("isOfficial") ?: false,
+                    isMonitor = doc.getBoolean("isMonitor") ?: false,
+                    timeAgo = doc.getString("timeAgo") ?: "Just now",
+                    title = doc.getString("title") ?: "",
+                    content = doc.getString("content") ?: "",
+                    isPinned = doc.getBoolean("isPinned") ?: false,
+                    upvotes = doc.getLong("upvotes")?.toInt() ?: 0,
+                    comments = (doc.getLong("comments")?.toInt() ?: parsedComments.size),
+                    views = doc.getString("views") ?: "0",
+                    subject = doc.getString("subject") ?: "",
+                    targetExam = doc.getString("targetExam") ?: targetExam,
+                    imageUrl = doc.getString("imageUrl"),
+                    pdfUrl = doc.getString("pdfUrl"),
+                    pdfFileName = doc.getString("pdfFileName"),
+                    isBookmarked = false,
+                    timestamp = doc.getLong("timestamp") ?: 0L,
+                    postType = doc.getString("postType") ?: "DISCUSSION",
+                    testId = doc.getString("testId"),
+                    creatorId = doc.getString("creatorId"),
+                    testTitle = doc.getString("testTitle"),
+                    questionCount = doc.getLong("questionCount")?.toInt(),
+                    durationMinutes = doc.getLong("durationMinutes")?.toInt(),
+                    chapter = doc.getString("chapter"),
+                    difficulty = doc.getString("difficulty"),
+                    classLevel = doc.getString("classLevel"),
+                    totalMarks = doc.getDouble("totalMarks") ?: doc.getLong("totalMarks")?.toDouble(),
+                    topic = doc.getString("topic"),
+                    userReaction = doc.getString("userReaction"),
+                    commentsList = parsedComments
+                )
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        fun updatePostsList(docs: List<com.google.firebase.firestore.DocumentSnapshot>) {
+            val newPosts = docs.mapNotNull { parseDocument(it) }
+            posts.clear()
+            val seenShareKeys = mutableSetOf<String>()
+            val deduplicated = mutableListOf<CommunityPost>()
+            val sortedList = newPosts.sortedWith(compareByDescending<CommunityPost> { it.isPinned }.thenByDescending { it.timestamp })
+            for (post in sortedList) {
+                if (post.postType == "TEST_SHARE" && !post.testId.isNullOrBlank() && !post.creatorId.isNullOrBlank()) {
+                    val compositeKey = "${post.creatorId}_${post.testId}"
+                    if (seenShareKeys.add(compositeKey)) {
+                        deduplicated.add(post)
+                    }
+                } else {
+                    deduplicated.add(post)
+                }
+            }
+            posts.addAll(deduplicated.distinctBy { it.id })
+        }
+
         val listenerRegistration = db.collection("Community_Posts")
             .whereEqualTo("targetExam", targetExam)
             .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(20)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    error.printStackTrace()
+                    // Fallback query if compound index is building or fails
+                    db.collection("Community_Posts")
+                        .whereEqualTo("targetExam", targetExam)
+                        .limit(20)
+                        .get()
+                        .addOnSuccessListener { fallbackSnap ->
+                            updatePostsList(fallbackSnap.documents)
+                        }
                     return@addSnapshotListener
                 }
                 
                 if (snapshot != null) {
-                    val newPosts = snapshot.documents.mapNotNull { doc ->
-                        try {
-                            CommunityPost(
-                                id = doc.id,
-                                authorName = doc.getString("authorName") ?: "Unknown",
-                                authorSubtitle = doc.getString("authorSubtitle") ?: "",
-                                isOfficial = doc.getBoolean("isOfficial") ?: false,
-                                isMonitor = doc.getBoolean("isMonitor") ?: false,
-                                timeAgo = doc.getString("timeAgo") ?: "Just now",
-                                title = doc.getString("title") ?: "",
-                                content = doc.getString("content") ?: "",
-                                isPinned = doc.getBoolean("isPinned") ?: false,
-                                upvotes = doc.getLong("upvotes")?.toInt() ?: 0,
-                                comments = doc.getLong("comments")?.toInt() ?: 0,
-                                views = doc.getString("views") ?: "0",
-                                subject = doc.getString("subject") ?: "",
-                                targetExam = doc.getString("targetExam") ?: targetExam,
-                                imageUrl = doc.getString("imageUrl"),
-                                pdfUrl = doc.getString("pdfUrl"),
-                                pdfFileName = doc.getString("pdfFileName"),
-                                isBookmarked = doc.getBoolean("isBookmarked") ?: false,
-                                timestamp = doc.getLong("timestamp") ?: 0L,
-                                postType = doc.getString("postType") ?: "DISCUSSION",
-                                testId = doc.getString("testId"),
-                                creatorId = doc.getString("creatorId"),
-                                testTitle = doc.getString("testTitle"),
-                                questionCount = doc.getLong("questionCount")?.toInt(),
-                                durationMinutes = doc.getLong("durationMinutes")?.toInt(),
-                                chapter = doc.getString("chapter"),
-                                difficulty = doc.getString("difficulty"),
-                                classLevel = doc.getString("classLevel"),
-                                totalMarks = doc.getDouble("totalMarks") ?: doc.getLong("totalMarks")?.toDouble(),
-                                topic = doc.getString("topic")
-                            )
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
-                    
-                    posts.clear()
-                    // Deduplicate posts: for TEST_SHARE posts, ensure unique (creatorId, testId) composite identity, and deduplicate by post id
-                    val seenShareKeys = mutableSetOf<String>()
-                    val deduplicated = mutableListOf<CommunityPost>()
-                    val sortedList = newPosts.sortedWith(compareByDescending<CommunityPost> { it.isPinned }.thenByDescending { it.timestamp })
-                    for (post in sortedList) {
-                        if (post.postType == "TEST_SHARE" && !post.testId.isNullOrBlank() && !post.creatorId.isNullOrBlank()) {
-                            val compositeKey = "${post.creatorId}_${post.testId}"
-                            if (seenShareKeys.add(compositeKey)) {
-                                deduplicated.add(post)
-                            }
-                        } else {
-                            deduplicated.add(post)
-                        }
-                    }
-                    posts.addAll(deduplicated)
+                    updatePostsList(snapshot.documents)
                 }
             }
             
         onDispose {
             listenerRegistration.remove()
+        }
+    }
+
+    val toggleBookmark = { post: CommunityPost ->
+        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        if (!uid.isNullOrBlank()) {
+            val db = FirebaseFirestore.getInstance()
+            val bookmarkDoc = db.collection("Users_Data").document(uid).collection("Bookmarked_Posts").document(post.id)
+            if (bookmarkedPostIds.contains(post.id)) {
+                bookmarkedPostIds.remove(post.id)
+                bookmarkDoc.delete()
+            } else {
+                bookmarkedPostIds.add(post.id)
+                bookmarkDoc.set(mapOf("postId" to post.id, "timestamp" to System.currentTimeMillis()))
+            }
         }
     }
 
@@ -288,12 +381,17 @@ fun CommunityScreen(
         db.collection("Community_Posts").document(post.id).delete()
     }
 
+    // Attach user bookmark status to posts
+    val postsWithBookmarks = posts.map { post ->
+        post.copy(isBookmarked = bookmarkedPostIds.contains(post.id))
+    }
+
     when (currentRoute) {
         CommunityRoute.FEED -> {
             CommunityFeedScreen(
                 isAdmin = isAdmin,
                 targetExam = targetExam,
-                posts = posts.toList(),
+                posts = postsWithBookmarks,
                 onNavigateToCreate = { currentRoute = CommunityRoute.CREATE_POST },
                 onNavigateToDetail = { post ->
                     selectedPostId = post.id
@@ -305,6 +403,7 @@ fun CommunityScreen(
                 onDeletePost = { post ->
                     deletePostInFirebase(post)
                 },
+                onToggleBookmark = toggleBookmark,
                 onExit = onExit,
                 onOpenTest = onOpenTest
             )
@@ -320,7 +419,7 @@ fun CommunityScreen(
             )
         }
         CommunityRoute.POST_DETAIL -> {
-            val post = posts.find { it.id == selectedPostId }
+            val post = postsWithBookmarks.find { it.id == selectedPostId }
             if (post != null) {
                 PostDetailScreen(
                     post = post,
@@ -329,6 +428,7 @@ fun CommunityScreen(
                     onUpdatePost = { updatedPost ->
                         updatePostInFirebase(updatedPost)
                     },
+                    onToggleBookmark = toggleBookmark,
                     onDeletePost = { p ->
                         deletePostInFirebase(p)
                         currentRoute = CommunityRoute.FEED
@@ -353,7 +453,8 @@ fun CommunityFeedScreen(
     onUpdatePost: (CommunityPost) -> Unit,
     onDeletePost: (CommunityPost) -> Unit,
     onExit: () -> Unit,
-    onOpenTest: (String) -> Unit = {}
+    onOpenTest: (String) -> Unit = {},
+    onToggleBookmark: (CommunityPost) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -514,31 +615,29 @@ fun CommunityFeedScreen(
                 } else true
                 
                 matchesTab && matchesSubject && matchesSearch
-            }.distinctBy { post ->
-                if (post.postType == "TEST_SHARE" && !post.testId.isNullOrBlank() && !post.creatorId.isNullOrBlank()) {
-                    "TEST_SHARE_${post.creatorId}_${post.testId}"
-                } else {
-                    post.id
-                }
             }
+            
+            // Deduplicate safely by unique post id
+            val finalPosts = filteredPosts.distinctBy { it.id }
             
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(filteredPosts, key = { it.id }) { post ->
+                items(finalPosts, key = { it.id }) { post ->
                     PostCard(
                         post = post,
                         isAdmin = isAdmin,
                         onClick = { onNavigateToDetail(post) },
                         onUpdatePost = onUpdatePost,
                         onDeletePost = onDeletePost,
-                        onOpenTest = onOpenTest
+                        onOpenTest = onOpenTest,
+                        onToggleBookmark = onToggleBookmark
                     )
                 }
                 
-                if (filteredPosts.isEmpty()) {
+                if (finalPosts.isEmpty()) {
                     item {
                         Text(
                             text = "No posts found.",
@@ -579,7 +678,8 @@ fun PostCard(
     onClick: () -> Unit,
     onUpdatePost: (CommunityPost) -> Unit,
     onDeletePost: (CommunityPost) -> Unit = {},
-    onOpenTest: (String) -> Unit = {}
+    onOpenTest: (String) -> Unit = {},
+    onToggleBookmark: (CommunityPost) -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -774,7 +874,7 @@ fun PostCard(
                         modifier = Modifier.size(20.dp).clickable {
                             val newReaction = if (post.userReaction == "UP") null else "UP"
                             val diff = if (newReaction == "UP") 1 else if (post.userReaction == "UP") -1 else 0
-                            onUpdatePost(post.copy(userReaction = newReaction, upvotes = post.upvotes + diff))
+                            onUpdatePost(post.copy(userReaction = newReaction, upvotes = (post.upvotes + diff).coerceAtLeast(0)))
                         },
                         tint = if (post.userReaction == "UP") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -792,7 +892,7 @@ fun PostCard(
                     if (post.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                     contentDescription = "Bookmark",
                     modifier = Modifier.size(20.dp).clickable {
-                        onUpdatePost(post.copy(isBookmarked = !post.isBookmarked))
+                        onToggleBookmark(post)
                     },
                     tint = if (post.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -823,6 +923,11 @@ fun CreatePostScreen(
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var selectedSubject by remember { mutableStateOf("General") }
+
+    val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+    val isUserSignedIn = authUser != null
+    val authorName = authUser?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
+    val creatorUid = authUser?.uid
     
     val subjects = remember(targetExam) {
         Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(targetExam) + listOf("General")
@@ -840,11 +945,15 @@ fun CreatePostScreen(
                 actions = {
                     Button(
                         onClick = {
-                            if (title.isNotBlank() && content.isNotBlank()) {
+                            if (title.isNotBlank() && content.isNotBlank() && creatorUid != null) {
                                 onPostCreated(
                                     CommunityPost(
-                                        authorName = "Ananya Verma",
-                                        authorSubtitle = "Aspirant",
+                                        authorName = authorName,
+                                        authorSubtitle = "$targetExam Aspirant",
+                                        creatorId = creatorUid,
+                                        isOfficial = false,
+                                        isMonitor = false,
+                                        isPinned = false,
                                         title = title,
                                         content = content,
                                         subject = selectedSubject,
@@ -855,7 +964,7 @@ fun CreatePostScreen(
                                 )
                             }
                         },
-                        enabled = title.isNotBlank() && content.isNotBlank()
+                        enabled = title.isNotBlank() && content.isNotBlank() && isUserSignedIn
                     ) {
                         Text("Post")
                     }
@@ -864,6 +973,14 @@ fun CreatePostScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            if (!isUserSignedIn) {
+                Text(
+                    text = "Please sign in to share a post with the community.",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -902,7 +1019,8 @@ fun PostDetailScreen(
     onBack: () -> Unit,
     onUpdatePost: (CommunityPost) -> Unit,
     onDeletePost: (CommunityPost) -> Unit = {},
-    onOpenTest: (String) -> Unit = {}
+    onOpenTest: (String) -> Unit = {},
+    onToggleBookmark: (CommunityPost) -> Unit = {}
 ) {
     var commentText by remember { mutableStateOf("") }
 
@@ -917,7 +1035,7 @@ fun PostDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        onUpdatePost(post.copy(isBookmarked = !post.isBookmarked))
+                        onToggleBookmark(post)
                     }) {
                         Icon(
                             if (post.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
@@ -949,8 +1067,10 @@ fun PostDetailScreen(
                     IconButton(
                         onClick = {
                             if (commentText.isNotBlank()) {
+                                val currentAuth = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                                val commenterName = currentAuth?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
                                 val newComment = CommunityComment(
-                                    authorName = "Ananya Verma",
+                                    authorName = commenterName,
                                     timeAgo = "Just now",
                                     content = commentText,
                                     timestamp = System.currentTimeMillis()
@@ -972,6 +1092,7 @@ fun PostDetailScreen(
             }
         }
     ) { padding ->
+        val safeComments = post.commentsList.distinctBy { it.id }
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item {
                 PostCard(
@@ -980,14 +1101,15 @@ fun PostDetailScreen(
                     onClick = {},
                     onUpdatePost = onUpdatePost,
                     onDeletePost = onDeletePost,
-                    onOpenTest = onOpenTest
+                    onOpenTest = onOpenTest,
+                    onToggleBookmark = onToggleBookmark
                 )
                 Divider(modifier = Modifier.padding(vertical = 16.dp))
-                Text("Comments (${post.comments})", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
+                Text("Comments (${safeComments.size})", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
                 Spacer(modifier = Modifier.height(8.dp))
             }
             
-            items(post.commentsList) { comment ->
+            items(safeComments, key = { it.id }) { comment ->
                 CommentCard(
                     comment = comment,
                     isAdmin = isAdmin,

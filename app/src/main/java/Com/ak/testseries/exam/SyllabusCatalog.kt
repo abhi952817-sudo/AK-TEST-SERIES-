@@ -23,11 +23,12 @@ object SyllabusCatalog {
     fun getChapterDetailsForExam(targetExam: String): List<ChapterDetail> {
         val upper = targetExam.uppercase()
         return when {
+            upper.contains("ADVANCED") || upper == "JEE_ADVANCED" -> emptyList() // Isolated: JEE Advanced verified chapter catalog is distinct from JEE Main
             upper.contains("NEET") || upper.contains("MEDICAL") -> neetUgSyllabus
             upper.contains("JEE") || upper.contains("IIT") || upper.contains("ENGINEERING") -> jeeMainSyllabus
             upper.contains("CDS") || upper.contains("UPSC") || upper.contains("NDA") || upper.contains("DEFEN") -> upscCdsSyllabus
             upper.contains("SSC") || upper.contains("CGL") || upper.contains("GOVT") -> sscCglSyllabus
-            else -> neetUgSyllabus + jeeMainSyllabus.take(10)
+            else -> emptyList()
         }
     }
 
