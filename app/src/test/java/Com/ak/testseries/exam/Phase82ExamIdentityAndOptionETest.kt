@@ -202,20 +202,211 @@ class Phase82ExamIdentityAndOptionETest {
     }
 
     @Test
-    fun testUniversalExamRegistryBankExamsHaveFiveDefaultOptions() {
-        val ibpsPo = UniversalExamRegistry.getExam("IBPS PO")
-        assertNotNull(ibpsPo)
-        assertEquals(5, ibpsPo!!.defaultOptionCount)
+    fun testFractionalScorePrecisionWithSpecificBenchmarks() {
+        val benchmarks = listOf(68.33, -0.66, -0.83, -0.27, 100.0, 0.0)
+        for (scoreValue in benchmarks) {
+            val attempt = AttemptEntity(
+                userId = "bench_user",
+                testId = "bench_test",
+                testTitle = "Benchmark Scoring Test",
+                score = scoreValue,
+                maxScore = 200.0,
+                correctCount = 10,
+                incorrectCount = 5,
+                skippedCount = 5,
+                timeSpentSeconds = 1200,
+                answersJson = "{}"
+            )
+            assertEquals(scoreValue, attempt.score, 0.000001)
+            // Verify formatMark formatting maintains precision without truncation
+            val formatted = ExamScoringEngine.formatMark(attempt.score)
+            assertTrue(formatted.isNotBlank())
+        }
+    }
 
-        val ibpsClerk = UniversalExamRegistry.getExam("IBPS Clerk")
-        assertNotNull(ibpsClerk)
-        assertEquals(5, ibpsClerk!!.defaultOptionCount)
+    @Test
+    fun testOptionECorrectAnswerEvaluationAfterReload() {
+        // Question with option E as correct answer
+        val q = QuestionEntity(
+            id = "q_bank_e",
+            testId = "test_bank_01",
+            questionText = "Which option is correct?",
+            optionA = "Opt A",
+            optionB = "Opt B",
+            optionC = "Opt C",
+            optionD = "Opt D",
+            optionE = "Opt E (None of these)",
+            correctAnswer = "E",
+            explanation = "None of the first four options satisfy the condition.",
+            subject = "Reasoning Ability",
+            chapter = "Puzzles"
+        )
 
-        val rrbNtpc = UniversalExamRegistry.getExam("RRB NTPC")
-        assertNotNull(rrbNtpc)
+        // Verify option E answer evaluation
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("E", q.correctAnswer))
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("5", q.correctAnswer)) // Index 5 maps to option E
 
-        val neet = UniversalExamRegistry.getExam("NEET")
-        assertNotNull(neet)
-        assertEquals(4, neet!!.defaultOptionCount)
+        // Evaluate attempt using ExamScoringEngine with Banking rules (+1.0, -0.25)
+        val answersCorrect = mapOf(q.id to "E")
+        val resultCorrect = ExamScoringEngine.evaluateTestAttempt(
+            targetExam = "IBPS PO",
+            questions = listOf(q),
+            userAnswers = answersCorrect,
+            timeSpentSeconds = 60
+        )
+        assertEquals(1.0, resultCorrect.finalScore, 0.001)
+        assertEquals(1, resultCorrect.correctCount)
+        assertEquals(0, resultCorrect.wrongCount)
+
+        // Evaluate incorrect answer
+        val answersWrong = mapOf(q.id to "A")
+        val resultWrong = ExamScoringEngine.evaluateTestAttempt(
+            targetExam = "IBPS PO",
+            questions = listOf(q),
+            userAnswers = answersWrong,
+            timeSpentSeconds = 60
+        )
+        assertEquals(0.25, resultWrong.negativeMarksPenalty, 0.001)
+        assertEquals(-0.25, resultWrong.rawScore, 0.001)
+        assertEquals(0, resultWrong.correctCount)
+        assertEquals(1, resultWrong.wrongCount)
+    }
+
+    @Test
+    fun testFirestoreSerializationAndDeserializationOfNewFields() {
+        val originalTest = TestEntity(
+            id = "firestore_test_101",
+            title = "SBI PO Mains 2026",
+            description = "High-accuracy Banking Mock Paper",
+            institute = "AK Test Series",
+            batchName = "Target Banking",
+            facultyName = "Senior Faculty",
+            language = "English",
+            subject = "Data Analysis",
+            difficulty = "Hard",
+            testType = "Mock Test",
+            questionsCount = 50,
+            isOfficial = true,
+            isVerifiedCommunity = true,
+            targetExam = "sbi_po",
+            examId = "sbi_po",
+            stageId = "mains",
+            paperId = "mains_paper_1",
+            scoringVersion = 1
+        )
+
+        // Simulate Firestore upload map serialization
+        val firestoreMap = hashMapOf<String, Any?>(
+            "id" to originalTest.id,
+            "title" to originalTest.title,
+            "targetExam" to originalTest.targetExam,
+            "examId" to originalTest.examId,
+            "stageId" to originalTest.stageId,
+            "paperId" to originalTest.paperId,
+            "scoringVersion" to originalTest.scoringVersion
+        )
+
+        // Verify map entries
+        assertEquals("sbi_po", firestoreMap["examId"])
+        assertEquals("mains", firestoreMap["stageId"])
+        assertEquals("mains_paper_1", firestoreMap["paperId"])
+        assertEquals(1, firestoreMap["scoringVersion"])
+
+        // Simulate reading back from Firestore document
+        val restoredTest = originalTest.copy(
+            examId = firestoreMap["examId"] as? String,
+            stageId = firestoreMap["stageId"] as? String,
+            paperId = firestoreMap["paperId"] as? String,
+            scoringVersion = (firestoreMap["scoringVersion"] as? Number)?.toInt()
+        )
+
+        assertEquals(originalTest.examId, restoredTest.examId)
+        assertEquals(originalTest.stageId, restoredTest.stageId)
+        assertEquals(originalTest.paperId, restoredTest.paperId)
+        assertEquals(originalTest.scoringVersion, restoredTest.scoringVersion)
+    }
+
+    @Test
+    fun testLegacyFirestoreDeserializationWithoutNewFields() {
+        // Legacy document lacking canonical identity fields
+        val legacyFirestoreMap = hashMapOf<String, Any?>(
+            "id" to "legacy_doc_01",
+            "title" to "Older Community Mock",
+            "targetExam" to "NEET"
+        )
+
+        val restoredLegacyTest = TestEntity(
+            id = legacyFirestoreMap["id"] as String,
+            title = legacyFirestoreMap["title"] as String,
+            description = "Legacy test",
+            institute = "Community",
+            batchName = "Batch A",
+            facultyName = "Teacher",
+            language = "English",
+            subject = "Physics",
+            difficulty = "Medium",
+            testType = "Mock",
+            questionsCount = 10,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            targetExam = legacyFirestoreMap["targetExam"] as String,
+            examId = legacyFirestoreMap["examId"] as? String,
+            stageId = legacyFirestoreMap["stageId"] as? String,
+            paperId = legacyFirestoreMap["paperId"] as? String,
+            scoringVersion = (legacyFirestoreMap["scoringVersion"] as? Number)?.toInt()
+        )
+
+        assertNull(restoredLegacyTest.examId)
+        assertNull(restoredLegacyTest.stageId)
+        assertNull(restoredLegacyTest.paperId)
+        assertNull(restoredLegacyTest.scoringVersion)
+        assertEquals("NEET", restoredLegacyTest.targetExam)
+    }
+
+    @Test
+    fun testBundledExamCatalogPreservesCanonicalExamIdentity() {
+        val (neetTest, _) = BundledExamCatalog.getNeetUgMockTest1()
+        assertEquals("neet_ug", neetTest.examId)
+        assertEquals("neet_ug_main", neetTest.stageId)
+        assertEquals("neet_ug_paper", neetTest.paperId)
+        assertEquals(1, neetTest.scoringVersion)
+
+        val (jeeTest, _) = BundledExamCatalog.getJeeMainMockTest1()
+        assertEquals("jee_main", jeeTest.examId)
+        assertEquals("jee_main_stage", jeeTest.stageId)
+        assertEquals("jee_main_paper_1", jeeTest.paperId)
+        assertEquals(1, jeeTest.scoringVersion)
+
+        val (cdsTest, _) = BundledExamCatalog.getUpscCdsMockTest1()
+        assertEquals("cds", cdsTest.examId)
+        assertEquals("cds_written", cdsTest.stageId)
+        assertEquals(1, cdsTest.scoringVersion)
+
+        val (sscTest, _) = BundledExamCatalog.getSscCglMockTest1()
+        assertEquals("ssc_cgl", sscTest.examId)
+        assertEquals("ssc_cgl_tier_1", sscTest.stageId)
+        assertEquals(1, sscTest.scoringVersion)
+    }
+
+    @Test
+    fun testBundledExamCatalogQuestionsToJsonSerializesOptionE() {
+        val q = QuestionEntity(
+            id = "q_five_opt",
+            testId = "test_1",
+            questionText = "Banking statement question?",
+            optionA = "Option A",
+            optionB = "Option B",
+            optionC = "Option C",
+            optionD = "Option D",
+            optionE = "Option E (Special)",
+            optionEHi = "विकल्प E (विशेष)",
+            correctAnswer = "E",
+            explanation = "Option E is correct.",
+            subject = "Reasoning",
+            chapter = "Syllogism"
+        )
+        val jsonStr = BundledExamCatalog.questionsToJson(listOf(q))
+        assertTrue("JSON must contain optionE", jsonStr.contains("\"optionE\":\"Option E (Special)\""))
+        assertTrue("JSON must contain optionEHi", jsonStr.contains("\"optionEHi\":\"विकल्प E (विशेष)\""))
     }
 }

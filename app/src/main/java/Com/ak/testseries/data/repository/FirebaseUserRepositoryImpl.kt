@@ -34,7 +34,6 @@ class FirebaseUserRepositoryImpl : UserRepository {
                     "email" to authUser.email,
                     "totalTestsAttempted" to 0,
                     "averageScore" to 0.0,
-                    "isBanned" to false,
                     "joinedAt" to com.google.firebase.Timestamp.now()
                 )
                 userRef.set(userData).await()

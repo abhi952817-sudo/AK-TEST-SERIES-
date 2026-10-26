@@ -104,7 +104,12 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             topic = "",
                             timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
                             imageUrl = null,
-                            questionsJson = doc.getString("questionsJson")
+                            questionsJson = doc.getString("questionsJson"),
+                            targetExam = doc.getString("targetExam") ?: "NEET",
+                            examId = doc.getString("examId"),
+                            stageId = doc.getString("stageId"),
+                            paperId = doc.getString("paperId"),
+                            scoringVersion = doc.getLong("scoringVersion")?.toInt()
                         )
                     } catch (e: Exception) { null }
                 }

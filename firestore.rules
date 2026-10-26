@@ -38,8 +38,9 @@ service cloud.firestore {
     // Helper: verifies that only safe, non-privileged student profile fields can be modified
     function isAllowedStudentProfileKeys(keysList) {
       return keysList.hasOnly([
-        'name', 'displayName', 'email', 'phoneNumber', 'stateName', 'cityName',
-        'profileImageUri', 'targetExam', 'bookmarkedTests', 'bookmarkedQuestions',
+        'uid', 'name', 'displayName', 'email', 'phoneNumber', 'stateName', 'cityName',
+        'profileImageUri', 'targetExam', 'averageScore', 'totalTestsAttempted',
+        'bookmarkedTests', 'bookmarkedQuestions', 'joinedAt',
         'lastBackupAt', 'createdAt', 'updatedAt', 'lastActive', 'batch', 'institute',
         'fcmToken', 'language', 'theme', 'selectedLanguage'
       ]);
@@ -113,6 +114,10 @@ service cloud.firestore {
       }
 
       match /Bookmarked_Posts/{postId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /Liked_Posts/{postId} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
     }

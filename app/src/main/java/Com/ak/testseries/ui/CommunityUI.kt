@@ -224,14 +224,16 @@ fun CommunityScreen(
     
     val posts = remember { mutableStateListOf<CommunityPost>() }
     val bookmarkedPostIds = remember { mutableStateListOf<String>() }
+    val likedPostIds = remember { mutableStateListOf<String>() }
 
     val currentAuthUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val currentUid = currentAuthUser?.uid
 
-    // Isolate bookmarks per user under Users_Data/{userId}/Bookmarked_Posts
+    // Isolate bookmarks and likes per user under Users_Data/{userId}
     DisposableEffect(currentUid) {
         if (currentUid.isNullOrBlank()) {
             bookmarkedPostIds.clear()
+            likedPostIds.clear()
             return@DisposableEffect onDispose {}
         }
         val db = FirebaseFirestore.getInstance()
@@ -243,8 +245,17 @@ fun CommunityScreen(
                     bookmarkedPostIds.addAll(snapshot.documents.map { it.id })
                 }
             }
+        val likedListener = db.collection("Users_Data").document(currentUid)
+            .collection("Liked_Posts")
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    likedPostIds.clear()
+                    likedPostIds.addAll(snapshot.documents.map { it.id })
+                }
+            }
         onDispose {
             bookmarkListener.remove()
+            likedListener.remove()
         }
     }
 
@@ -356,8 +367,8 @@ fun CommunityScreen(
         }
     }
 
-    val toggleBookmark = { post: CommunityPost ->
-        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+    val toggleBookmark: (CommunityPost) -> Unit = { post ->
+        val uid = currentUid
         if (!uid.isNullOrBlank()) {
             val db = FirebaseFirestore.getInstance()
             val bookmarkDoc = db.collection("Users_Data").document(uid).collection("Bookmarked_Posts").document(post.id)
@@ -371,9 +382,53 @@ fun CommunityScreen(
         }
     }
 
-    val updatePostInFirebase = { updatedPost: CommunityPost ->
+    val toggleLikePost: (CommunityPost) -> Unit = { post ->
+        val uid = currentUid
+        if (!uid.isNullOrBlank()) {
+            val db = FirebaseFirestore.getInstance()
+            val likeDoc = db.collection("Users_Data").document(uid).collection("Liked_Posts").document(post.id)
+            val isLiked = likedPostIds.contains(post.id)
+            if (isLiked) {
+                likedPostIds.remove(post.id)
+                likeDoc.delete()
+                db.collection("Community_Posts").document(post.id)
+                    .update("upvotes", com.google.firebase.firestore.FieldValue.increment(-1))
+            } else {
+                likedPostIds.add(post.id)
+                likeDoc.set(mapOf("postId" to post.id, "timestamp" to System.currentTimeMillis()))
+                db.collection("Community_Posts").document(post.id)
+                    .update("upvotes", com.google.firebase.firestore.FieldValue.increment(1))
+            }
+        }
+    }
+
+    val addCommentToPost: (CommunityPost, CommunityComment) -> Unit = { targetPost, newComment ->
         val db = FirebaseFirestore.getInstance()
-        db.collection("Community_Posts").document(updatedPost.id).set(communityPostToMap(updatedPost))
+        val updatedList = (targetPost.commentsList + newComment).distinctBy { it.id }
+        db.collection("Community_Posts").document(targetPost.id).update(
+            mapOf(
+                "comments" to updatedList.size,
+                "commentsList" to updatedList.map { commentToMap(it) }
+            )
+        )
+    }
+
+    val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
+        val db = FirebaseFirestore.getInstance()
+        db.collection("Community_Posts").document(newPost.id).set(communityPostToMap(newPost))
+    }
+
+    val updatePostInFirebase: (CommunityPost) -> Unit = { updatedPost ->
+        val db = FirebaseFirestore.getInstance()
+        if (currentUid == updatedPost.creatorId || isAdmin) {
+            db.collection("Community_Posts").document(updatedPost.id).update(
+                mapOf(
+                    "title" to updatedPost.title,
+                    "content" to updatedPost.content,
+                    "subject" to updatedPost.subject
+                )
+            )
+        }
     }
 
     fun deletePostInFirebase(post: CommunityPost) {
@@ -381,9 +436,12 @@ fun CommunityScreen(
         db.collection("Community_Posts").document(post.id).delete()
     }
 
-    // Attach user bookmark status to posts
-    val postsWithBookmarks = posts.map { post ->
-        post.copy(isBookmarked = bookmarkedPostIds.contains(post.id))
+    // Attach user bookmark and like status to posts
+    val postsWithUserStatus = posts.map { post ->
+        post.copy(
+            isBookmarked = bookmarkedPostIds.contains(post.id),
+            userReaction = if (likedPostIds.contains(post.id)) "UP" else null
+        )
     }
 
     when (currentRoute) {
@@ -391,7 +449,7 @@ fun CommunityScreen(
             CommunityFeedScreen(
                 isAdmin = isAdmin,
                 targetExam = targetExam,
-                posts = postsWithBookmarks,
+                posts = postsWithUserStatus,
                 onNavigateToCreate = { currentRoute = CommunityRoute.CREATE_POST },
                 onNavigateToDetail = { post ->
                     selectedPostId = post.id
@@ -404,6 +462,7 @@ fun CommunityScreen(
                     deletePostInFirebase(post)
                 },
                 onToggleBookmark = toggleBookmark,
+                onToggleLike = toggleLikePost,
                 onExit = onExit,
                 onOpenTest = onOpenTest
             )
@@ -413,13 +472,13 @@ fun CommunityScreen(
                 targetExam = targetExam,
                 onBack = { currentRoute = CommunityRoute.FEED },
                 onPostCreated = { newPost ->
-                    updatePostInFirebase(newPost)
+                    createPostInFirebase(newPost)
                     currentRoute = CommunityRoute.FEED
                 }
             )
         }
         CommunityRoute.POST_DETAIL -> {
-            val post = postsWithBookmarks.find { it.id == selectedPostId }
+            val post = postsWithUserStatus.find { it.id == selectedPostId }
             if (post != null) {
                 PostDetailScreen(
                     post = post,
@@ -429,6 +488,8 @@ fun CommunityScreen(
                         updatePostInFirebase(updatedPost)
                     },
                     onToggleBookmark = toggleBookmark,
+                    onToggleLike = toggleLikePost,
+                    onAddComment = addCommentToPost,
                     onDeletePost = { p ->
                         deletePostInFirebase(p)
                         currentRoute = CommunityRoute.FEED
@@ -454,7 +515,8 @@ fun CommunityFeedScreen(
     onDeletePost: (CommunityPost) -> Unit,
     onExit: () -> Unit,
     onOpenTest: (String) -> Unit = {},
-    onToggleBookmark: (CommunityPost) -> Unit = {}
+    onToggleBookmark: (CommunityPost) -> Unit = {},
+    onToggleLike: (CommunityPost) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -633,7 +695,8 @@ fun CommunityFeedScreen(
                         onUpdatePost = onUpdatePost,
                         onDeletePost = onDeletePost,
                         onOpenTest = onOpenTest,
-                        onToggleBookmark = onToggleBookmark
+                        onToggleBookmark = onToggleBookmark,
+                        onToggleLike = onToggleLike
                     )
                 }
                 
@@ -679,7 +742,8 @@ fun PostCard(
     onUpdatePost: (CommunityPost) -> Unit,
     onDeletePost: (CommunityPost) -> Unit = {},
     onOpenTest: (String) -> Unit = {},
-    onToggleBookmark: (CommunityPost) -> Unit = {}
+    onToggleBookmark: (CommunityPost) -> Unit = {},
+    onToggleLike: (CommunityPost) -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -872,9 +936,7 @@ fun PostCard(
                         if (post.userReaction == "UP") Icons.Default.ThumbUp else Icons.Outlined.ThumbUp,
                         contentDescription = "Upvote",
                         modifier = Modifier.size(20.dp).clickable {
-                            val newReaction = if (post.userReaction == "UP") null else "UP"
-                            val diff = if (newReaction == "UP") 1 else if (post.userReaction == "UP") -1 else 0
-                            onUpdatePost(post.copy(userReaction = newReaction, upvotes = (post.upvotes + diff).coerceAtLeast(0)))
+                            onToggleLike(post)
                         },
                         tint = if (post.userReaction == "UP") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1020,7 +1082,9 @@ fun PostDetailScreen(
     onUpdatePost: (CommunityPost) -> Unit,
     onDeletePost: (CommunityPost) -> Unit = {},
     onOpenTest: (String) -> Unit = {},
-    onToggleBookmark: (CommunityPost) -> Unit = {}
+    onToggleBookmark: (CommunityPost) -> Unit = {},
+    onToggleLike: (CommunityPost) -> Unit = {},
+    onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> }
 ) {
     var commentText by remember { mutableStateOf("") }
 
@@ -1075,12 +1139,7 @@ fun PostDetailScreen(
                                     content = commentText,
                                     timestamp = System.currentTimeMillis()
                                 )
-                                onUpdatePost(
-                                    post.copy(
-                                        comments = post.comments + 1,
-                                        commentsList = post.commentsList + newComment
-                                    )
-                                )
+                                onAddComment(post, newComment)
                                 commentText = ""
                             }
                         },
@@ -1102,7 +1161,8 @@ fun PostDetailScreen(
                     onUpdatePost = onUpdatePost,
                     onDeletePost = onDeletePost,
                     onOpenTest = onOpenTest,
-                    onToggleBookmark = onToggleBookmark
+                    onToggleBookmark = onToggleBookmark,
+                    onToggleLike = onToggleLike
                 )
                 Divider(modifier = Modifier.padding(vertical = 16.dp))
                 Text("Comments (${safeComments.size})", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
@@ -1114,9 +1174,14 @@ fun PostDetailScreen(
                     comment = comment,
                     isAdmin = isAdmin,
                     onDelete = {
-                        val newComments = post.commentsList.toMutableList()
-                        newComments.remove(comment)
-                        onUpdatePost(post.copy(commentsList = newComments, comments = newComments.size))
+                        val newComments = post.commentsList.filter { it.id != comment.id }
+                        val db = FirebaseFirestore.getInstance()
+                        db.collection("Community_Posts").document(post.id).update(
+                            mapOf(
+                                "comments" to newComments.size,
+                                "commentsList" to newComments.map { commentToMap(it) }
+                            )
+                        )
                     }
                 )
             }

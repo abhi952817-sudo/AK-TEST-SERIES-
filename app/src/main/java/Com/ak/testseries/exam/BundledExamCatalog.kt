@@ -263,6 +263,10 @@ object BundledExamCatalog {
             aiConfidence = 99,
             uploaderId = "official_admin",
             targetExam = "NEET",
+            examId = "neet_ug",
+            stageId = "neet_ug_main",
+            paperId = "neet_ug_paper",
+            scoringVersion = 1,
             durationMinutes = 200,
             classLevel = "All",
             chapter = "Full Syllabus",
@@ -425,6 +429,10 @@ object BundledExamCatalog {
             aiConfidence = 99,
             uploaderId = "official_admin",
             targetExam = "JEE",
+            examId = "jee_main",
+            stageId = "jee_main_stage",
+            paperId = "jee_main_paper_1",
+            scoringVersion = 1,
             durationMinutes = 180,
             classLevel = "All",
             chapter = "Full Syllabus",
@@ -488,6 +496,10 @@ object BundledExamCatalog {
             status = "Published",
             uploaderId = "official_admin",
             targetExam = "UPSC_CDS",
+            examId = "cds",
+            stageId = "cds_written",
+            paperId = "cds_gk",
+            scoringVersion = 1,
             durationMinutes = 120
         )
 
@@ -547,6 +559,10 @@ object BundledExamCatalog {
             status = "Published",
             uploaderId = "official_admin",
             targetExam = "SSC_CGL",
+            examId = "ssc_cgl",
+            stageId = "ssc_cgl_tier_1",
+            paperId = "ssc_cgl_tier_1_paper",
+            scoringVersion = 1,
             durationMinutes = 60
         )
 
@@ -580,6 +596,12 @@ object BundledExamCatalog {
             sb.append("\"optionCHi\":\"").append(escapeJson(q.optionCHi)).append("\",")
             sb.append("\"optionD\":\"").append(escapeJson(q.optionD)).append("\",")
             sb.append("\"optionDHi\":\"").append(escapeJson(q.optionDHi)).append("\",")
+            if (!q.optionE.isNullOrBlank()) {
+                sb.append("\"optionE\":\"").append(escapeJson(q.optionE)).append("\",")
+            }
+            if (!q.optionEHi.isNullOrBlank()) {
+                sb.append("\"optionEHi\":\"").append(escapeJson(q.optionEHi)).append("\",")
+            }
             sb.append("\"correctAnswer\":\"").append(escapeJson(q.correctAnswer)).append("\",")
             sb.append("\"explanation\":\"").append(escapeJson(q.explanation)).append("\",")
             sb.append("\"explanationHi\":\"").append(escapeJson(q.explanationHi)).append("\",")

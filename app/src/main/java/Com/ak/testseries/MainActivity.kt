@@ -7651,7 +7651,9 @@ fun MiniLeaderboardCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(examsList) { exam ->
-                    val isSelected = exam.equals(examFilter, ignoreCase = true)
+                    val isSelected = exam.equals(examFilter, ignoreCase = true) ||
+                            (!exam.equals("All", ignoreCase = true) && !examFilter.equals("All", ignoreCase = true) &&
+                             Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(exam) == Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(examFilter))
                     FilterChip(
                         selected = isSelected,
                         onClick = {

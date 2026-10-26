@@ -395,6 +395,32 @@ test("Student: CAN upvote/comment on another's post, but CANNOT edit title/conte
   await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").delete()
   );
+
+  // Alice adds a comment to Bob's post -> SUCCEEDS
+  await assertSucceeds(
+    aliceDb.collection("Community_Posts").doc("bob_post").update({
+      comments: 3,
+      commentsList: [
+        { id: "c1", authorName: "Alice", content: "Great question!", timestamp: Date.now() }
+      ]
+    })
+  );
+
+  // Alice persists liked post under own profile -> SUCCEEDS
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Liked_Posts").doc("bob_post").set({
+      postId: "bob_post",
+      timestamp: Date.now()
+    })
+  );
+
+  // Alice tries to write to Bob's Liked_Posts -> FAILS (isolation)
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(BOB_UID).collection("Liked_Posts").doc("bob_post").set({
+      postId: "bob_post",
+      timestamp: Date.now()
+    })
+  );
 });
 
 // =========================================================================

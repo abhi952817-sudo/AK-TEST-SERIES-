@@ -18,6 +18,9 @@ local.properties
 debug.keystore
 *-debug.log
 .aistudio/
+.build-outputs/
+debug.keystore.base64
+app/google-services.json
 
 # Ensure Gradle wrapper files are checked in
 !gradlew

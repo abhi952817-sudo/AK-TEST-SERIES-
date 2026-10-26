@@ -1104,7 +1104,7 @@ class AdvancedPdfSmartExtractor(private val context: Context) {
                     visited[r][c] = true
 
                     while (!queue.isEmpty()) {
-                        val (currR, currC) = queue.poll()
+                        val (currR, currC) = queue.poll() ?: continue
                         activeBlocks++
                         if (currR < minR) minR = currR
                         if (currR > maxR) maxR = currR

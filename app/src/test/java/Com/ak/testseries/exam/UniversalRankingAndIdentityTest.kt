@@ -150,4 +150,111 @@ class UniversalRankingAndIdentityTest {
         assertFalse("Private tests must never count toward competitive public ranking", countsTowardRanking)
         assertFalse("Private tests must not be public", isPublic)
     }
+
+    @Test
+    fun testNeetJeeMainJeeAdvancedTriadIsolation() {
+        val neet = UniversalExamRegistry.getCanonicalExamKey("NEET UG")
+        val jeeMain = UniversalExamRegistry.getCanonicalExamKey("JEE Main")
+        val jeeAdv = UniversalExamRegistry.getCanonicalExamKey("JEE Advanced")
+
+        assertEquals("NEET", neet)
+        assertEquals("JEE_MAIN", jeeMain)
+        assertEquals("JEE_ADVANCED", jeeAdv)
+
+        // Strict mutual exclusivity
+        assertNotEquals(neet, jeeMain)
+        assertNotEquals(jeeMain, jeeAdv)
+        assertNotEquals(neet, jeeAdv)
+
+        // Verify NEET subjects (must contain Botany/Zoology, never Mathematics)
+        val neetSubjects = UniversalExamRegistry.getSubjectsForExamName("NEET UG").map { it.lowercase() }
+        assertTrue("NEET must have physics", neetSubjects.any { it.contains("physic") })
+        assertTrue("NEET must have chemistry", neetSubjects.any { it.contains("chemist") })
+        assertTrue("NEET must have botany", neetSubjects.any { it.contains("botan") })
+        assertTrue("NEET must have zoology", neetSubjects.any { it.contains("zool") })
+        assertFalse("NEET must not contain mathematics", neetSubjects.any { it.contains("math") })
+
+        // Verify JEE Main subjects (must contain Mathematics, never Botany/Zoology)
+        val jeeMainSubjects = UniversalExamRegistry.getSubjectsForExamName("JEE Main").map { it.lowercase() }
+        assertTrue("JEE Main must have physics", jeeMainSubjects.any { it.contains("physic") })
+        assertTrue("JEE Main must have chemistry", jeeMainSubjects.any { it.contains("chemist") })
+        assertTrue("JEE Main must have mathematics", jeeMainSubjects.any { it.contains("math") })
+        assertFalse("JEE Main must not have botany", jeeMainSubjects.any { it.contains("botan") })
+        assertFalse("JEE Main must not have zoology", jeeMainSubjects.any { it.contains("zool") })
+
+        // Verify JEE Advanced subjects (must contain Mathematics, never Botany/Zoology)
+        val jeeAdvSubjects = UniversalExamRegistry.getSubjectsForExamName("JEE Advanced").map { it.lowercase() }
+        assertTrue("JEE Advanced must have physics", jeeAdvSubjects.any { it.contains("physic") })
+        assertTrue("JEE Advanced must have chemistry", jeeAdvSubjects.any { it.contains("chemist") })
+        assertTrue("JEE Advanced must have mathematics", jeeAdvSubjects.any { it.contains("math") })
+        assertFalse("JEE Advanced must not have botany", jeeAdvSubjects.any { it.contains("botan") })
+    }
+
+    @Test
+    fun testNeetJeeMainSyllabusIsolation() {
+        val neetSyllabus = SyllabusCatalog.getChapterDetailsForExam("NEET UG")
+        val jeeMainSyllabus = SyllabusCatalog.getChapterDetailsForExam("JEE Main")
+        val jeeAdvSyllabus = SyllabusCatalog.getChapterDetailsForExam("JEE Advanced")
+
+        // NEET syllabus must have biology, never mathematics
+        assertTrue(neetSyllabus.isNotEmpty())
+        assertTrue(neetSyllabus.any { it.subject.contains("Biology", ignoreCase = true) || it.subject.contains("Botany", ignoreCase = true) })
+        assertFalse(neetSyllabus.any { it.subject.contains("Mathematics", ignoreCase = true) })
+
+        // JEE Main syllabus must have mathematics, never biology
+        assertTrue(jeeMainSyllabus.isNotEmpty())
+        assertTrue(jeeMainSyllabus.any { it.subject.contains("Mathematics", ignoreCase = true) })
+        assertFalse(jeeMainSyllabus.any { it.subject.contains("Biology", ignoreCase = true) })
+
+        // JEE Advanced chapter catalog is strictly isolated (never falls back to JEE Main)
+        assertTrue("JEE Advanced syllabus must be isolated and not copy JEE Main", jeeAdvSyllabus.isEmpty())
+    }
+
+    @Test
+    fun testSectionBOptionalLimitsNeetVsJeeMain() {
+        val neetLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+            examName = "NEET UG",
+            sectionNameOrId = "Section B",
+            subjectName = "Physics"
+        )
+        assertEquals("NEET Section B allows maximum 10 attempts", 10, neetLimit)
+
+        val jeeLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+            examName = "JEE Main",
+            sectionNameOrId = "Section B",
+            subjectName = "Physics"
+        )
+        assertEquals("JEE Main Section B allows maximum 5 attempts", 5, jeeLimit)
+    }
+
+    @Test
+    fun testJeeAdvancedMultiMarkingSchemes() {
+        assertTrue(UniversalExamRegistry.hasMultipleMarkingSchemes("JEE Advanced"))
+        assertFalse(UniversalExamRegistry.hasMultipleMarkingSchemes("NEET UG"))
+        assertFalse(UniversalExamRegistry.hasMultipleMarkingSchemes("JEE Main"))
+
+        // Single correct: +3, -1
+        val (singlePos, singleNeg) = UniversalExamRegistry.getMarkingSchemeForQuestion(
+            examName = "JEE Advanced",
+            questionTypeStr = "MCQ_SINGLE"
+        )
+        assertEquals(3.0, singlePos, 0.001)
+        assertEquals(1.0, singleNeg, 0.001)
+
+        // Multiple correct: +4, -2
+        val (multiPos, multiNeg) = UniversalExamRegistry.getMarkingSchemeForQuestion(
+            examName = "JEE Advanced",
+            questionTypeStr = "MCQ_MULTIPLE"
+        )
+        assertEquals(4.0, multiPos, 0.001)
+        assertEquals(2.0, multiNeg, 0.001)
+
+        // Numerical value: +3, 0 (no negative)
+        val (numPos, numNeg) = UniversalExamRegistry.getMarkingSchemeForQuestion(
+            examName = "JEE Advanced",
+            questionTypeStr = "NUMERICAL_VALUE"
+        )
+        assertEquals(3.0, numPos, 0.001)
+        assertEquals(0.0, numNeg, 0.001)
+    }
 }
