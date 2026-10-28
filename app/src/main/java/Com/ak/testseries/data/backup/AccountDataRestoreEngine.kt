@@ -496,6 +496,15 @@ object AccountDataRestoreEngine {
         val stagingDir = stagedData.stagingDir
         val safeUid = authenticatedUid.trim()
 
+        // Immediate pre-commit re-verification of active authenticated UID
+        if (safeUid.isBlank() || safeUid != stagedData.manifest.owner.uid) {
+            stagedData.cleanUp()
+            return RestoreResult.Failure(
+                reason = "Pre-commit ownership verification failed.",
+                details = "Authenticated UID '$safeUid' does not match backup owner UID '${stagedData.manifest.owner.uid}'."
+            )
+        }
+
         try {
             val manifest = stagedData.manifest
             val parsedTests = stagedData.tests
@@ -512,6 +521,7 @@ object AccountDataRestoreEngine {
             val questionsToInsert = mutableListOf<QuestionEntity>()
             var preservedNewerTestsCount = 0
 
+            val preRestoreUserTests = db.testDao().getAllTestsList().filter { it.uploaderId == safeUid }
             val questionsByTestId = parsedQuestions.groupBy { it.testId }
 
             for (backupTest in parsedTests) {
@@ -525,7 +535,7 @@ object AccountDataRestoreEngine {
                 }
             }
 
-            // Attempts deduplication
+            // Attempts deduplication (Idempotency guarantee)
             val existingUserAttempts = db.attemptDao().getAttemptsForUser(safeUid).first()
             val allAttemptsInDb = db.attemptDao().getAllAttempts().first()
             val takenIds = allAttemptsInDb.map { it.id }.toSet()
@@ -536,7 +546,9 @@ object AccountDataRestoreEngine {
             for (backupAttempt in parsedAttempts) {
                 val isDuplicate = existingUserAttempts.any { existing ->
                     (backupAttempt.attemptSessionToken.isNotBlank() && existing.attemptSessionToken == backupAttempt.attemptSessionToken) ||
-                    (existing.testId == backupAttempt.testId && existing.dateTaken == backupAttempt.dateTaken && existing.timeSpentSeconds == backupAttempt.timeSpentSeconds)
+                    (existing.testId == backupAttempt.testId && existing.dateTaken == backupAttempt.dateTaken &&
+                        (existing.timeSpentSeconds == backupAttempt.timeSpentSeconds || existing.score == backupAttempt.score)) ||
+                    (existing.id != 0 && existing.id == backupAttempt.id)
                 }
 
                 if (isDuplicate) {
@@ -645,10 +657,12 @@ object AccountDataRestoreEngine {
                     }
                 }
 
-                // 6C: Commit preferences
+                // 6C: Commit preferences (Strict verification of commit return values)
                 val currentBookmarks = bookmarksPrefs.getStringSet("bookmarks_$safeUid", emptySet()) ?: emptySet()
                 val mergedBookmarks = (currentBookmarks + parsedBookmarks.testBookmarks).toSet()
-                bookmarksPrefs.edit().putStringSet("bookmarks_$safeUid", mergedBookmarks).commit()
+                if (!bookmarksPrefs.edit().putStringSet("bookmarks_$safeUid", mergedBookmarks).commit()) {
+                    throw java.io.IOException("Failed to commit user bookmarks to SharedPreferences.")
+                }
 
                 val progressEdit = progressPrefs.edit()
                 for ((testId, session) in parsedProgress.inProgressSessions) {
@@ -657,7 +671,9 @@ object AccountDataRestoreEngine {
                         progressEdit.putString(key, session)
                     }
                 }
-                progressEdit.commit()
+                if (!progressEdit.commit()) {
+                    throw java.io.IOException("Failed to commit test progress to SharedPreferences.")
+                }
 
                 val syllabusEdit = syllabusPrefs.edit()
                 for ((exam, chapters) in parsedSyllabus.completedChaptersByExam) {
@@ -666,7 +682,9 @@ object AccountDataRestoreEngine {
                     val merged = (existing + chapters).toSet()
                     syllabusEdit.putStringSet(key, merged)
                 }
-                syllabusEdit.commit()
+                if (!syllabusEdit.commit()) {
+                    throw java.io.IOException("Failed to commit syllabus progress to SharedPreferences.")
+                }
 
                 val profileEdit = profilePrefs.edit()
                 parsedProfile.targetExam.let { profileEdit.putString("target_exam", it) }
@@ -674,7 +692,9 @@ object AccountDataRestoreEngine {
                 parsedProfile.selectedLanguage.let { profileEdit.putString("selected_language", it) }
                 parsedProfile.testFolders?.let { profileEdit.putString("test_folders", it) }
                 parsedProfile.testFolderMappings?.let { profileEdit.putString("test_folder_mappings", it) }
-                profileEdit.commit()
+                if (!profileEdit.commit()) {
+                    throw java.io.IOException("Failed to commit user profile preferences to SharedPreferences.")
+                }
 
             } catch (commitEx: Exception) {
                 // Rollback Filesystem Changes
@@ -721,29 +741,26 @@ object AccountDataRestoreEngine {
                 }
                 profEdit.commit()
 
-                // Rollback Room records inserted during this attempt
+                // Rollback Room records completely to pre-restore snapshot
                 try {
                     db.withTransaction {
                         for (test in testsToInsert) {
-                            db.questionDao().deleteQuestionsForTest(test.id)
-                            db.testDao().deleteTest(test)
-                        }
-                        for (attempt in attemptsToInsert) {
-                            // If it was inserted with ID > 0 or session token
-                            if (attempt.attemptSessionToken.isNotBlank()) {
-                                val found = db.attemptDao().getAttemptBySessionToken(safeUid, attempt.attemptSessionToken)
-                                if (found != null) {
-                                    db.attemptDao().clearAttemptsForUser(safeUid)
-                                    // Re-insert existing attempts that were not part of this restore
-                                    for (orig in existingUserAttempts) {
-                                        db.attemptDao().insertAttempt(orig)
-                                    }
-                                }
+                            val orig = preRestoreUserTests.find { it.id == test.id }
+                            if (orig == null) {
+                                db.questionDao().deleteQuestionsForTest(test.id)
+                                db.testDao().deleteTest(test)
+                            } else {
+                                db.testDao().insertTest(orig)
                             }
+                        }
+                        // Revert user attempts completely to pre-restore snapshot
+                        db.attemptDao().clearAttemptsForUser(safeUid)
+                        for (orig in existingUserAttempts) {
+                            db.attemptDao().insertAttempt(orig)
                         }
                     }
                 } catch (dbRollbackEx: Exception) {
-                    // Log or record secondary rollback error
+                    // Secondary rollback error logged
                 }
 
                 return RestoreResult.Failure(

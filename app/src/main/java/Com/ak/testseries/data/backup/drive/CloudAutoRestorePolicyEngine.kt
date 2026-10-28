@@ -25,6 +25,16 @@ sealed class AutoRestoreStatus {
 }
 
 /**
+ * Tri-state result for account-owned local vault emptiness check.
+ * Strictly prevents database read errors from being falsely interpreted as empty.
+ */
+sealed class VaultEmptinessResult {
+    object Empty : VaultEmptinessResult()
+    data class NotEmpty(val reason: String) : VaultEmptinessResult()
+    data class Error(val cause: Throwable) : VaultEmptinessResult()
+}
+
+/**
  * Result of evaluating auto-restore eligibility for a logged-in user on a device.
  */
 sealed class AutoRestoreDecision {
@@ -42,55 +52,105 @@ object CloudAutoRestorePolicyEngine {
     /**
      * Determines whether the account-owned local vault is genuinely empty.
      * Checks all account-scoped entities across Room tables, file repositories, and SharedPreferences.
+     * Fails closed: on database or filesystem read failure, returns [VaultEmptinessResult.Error].
      */
+    suspend fun checkLocalVaultEmptiness(
+        context: Context,
+        db: AppDatabase,
+        uid: String
+    ): VaultEmptinessResult {
+        val safeUid = uid.trim()
+        if (safeUid.isBlank()) {
+            return VaultEmptinessResult.Error(IllegalArgumentException("Authenticated UID is blank."))
+        }
+
+        // 1. Check Room TestEntity records owned by user
+        val userVaultTestsCount = try {
+            val allTests = db.testDao().getAllTestsList()
+            allTests.count { !it.isOfficial && !it.isPublic && it.uploaderId == safeUid }
+        } catch (e: Exception) {
+            return VaultEmptinessResult.Error(e)
+        }
+        if (userVaultTestsCount > 0) {
+            return VaultEmptinessResult.NotEmpty("Found $userVaultTestsCount user-owned tests in Room database.")
+        }
+
+        // 2. Check local private test files directory
+        try {
+            val privateTestsDir = File(context.filesDir, "private_tests/$safeUid")
+            if (privateTestsDir.exists() && (privateTestsDir.listFiles()?.isNotEmpty() == true)) {
+                return VaultEmptinessResult.NotEmpty("Found user private test files in storage.")
+            }
+        } catch (e: Exception) {
+            return VaultEmptinessResult.Error(e)
+        }
+
+        // 3. Check Room AttemptEntity records owned by user
+        val attemptsCount = try {
+            val attempts = db.attemptDao().getAttemptsForUser(safeUid).firstOrNull() ?: emptyList()
+            attempts.size
+        } catch (e: Exception) {
+            return VaultEmptinessResult.Error(e)
+        }
+        if (attemptsCount > 0) {
+            return VaultEmptinessResult.NotEmpty("Found $attemptsCount attempt records in Room database.")
+        }
+
+        // 4. Check user bookmarks preference store
+        try {
+            val bookmarksPrefs = context.getSharedPreferences("user_bookmarks_store", Context.MODE_PRIVATE)
+            val userBookmarks = bookmarksPrefs.getStringSet("bookmarks_$safeUid", null)
+                ?: bookmarksPrefs.getStringSet("bookmarks", null)
+            if (!userBookmarks.isNullOrEmpty()) {
+                return VaultEmptinessResult.NotEmpty("Found saved test bookmarks.")
+            }
+        } catch (e: Exception) {
+            return VaultEmptinessResult.Error(e)
+        }
+
+        // 5. Check in-progress tests
+        try {
+            val progressPrefs = context.getSharedPreferences("test_progress", Context.MODE_PRIVATE)
+            val userProgressKeys = progressPrefs.all.keys.filter { it.startsWith("progress_${safeUid}_") }
+            if (userProgressKeys.isNotEmpty()) {
+                return VaultEmptinessResult.NotEmpty("Found in-progress test sessions.")
+            }
+        } catch (e: Exception) {
+            return VaultEmptinessResult.Error(e)
+        }
+
+        // 6. Check syllabus progress
+        try {
+            val syllabusPrefs = context.getSharedPreferences("SyllabusProgress", Context.MODE_PRIVATE)
+            val syllabusKeys = syllabusPrefs.all.keys.filter { it.contains(safeUid) }
+            if (syllabusKeys.isNotEmpty()) {
+                return VaultEmptinessResult.NotEmpty("Found recorded syllabus progress.")
+            }
+        } catch (e: Exception) {
+            return VaultEmptinessResult.Error(e)
+        }
+
+        // 7. Check user profile preferences (test folders or custom mappings)
+        try {
+            val profilePrefs = context.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
+            val folders = profilePrefs.getString("test_folders", null)
+            val folderMappings = profilePrefs.getString("test_folder_mappings", null)
+            if (!folders.isNullOrBlank() || !folderMappings.isNullOrBlank()) {
+                return VaultEmptinessResult.NotEmpty("Found user folder configurations.")
+            }
+        } catch (e: Exception) {
+            return VaultEmptinessResult.Error(e)
+        }
+
+        return VaultEmptinessResult.Empty
+    }
+
     suspend fun isLocalVaultGenuinelyEmpty(
         context: Context,
         db: AppDatabase,
         uid: String
     ): Boolean {
-        val safeUid = uid.trim()
-        if (safeUid.isBlank()) return false
-
-        // 1. Check Room TestEntity records owned by user
-        val allTests = try {
-            db.testDao().getAllTestsList()
-        } catch (_: Exception) {
-            emptyList()
-        }
-        val userVaultTestsCount = allTests.count { !it.isOfficial && !it.isPublic && it.uploaderId == safeUid }
-        if (userVaultTestsCount > 0) return false
-
-        // 2. Check local private test files directory
-        val privateTestsDir = File(context.filesDir, "private_tests/$safeUid")
-        if (privateTestsDir.exists() && (privateTestsDir.listFiles()?.isNotEmpty() == true)) {
-            return false
-        }
-
-        // 3. Check Room AttemptEntity records owned by user
-        val attempts = try {
-            db.attemptDao().getAttemptsForUser(safeUid).firstOrNull() ?: emptyList()
-        } catch (_: Exception) {
-            emptyList()
-        }
-        if (attempts.isNotEmpty()) return false
-
-        // 4. Check user bookmarks preference store
-        val bookmarksPrefs = context.getSharedPreferences("user_bookmarks_store", Context.MODE_PRIVATE)
-        val userBookmarks = bookmarksPrefs.getStringSet("bookmarks_$safeUid", null)
-            ?: bookmarksPrefs.getStringSet("bookmarks", null)
-        if (!userBookmarks.isNullOrEmpty()) return false
-
-        // 5. Check in-progress tests
-        val progressPrefs = context.getSharedPreferences("test_progress", Context.MODE_PRIVATE)
-        val userProgressKeys = progressPrefs.all.keys.filter { it.startsWith("progress_${safeUid}_") }
-        if (userProgressKeys.isNotEmpty()) return false
-
-        // 6. Check syllabus progress
-        val syllabusPrefs = context.getSharedPreferences("SyllabusProgress", Context.MODE_PRIVATE)
-        val syllabusKeys = syllabusPrefs.all.keys.filter { it.contains(safeUid) }
-        if (syllabusKeys.isNotEmpty()) return false
-
-        return true
+        return checkLocalVaultEmptiness(context, db, uid) is VaultEmptinessResult.Empty
     }
 
     /**
@@ -138,15 +198,28 @@ object CloudAutoRestorePolicyEngine {
             return AutoRestoreDecision.Skip("Google Drive is not authorized on this device.")
         }
 
+        // Verify Firebase UID <-> Google Drive account binding
+        val bindingCheck = GoogleDriveAuthManager.verifyAccountBinding(context, safeUid)
+        if (bindingCheck.isFailure) {
+            return AutoRestoreDecision.Skip(bindingCheck.exceptionOrNull()?.message ?: "Drive account mismatch.")
+        }
+
         val matchingBackup = findBestCompatibleBackup(remoteBackups, safeUid)
             ?: return AutoRestoreDecision.Skip("No compatible cloud backup found for UID: $safeUid")
 
-        val isVaultEmpty = isLocalVaultGenuinelyEmpty(context, db, safeUid)
-        if (!isVaultEmpty) {
-            return AutoRestoreDecision.Skip("Local vault contains existing user data. Skipping auto-restore to prevent overwriting.")
+        when (val emptinessResult = checkLocalVaultEmptiness(context, db, safeUid)) {
+            is VaultEmptinessResult.NotEmpty -> {
+                return AutoRestoreDecision.Skip("Local vault contains existing user data (${emptinessResult.reason}). Skipping auto-restore to prevent overwriting.")
+            }
+            is VaultEmptinessResult.Error -> {
+                return AutoRestoreDecision.Skip("Local vault emptiness check failed with error: ${emptinessResult.cause.message}. Failing closed for safety.")
+            }
+            is VaultEmptinessResult.Empty -> {
+                // Proceed
+            }
         }
 
-        val isAutoRestoreOptIn = GoogleDriveAuthManager.isAutoRestoreOnNewDeviceEnabled(context)
+        val isAutoRestoreOptIn = GoogleDriveAuthManager.isAutoRestoreOnNewDeviceEnabled(context, safeUid)
         return if (isAutoRestoreOptIn) {
             AutoRestoreDecision.ShouldAutoRestore(matchingBackup)
         } else {

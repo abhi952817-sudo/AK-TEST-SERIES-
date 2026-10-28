@@ -1,9 +1,12 @@
 package Com.ak.testseries.ui
 
 import Com.ak.testseries.stringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -115,19 +118,61 @@ fun SettingsScreen(
             SettingsMenuItem(icon = Icons.Rounded.Notifications, title = if (isHindi) "सूचनाएं" else stringRes("Notifications"), subtitle = if (isHindi) "पुश और ईमेल प्राथमिकताएं" else "Push and email preferences", onClick = { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.USER_NOTIFICATIONS) })
             
             Spacer(modifier = Modifier.height(16.dp))
-            SettingsSectionTitle(if (isHindi) "स्थानीय बैकअप (.aktsbak)" else "Local Backup (.aktsbak)")
+            SettingsSectionTitle(if (isHindi) "डेटा सुरक्षा व बैकअप (Google Drive & SAF)" else "Data Safety & Backup (Google Drive & SAF)")
 
             val isUserAuthenticated = currentAuthUid.isNotBlank() || userProfileData.email.isNotEmpty()
             if (isUserAuthenticated) {
-                SettingsMenuItem(
-                    icon = Icons.Rounded.SettingsBackupRestore,
-                    title = if (isHindi) "खाता बैकअप और पुनर्स्थापना केंद्र" else "Backup & Restore Center",
-                    subtitle = if (isHindi) "डेटा अवलोकन, पूर्वावलोकन और SAF प्रबंधन स्क्रीन" else "Dedicated data overview, preview, and SAF controls",
-                    onClick = {
-                        viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.BACKUP_RESTORE)
-                    },
-                    modifier = Modifier.testTag("backup_center_menu_item")
-                )
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .clickable { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.BACKUP_RESTORE) }
+                        .testTag("backup_center_highlight_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CloudSync,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isHindi) "खाता बैकअप और पुनर्स्थापना केंद्र" else "Backup & Restore Center",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (isHindi) "गूगल ड्राइव ऑटो-सिंक, SAF (.aktsbak) बैकअप व रीस्टोर" else "Google Drive auto-sync, SAF (.aktsbak) export & restore",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowForwardIos,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
                 SettingsMenuItem(
                     icon = Icons.Rounded.CloudUpload,
                     title = if (isHindi) "त्वरित बैकअप निर्यात (.aktsbak)" else "Quick Export (.aktsbak)",

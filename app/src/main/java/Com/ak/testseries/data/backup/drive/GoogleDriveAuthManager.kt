@@ -31,6 +31,7 @@ object GoogleDriveAuthManager {
     const val KEY_DRIVE_FOLDER_ID = "drive_folder_id"
     const val KEY_LAST_DRIVE_BACKUP_TIMESTAMP = "last_drive_backup_timestamp"
     const val KEY_LAST_DRIVE_BACKUP_STATS = "last_drive_backup_stats"
+    const val KEY_LINKED_FIREBASE_UID = "linked_firebase_uid"
     const val KEY_AUTO_BACKUP_FREQUENCY = "auto_backup_frequency" // OFF, DAILY, WEEKLY
     const val KEY_AUTO_BACKUP_WIFI_ONLY = "auto_backup_wifi_only"
     const val KEY_AUTO_BACKUP_CHARGING_ONLY = "auto_backup_charging_only"
@@ -56,7 +57,7 @@ object GoogleDriveAuthManager {
         return getSignInClient(context).signInIntent
     }
 
-    fun handleSignInResult(data: Intent?, context: Context): Result<GoogleSignInAccount> {
+    fun handleSignInResult(data: Intent?, context: Context, currentFirebaseUid: String? = null): Result<GoogleSignInAccount> {
         return try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             val account = task.getResult(ApiException::class.java)
@@ -64,11 +65,14 @@ object GoogleDriveAuthManager {
                 val email = account.email ?: ""
                 val displayName = account.displayName ?: ""
                 val prefs = getPrefs(context)
-                prefs.edit()
+                val editor = prefs.edit()
                     .putBoolean(KEY_DRIVE_CONNECTED, true)
                     .putString(KEY_DRIVE_ACCOUNT_EMAIL, email)
                     .putString(KEY_DRIVE_ACCOUNT_DISPLAY_NAME, displayName)
-                    .apply()
+                if (!currentFirebaseUid.isNullOrBlank()) {
+                    editor.putString(KEY_LINKED_FIREBASE_UID, currentFirebaseUid.trim())
+                }
+                editor.apply()
                 Result.success(account)
             } else {
                 Result.failure(IllegalStateException("Google Sign-In returned null account."))
@@ -76,6 +80,41 @@ object GoogleDriveAuthManager {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    fun bindDriveAccount(context: Context, firebaseUid: String) {
+        val safeUid = firebaseUid.trim()
+        if (safeUid.isNotBlank()) {
+            getPrefs(context).edit().putString(KEY_LINKED_FIREBASE_UID, safeUid).apply()
+        }
+    }
+
+    fun getLinkedFirebaseUid(context: Context): String? {
+        return getPrefs(context).getString(KEY_LINKED_FIREBASE_UID, null)
+    }
+
+    /**
+     * Verifies that the connected Google Drive account is authorized and bound strictly
+     * to the active Firebase UID. Returns failure if accounts mismatch or Drive is not connected.
+     */
+    fun verifyAccountBinding(context: Context, activeFirebaseUid: String): Result<Unit> {
+        val safeUid = activeFirebaseUid.trim()
+        if (safeUid.isBlank()) {
+            return Result.failure(IllegalStateException("Active authenticated Firebase UID is required."))
+        }
+        val linkedUid = getLinkedFirebaseUid(context)
+        if (!linkedUid.isNullOrBlank() && linkedUid != safeUid) {
+            val connectedEmail = getConnectedEmail(context) ?: "connected account"
+            return Result.failure(
+                SecurityException(
+                    "Google Drive account ($connectedEmail) is linked to a different user. Please disconnect and reconnect Google Drive for the current user."
+                )
+            )
+        }
+        if (linkedUid.isNullOrBlank()) {
+            bindDriveAccount(context, safeUid)
+        }
+        return Result.success(Unit)
     }
 
     fun getSignedInAccount(context: Context): GoogleSignInAccount? {
@@ -139,6 +178,7 @@ object GoogleDriveAuthManager {
                 .remove(KEY_DRIVE_ACCOUNT_EMAIL)
                 .remove(KEY_DRIVE_ACCOUNT_DISPLAY_NAME)
                 .remove(KEY_DRIVE_FOLDER_ID)
+                .remove(KEY_LINKED_FIREBASE_UID)
                 .apply()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -195,12 +235,25 @@ object GoogleDriveAuthManager {
         getPrefs(context).edit().putBoolean(KEY_AUTO_BACKUP_CHARGING_ONLY, chargingOnly).apply()
     }
 
-    fun isAutoRestoreOnNewDeviceEnabled(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_AUTO_RESTORE_ON_NEW_DEVICE, false)
+    fun isAutoRestoreOnNewDeviceEnabled(context: Context, uid: String? = null): Boolean {
+        val safeUid = uid?.trim()
+        val prefs = getPrefs(context)
+        return if (!safeUid.isNullOrBlank() && prefs.contains("${KEY_AUTO_RESTORE_ON_NEW_DEVICE}_$safeUid")) {
+            prefs.getBoolean("${KEY_AUTO_RESTORE_ON_NEW_DEVICE}_$safeUid", false)
+        } else {
+            prefs.getBoolean(KEY_AUTO_RESTORE_ON_NEW_DEVICE, false)
+        }
     }
 
-    fun setAutoRestoreOnNewDeviceEnabled(context: Context, enabled: Boolean) {
-        getPrefs(context).edit().putBoolean(KEY_AUTO_RESTORE_ON_NEW_DEVICE, enabled).apply()
+    fun setAutoRestoreOnNewDeviceEnabled(context: Context, enabled: Boolean, uid: String? = null) {
+        val safeUid = uid?.trim()
+        val editor = getPrefs(context).edit()
+        if (!safeUid.isNullOrBlank()) {
+            editor.putBoolean("${KEY_AUTO_RESTORE_ON_NEW_DEVICE}_$safeUid", enabled)
+        } else {
+            editor.putBoolean(KEY_AUTO_RESTORE_ON_NEW_DEVICE, enabled)
+        }
+        editor.apply()
     }
 
     private fun getPrefs(context: Context): SharedPreferences {

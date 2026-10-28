@@ -36,12 +36,29 @@ open class GoogleDriveBackupManager(
         displayName: String? = null,
         appVersionCode: Int = 1,
         appVersionName: String = "1.0",
-        includeDiagrams: Boolean = true
+        includeDiagrams: Boolean = true,
+        onProgress: ((progressPercent: Float, bytesTransferred: Long, totalBytes: Long) -> Unit)? = null
     ): Result<GoogleDriveRemoteBackup> = withContext(Dispatchers.IO) {
         val safeUid = activeUid.trim()
         if (safeUid.isBlank()) {
             return@withContext Result.failure(
                 IllegalArgumentException("Authenticated user ID is required for cloud backup.")
+            )
+        }
+
+        // Verify Firebase UID <-> Google Drive account binding
+        val bindingCheck = GoogleDriveAuthManager.verifyAccountBinding(context, safeUid)
+        if (bindingCheck.isFailure) {
+            return@withContext Result.failure(
+                bindingCheck.exceptionOrNull() ?: IllegalStateException("Account binding check failed.")
+            )
+        }
+
+        // Pre-flight device storage verification
+        val storageCheck = BackupStoragePreflight.checkAvailableStorageForExport(context)
+        if (storageCheck is StorageCheckResult.Insufficient) {
+            return@withContext Result.failure(
+                java.io.IOException(storageCheck.message)
             )
         }
 
@@ -62,6 +79,7 @@ open class GoogleDriveBackupManager(
 
         try {
             // 3. Export account data to local archive
+            onProgress?.invoke(0.05f, 0L, 0L)
             val manifestResult = FileOutputStream(tempBackupFile).use { fos ->
                 AccountDataBackupAdapter.exportAccountBackup(
                     context = context,
@@ -98,7 +116,8 @@ open class GoogleDriveBackupManager(
                 accessToken = accessToken,
                 folderId = folderId,
                 file = tempBackupFile,
-                manifest = manifest
+                manifest = manifest,
+                onProgress = onProgress
             )
 
             if (uploadResult.isSuccess) {
@@ -150,6 +169,14 @@ open class GoogleDriveBackupManager(
             )
         }
 
+        // Verify Firebase UID <-> Google Drive account binding
+        val bindingCheck = GoogleDriveAuthManager.verifyAccountBinding(context, safeUid)
+        if (bindingCheck.isFailure) {
+            return@withContext Result.failure(
+                bindingCheck.exceptionOrNull() ?: IllegalStateException("Account binding check failed.")
+            )
+        }
+
         val tokenResult = GoogleDriveAuthManager.getAccessToken(context)
         if (tokenResult.isFailure) {
             return@withContext Result.failure(
@@ -183,7 +210,9 @@ open class GoogleDriveBackupManager(
     suspend fun downloadAndStageDriveBackup(
         context: Context,
         fileId: String,
-        activeUid: String
+        activeUid: String,
+        estimatedSizeBytes: Long = BackupStoragePreflight.DEFAULT_ESTIMATED_EXPORT_BYTES,
+        onProgress: ((progressPercent: Float, bytesTransferred: Long, totalBytes: Long) -> Unit)? = null
     ): RemoteStageOutcome = withContext(Dispatchers.IO) {
         val safeUid = activeUid.trim()
         if (safeUid.isBlank()) {
@@ -191,6 +220,29 @@ open class GoogleDriveBackupManager(
                 archiveFile = null,
                 stageValidationResult = StageValidationResult.Failure(
                     reason = "Active authenticated UID is required for download and staging."
+                )
+            )
+        }
+
+        // Verify Firebase UID <-> Google Drive account binding
+        val bindingCheck = GoogleDriveAuthManager.verifyAccountBinding(context, safeUid)
+        if (bindingCheck.isFailure) {
+            return@withContext RemoteStageOutcome(
+                archiveFile = null,
+                stageValidationResult = StageValidationResult.Failure(
+                    reason = bindingCheck.exceptionOrNull()?.message ?: "Account binding check failed."
+                )
+            )
+        }
+
+        // Pre-flight device storage verification for download and staging
+        val storageCheck = BackupStoragePreflight.checkAvailableStorageForDownload(context, estimatedSizeBytes)
+        if (storageCheck is StorageCheckResult.Insufficient) {
+            return@withContext RemoteStageOutcome(
+                archiveFile = null,
+                stageValidationResult = StageValidationResult.Failure(
+                    reason = "Insufficient disk space for cloud restore download.",
+                    details = storageCheck.message
                 )
             )
         }
@@ -212,7 +264,8 @@ open class GoogleDriveBackupManager(
         val stagedArchiveFile = File(downloadDir, "remote_${fileId}_${System.currentTimeMillis()}.aktsbak")
 
         try {
-            val downloadResult = driveApiClient.downloadBackupFile(accessToken, fileId, stagedArchiveFile)
+            onProgress?.invoke(0.05f, 0L, estimatedSizeBytes)
+            val downloadResult = driveApiClient.downloadBackupFile(accessToken, fileId, stagedArchiveFile, onProgress)
             if (downloadResult.isFailure) {
                 stagedArchiveFile.delete()
                 return@withContext RemoteStageOutcome(
@@ -257,8 +310,19 @@ open class GoogleDriveBackupManager(
      */
     suspend fun deleteRemoteBackup(
         context: Context,
-        fileId: String
+        fileId: String,
+        activeUid: String = ""
     ): Result<Boolean> = withContext(Dispatchers.IO) {
+        val safeUid = activeUid.trim()
+        if (safeUid.isNotBlank()) {
+            val bindingCheck = GoogleDriveAuthManager.verifyAccountBinding(context, safeUid)
+            if (bindingCheck.isFailure) {
+                return@withContext Result.failure(
+                    bindingCheck.exceptionOrNull() ?: IllegalStateException("Account binding check failed.")
+                )
+            }
+        }
+
         val tokenResult = GoogleDriveAuthManager.getAccessToken(context)
         if (tokenResult.isFailure) {
             return@withContext Result.failure(

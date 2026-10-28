@@ -1216,6 +1216,39 @@ fun BackupRestoreScreen(
             )
         }
 
+        is RemoteBackupOperationState.Progress -> {
+            AlertDialog(
+                onDismissRequest = { /* Non-cancellable during progress */ },
+                icon = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            progress = { remoteState.progressFraction.coerceIn(0f, 1f) },
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = "${(remoteState.progressFraction * 100).toInt()}%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                title = { Text(if (isHindi) "क्लाउड ट्रांसफ़र प्रगति पर" else "Transfer in Progress") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(remoteState.message)
+                        LinearProgressIndicator(
+                            progress = { remoteState.progressFraction.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+
         is RemoteBackupOperationState.Success -> {
             AlertDialog(
                 onDismissRequest = { viewModel.dismissRemoteOperationDialog() },

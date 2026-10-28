@@ -53,6 +53,14 @@ class GoogleDriveBackupWorker(
             return Result.success(workDataOf("skipped" to "No authenticated user logged in"))
         }
 
+        // Verify account binding: ensure active Firebase user owns the connected Drive account
+        val bindingCheck = GoogleDriveAuthManager.verifyAccountBinding(context, activeUid)
+        if (bindingCheck.isFailure) {
+            return Result.failure(
+                workDataOf("error" to (bindingCheck.exceptionOrNull()?.message ?: "Account binding mismatch"))
+            )
+        }
+
         val userEmail = currentUser.email ?: GoogleDriveAuthManager.getConnectedEmail(context)
         val userDisplayName = currentUser.displayName ?: GoogleDriveAuthManager.getConnectedDisplayName(context)
 

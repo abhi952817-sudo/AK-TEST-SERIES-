@@ -131,3 +131,23 @@ fun evaluateBackupHealth(
         )
     }
 }
+
+/**
+ * Evaluates unified backup health by inspecting both local SAF .aktsbak exports
+ * and Google Drive cloud sync timestamps.
+ */
+fun evaluateUnifiedBackupHealth(
+    lastLocalBackupTimestamp: Long?,
+    lastCloudSyncTimestamp: Long?,
+    eligibleVaultTestsCount: Int,
+    attemptsCount: Int,
+    isHindi: Boolean
+): BackupHealth {
+    val mostRecentTimestamp = listOfNotNull(lastLocalBackupTimestamp, lastCloudSyncTimestamp).maxOrNull()
+    return evaluateBackupHealth(
+        lastBackupTimestamp = mostRecentTimestamp,
+        eligibleVaultTestsCount = eligibleVaultTestsCount,
+        attemptsCount = attemptsCount,
+        isHindi = isHindi
+    )
+}

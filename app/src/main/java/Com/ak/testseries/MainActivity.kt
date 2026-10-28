@@ -885,6 +885,41 @@ fun DashboardScreen(
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
+
+                    // Backup & Restore Center (Google Drive & SAF)
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Rounded.CloudSync, contentDescription = "Backup & Cloud Sync", tint = MaterialTheme.colorScheme.primary) },
+                        label = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (selectedLanguage == AppLanguage.HINDI) "बैकअप व क्लाउड सिंक" else "Backup & Cloud Sync",
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "Drive & SAF",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        },
+                        selected = viewModel.currentScreen.value == AppScreen.BACKUP_RESTORE,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            viewModel.navigateToScreen(AppScreen.BACKUP_RESTORE)
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding).testTag("drawer_backup_restore_item")
+                    )
                     
                     NavigationDrawerItem(
                         icon = { Icon(Icons.Rounded.PieChart, contentDescription = "Analytics") },
@@ -1059,6 +1094,21 @@ fun DashboardScreen(
                                                 )
                                             }
                                         }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.width(4.dp))
+
+                                    // Cloud Backup & Sync Quick Action
+                                    IconButton(
+                                        onClick = { viewModel.navigateToScreen(AppScreen.BACKUP_RESTORE) },
+                                        modifier = Modifier.size(36.dp).testTag("topbar_backup_sync_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.CloudSync,
+                                            contentDescription = "Backup & Cloud Sync",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
                                     }
                                     
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -1463,6 +1513,16 @@ fun HomeTabScreen(viewModel: NEETViewModel) {
                         }
                     }
                 }
+            }
+
+            // ☁️ Prominent Cloud & Local Backup Sync Status Card (Span 2)
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
+                Com.ak.testseries.ui.HomeBackupSyncCard(
+                    viewModel = viewModel,
+                    onOpenBackupCenter = {
+                        viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.BACKUP_RESTORE)
+                    }
+                )
             }
 
             // New Home Header (Span 2)

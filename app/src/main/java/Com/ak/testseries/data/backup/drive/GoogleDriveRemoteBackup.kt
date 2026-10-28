@@ -118,13 +118,9 @@ data class GoogleDriveRemoteBackup(
                 } catch (_: Exception) {}
             }
 
-            // If ownerUid is still empty, attempt to extract from filename: "ak_backup_<uid>_<timestamp>.aktsbak"
-            if (ownerUid.isBlank() && fileName.startsWith("ak_backup_") && fileName.endsWith(".aktsbak")) {
-                val parts = fileName.removePrefix("ak_backup_").removeSuffix(".aktsbak").split("_")
-                if (parts.size >= 2) {
-                    ownerUid = parts[0].trim()
-                }
-            }
+            // Strict Security Rule: Never extract ownerUid from fileName.
+            // Filename spoofing cannot be trusted for account ownership.
+            // If ownerUid is not in appProperties or description metadata, it remains blank/unverified.
 
             return GoogleDriveRemoteBackup(
                 fileId = fileId,

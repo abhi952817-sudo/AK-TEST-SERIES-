@@ -810,6 +810,12 @@ object AccountDataBackupAdapter {
             )
         }
 
+        // Pre-flight disk storage check
+        val storageCheck = BackupStoragePreflight.checkAvailableStorageForExport(context)
+        if (storageCheck is StorageCheckResult.Insufficient) {
+            return Result.failure(java.io.IOException(storageCheck.message))
+        }
+
         try {
             // 1. Fetch owned tests (strictly private / user-authored vault tests)
             val allTests = db.testDao().getAllTestsList()
