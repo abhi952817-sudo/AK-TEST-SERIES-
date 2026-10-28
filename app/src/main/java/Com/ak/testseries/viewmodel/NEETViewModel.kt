@@ -718,26 +718,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val userBookmarkedTestIds: StateFlow<Set<String>> = _userBookmarkedTestIds.asStateFlow()
 
     fun loadUserBookmarks(uid: String) {
-        if (uid.isBlank()) {
-            _userBookmarkedTestIds.value = emptySet()
-            return
-        }
+        val userScope = uid.ifBlank { "guest" }
         val context = getApplication<Application>()
         val prefs = context.getSharedPreferences("user_bookmarks_store", android.content.Context.MODE_PRIVATE)
-        val cached = prefs.getStringSet("bookmarks_$uid", emptySet()) ?: emptySet()
+        val cached = prefs.getStringSet("bookmarks_$userScope", emptySet()) ?: emptySet()
         _userBookmarkedTestIds.value = cached
 
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val db = firestoreDb
-                val snap = db.collection("Users_Data").document(uid)
-                    .collection("Bookmarked_Tests").get().await()
-                val serverIds = snap.documents.map { it.id }.toSet()
-                val merged = (cached + serverIds)
-                _userBookmarkedTestIds.value = merged
-                prefs.edit().putStringSet("bookmarks_$uid", merged).apply()
-            } catch (e: Exception) {
-                // Offline fallback - use cached
+        if (uid.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val db = firestoreDb
+                    val snap = db.collection("Users_Data").document(uid)
+                        .collection("Bookmarked_Tests").get().await()
+                    val serverIds = snap.documents.map { it.id }.toSet()
+                    val merged = (cached + serverIds)
+                    _userBookmarkedTestIds.value = merged
+                    prefs.edit().putStringSet("bookmarks_$uid", merged).apply()
+                } catch (e: Exception) {
+                    // Offline fallback - use cached
+                }
             }
         }
     }
@@ -1172,6 +1171,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun viewAttemptResult(attempt: AttemptEntity) {
+        val currentUid = currentUserId.value
+        val isAdmin = isAdminFlow.value
+        val canAccessAttempt = when {
+            isAdmin -> true
+            attempt.userId.isBlank() -> true // unassigned/guest attempt
+            currentUid.isNotBlank() && attempt.userId == currentUid -> true
+            else -> false
+        }
+        if (!canAccessAttempt) {
+            android.widget.Toast.makeText(getApplication(), "Access restricted: You do not have permission to view another user's attempt result.", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         viewModelScope.launch {
             _activeResult.value = attempt
             val test = testsList.value.find { it.id == attempt.testId }
@@ -1553,11 +1564,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             
             matchQuery && matchSubject && matchDiff && matchType && matchClass && matchBatch && matchChapter && matchTopic && matchTargetExam && matchMasterPrivate && matchVisibility
         }.map { test ->
-            val effectiveIsBookmarked = if (currentUid.isNotBlank()) {
-                userBookmarks.contains(test.id)
-            } else {
-                test.isBookmarked
-            }
+            val effectiveIsBookmarked = userBookmarks.contains(test.id)
             if (test.isBookmarked != effectiveIsBookmarked) {
                 test.copy(isBookmarked = effectiveIsBookmarked)
             } else {
@@ -3061,6 +3068,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             // 1. Room lookup first: if local copy exists, open directly and do NOT download again
             val localTest = repository.getTestById(cleanTestId)
             if (localTest != null) {
+                val currentUid = currentUserId.value
+                val isAdmin = isAdminFlow.value
+                if (!TestVisibilityManager.isTestVisible(localTest, currentUid, isAdmin)) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(getApplication(), "Access restricted: You do not have permission to access this private test.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
                 android.util.Log.d("NEETViewModel", "handleDeepLinkTest: Local copy of $cleanTestId exists in Room. Opening local copy.")
                 withContext(Dispatchers.Main) {
                     startTest(localTest)
@@ -3504,26 +3519,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleTestBookmark(test: TestEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             val uid = currentUserId.value
-            val isCurrentlyBookmarked = if (uid.isNotBlank()) {
-                _userBookmarkedTestIds.value.contains(test.id)
-            } else {
-                test.isBookmarked
-            }
+            val userScope = uid.ifBlank { "guest" }
+            val isCurrentlyBookmarked = _userBookmarkedTestIds.value.contains(test.id)
             val newStatus = !isCurrentlyBookmarked
 
-            if (uid.isNotBlank()) {
-                val updated = if (newStatus) {
-                    _userBookmarkedTestIds.value + test.id
-                } else {
-                    _userBookmarkedTestIds.value - test.id
-                }
-                _userBookmarkedTestIds.value = updated
-                val context = getApplication<Application>()
-                val prefs = context.getSharedPreferences("user_bookmarks_store", android.content.Context.MODE_PRIVATE)
-                prefs.edit().putStringSet("bookmarks_$uid", updated).apply()
+            val updated = if (newStatus) {
+                _userBookmarkedTestIds.value + test.id
+            } else {
+                _userBookmarkedTestIds.value - test.id
             }
+            _userBookmarkedTestIds.value = updated
+            val context = getApplication<Application>()
+            val prefs = context.getSharedPreferences("user_bookmarks_store", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putStringSet("bookmarks_$userScope", updated).apply()
 
-            repository.toggleBookmark(test.id, newStatus)
             try {
                 if (uid.isNotBlank()) {
                     val db = firestoreDb
@@ -3703,6 +3712,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun startTest(test: TestEntity) {
         if (isCurrentUserBanned.value) {
             android.widget.Toast.makeText(getApplication(), "Your account has been suspended by administration. Access to tests is restricted.", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        val currentUid = currentUserId.value
+        val isAdmin = isAdminFlow.value
+        if (!TestVisibilityManager.isTestVisible(test, currentUid, isAdmin)) {
+            android.widget.Toast.makeText(getApplication(), "Access restricted: You do not have permission to access this private test.", android.widget.Toast.LENGTH_LONG).show()
             return
         }
         viewModelScope.launch {
@@ -5359,10 +5374,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
         val currentAuthUser = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser } catch (e: Exception) { null }
         val authenticatedUid = currentAuthUser?.uid?.ifBlank { null }
-            ?: currentUserId.value.ifBlank { null }
-            ?: "local_user_${System.currentTimeMillis()}"
+            ?: currentUserId.value.ifBlank { "" }
 
-        if (genIsPublic.value && (currentAuthUser == null || authenticatedUid.startsWith("local_user_"))) {
+        if (genIsPublic.value && (currentAuthUser == null || authenticatedUid.isBlank())) {
             _aiGenState.value = AiGenerationState.Error("Please sign in to publish this test to the Community.")
             return@withContext
         }

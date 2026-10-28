@@ -1,0 +1,441 @@
+package Com.ak.testseries.data.backup
+
+import java.io.*
+import java.security.MessageDigest
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+
+/**
+ * Configurable safety thresholds to protect against resource exhaustion and decompression bombs.
+ */
+data class ArchiveLimits(
+    val maxEntries: Int = 5000,
+    val maxSingleEntryBytes: Long = 50L * 1024 * 1024, // 50 MB
+    val maxTotalUncompressedBytes: Long = 250L * 1024 * 1024 // 250 MB
+)
+
+/**
+ * Foundational core engine for AK TEST SERIES `.aktsbak` backup archives.
+ *
+ * Provides:
+ * - Deterministic SHA-256 calculation
+ * - ZipSlip path-traversal prevention
+ * - Bounded streaming ZIP compression and decompression
+ * - Strict manifest-driven archive integrity validation
+ * - Account ownership contract enforcement
+ *
+ * This engine is strictly non-destructive and operates on byte streams or staging files.
+ * Live Room databases or production directories are never mutated by this engine.
+ */
+object BackupArchiveEngine {
+
+    const val CURRENT_FORMAT_VERSION = 1
+    const val CURRENT_SCHEMA_VERSION = 19
+    const val ARCHIVE_EXTENSION = ".aktsbak"
+    const val MANIFEST_ENTRY_NAME = "backup_manifest.json"
+
+    /**
+     * Computes the hex-encoded SHA-256 digest of a byte array.
+     */
+    fun computeSha256(bytes: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val hashBytes = digest.digest(bytes)
+        return hashBytes.joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Computes the hex-encoded SHA-256 digest from an InputStream.
+     */
+    fun computeSha256(inputStream: InputStream): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(8192)
+        var bytesRead: Int
+        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+            digest.update(buffer, 0, bytesRead)
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Sanitizes and validates an archive entry path to prevent ZipSlip and path traversal vulnerabilities.
+     *
+     * Rules:
+     * - Must not be blank.
+     * - Must not contain null characters.
+     * - Must not start with '/' or '\' (no absolute paths).
+     * - Must not contain Windows drive specifiers (e.g. "C:").
+     * - Must not contain any ".." segments.
+     * - Must not contain empty segments (e.g. "//").
+     */
+    fun sanitizeEntryPath(entryName: String): Result<String> {
+        val trimmed = entryName.trim()
+        if (trimmed.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Archive entry name cannot be blank."))
+        }
+        if (trimmed.contains('\u0000')) {
+            return Result.failure(SecurityException("Archive entry contains illegal null byte: $trimmed"))
+        }
+        if (trimmed.startsWith("/") || trimmed.startsWith("\\")) {
+            return Result.failure(SecurityException("Archive entry must not be an absolute path: $trimmed"))
+        }
+        if (trimmed.contains(':')) {
+            return Result.failure(SecurityException("Archive entry must not contain drive specifiers: $trimmed"))
+        }
+
+        val normalized = trimmed.replace('\\', '/')
+        val segments = normalized.split('/')
+        for (segment in segments) {
+            if (segment.isEmpty()) {
+                return Result.failure(IllegalArgumentException("Archive entry contains empty path segment: $trimmed"))
+            }
+            if (segment == ".." || segment == ".") {
+                return Result.failure(SecurityException("Path traversal segment '$segment' is forbidden in entry: $trimmed"))
+            }
+        }
+
+        return Result.success(normalized)
+    }
+
+    /**
+     * Creates an account-owned backup manifest draft.
+     *
+     * STRICT RULE:
+     * Rejects creation if [uid] is blank. Unauthenticated users cannot claim account-owned archives.
+     */
+    fun createAccountOwnedManifest(
+        uid: String,
+        email: String? = null,
+        displayName: String? = null,
+        appVersionCode: Int = 1,
+        appVersionName: String = "1.0",
+        completeness: BackupCompleteness = BackupCompleteness.STRUCTURAL_ONLY
+    ): Result<BackupManifest> {
+        val safeUid = uid.trim()
+        if (safeUid.isBlank()) {
+            return Result.failure(
+                IllegalArgumentException("Account-owned backup requires a valid, non-blank authenticated UID. Unauthenticated users cannot create an account-owned backup.")
+            )
+        }
+
+        val manifest = BackupManifest(
+            formatVersion = CURRENT_FORMAT_VERSION,
+            createdAt = System.currentTimeMillis(),
+            appVersionCode = appVersionCode,
+            appVersionName = appVersionName,
+            databaseSchemaVersion = CURRENT_SCHEMA_VERSION,
+            scope = BackupScope.ACCOUNT_OWNED,
+            completeness = completeness,
+            owner = BackupOwner(uid = safeUid, email = email?.trim()?.ifBlank { null }, displayName = displayName?.trim()?.ifBlank { null }),
+            stats = BackupStats(),
+            compatibility = BackupCompatibility(minSupportedAppVersion = 1, minSupportedSchemaVersion = 15),
+            checksums = emptyMap()
+        )
+        return Result.success(manifest)
+    }
+
+    /**
+     * Builds a safe `.aktsbak` ZIP archive to [outputStream].
+     *
+     * @param outputStream The destination stream (e.g. FileOutputStream or SAF OutputStream)
+     * @param manifest The baseline manifest metadata
+     * @param entries Map of relative path -> content bytes (excluding manifest)
+     * @param limits Threshold limits for entry count and sizes
+     * @return Result containing the finalized BackupManifest with populated checksums and metrics
+     */
+    fun buildArchive(
+        outputStream: OutputStream,
+        manifest: BackupManifest,
+        entries: Map<String, ByteArray>,
+        limits: ArchiveLimits = ArchiveLimits()
+    ): Result<BackupManifest> {
+        try {
+            // 1. Validate entry count limits
+            if (entries.size > limits.maxEntries) {
+                return Result.failure(
+                    IllegalStateException("Entry count (${entries.size}) exceeds safety limit (${limits.maxEntries}).")
+                )
+            }
+
+            // 2. Validate paths, duplicate paths, and size limits
+            val cleanEntries = mutableMapOf<String, ByteArray>()
+            val checksums = mutableMapOf<String, String>()
+            var totalUncompressed = 0L
+
+            for ((rawPath, bytes) in entries) {
+                val pathValidation = sanitizeEntryPath(rawPath)
+                if (pathValidation.isFailure) {
+                    return Result.failure(pathValidation.exceptionOrNull()!!)
+                }
+                val cleanPath = pathValidation.getOrThrow()
+
+                if (cleanPath == MANIFEST_ENTRY_NAME) {
+                    return Result.failure(
+                        IllegalArgumentException("Manifest entry '$MANIFEST_ENTRY_NAME' must not be passed in payload entries.")
+                    )
+                }
+
+                if (cleanEntries.containsKey(cleanPath)) {
+                    return Result.failure(
+                        IllegalArgumentException("Duplicate entry detected in archive payload: $cleanPath")
+                    )
+                }
+
+                if (bytes.size > limits.maxSingleEntryBytes) {
+                    return Result.failure(
+                        IllegalStateException("Entry '$cleanPath' size (${bytes.size} bytes) exceeds single-entry limit (${limits.maxSingleEntryBytes} bytes).")
+                    )
+                }
+
+                totalUncompressed += bytes.size
+                if (totalUncompressed > limits.maxTotalUncompressedBytes) {
+                    return Result.failure(
+                        IllegalStateException("Total uncompressed size ($totalUncompressed bytes) exceeds limit (${limits.maxTotalUncompressedBytes} bytes).")
+                    )
+                }
+
+                cleanEntries[cleanPath] = bytes
+                checksums[cleanPath] = computeSha256(bytes)
+            }
+
+            // 3. Assemble finalized manifest
+            val finalStats = manifest.stats.copy(
+                entryCount = cleanEntries.size + 1, // payload + manifest
+                uncompressedBytes = totalUncompressed
+            )
+            val finalManifest = manifest.copy(
+                stats = finalStats,
+                checksums = checksums
+            )
+            val manifestJsonString = finalManifest.toJsonString()
+            val manifestBytes = manifestJsonString.toByteArray(Charsets.UTF_8)
+
+            // 4. Stream to ZIP output
+            val countingOut = CountingOutputStream(outputStream)
+            val zipOut = ZipOutputStream(BufferedOutputStream(countingOut))
+
+            try {
+                // Write manifest first
+                val manifestEntry = ZipEntry(MANIFEST_ENTRY_NAME)
+                zipOut.putNextEntry(manifestEntry)
+                zipOut.write(manifestBytes)
+                zipOut.closeEntry()
+
+                // Write payload entries
+                for ((path, bytes) in cleanEntries) {
+                    val entry = ZipEntry(path)
+                    zipOut.putNextEntry(entry)
+                    zipOut.write(bytes)
+                    zipOut.closeEntry()
+                }
+                zipOut.finish()
+                zipOut.flush()
+            } finally {
+                // Do not close countingOut here as zipOut manages it, but ensure buffer is flushed
+            }
+
+            val finalResultManifest = finalManifest.copy(
+                stats = finalStats.copy(
+                    totalArchiveBytes = countingOut.bytesWritten,
+                    uncompressedBytes = totalUncompressed + manifestBytes.size
+                )
+            )
+
+            return Result.success(finalResultManifest)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    /**
+     * Validates an `.aktsbak` archive stream without importing any data into the app.
+     *
+     * Validates:
+     * - Structure and readability as standard ZIP
+     * - Presence and JSON syntax of `backup_manifest.json`
+     * - Supported formatVersion and databaseSchemaVersion
+     * - Account owner validity
+     * - ZipSlip and path traversal segment absence
+     * - Duplicate entry detection
+     * - Entry-count and uncompressed size limits
+     * - Exact SHA-256 checksum match for every entry against manifest
+     * - Absence of unmanifested extraneous files
+     */
+    fun validateArchive(
+        inputStream: InputStream,
+        limits: ArchiveLimits = ArchiveLimits()
+    ): BackupValidationResult {
+        val zipIn = ZipInputStream(BufferedInputStream(inputStream))
+        val seenEntryNames = mutableSetOf<String>()
+        val computedChecksums = mutableMapOf<String, String>()
+        var manifestBytes: ByteArray? = null
+        var totalEntries = 0
+        var totalUncompressedBytes = 0L
+
+        try {
+            var zipEntry: ZipEntry? = zipIn.nextEntry
+            while (zipEntry != null) {
+                totalEntries++
+                if (totalEntries > limits.maxEntries) {
+                    return BackupValidationResult.Invalid(
+                        reason = "Archive exceeds maximum allowed entry count (${limits.maxEntries})."
+                    )
+                }
+
+                val rawName = zipEntry.name
+                val pathValidation = sanitizeEntryPath(rawName)
+                if (pathValidation.isFailure) {
+                    return BackupValidationResult.Invalid(
+                        reason = "ZipSlip or invalid entry path rejected.",
+                        details = pathValidation.exceptionOrNull()?.message
+                    )
+                }
+                val cleanName = pathValidation.getOrThrow()
+
+                if (!seenEntryNames.add(cleanName)) {
+                    return BackupValidationResult.Invalid(
+                        reason = "Duplicate entry detected in archive: $cleanName"
+                    )
+                }
+
+                // Read entry with bounded buffer
+                val entryBaos = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var entryBytesRead = 0L
+                var read: Int
+                while (zipIn.read(buffer).also { read = it } != -1) {
+                    entryBytesRead += read
+                    if (entryBytesRead > limits.maxSingleEntryBytes) {
+                        return BackupValidationResult.Invalid(
+                            reason = "Archive entry '$cleanName' exceeds maximum single-entry size (${limits.maxSingleEntryBytes} bytes)."
+                        )
+                    }
+                    totalUncompressedBytes += read
+                    if (totalUncompressedBytes > limits.maxTotalUncompressedBytes) {
+                        return BackupValidationResult.Invalid(
+                            reason = "Archive total uncompressed size exceeds maximum threshold (${limits.maxTotalUncompressedBytes} bytes)."
+                        )
+                    }
+                    entryBaos.write(buffer, 0, read)
+                }
+                zipIn.closeEntry()
+
+                val entryBytes = entryBaos.toByteArray()
+                val hash = computeSha256(entryBytes)
+
+                if (cleanName == MANIFEST_ENTRY_NAME) {
+                    manifestBytes = entryBytes
+                } else {
+                    computedChecksums[cleanName] = hash
+                }
+
+                zipEntry = zipIn.nextEntry
+            }
+        } catch (e: Exception) {
+            return BackupValidationResult.Invalid(
+                reason = "Archive container is corrupted or not a valid ZIP: ${e.message}"
+            )
+        }
+
+        // Validate Manifest Existence
+        if (manifestBytes == null) {
+            return BackupValidationResult.Invalid(
+                reason = "Missing mandatory root manifest: $MANIFEST_ENTRY_NAME"
+            )
+        }
+
+        // Parse Manifest
+        val manifest = try {
+            BackupManifest.fromJsonString(String(manifestBytes, Charsets.UTF_8))
+        } catch (e: Exception) {
+            return BackupValidationResult.Invalid(
+                reason = "Malformed manifest JSON in archive: ${e.message}"
+            )
+        }
+
+        // Validate Format Version
+        if (manifest.formatVersion > CURRENT_FORMAT_VERSION) {
+            return BackupValidationResult.Invalid(
+                reason = "Unsupported future format version (${manifest.formatVersion}). Current supported version is $CURRENT_FORMAT_VERSION.",
+                manifest = manifest
+            )
+        }
+        if (manifest.formatVersion < 1) {
+            return BackupValidationResult.Invalid(
+                reason = "Invalid format version (${manifest.formatVersion}).",
+                manifest = manifest
+            )
+        }
+
+        // Validate Schema Version
+        if (manifest.databaseSchemaVersion > CURRENT_SCHEMA_VERSION) {
+            return BackupValidationResult.Invalid(
+                reason = "Unsupported future database schema version (${manifest.databaseSchemaVersion}). Current supported version is $CURRENT_SCHEMA_VERSION.",
+                manifest = manifest
+            )
+        }
+
+        // Validate Owner
+        if (manifest.scope == BackupScope.ACCOUNT_OWNED && manifest.owner.uid.isBlank()) {
+            return BackupValidationResult.Invalid(
+                reason = "Account-owned backup specifies an invalid, blank owner UID.",
+                manifest = manifest
+            )
+        }
+
+        // Validate Checksums
+        for ((expectedPath, expectedHash) in manifest.checksums) {
+            val foundHash = computedChecksums[expectedPath]
+            if (foundHash == null) {
+                return BackupValidationResult.Invalid(
+                    reason = "Manifest declares file '$expectedPath', but it was not found in the archive.",
+                    manifest = manifest
+                )
+            }
+            if (!foundHash.equals(expectedHash, ignoreCase = true)) {
+                return BackupValidationResult.Invalid(
+                    reason = "Integrity check failed: Checksum mismatch for '$expectedPath'.",
+                    details = "Expected: $expectedHash, Found: $foundHash",
+                    manifest = manifest
+                )
+            }
+        }
+
+        // Detect Unmanifested Files
+        for (foundPath in computedChecksums.keys) {
+            if (!manifest.checksums.containsKey(foundPath)) {
+                return BackupValidationResult.Invalid(
+                    reason = "Archive contains unmanifested extra file: '$foundPath'.",
+                    manifest = manifest
+                )
+            }
+        }
+
+        val isComplete = manifest.completeness == BackupCompleteness.COMPLETE_USER_DATA
+
+        return BackupValidationResult.Valid(
+            manifest = manifest,
+            totalEntries = totalEntries,
+            totalUncompressedBytes = totalUncompressedBytes,
+            isComplete = isComplete
+        )
+    }
+
+    /**
+     * Simple counting filter stream to track total compressed bytes written.
+     */
+    private class CountingOutputStream(out: OutputStream) : FilterOutputStream(out) {
+        var bytesWritten: Long = 0L
+            private set
+
+        override fun write(b: Int) {
+            out.write(b)
+            bytesWritten++
+        }
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            out.write(b, off, len)
+            bytesWritten += len
+        }
+    }
+}

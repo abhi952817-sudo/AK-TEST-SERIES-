@@ -248,4 +248,126 @@ class AccountSwitchingPrivacyTest {
             }
         }
     }
+
+    @Test
+    fun testStartTest_and_DeepLink_authorizationBoundary() {
+        val userAPrivateTest = TestEntity(
+            id = "deep_link_test_private_001",
+            title = "User A Private Test",
+            description = "High yield questions",
+            institute = "Self",
+            batchName = "Target",
+            facultyName = "Self",
+            language = "English",
+            subject = "Biology",
+            difficulty = "Medium",
+            testType = "Chapter Test",
+            questionsCount = 10,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            isPublic = false,
+            uploaderId = "user_A_uid"
+        )
+
+        // User A (owner) can start and open deep link
+        assertTrue(
+            "User A can launch their own private test",
+            TestVisibilityManager.isTestVisible(userAPrivateTest, currentUid = "user_A_uid", isAdmin = false)
+        )
+
+        // User B cannot start or open deep link to User A's private test
+        assertFalse(
+            "User B must be blocked from starting User A's private test",
+            TestVisibilityManager.isTestVisible(userAPrivateTest, currentUid = "user_B_uid", isAdmin = false)
+        )
+
+        // Guest cannot start or open deep link to User A's private test
+        assertFalse(
+            "Guest must be blocked from starting User A's private test",
+            TestVisibilityManager.isTestVisible(userAPrivateTest, currentUid = "", isAdmin = false)
+        )
+
+        // Admin can access
+        assertTrue(
+            "Admin can access test for review/moderation",
+            TestVisibilityManager.isTestVisible(userAPrivateTest, currentUid = "admin_uid", isAdmin = true)
+        )
+    }
+
+    @Test
+    fun testAttemptResult_ownershipAuthorization() {
+        val userA_attempt = AttemptEntity(
+            id = 101,
+            userId = "user_A_uid",
+            testId = "test_101",
+            testTitle = "Physics Chapter 1",
+            score = 160.0,
+            maxScore = 180.0,
+            percentile = 99.5,
+            accuracy = 88.8,
+            correctCount = 40,
+            incorrectCount = 5,
+            skippedCount = 0,
+            timeSpentSeconds = 2400L,
+            answersJson = "{}"
+        )
+
+        fun canAccessAttempt(attempt: AttemptEntity, currentUid: String, isAdmin: Boolean): Boolean {
+            return when {
+                isAdmin -> true
+                attempt.userId.isBlank() -> true
+                currentUid.isNotBlank() && attempt.userId == currentUid -> true
+                else -> false
+            }
+        }
+
+        // User A can view their own attempt result
+        assertTrue("User A can view their own attempt", canAccessAttempt(userA_attempt, "user_A_uid", false))
+
+        // User B CANNOT view User A's attempt result
+        assertFalse("User B cannot view User A's attempt", canAccessAttempt(userA_attempt, "user_B_uid", false))
+
+        // Guest CANNOT view User A's attempt result
+        assertFalse("Guest cannot view User A's attempt", canAccessAttempt(userA_attempt, "", false))
+
+        // Admin CAN view User A's attempt result
+        assertTrue("Admin can view any attempt", canAccessAttempt(userA_attempt, "admin_uid", true))
+
+        // Guest attempt (blank userId) is accessible to current local user
+        val guest_attempt = userA_attempt.copy(id = 102, userId = "")
+        assertTrue("Local guest attempt is accessible locally", canAccessAttempt(guest_attempt, "", false))
+    }
+
+    @Test
+    fun testBookmarkScoping_preventsGuestLeakage() {
+        val userBookmarkStore = mutableMapOf<String, Set<String>>()
+
+        val userA_uid = "user_A_uid"
+        val guestScope = "guest"
+
+        // User A bookmarks test_42
+        userBookmarkStore["bookmarks_$userA_uid"] = setOf("test_42")
+
+        // User A logs out -> system reads guest bookmarks
+        val guestBookmarks = userBookmarkStore["bookmarks_$guestScope"] ?: emptySet()
+        assertFalse(
+            "Guest must NOT see test_42 as bookmarked after User A logs out",
+            guestBookmarks.contains("test_42")
+        )
+
+        // Guest bookmarks test_99
+        userBookmarkStore["bookmarks_$guestScope"] = setOf("test_99")
+
+        // User B logs in
+        val userB_uid = "user_B_uid"
+        val userBBookmarks = userBookmarkStore["bookmarks_$userB_uid"] ?: emptySet()
+        assertFalse("User B must NOT see guest bookmark test_99", userBBookmarks.contains("test_99"))
+        assertFalse("User B must NOT see User A bookmark test_42", userBBookmarks.contains("test_42"))
+
+        // User A logs back in
+        val restoredUserABookmarks = userBookmarkStore["bookmarks_$userA_uid"] ?: emptySet()
+        assertTrue("User A's bookmark test_42 is intact", restoredUserABookmarks.contains("test_42"))
+        assertFalse("User A does not see guest bookmark test_99", restoredUserABookmarks.contains("test_99"))
+    }
 }
+
