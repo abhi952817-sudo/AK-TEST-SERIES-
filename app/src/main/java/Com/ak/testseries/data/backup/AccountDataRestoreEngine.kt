@@ -433,6 +433,18 @@ object AccountDataRestoreEngine {
                     }
                 }
 
+                // Restore profile avatar if present in backup archive
+                val stagedAvatar = File(stagingDir, "assets/profile/avatar.jpg")
+                if (stagedAvatar.exists() && stagedAvatar.isFile) {
+                    val destAvatar = File(context.filesDir, "profile_pic_${System.currentTimeMillis()}.jpg")
+                    if (!destAvatar.canonicalPath.startsWith(filesDirCanonical.path)) {
+                        throw SecurityException("Avatar target path escapes filesDir: ${destAvatar.path}")
+                    }
+                    stagedAvatar.copyTo(destAvatar, overwrite = true)
+                    createdFiles.add(destAvatar)
+                    profilePrefs.edit().putString("profileImageUri", destAvatar.absolutePath).commit()
+                }
+
                 // Rebuild derived JSON files in secure_ai_tests if present
                 for (test in testsToInsert) {
                     if (!test.questionsJson.isNullOrBlank()) {

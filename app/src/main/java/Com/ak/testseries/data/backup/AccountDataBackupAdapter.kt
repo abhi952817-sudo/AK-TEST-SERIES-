@@ -124,7 +124,9 @@ data class ProfileBackupPayload(
     val phoneNumber: String? = null,
     val selectedLanguage: String = "HINDI",
     val testFolders: String? = null,
-    val testFolderMappings: String? = null
+    val testFolderMappings: String? = null,
+    val profileImageUri: String? = null,
+    val hasAvatar: Boolean = false
 ) {
     fun toJsonObject(): JSONObject = JSONObject().apply {
         put("userId", userId)
@@ -136,6 +138,8 @@ data class ProfileBackupPayload(
         put("selectedLanguage", selectedLanguage)
         put("testFolders", testFolders ?: JSONObject.NULL)
         put("testFolderMappings", testFolderMappings ?: JSONObject.NULL)
+        put("profileImageUri", profileImageUri ?: JSONObject.NULL)
+        put("hasAvatar", hasAvatar)
     }
 
     companion object {
@@ -149,7 +153,9 @@ data class ProfileBackupPayload(
                 phoneNumber = if (json.has("phoneNumber") && !json.isNull("phoneNumber")) json.getString("phoneNumber") else null,
                 selectedLanguage = json.optString("selectedLanguage", "HINDI"),
                 testFolders = if (json.has("testFolders") && !json.isNull("testFolders")) json.getString("testFolders") else null,
-                testFolderMappings = if (json.has("testFolderMappings") && !json.isNull("testFolderMappings")) json.getString("testFolderMappings") else null
+                testFolderMappings = if (json.has("testFolderMappings") && !json.isNull("testFolderMappings")) json.getString("testFolderMappings") else null,
+                profileImageUri = if (json.has("profileImageUri") && !json.isNull("profileImageUri")) json.getString("profileImageUri") else null,
+                hasAvatar = json.optBoolean("hasAvatar", false)
             )
         }
     }
@@ -365,7 +371,49 @@ object AccountDataBackupAdapter {
         )
     }
 
-    // --- Diagram Asset Collector ---
+    // --- Diagram & Asset Collectors ---
+
+    data class DiagramCollectionResult(
+        val entries: Map<String, ByteArray>,
+        val missingReferencedAssets: List<String> = emptyList()
+    )
+
+    /**
+     * Safely reads and packages the user's local profile avatar if available.
+     * Enforces path containment to prevent path traversal outside filesDir.
+     */
+    fun collectProfileAvatar(
+        context: Context,
+        limits: ArchiveLimits = ArchiveLimits()
+    ): Result<Pair<String, ByteArray>?> {
+        try {
+            val profilePrefs = context.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
+            val uriStr = profilePrefs.getString("profileImageUri", null) ?: return Result.success(null)
+            if (uriStr.isBlank() || uriStr.startsWith("http://") || uriStr.startsWith("https://") || uriStr.startsWith("content://")) {
+                return Result.success(null)
+            }
+
+            val localFile = if (File(uriStr).isAbsolute) File(uriStr) else File(context.filesDir, uriStr)
+            if (!localFile.exists() || !localFile.isFile) {
+                return Result.success(null) // Not present locally, omit gracefully
+            }
+
+            val canonical = localFile.canonicalFile
+            val filesDirCanonical = context.filesDir.canonicalFile
+            if (!canonical.path.startsWith(filesDirCanonical.path)) {
+                return Result.failure(SecurityException("Profile avatar path escapes filesDir boundary: ${localFile.path}"))
+            }
+
+            if (localFile.length() > limits.maxSingleEntryBytes) {
+                return Result.failure(IllegalStateException("Profile avatar exceeds single-entry limit (${localFile.length()} bytes)"))
+            }
+
+            val entryPath = "assets/profile/avatar.jpg"
+            return Result.success(Pair(entryPath, localFile.readBytes()))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
 
     /**
      * Safely locates and reads diagram files associated with owned tests.
@@ -378,6 +426,7 @@ object AccountDataBackupAdapter {
         limits: ArchiveLimits = ArchiveLimits()
     ): Result<Map<String, ByteArray>> {
         val diagramEntries = mutableMapOf<String, ByteArray>()
+        val missingReferencedAssets = mutableListOf<String>()
         val filesDirCanonical = context.filesDir.canonicalFile
 
         try {
@@ -425,11 +474,85 @@ object AccountDataBackupAdapter {
                                 diagramEntries[entryPath] = localFile.readBytes()
                             }
                         }
+                    } else {
+                        missingReferencedAssets.add("Question '${question.id}' in test '${question.testId}' references missing diagram: $imgUrl")
                     }
                 }
             }
 
             return Result.success(diagramEntries)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    /**
+     * Locates and reads diagram files, explicitly reporting missing assets in a DiagramCollectionResult.
+     */
+    fun collectDiagramAssetsWithMissingDetection(
+        context: Context,
+        ownedTests: List<TestEntity>,
+        questions: List<QuestionEntity>,
+        limits: ArchiveLimits = ArchiveLimits()
+    ): Result<DiagramCollectionResult> {
+        val diagramEntries = mutableMapOf<String, ByteArray>()
+        val missingReferencedAssets = mutableListOf<String>()
+        val filesDirCanonical = context.filesDir.canonicalFile
+
+        try {
+            for (test in ownedTests) {
+                val testDiagramsDir = File(context.filesDir, "private_tests/${test.id}/diagrams")
+                if (testDiagramsDir.exists() && testDiagramsDir.isDirectory) {
+                    val files = testDiagramsDir.listFiles() ?: emptyArray()
+                    for (file in files) {
+                        if (file.isFile) {
+                            val canonical = file.canonicalFile
+                            if (!canonical.path.startsWith(filesDirCanonical.path)) {
+                                return Result.failure(
+                                    SecurityException("Diagram file path escapes filesDir boundary: ${file.path}")
+                                )
+                            }
+                            if (file.length() > limits.maxSingleEntryBytes) {
+                                return Result.failure(
+                                    IllegalStateException("Diagram file ${file.name} exceeds max single-entry limit (${file.length()} bytes)")
+                                )
+                            }
+                            val entryPath = "assets/diagrams/${test.id}/${file.name}"
+                            diagramEntries[entryPath] = file.readBytes()
+                        }
+                    }
+                }
+            }
+
+            for (question in questions) {
+                val imgUrl = question.imageUrl
+                if (!imgUrl.isNullOrBlank() && !imgUrl.startsWith("http://") && !imgUrl.startsWith("https://") && !imgUrl.startsWith("content://")) {
+                    val localFile = File(imgUrl).let {
+                        if (it.isAbsolute) it else File(context.filesDir, imgUrl)
+                    }
+                    if (localFile.exists() && localFile.isFile) {
+                        val canonical = localFile.canonicalFile
+                        if (!canonical.path.startsWith(filesDirCanonical.path)) {
+                            return Result.failure(
+                                SecurityException("Question diagram path escapes filesDir: ${localFile.path}")
+                            )
+                        }
+                        val entryPath = "assets/diagrams/${question.testId}/${canonical.name}"
+                        if (!diagramEntries.containsKey(entryPath)) {
+                            if (localFile.length() > limits.maxSingleEntryBytes) {
+                                return Result.failure(
+                                    IllegalStateException("Question diagram ${localFile.name} exceeds max single-entry limit")
+                                )
+                            }
+                            diagramEntries[entryPath] = localFile.readBytes()
+                        }
+                    } else {
+                        missingReferencedAssets.add("Question '${question.id}' in test '${question.testId}' references missing diagram: $imgUrl")
+                    }
+                }
+            }
+
+            return Result.success(DiagramCollectionResult(diagramEntries, missingReferencedAssets))
         } catch (e: Exception) {
             return Result.failure(e)
         }
@@ -460,7 +583,8 @@ object AccountDataBackupAdapter {
         appVersionCode: Int = 1,
         appVersionName: String = "1.0",
         outputStream: OutputStream,
-        limits: ArchiveLimits = ArchiveLimits()
+        limits: ArchiveLimits = ArchiveLimits(),
+        strictAssetIntegrity: Boolean = true
     ): Result<BackupManifest> {
         val safeUid = uid.trim()
         if (safeUid.isBlank()) {
@@ -531,7 +655,31 @@ object AccountDataBackupAdapter {
                 completedChaptersByExam = completedChaptersByExam
             )
 
-            // 7. Extract safe profile metadata (non-sensitive only)
+            // 7. Collect diagram assets safely with missing referenced asset detection
+            val diagramsResult = collectDiagramAssetsWithMissingDetection(context, ownedTests, allQuestions, limits)
+            if (diagramsResult.isFailure) {
+                return Result.failure(diagramsResult.exceptionOrNull()!!)
+            }
+            val diagramCollection = diagramsResult.getOrThrow()
+            val diagramEntries = diagramCollection.entries
+            val missingAssets = diagramCollection.missingReferencedAssets
+
+            if (missingAssets.isNotEmpty() && strictAssetIntegrity) {
+                return Result.failure(
+                    IllegalStateException(
+                        "Missing ${missingAssets.size} referenced diagram asset(s): ${missingAssets.joinToString("; ")}. A complete user data backup cannot be produced when referenced assets are missing."
+                    )
+                )
+            }
+
+            // 8. Collect profile avatar if locally available
+            val avatarResult = collectProfileAvatar(context, limits)
+            if (avatarResult.isFailure) {
+                return Result.failure(avatarResult.exceptionOrNull()!!)
+            }
+            val avatarPair = avatarResult.getOrThrow()
+
+            // 9. Extract safe profile metadata (non-sensitive only)
             val profilePrefs = context.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
             val profilePayload = ProfileBackupPayload(
                 userId = safeUid,
@@ -542,17 +690,12 @@ object AccountDataBackupAdapter {
                 phoneNumber = profilePrefs.getString("phoneNumber", null),
                 selectedLanguage = profilePrefs.getString("selected_language", "HINDI") ?: "HINDI",
                 testFolders = profilePrefs.getString("test_folders", null),
-                testFolderMappings = profilePrefs.getString("test_folder_mappings", null)
+                testFolderMappings = profilePrefs.getString("test_folder_mappings", null),
+                profileImageUri = if (avatarPair != null) "assets/profile/avatar.jpg" else profilePrefs.getString("profileImageUri", null),
+                hasAvatar = avatarPair != null
             )
 
-            // 8. Collect diagram assets safely
-            val diagramsResult = collectDiagramAssets(context, ownedTests, allQuestions, limits)
-            if (diagramsResult.isFailure) {
-                return Result.failure(diagramsResult.exceptionOrNull()!!)
-            }
-            val diagramEntries = diagramsResult.getOrThrow()
-
-            // 9. Serialize JSON payloads into deterministic byte arrays
+            // 10. Serialize JSON payloads into deterministic byte arrays
             val testsJsonArray = JSONArray()
             ownedTests.forEach { testsJsonArray.put(testEntityToJson(it)) }
 
@@ -576,14 +719,26 @@ object AccountDataBackupAdapter {
                 entries[path] = bytes
             }
 
-            // 10. Construct account manifest with COMPLETE_USER_DATA marker
+            // Include avatar entry if collected
+            if (avatarPair != null) {
+                entries[avatarPair.first] = avatarPair.second
+            }
+
+            // 11. Determine completeness status
+            val completenessStatus = if (missingAssets.isEmpty()) {
+                BackupCompleteness.COMPLETE_USER_DATA
+            } else {
+                BackupCompleteness.STRUCTURAL_ONLY
+            }
+
+            // 12. Construct account manifest
             val manifestDraft = BackupArchiveEngine.createAccountOwnedManifest(
                 uid = safeUid,
                 email = profilePayload.email,
                 displayName = profilePayload.name,
                 appVersionCode = appVersionCode,
                 appVersionName = appVersionName,
-                completeness = BackupCompleteness.COMPLETE_USER_DATA
+                completeness = completenessStatus
             ).getOrThrow()
 
             val stats = BackupStats(
@@ -597,7 +752,7 @@ object AccountDataBackupAdapter {
 
             val manifestWithStats = manifestDraft.copy(stats = stats)
 
-            // 11. Stream build archive through bounded engine
+            // 13. Stream build archive through bounded engine
             return BackupArchiveEngine.buildArchive(outputStream, manifestWithStats, entries, limits)
         } catch (e: Exception) {
             return Result.failure(e)

@@ -613,6 +613,214 @@ class AccountDataBackupAdapterTest {
         assertEquals(originalAttempt, reconstructedAttempt)
     }
 
+    @Test
+    fun testMissingReferencedDiagram_reportedExplicitly_andRejectsCompleteUserData() = runBlocking {
+        val uid = "missing_asset_user"
+        val testId = "test_with_missing_diagram"
+
+        val test = TestEntity(
+            id = testId,
+            title = "Missing Diagram Test",
+            description = "Test missing diagram file",
+            institute = "Private Vault",
+            batchName = "2026",
+            facultyName = "Self",
+            language = "English",
+            subject = "Physics",
+            difficulty = "Medium",
+            testType = "Chapter Test",
+            questionsCount = 1,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            isPublic = false,
+            uploaderId = uid
+        )
+        db.testDao().insertTest(test)
+
+        val q = QuestionEntity(
+            id = "q_missing_1",
+            testId = testId,
+            questionText = "Question referencing non-existent file",
+            optionA = "A", optionB = "B", optionC = "C", optionD = "D",
+            correctAnswer = "A", explanation = "Exp", subject = "Physics", chapter = "Ch1",
+            needsImage = true,
+            imageUrl = "non_existent_diagram_9999.png" // File does not exist on disk
+        )
+        db.questionDao().insertQuestions(listOf(q))
+
+        // 1. Strict mode (default): Must fail closed and explicitly report the missing asset
+        val outStrict = ByteArrayOutputStream()
+        val strictResult = AccountDataBackupAdapter.exportAccountBackup(
+            context, db, uid, outputStream = outStrict, strictAssetIntegrity = true
+        )
+        assertTrue("Strict backup must fail when referenced asset is missing", strictResult.isFailure)
+        val errorMsg = strictResult.exceptionOrNull()?.message ?: ""
+        assertTrue("Error message must report missing diagram explicitly", errorMsg.contains("Missing 1 referenced diagram asset"))
+        assertTrue("Error message must name the missing file", errorMsg.contains("non_existent_diagram_9999.png"))
+
+        // 2. Non-strict mode: Succeeds but completeness MUST be downgraded to STRUCTURAL_ONLY
+        val outLenient = ByteArrayOutputStream()
+        val lenientResult = AccountDataBackupAdapter.exportAccountBackup(
+            context, db, uid, outputStream = outLenient, strictAssetIntegrity = false
+        )
+        assertTrue("Lenient backup should succeed structurally", lenientResult.isSuccess)
+        val manifest = lenientResult.getOrThrow()
+        assertEquals(
+            "Completeness must NOT be COMPLETE_USER_DATA when assets are missing",
+            BackupCompleteness.STRUCTURAL_ONLY,
+            manifest.completeness
+        )
+    }
+
+    @Test
+    fun testProfileAvatar_packagesLocalAvatar_andExcludesRemoteOrMissing() = runBlocking {
+        val uid = "avatar_user"
+
+        // Create local avatar file
+        val avatarFile = File(context.filesDir, "profile_pic_test_avatar.jpg")
+        val avatarBytes = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0x00, 0x10, 0x4A, 0x46)
+        avatarFile.writeBytes(avatarBytes)
+
+        val profilePrefs = context.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
+        profilePrefs.edit()
+            .putString("name", "Avatar Test Student")
+            .putString("profileImageUri", avatarFile.absolutePath)
+            .commit()
+
+        val out = ByteArrayOutputStream()
+        val result = AccountDataBackupAdapter.exportAccountBackup(context, db, uid, outputStream = out)
+        assertTrue("Backup with local avatar must succeed", result.isSuccess)
+
+        val entries = unpackZip(out.toByteArray())
+        assertTrue("Archive must package avatar as assets/profile/avatar.jpg", entries.containsKey("assets/profile/avatar.jpg"))
+        assertArrayEquals(avatarBytes, entries["assets/profile/avatar.jpg"])
+
+        val profileJson = JSONObject(String(entries["data/profile.json"]!!, Charsets.UTF_8))
+        assertTrue("Profile payload must indicate hasAvatar = true", profileJson.getBoolean("hasAvatar"))
+        assertEquals("assets/profile/avatar.jpg", profileJson.getString("profileImageUri"))
+
+        // Clean up
+        avatarFile.delete()
+        Unit
+    }
+
+    @Test
+    fun testAdminUser_cannotExportOtherUsersPrivateData() = runBlocking {
+        val adminUid = "admin_uid_777"
+        val studentUid = "student_uid_888"
+
+        // Seed private test for admin
+        val adminTest = TestEntity(
+            id = "admin_private_test",
+            title = "Admin Private Test",
+            description = "Admin test",
+            institute = "Private Vault",
+            batchName = "Batch",
+            facultyName = "Admin",
+            language = "English",
+            subject = "Physics",
+            difficulty = "Medium",
+            testType = "Chapter Test",
+            questionsCount = 1,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            isPublic = false,
+            uploaderId = adminUid
+        )
+        // Seed private test for student
+        val studentTest = TestEntity(
+            id = "student_private_test",
+            title = "Student Private Test",
+            description = "Student test",
+            institute = "Private Vault",
+            batchName = "Batch",
+            facultyName = "Student",
+            language = "English",
+            subject = "Biology",
+            difficulty = "Easy",
+            testType = "Chapter Test",
+            questionsCount = 1,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            isPublic = false,
+            uploaderId = studentUid
+        )
+        db.testDao().insertTests(listOf(adminTest, studentTest))
+
+        // Set admin flag in preferences
+        val adminPrefs = context.getSharedPreferences("AdminPrefs", Context.MODE_PRIVATE)
+        adminPrefs.edit().putBoolean("is_super_admin", true).commit()
+
+        // Export backup as admin user
+        val out = ByteArrayOutputStream()
+        val result = AccountDataBackupAdapter.exportAccountBackup(context, db, adminUid, outputStream = out)
+        assertTrue(result.isSuccess)
+
+        val entries = unpackZip(out.toByteArray())
+        val testsArray = JSONArray(String(entries["data/tests.json"]!!, Charsets.UTF_8))
+
+        assertEquals("Admin backup must ONLY contain admin's owned tests", 1, testsArray.length())
+        assertEquals("admin_private_test", testsArray.getJSONObject(0).getString("id"))
+        assertEquals(adminUid, testsArray.getJSONObject(0).getString("uploaderId"))
+    }
+
+    @Test
+    fun testQuestionToTestRelationship_andSecondaryQuestionsJsonNonOverride() = runBlocking {
+        val uid = "canonical_q_user"
+        val testId = "canonical_test_1"
+
+        // Test with secondary (stale/empty) questionsJson
+        val test = TestEntity(
+            id = testId,
+            title = "Canonical Questions Test",
+            description = "Test verifying canonical QuestionEntity preservation",
+            institute = "Private Vault",
+            batchName = "Batch",
+            facultyName = "Self",
+            language = "English",
+            subject = "Chemistry",
+            difficulty = "Hard",
+            testType = "Chapter Test",
+            questionsCount = 2,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            isPublic = false,
+            uploaderId = uid,
+            questionsJson = "[{\"id\":\"stale_secondary_override\"}]" // Secondary JSON representation
+        )
+        db.testDao().insertTest(test)
+
+        // Insert 2 canonical QuestionEntity records in Room
+        val q1 = QuestionEntity(
+            id = "q_canonical_1",
+            testId = testId,
+            questionText = "First canonical question",
+            optionA = "A1", optionB = "B1", optionC = "C1", optionD = "D1",
+            correctAnswer = "A", explanation = "Exp 1", subject = "Chemistry", chapter = "Organic"
+        )
+        val q2 = QuestionEntity(
+            id = "q_canonical_2",
+            testId = testId,
+            questionText = "Second canonical question",
+            optionA = "A2", optionB = "B2", optionC = "C2", optionD = "D2",
+            correctAnswer = "B", explanation = "Exp 2", subject = "Chemistry", chapter = "Organic"
+        )
+        db.questionDao().insertQuestions(listOf(q1, q2))
+
+        val out = ByteArrayOutputStream()
+        val result = AccountDataBackupAdapter.exportAccountBackup(context, db, uid, outputStream = out)
+        assertTrue(result.isSuccess)
+
+        val entries = unpackZip(out.toByteArray())
+        val qArray = JSONArray(String(entries["data/questions.json"]!!, Charsets.UTF_8))
+
+        assertEquals("data/questions.json must contain exactly the canonical Room QuestionEntity records", 2, qArray.length())
+        val ids = setOf(qArray.getJSONObject(0).getString("id"), qArray.getJSONObject(1).getString("id"))
+        assertTrue("Canonical question q_canonical_1 must be present", ids.contains("q_canonical_1"))
+        assertTrue("Canonical question q_canonical_2 must be present", ids.contains("q_canonical_2"))
+        assertFalse("Stale secondary questionsJson must not override canonical rows", ids.contains("stale_secondary_override"))
+    }
+
     private fun unpackZip(zipBytes: ByteArray): Map<String, ByteArray> {
         val result = mutableMapOf<String, ByteArray>()
         val zipIn = ZipInputStream(ByteArrayInputStream(zipBytes))
