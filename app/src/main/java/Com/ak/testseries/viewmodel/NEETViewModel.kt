@@ -6315,6 +6315,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             autoRestoreDiscoveryJob?.cancel()
             _autoRestoreStatus.value = AutoRestoreStatus.Idle
             _cloudRestoreRecommendation.value = null
+            try {
+                val appCtx = getApplication<android.app.Application>()
+                GoogleDriveAuthManager.clearDriveSessionOnLogout(appCtx)
+                GoogleDriveBackupScheduler.cancel(appCtx)
+            } catch (_: Exception) {}
+            _isDriveConnected.value = false
+            _driveAccountEmail.value = null
+            _driveAccountDisplayName.value = null
+            _remoteBackupsList.value = emptyList()
             _currentScreen.value = AppScreen.LOGIN
         }
     }
@@ -6362,6 +6371,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             autoRestoreDiscoveryJob?.cancel()
             _autoRestoreStatus.value = AutoRestoreStatus.Idle
             _cloudRestoreRecommendation.value = null
+            try {
+                val appCtx = getApplication<android.app.Application>()
+                GoogleDriveAuthManager.clearDriveSessionOnLogout(appCtx)
+                GoogleDriveBackupScheduler.cancel(appCtx)
+            } catch (_: Exception) {}
+            _isDriveConnected.value = false
+            _driveAccountEmail.value = null
+            _driveAccountDisplayName.value = null
+            _remoteBackupsList.value = emptyList()
             _currentScreen.value = AppScreen.LOGIN
         }
     }
@@ -7279,7 +7297,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun handleGoogleDriveSignInResult(data: Intent?, context: Context) {
-        val result = GoogleDriveAuthManager.handleSignInResult(data, context)
+        val activeUid = currentUserId.value.takeIf { it.isNotBlank() }
+        val result = GoogleDriveAuthManager.handleSignInResult(data, context, activeUid)
         if (result.isSuccess) {
             val account = result.getOrThrow()
             _isDriveConnected.value = true
@@ -7550,7 +7569,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Evaluate eligibility
                 val isRestoreRunning = _backupUiState.value is Com.ak.testseries.data.backup.BackupUiState.Restoring ||
-                        _autoRestoreStatus.value is AutoRestoreStatus.Restoring
+                        _backupUiState.value is Com.ak.testseries.data.backup.BackupUiState.Validating ||
+                        _autoRestoreStatus.value is AutoRestoreStatus.Restoring ||
+                        _autoRestoreStatus.value is AutoRestoreStatus.Downloading ||
+                        _autoRestoreStatus.value is AutoRestoreStatus.Validating
 
                 val decision = CloudAutoRestorePolicyEngine.evaluateEligibility(
                     context = context,

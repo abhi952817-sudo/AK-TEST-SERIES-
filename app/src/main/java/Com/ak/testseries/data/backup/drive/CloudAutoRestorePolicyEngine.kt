@@ -67,7 +67,7 @@ object CloudAutoRestorePolicyEngine {
         // 1. Check Room TestEntity records owned by user
         val userVaultTestsCount = try {
             val allTests = db.testDao().getAllTestsList()
-            allTests.count { !it.isOfficial && !it.isPublic && it.uploaderId == safeUid }
+            Com.ak.testseries.data.backup.AccountDataBackupAdapter.filterEligiblePrivateTests(allTests, safeUid).size
         } catch (e: Exception) {
             return VaultEmptinessResult.Error(e)
         }
@@ -75,10 +75,24 @@ object CloudAutoRestorePolicyEngine {
             return VaultEmptinessResult.NotEmpty("Found $userVaultTestsCount user-owned tests in Room database.")
         }
 
-        // 2. Check local private test files directory
+        // 2. Check local private test files and diagrams directory
         try {
-            val privateTestsDir = File(context.filesDir, "private_tests/$safeUid")
-            if (privateTestsDir.exists() && (privateTestsDir.listFiles()?.isNotEmpty() == true)) {
+            val privateTestsBaseDir = File(context.filesDir, "private_tests")
+            if (privateTestsBaseDir.exists()) {
+                val subDirs = privateTestsBaseDir.listFiles() ?: emptyArray()
+                for (dir in subDirs) {
+                    if (dir.isDirectory) {
+                        val diagramsDir = File(dir, "diagrams")
+                        if (diagramsDir.exists() && (diagramsDir.listFiles()?.isNotEmpty() == true)) {
+                            return VaultEmptinessResult.NotEmpty("Found private test diagrams in local storage.")
+                        }
+                    } else if (dir.isFile && dir.length() > 0) {
+                        return VaultEmptinessResult.NotEmpty("Found private test files in local storage.")
+                    }
+                }
+            }
+            val perUserPrivateDir = File(context.filesDir, "private_tests/$safeUid")
+            if (perUserPrivateDir.exists() && (perUserPrivateDir.listFiles()?.isNotEmpty() == true)) {
                 return VaultEmptinessResult.NotEmpty("Found user private test files in storage.")
             }
         } catch (e: Exception) {

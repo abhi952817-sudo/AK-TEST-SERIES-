@@ -19,6 +19,7 @@
         <exclude domain="sharedpref" path="user_bookmarks_store.xml" />
         <exclude domain="sharedpref" path="test_progress.xml" />
         <exclude domain="sharedpref" path="SyllabusProgress.xml" />
+        <exclude domain="sharedpref" path="ak_google_drive_backup_prefs.xml" />
     </cloud-backup>
     <device-transfer>
         <!-- Exclude raw un-isolated Room database from un-isolated device transfers -->
@@ -37,5 +38,6 @@
         <exclude domain="sharedpref" path="user_bookmarks_store.xml" />
         <exclude domain="sharedpref" path="test_progress.xml" />
         <exclude domain="sharedpref" path="SyllabusProgress.xml" />
+        <exclude domain="sharedpref" path="ak_google_drive_backup_prefs.xml" />
     </device-transfer>
 </data-extraction-rules>

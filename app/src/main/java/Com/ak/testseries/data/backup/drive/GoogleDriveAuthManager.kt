@@ -57,7 +57,7 @@ object GoogleDriveAuthManager {
         return getSignInClient(context).signInIntent
     }
 
-    fun handleSignInResult(data: Intent?, context: Context): Result<GoogleSignInAccount> {
+    fun handleSignInResult(data: Intent?, context: Context, activeUid: String? = null): Result<GoogleSignInAccount> {
         return try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             val account = task.getResult(ApiException::class.java)
@@ -65,11 +65,14 @@ object GoogleDriveAuthManager {
                 val email = account.email ?: ""
                 val displayName = account.displayName ?: ""
                 val prefs = getPrefs(context)
-                prefs.edit()
+                val editor = prefs.edit()
                     .putBoolean(KEY_DRIVE_CONNECTED, true)
                     .putString(KEY_DRIVE_ACCOUNT_EMAIL, email)
                     .putString(KEY_DRIVE_ACCOUNT_DISPLAY_NAME, displayName)
-                    .apply()
+                if (!activeUid.isNullOrBlank()) {
+                    editor.putString(KEY_LINKED_FIREBASE_UID, activeUid.trim())
+                }
+                editor.apply()
                 Result.success(account)
             } else {
                 Result.failure(IllegalStateException("Google Sign-In returned null account."))
@@ -140,11 +143,24 @@ object GoogleDriveAuthManager {
                 .remove(KEY_DRIVE_ACCOUNT_EMAIL)
                 .remove(KEY_DRIVE_ACCOUNT_DISPLAY_NAME)
                 .remove(KEY_DRIVE_FOLDER_ID)
+                .remove(KEY_LINKED_FIREBASE_UID)
+                .remove(KEY_LAST_DRIVE_BACKUP_TIMESTAMP)
+                .remove(KEY_LAST_DRIVE_BACKUP_STATS)
                 .apply()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    fun clearDriveSessionOnLogout(context: Context) {
+        getPrefs(context).edit()
+            .putBoolean(KEY_DRIVE_CONNECTED, false)
+            .remove(KEY_DRIVE_ACCOUNT_EMAIL)
+            .remove(KEY_DRIVE_ACCOUNT_DISPLAY_NAME)
+            .remove(KEY_DRIVE_FOLDER_ID)
+            .remove(KEY_LINKED_FIREBASE_UID)
+            .apply()
     }
 
     fun getDriveFolderId(context: Context): String? {
@@ -210,7 +226,6 @@ object GoogleDriveAuthManager {
         return prefs.getBoolean(KEY_AUTO_RESTORE_ON_NEW_DEVICE, false)
     }
 
-
     fun setAutoRestoreOnNewDeviceEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_AUTO_RESTORE_ON_NEW_DEVICE, enabled).apply()
     }
@@ -221,14 +236,18 @@ object GoogleDriveAuthManager {
     }
 
     fun verifyAccountBinding(context: Context, expectedUid: String): Result<Unit> {
+        val safeUid = expectedUid.trim()
+        if (safeUid.isBlank()) {
+            return Result.failure(IllegalArgumentException("Cannot verify Drive binding with blank or unauthenticated Firebase UID."))
+        }
         val prefs = getPrefs(context)
         val linkedUid = prefs.getString(KEY_LINKED_FIREBASE_UID, null)
-        if (linkedUid != null && linkedUid != expectedUid) {
-            return Result.failure(SecurityException("Drive account is linked to a different user ($linkedUid vs $expectedUid)"))
+        if (linkedUid != null && linkedUid != safeUid) {
+            return Result.failure(SecurityException("Drive account is linked to a different user ($linkedUid vs $safeUid)"))
         }
-        if (linkedUid == null && expectedUid.isNotBlank()) {
+        if (linkedUid == null) {
             prefs.edit()
-                .putString(KEY_LINKED_FIREBASE_UID, expectedUid)
+                .putString(KEY_LINKED_FIREBASE_UID, safeUid)
                 .putBoolean(KEY_DRIVE_CONNECTED, true)
                 .apply()
         }

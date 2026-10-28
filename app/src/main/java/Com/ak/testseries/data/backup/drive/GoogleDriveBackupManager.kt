@@ -45,6 +45,14 @@ open class GoogleDriveBackupManager(
             )
         }
 
+        // 0. Verify account binding between active Firebase UID and Google Drive account
+        val bindingResult = GoogleDriveAuthManager.verifyAccountBinding(context, safeUid)
+        if (bindingResult.isFailure) {
+            return@withContext Result.failure(
+                bindingResult.exceptionOrNull() ?: SecurityException("Google Drive account binding verification failed.")
+            )
+        }
+
         // 1. Obtain OAuth Access Token
         val tokenResult = GoogleDriveAuthManager.getAccessToken(context)
         if (tokenResult.isFailure) {
@@ -83,6 +91,16 @@ open class GoogleDriveBackupManager(
             }
             val manifest = manifestResult.getOrThrow()
 
+            // 3.1 Validate local archive integrity before upload
+            val validationCheck = tempBackupFile.inputStream().use { fis ->
+                BackupArchiveEngine.validateArchive(fis)
+            }
+            if (validationCheck is BackupValidationResult.Invalid) {
+                return@withContext Result.failure(
+                    IllegalStateException("Local backup archive validation failed prior to upload: ${validationCheck.reason}")
+                )
+            }
+
             // 4. Ensure destination folder on user's Google Drive
             val folderResult = driveApiClient.ensureBackupFolder(accessToken)
             if (folderResult.isFailure) {
@@ -103,7 +121,13 @@ open class GoogleDriveBackupManager(
 
             if (uploadResult.isSuccess) {
                 val remoteBackup = uploadResult.getOrThrow()
-                // Update last sync state
+                if (remoteBackup.fileId.isBlank()) {
+                    return@withContext Result.failure(
+                        IllegalStateException("Remote upload succeeded but returned an invalid/blank fileId.")
+                    )
+                }
+
+                // Update last sync state only after confirmed upload
                 GoogleDriveAuthManager.saveLastSyncTimestamp(
                     context = context,
                     timestamp = timestamp,
