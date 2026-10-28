@@ -39,6 +39,7 @@ roborazzi = "1.59.0"
 firebaseBom = "34.15.0"
 secretsGradlePlugin = "2.0.1"
 googleServices = "4.5.0"
+work = "2.9.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -97,6 +98,8 @@ firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashly
 firebase-storage = { group = "com.google.firebase", name = "firebase-storage" }
 firebase-functions = { group = "com.google.firebase", name = "firebase-functions" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version = "21.3.0" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+androidx-work-testing = { group = "androidx.work", name = "work-testing", version.ref = "work" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

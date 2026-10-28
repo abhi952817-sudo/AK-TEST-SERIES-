@@ -26,6 +26,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import Com.ak.testseries.BuildConfig
 import Com.ak.testseries.data.*
+import Com.ak.testseries.data.backup.drive.*
+import Com.ak.testseries.data.backup.RemoteBackupOperationState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -6310,6 +6312,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _currentQuestionIndex.value = 0
             _examTimeRemaining.value = 0L
             activeAttemptSessionToken = ""
+            autoRestoreDiscoveryJob?.cancel()
+            _autoRestoreStatus.value = AutoRestoreStatus.Idle
+            _cloudRestoreRecommendation.value = null
             _currentScreen.value = AppScreen.LOGIN
         }
     }
@@ -6354,6 +6359,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _currentQuestionIndex.value = 0
             _examTimeRemaining.value = 0L
             activeAttemptSessionToken = ""
+            autoRestoreDiscoveryJob?.cancel()
+            _autoRestoreStatus.value = AutoRestoreStatus.Idle
+            _cloudRestoreRecommendation.value = null
             _currentScreen.value = AppScreen.LOGIN
         }
     }
@@ -6867,6 +6875,68 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val _backupReminderEnabled = MutableStateFlow(true)
     val backupReminderEnabled: StateFlow<Boolean> = _backupReminderEnabled.asStateFlow()
 
+    // --- Phase 4D: Google Drive Cloud Backup & Restore State ---
+    private val _isDriveConnected = MutableStateFlow(false)
+    val isDriveConnected: StateFlow<Boolean> = _isDriveConnected.asStateFlow()
+
+    private val _driveAccountEmail = MutableStateFlow<String?>(null)
+    val driveAccountEmail: StateFlow<String?> = _driveAccountEmail.asStateFlow()
+
+    private val _driveAccountDisplayName = MutableStateFlow<String?>(null)
+    val driveAccountDisplayName: StateFlow<String?> = _driveAccountDisplayName.asStateFlow()
+
+    private val _lastDriveSyncTimestamp = MutableStateFlow<Long?>(null)
+    val lastDriveSyncTimestamp: StateFlow<Long?> = _lastDriveSyncTimestamp.asStateFlow()
+
+    private val _lastDriveSyncStats = MutableStateFlow<String?>(null)
+    val lastDriveSyncStats: StateFlow<String?> = _lastDriveSyncStats.asStateFlow()
+
+    private val _autoBackupFrequency = MutableStateFlow("DAILY")
+    val autoBackupFrequency: StateFlow<String> = _autoBackupFrequency.asStateFlow()
+
+    private val _autoBackupWifiOnly = MutableStateFlow(true)
+    val autoBackupWifiOnly: StateFlow<Boolean> = _autoBackupWifiOnly.asStateFlow()
+
+    private val _autoBackupChargingOnly = MutableStateFlow(false)
+    val autoBackupChargingOnly: StateFlow<Boolean> = _autoBackupChargingOnly.asStateFlow()
+
+    private val _remoteBackupsList = MutableStateFlow<List<GoogleDriveRemoteBackup>>(emptyList())
+    val remoteBackupsList: StateFlow<List<GoogleDriveRemoteBackup>> = _remoteBackupsList.asStateFlow()
+
+    private val _isRemoteBackupsLoading = MutableStateFlow(false)
+    val isRemoteBackupsLoading: StateFlow<Boolean> = _isRemoteBackupsLoading.asStateFlow()
+
+    private val _remoteBackupOperationState = MutableStateFlow<RemoteBackupOperationState>(RemoteBackupOperationState.Idle)
+    val remoteBackupOperationState: StateFlow<RemoteBackupOperationState> = _remoteBackupOperationState.asStateFlow()
+
+    private val _cloudRestoreRecommendation = MutableStateFlow<GoogleDriveRemoteBackup?>(null)
+    val cloudRestoreRecommendation: StateFlow<GoogleDriveRemoteBackup?> = _cloudRestoreRecommendation.asStateFlow()
+
+    fun dismissCloudRestoreRecommendation() {
+        _cloudRestoreRecommendation.value = null
+    }
+
+    // --- Phase 6: Automatic Cloud Restore on New Device State ---
+    private val _autoRestoreOnNewDeviceEnabled = MutableStateFlow(false)
+    val autoRestoreOnNewDeviceEnabled: StateFlow<Boolean> = _autoRestoreOnNewDeviceEnabled.asStateFlow()
+
+    private val _autoRestoreStatus = MutableStateFlow<AutoRestoreStatus>(AutoRestoreStatus.Idle)
+    val autoRestoreStatus: StateFlow<AutoRestoreStatus> = _autoRestoreStatus.asStateFlow()
+
+    private var autoRestoreDiscoveryJob: Job? = null
+
+    fun setAutoRestoreOnNewDeviceEnabled(context: android.content.Context, enabled: Boolean) {
+        _autoRestoreOnNewDeviceEnabled.value = enabled
+        GoogleDriveAuthManager.setAutoRestoreOnNewDeviceEnabled(context, enabled)
+        if (enabled) {
+            triggerCloudAutoRestoreCheck(context)
+        }
+    }
+
+    fun dismissAutoRestoreStatus() {
+        _autoRestoreStatus.value = AutoRestoreStatus.Idle
+    }
+
     fun setIncludeDiagramsInBackup(enabled: Boolean) {
         _includeDiagramsInBackup.value = enabled
     }
@@ -6905,6 +6975,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         _backupReminderEnabled.value = prefs.getBoolean("backup_reminder_enabled_$safeUid", true)
         val historyJson = prefs.getString("recent_exports_history_$safeUid", null)
         _recentExports.value = Com.ak.testseries.data.backup.BackupExportRecord.deserializeList(historyJson)
+        refreshGoogleDriveStatus(context)
     }
 
     fun exportBackupToUri(
@@ -7182,6 +7253,416 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Idle
+    }
+
+    // --- Google Drive Actions ---
+
+    fun refreshGoogleDriveStatus(context: Context) {
+        val isConnected = GoogleDriveAuthManager.isDriveConnected(context)
+        _isDriveConnected.value = isConnected
+        _driveAccountEmail.value = GoogleDriveAuthManager.getConnectedEmail(context)
+        _driveAccountDisplayName.value = GoogleDriveAuthManager.getConnectedDisplayName(context)
+        _lastDriveSyncTimestamp.value = GoogleDriveAuthManager.getLastSyncTimestamp(context)
+        _lastDriveSyncStats.value = GoogleDriveAuthManager.getLastSyncStats(context)
+        _autoBackupFrequency.value = GoogleDriveAuthManager.getAutoBackupFrequency(context)
+        _autoBackupWifiOnly.value = GoogleDriveAuthManager.isWifiOnlyRequired(context)
+        _autoBackupChargingOnly.value = GoogleDriveAuthManager.isChargingOnlyRequired(context)
+        _autoRestoreOnNewDeviceEnabled.value = GoogleDriveAuthManager.isAutoRestoreOnNewDeviceEnabled(context)
+
+        if (isConnected) {
+            fetchRemoteGoogleDriveBackups(context)
+            triggerCloudAutoRestoreCheck(context)
+        } else {
+            _remoteBackupsList.value = emptyList()
+            _autoRestoreStatus.value = AutoRestoreStatus.WaitingForDriveAuth
+        }
+    }
+
+    fun handleGoogleDriveSignInResult(data: Intent?, context: Context) {
+        val result = GoogleDriveAuthManager.handleSignInResult(data, context)
+        if (result.isSuccess) {
+            val account = result.getOrThrow()
+            _isDriveConnected.value = true
+            _driveAccountEmail.value = account.email
+            _driveAccountDisplayName.value = account.displayName
+            GoogleDriveBackupScheduler.scheduleOrUpdate(context)
+            fetchRemoteGoogleDriveBackups(context)
+            triggerCloudAutoRestoreCheck(context)
+            _remoteBackupOperationState.value = RemoteBackupOperationState.Success(
+                "Connected to Google Drive as ${account.email ?: "Authorized Account"}."
+            )
+        } else {
+            val err = result.exceptionOrNull()
+            _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
+                title = "Drive Authorization Failed",
+                message = err?.message ?: "Unable to complete Google Drive sign-in."
+            )
+        }
+    }
+
+    fun disconnectGoogleDrive(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            GoogleDriveAuthManager.disconnect(context)
+            GoogleDriveBackupScheduler.cancel(context)
+            withContext(Dispatchers.Main) {
+                _isDriveConnected.value = false
+                _driveAccountEmail.value = null
+                _driveAccountDisplayName.value = null
+                _remoteBackupsList.value = emptyList()
+                _remoteBackupOperationState.value = RemoteBackupOperationState.Success("Google Drive disconnected.")
+            }
+        }
+    }
+
+    fun updateAutoBackupSettings(
+        context: Context,
+        frequency: String,
+        wifiOnly: Boolean,
+        chargingOnly: Boolean
+    ) {
+        GoogleDriveAuthManager.setAutoBackupFrequency(context, frequency)
+        GoogleDriveAuthManager.setWifiOnlyRequired(context, wifiOnly)
+        GoogleDriveAuthManager.setChargingOnlyRequired(context, chargingOnly)
+
+        _autoBackupFrequency.value = frequency
+        _autoBackupWifiOnly.value = wifiOnly
+        _autoBackupChargingOnly.value = chargingOnly
+
+        GoogleDriveBackupScheduler.scheduleOrUpdate(context)
+    }
+
+    fun fetchRemoteGoogleDriveBackups(context: Context) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val authenticatedUid = auth.currentUser?.uid?.trim() ?: ""
+        if (authenticatedUid.isBlank() || !GoogleDriveAuthManager.isDriveConnected(context)) {
+            _remoteBackupsList.value = emptyList()
+            return
+        }
+
+        _isRemoteBackupsLoading.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val manager = GoogleDriveBackupManager()
+                val result = manager.fetchUserRemoteBackups(context, authenticatedUid)
+                if (result.isSuccess) {
+                    val backups = result.getOrThrow()
+                    _remoteBackupsList.value = backups
+
+                    val localVaultTests = testsList.value.count { !it.isOfficial && !it.isPublic && it.uploaderId == authenticatedUid }
+                    val localAttempts = attemptHistory.value.size
+                    if (localVaultTests == 0 && localAttempts == 0 && backups.isNotEmpty()) {
+                        _cloudRestoreRecommendation.value = backups.firstOrNull()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isRemoteBackupsLoading.value = false
+            }
+        }
+    }
+
+    fun uploadBackupToGoogleDrive(context: Context, includeDiagrams: Boolean = _includeDiagramsInBackup.value) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val currentUser = auth.currentUser
+        val authenticatedUid = currentUser?.uid?.trim() ?: ""
+        if (currentUser == null || authenticatedUid.isBlank()) {
+            _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
+                title = "Upload Denied",
+                message = "An authenticated user account is required to upload a backup. Please sign in."
+            )
+            return
+        }
+
+        if (!GoogleDriveAuthManager.isDriveConnected(context)) {
+            _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
+                title = "Drive Not Connected",
+                message = "Please connect your Google Drive account first."
+            )
+            return
+        }
+
+        _remoteBackupOperationState.value = RemoteBackupOperationState.Loading("Exporting and uploading to Google Drive...")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val email = currentUser.email?.ifBlank { null } ?: _driveAccountEmail.value
+                val displayName = currentUser.displayName?.ifBlank { null } ?: _driveAccountDisplayName.value
+                val manager = GoogleDriveBackupManager()
+                val result = manager.exportAndUploadToDrive(
+                    context = context,
+                    db = db,
+                    activeUid = authenticatedUid,
+                    email = email,
+                    displayName = displayName,
+                    appVersionCode = BuildConfig.VERSION_CODE,
+                    appVersionName = BuildConfig.VERSION_NAME,
+                    includeDiagrams = includeDiagrams
+                )
+
+                if (result.isSuccess) {
+                    val remote = result.getOrThrow()
+                    _lastDriveSyncTimestamp.value = System.currentTimeMillis()
+                    _lastDriveSyncStats.value = remote.statsSummary
+                    _remoteBackupOperationState.value = RemoteBackupOperationState.Success(
+                        "Cloud backup complete!\n${remote.statsSummary}"
+                    )
+                    fetchRemoteGoogleDriveBackups(context)
+                } else {
+                    val error = result.exceptionOrNull()
+                    _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
+                        title = "Upload Failed",
+                        message = error?.message ?: "Failed to upload backup to Google Drive."
+                    )
+                }
+            } catch (e: Exception) {
+                _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
+                    title = "Upload Error",
+                    message = e.message ?: "An unexpected error occurred during cloud upload."
+                )
+            }
+        }
+    }
+
+    fun stageAndValidateRemoteBackup(context: Context, fileId: String) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val authenticatedUid = auth.currentUser?.uid?.trim() ?: ""
+        if (authenticatedUid.isBlank()) {
+            _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                title = "Restore Denied",
+                message = "An authenticated user account is required to restore an account backup. Please sign in."
+            )
+            return
+        }
+
+        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Validating("Downloading and validating cloud backup...")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val manager = GoogleDriveBackupManager()
+                val outcome = manager.downloadAndStageDriveBackup(context, fileId, authenticatedUid)
+                when (val stageResult = outcome.stageValidationResult) {
+                    is Com.ak.testseries.data.backup.StageValidationResult.Failure -> {
+                        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                            title = "Cloud Validation Failed",
+                            message = "${stageResult.reason}\n${stageResult.details ?: ""}".trim()
+                        )
+                    }
+                    is Com.ak.testseries.data.backup.StageValidationResult.Success -> {
+                        val staged = stageResult.stagedData
+                        val archiveFile = outcome.archiveFile ?: java.io.File(context.cacheDir, "temp.aktsbak")
+                        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.ValidationReady(
+                            manifest = staged.manifest,
+                            stagingFile = archiveFile,
+                            stagedData = staged
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                    title = "Download Error",
+                    message = e.message ?: "Failed to download and stage cloud backup."
+                )
+            }
+        }
+    }
+
+    fun deleteRemoteDriveBackup(context: Context, fileId: String) {
+        _remoteBackupOperationState.value = RemoteBackupOperationState.Loading("Deleting cloud backup...")
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val manager = GoogleDriveBackupManager()
+                val result = manager.deleteRemoteBackup(context, fileId)
+                if (result.isSuccess) {
+                    _remoteBackupOperationState.value = RemoteBackupOperationState.Success("Cloud backup deleted successfully.")
+                    fetchRemoteGoogleDriveBackups(context)
+                } else {
+                    _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
+                        title = "Delete Failed",
+                        message = result.exceptionOrNull()?.message ?: "Could not delete backup."
+                    )
+                }
+            } catch (e: Exception) {
+                _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
+                    title = "Delete Error",
+                    message = e.message ?: "Could not delete backup."
+                )
+            }
+        }
+    }
+
+    fun dismissRemoteOperationDialog() {
+        _remoteBackupOperationState.value = RemoteBackupOperationState.Idle
+    }
+
+    fun triggerCloudAutoRestoreCheck(context: Context) {
+        val currentUser = try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        } catch (e: Exception) {
+            null
+        }
+        val authenticatedUid = (currentUser?.uid ?: currentUserId.value).trim()
+
+        if (authenticatedUid.isBlank()) {
+            autoRestoreDiscoveryJob?.cancel()
+            _autoRestoreStatus.value = AutoRestoreStatus.Idle
+            _cloudRestoreRecommendation.value = null
+            return
+        }
+
+        if (!GoogleDriveAuthManager.isDriveConnected(context)) {
+            _autoRestoreStatus.value = AutoRestoreStatus.WaitingForDriveAuth
+            return
+        }
+
+        // Cancel any pending discovery to prevent duplicate runs
+        autoRestoreDiscoveryJob?.cancel()
+        autoRestoreDiscoveryJob = viewModelScope.launch(Dispatchers.IO) {
+            _autoRestoreStatus.value = AutoRestoreStatus.CheckingForBackup
+            try {
+                val manager = GoogleDriveBackupManager()
+                val listResult = manager.fetchUserRemoteBackups(context, authenticatedUid)
+
+                if (listResult.isFailure) {
+                    _autoRestoreStatus.value = AutoRestoreStatus.Failed(
+                        listResult.exceptionOrNull()?.message ?: "Failed to list cloud backups from Google Drive."
+                    )
+                    return@launch
+                }
+
+                val remoteBackups = listResult.getOrThrow()
+                _remoteBackupsList.value = remoteBackups
+
+                if (remoteBackups.isEmpty()) {
+                    _autoRestoreStatus.value = AutoRestoreStatus.NoBackupAvailable
+                    return@launch
+                }
+
+                // Check zero-trust UID matching on top backup
+                val candidateBackup = remoteBackups.firstOrNull()
+                if (candidateBackup != null && candidateBackup.ownerUid != authenticatedUid) {
+                    _autoRestoreStatus.value = AutoRestoreStatus.AccountMismatch(
+                        expectedUid = authenticatedUid,
+                        actualUid = candidateBackup.ownerUid
+                    )
+                    return@launch
+                }
+
+                // Evaluate eligibility
+                val isRestoreRunning = _backupUiState.value is Com.ak.testseries.data.backup.BackupUiState.Restoring ||
+                        _autoRestoreStatus.value is AutoRestoreStatus.Restoring
+
+                val decision = CloudAutoRestorePolicyEngine.evaluateEligibility(
+                    context = context,
+                    db = db,
+                    authenticatedUid = authenticatedUid,
+                    isDriveAuthorized = true,
+                    remoteBackups = remoteBackups,
+                    isRestoreRunning = isRestoreRunning
+                )
+
+                when (decision) {
+                    is AutoRestoreDecision.ShouldRecommendOnly -> {
+                        _cloudRestoreRecommendation.value = decision.backup
+                        _autoRestoreStatus.value = AutoRestoreStatus.BackupFound(decision.backup)
+                    }
+                    is AutoRestoreDecision.ShouldAutoRestore -> {
+                        _autoRestoreStatus.value = AutoRestoreStatus.BackupFound(decision.backup)
+                        executeAutoRestore(context, decision.backup, authenticatedUid)
+                    }
+                    is AutoRestoreDecision.Skip -> {
+                        _autoRestoreStatus.value = AutoRestoreStatus.Idle
+                    }
+                }
+            } catch (e: Exception) {
+                _autoRestoreStatus.value = AutoRestoreStatus.Failed(e.message ?: "Error during backup discovery.")
+            }
+        }
+    }
+
+    fun executeAutoRestore(context: Context, backup: GoogleDriveRemoteBackup, authenticatedUid: String) {
+        _autoRestoreStatus.value = AutoRestoreStatus.Downloading
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Re-verify UID immediately before downloading
+                val currentUid = (try {
+                    com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid?.trim()
+                } catch (e: Exception) {
+                    null
+                } ?: currentUserId.value).trim()
+
+                if (currentUid.isBlank() || currentUid != authenticatedUid || currentUid != backup.ownerUid) {
+                    _autoRestoreStatus.value = AutoRestoreStatus.AccountMismatch(
+                        expectedUid = currentUid,
+                        actualUid = backup.ownerUid
+                    )
+                    return@launch
+                }
+
+                val manager = GoogleDriveBackupManager()
+                _autoRestoreStatus.value = AutoRestoreStatus.Validating
+                val outcome = manager.downloadAndStageDriveBackup(context, backup.fileId, currentUid)
+
+                when (val stageResult = outcome.stageValidationResult) {
+                    is Com.ak.testseries.data.backup.StageValidationResult.Failure -> {
+                        _autoRestoreStatus.value = AutoRestoreStatus.Incompatible(
+                            "${stageResult.reason}\n${stageResult.details ?: ""}".trim()
+                        )
+                    }
+                    is Com.ak.testseries.data.backup.StageValidationResult.Success -> {
+                        _autoRestoreStatus.value = AutoRestoreStatus.Restoring
+                        val staged = stageResult.stagedData
+                        val archiveFile = outcome.archiveFile ?: staged.stagingDir
+
+                        // Pre-commit verification
+                        val preCommitUid = (try {
+                            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid?.trim()
+                        } catch (e: Exception) {
+                            null
+                        } ?: currentUserId.value).trim()
+
+                        if (preCommitUid.isBlank() || preCommitUid != authenticatedUid || preCommitUid != staged.manifest.owner.uid) {
+                            staged.cleanUp()
+                            archiveFile.delete()
+                            _autoRestoreStatus.value = AutoRestoreStatus.AccountMismatch(
+                                expectedUid = preCommitUid,
+                                actualUid = staged.manifest.owner.uid
+                            )
+                            return@launch
+                        }
+
+                        // Commit restore
+                        val restoreResult = java.io.FileInputStream(archiveFile).use { fis ->
+                            Com.ak.testseries.data.backup.AccountDataRestoreEngine.restoreAccountBackup(
+                                context = context,
+                                db = db,
+                                authenticatedUid = preCommitUid,
+                                archiveInputStream = fis
+                            )
+                        }
+
+                        staged.cleanUp()
+                        archiveFile.delete()
+
+                        when (restoreResult) {
+                            is Com.ak.testseries.data.backup.RestoreResult.Failure -> {
+                                _autoRestoreStatus.value = AutoRestoreStatus.Failed(restoreResult.reason)
+                            }
+                            is Com.ak.testseries.data.backup.RestoreResult.Success -> {
+                                _autoRestoreStatus.value = AutoRestoreStatus.Completed(
+                                    "Successfully restored ${restoreResult.restoredTestsCount} tests and ${restoreResult.restoredAttemptsCount} attempts."
+                                )
+                                _cloudRestoreRecommendation.value = null
+                                loadUserBookmarks(preCommitUid)
+                                loadUserProfile()
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                _autoRestoreStatus.value = AutoRestoreStatus.Failed(e.message ?: "Failed to execute auto-restore.")
+            }
+        }
     }
 }
 

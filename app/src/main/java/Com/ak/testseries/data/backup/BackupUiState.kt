@@ -19,3 +19,14 @@ sealed class BackupUiState {
     data class RestoreSuccess(val result: RestoreResult.Success) : BackupUiState()
     data class Error(val title: String, val message: String) : BackupUiState()
 }
+
+/**
+ * State contract for remote Google Drive cloud backup operations.
+ */
+sealed class RemoteBackupOperationState {
+    object Idle : RemoteBackupOperationState()
+    data class Loading(val message: String) : RemoteBackupOperationState()
+    data class Success(val message: String) : RemoteBackupOperationState()
+    data class Error(val title: String, val message: String) : RemoteBackupOperationState()
+}
+

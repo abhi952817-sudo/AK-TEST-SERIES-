@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.firebase.auth.FirebaseAuth
 import Com.ak.testseries.data.backup.*
+import Com.ak.testseries.data.backup.drive.*
 import Com.ak.testseries.viewmodel.AppLanguage
 import Com.ak.testseries.viewmodel.NEETViewModel
 import java.text.SimpleDateFormat
@@ -67,6 +68,33 @@ fun BackupRestoreScreen(
     val lastBackupStats by viewModel.lastBackupStats.collectAsStateWithLifecycle()
     val recentExports by viewModel.recentExports.collectAsStateWithLifecycle()
     val backupReminderEnabled by viewModel.backupReminderEnabled.collectAsStateWithLifecycle()
+
+    // Google Drive Cloud Backup State
+    val isDriveConnected by viewModel.isDriveConnected.collectAsStateWithLifecycle()
+    val driveAccountEmail by viewModel.driveAccountEmail.collectAsStateWithLifecycle()
+    val driveAccountDisplayName by viewModel.driveAccountDisplayName.collectAsStateWithLifecycle()
+    val lastDriveSyncTimestamp by viewModel.lastDriveSyncTimestamp.collectAsStateWithLifecycle()
+    val lastDriveSyncStats by viewModel.lastDriveSyncStats.collectAsStateWithLifecycle()
+    val autoBackupFrequency by viewModel.autoBackupFrequency.collectAsStateWithLifecycle()
+    val autoBackupWifiOnly by viewModel.autoBackupWifiOnly.collectAsStateWithLifecycle()
+    val autoBackupChargingOnly by viewModel.autoBackupChargingOnly.collectAsStateWithLifecycle()
+    val remoteBackupsList by viewModel.remoteBackupsList.collectAsStateWithLifecycle()
+    val isRemoteBackupsLoading by viewModel.isRemoteBackupsLoading.collectAsStateWithLifecycle()
+    val remoteOperationState by viewModel.remoteBackupOperationState.collectAsStateWithLifecycle()
+    val cloudRestoreRecommendation by viewModel.cloudRestoreRecommendation.collectAsStateWithLifecycle()
+    val autoRestoreStatus by viewModel.autoRestoreStatus.collectAsStateWithLifecycle()
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            viewModel.handleGoogleDriveSignInResult(result.data, context)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshGoogleDriveStatus(context)
+    }
 
     val allTests by viewModel.testsList.collectAsStateWithLifecycle()
     val attemptHistory by viewModel.attemptHistory.collectAsStateWithLifecycle()
@@ -151,6 +179,87 @@ fun BackupRestoreScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
+            // 0. Cloud Backup Found (Fresh Device / Empty Vault Recovery Banner)
+            cloudRestoreRecommendation?.let { rec ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("cloud_restore_recommendation_banner"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.CloudDownload,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isHindi) "क्लाउड बैकअप मिला!" else "Cloud Backup Found!",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = if (isHindi)
+                                "आपके गूगल ड्राइव पर ${rec.formattedDate} का एक बैकअप मिला (${rec.statsSummary})। क्या आप इसे इस डिवाइस पर पुनर्स्थापित करना चाहते हैं?"
+                            else
+                                "A cloud backup from ${rec.formattedDate} was found in your Google Drive (${rec.statsSummary}). Would you like to restore your tests and attempts?",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                            lineHeight = 18.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = { viewModel.dismissCloudRestoreRecommendation() },
+                                modifier = Modifier.testTag("dismiss_cloud_restore_banner_button")
+                            ) {
+                                Text(if (isHindi) "अभी नहीं" else "Not Now")
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Button(
+                                onClick = {
+                                    viewModel.dismissCloudRestoreRecommendation()
+                                    viewModel.stageAndValidateRemoteBackup(context, rec.fileId)
+                                },
+                                modifier = Modifier.testTag("restore_from_recommendation_banner_button"),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Restore,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isHindi) "जांचें और पुनर्स्थापित करें" else "Inspect & Restore")
+                            }
+                        }
+                    }
+                }
+            }
 
             // 1. Account Ownership & Status Card
             Card(
@@ -445,6 +554,24 @@ fun BackupRestoreScreen(
                     }
                 }
             }
+
+            // 3B. Google Drive Cloud Backup & Sync Card
+            GoogleDriveBackupCard(
+                viewModel = viewModel,
+                context = context,
+                isHindi = isHindi,
+                isDriveConnected = isDriveConnected,
+                driveAccountEmail = driveAccountEmail,
+                driveAccountDisplayName = driveAccountDisplayName,
+                lastDriveSyncTimestamp = lastDriveSyncTimestamp,
+                lastDriveSyncStats = lastDriveSyncStats,
+                autoBackupFrequency = autoBackupFrequency,
+                autoBackupWifiOnly = autoBackupWifiOnly,
+                autoBackupChargingOnly = autoBackupChargingOnly,
+                remoteBackupsList = remoteBackupsList,
+                isRemoteBackupsLoading = isRemoteBackupsLoading,
+                googleSignInLauncher = googleSignInLauncher
+            )
 
             // 4. Export Section Card
             Card(
@@ -1075,6 +1202,166 @@ fun BackupRestoreScreen(
         is BackupUiState.Idle -> {
             // No modal needed
         }
+    }
+
+    // Remote Google Drive Operation Modal Overlays
+    when (val remoteState = remoteOperationState) {
+        is RemoteBackupOperationState.Loading -> {
+            AlertDialog(
+                onDismissRequest = { /* Non-cancellable during cloud operation */ },
+                icon = { CircularProgressIndicator(modifier = Modifier.size(36.dp)) },
+                title = { Text(if (isHindi) "क्लाउड ऑपरेशन प्रगति पर है" else "Google Drive Operation") },
+                text = { Text(remoteState.message) },
+                confirmButton = {}
+            )
+        }
+
+        is RemoteBackupOperationState.Success -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissRemoteOperationDialog() },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF2E7D32),
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
+                title = { Text(if (isHindi) "क्लाउड ऑपरेशन सफल" else "Cloud Operation Successful") },
+                text = { Text(remoteState.message) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissRemoteOperationDialog() },
+                        modifier = Modifier.testTag("remote_operation_success_ok_button")
+                    ) {
+                        Text(if (isHindi) "ठीक है" else "OK")
+                    }
+                }
+            )
+        }
+
+        is RemoteBackupOperationState.Error -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissRemoteOperationDialog() },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
+                title = { Text(remoteState.title) },
+                text = { Text(remoteState.message) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissRemoteOperationDialog() },
+                        modifier = Modifier.testTag("remote_operation_error_ok_button")
+                    ) {
+                        Text(if (isHindi) "ठीक है" else "Dismiss")
+                    }
+                }
+            )
+        }
+
+        is RemoteBackupOperationState.Idle -> {
+            // No modal needed
+        }
+    }
+
+    // Auto-Restore on New Device Granular Modals
+    when (val status = autoRestoreStatus) {
+        is AutoRestoreStatus.Downloading, is AutoRestoreStatus.Validating, is AutoRestoreStatus.Restoring -> {
+            val title = when (status) {
+                is AutoRestoreStatus.Downloading -> if (isHindi) "क्लाउड बैकअप डाउनलोड हो रहा है..." else "Downloading Cloud Backup..."
+                is AutoRestoreStatus.Validating -> if (isHindi) "बैकअप सत्यापित हो रहा है..." else "Validating Cloud Backup..."
+                else -> if (isHindi) "डेटा पुनर्स्थापित हो रहा है..." else "Restoring Account Data..."
+            }
+            AlertDialog(
+                onDismissRequest = { /* non-cancellable during auto-restore */ },
+                icon = { CircularProgressIndicator(modifier = Modifier.size(36.dp)) },
+                title = { Text(title) },
+                text = { Text(if (isHindi) "कृपया प्रतीक्षा करें, आपका डेटा सुरक्षित रूप से पुनर्स्थापित किया जा रहा है।" else "Please wait while your data is safely restored.") },
+                confirmButton = {}
+            )
+        }
+        is AutoRestoreStatus.Completed -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissAutoRestoreStatus() },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF2E7D32),
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
+                title = { Text(if (isHindi) "ऑटो-रिस्टोर सफल" else "Auto-Restore Complete") },
+                text = { Text(status.message) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissAutoRestoreStatus() },
+                        modifier = Modifier.testTag("auto_restore_completed_ok_button")
+                    ) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+        is AutoRestoreStatus.Failed -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissAutoRestoreStatus() },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
+                title = { Text(if (isHindi) "ऑटो-रिस्टोर विफल" else "Auto-Restore Failed") },
+                text = { Text(status.reason) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissAutoRestoreStatus() },
+                        modifier = Modifier.testTag("auto_restore_failed_ok_button")
+                    ) {
+                        Text(if (isHindi) "ठीक है" else "Dismiss")
+                    }
+                }
+            )
+        }
+        is AutoRestoreStatus.AccountMismatch -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissAutoRestoreStatus() },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
+                title = { Text(if (isHindi) "खाता बेमेल (Account Mismatch)" else "Account Mismatch") },
+                text = {
+                    Text(
+                        if (isHindi)
+                            "क्लाउड बैकअप वर्तमान खाते से मेल नहीं खाता है। डेटा सुरक्षा के लिए रिस्टोर रद्द कर दिया गया है।"
+                        else
+                            "Cloud backup belongs to a different account (Expected UID: ${status.expectedUid}, Actual: ${status.actualUid}). Operation rejected for security."
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissAutoRestoreStatus() },
+                        modifier = Modifier.testTag("auto_restore_mismatch_ok_button")
+                    ) {
+                        Text(if (isHindi) "ठीक है" else "Dismiss")
+                    }
+                }
+            )
+        }
+        else -> { /* Idle, CheckingForBackup, BackupFound, WaitingForDriveAuth, NoBackupAvailable */ }
     }
 }
 
