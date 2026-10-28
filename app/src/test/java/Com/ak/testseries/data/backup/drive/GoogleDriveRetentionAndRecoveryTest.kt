@@ -41,12 +41,12 @@ class GoogleDriveRetentionAndRecoveryTest {
         val fakeClient = object : DriveApiClient {
             override suspend fun ensureBackupFolder(accessToken: String): Result<String> = Result.success("folder_1")
             override suspend fun uploadBackupFile(accessToken: String, folderId: String, file: File, manifest: Com.ak.testseries.data.backup.BackupManifest): Result<GoogleDriveRemoteBackup> = Result.failure(Exception())
-            override suspend fun listBackups(accessToken: String, folderId: String, ownerUid: String): Result<List<GoogleDriveRemoteBackup>> {
+            override suspend fun listBackups(accessToken: String, folderId: String, targetUid: String): Result<List<GoogleDriveRemoteBackup>> {
                 return Result.success(
                     listOf(
-                        createMockBackup("f1", 1000L, ownerUid),
-                        createMockBackup("f2", 2000L, ownerUid),
-                        createMockBackup("f3", 3000L, ownerUid)
+                        createMockBackup("f1", 1000L, targetUid),
+                        createMockBackup("f2", 2000L, targetUid),
+                        createMockBackup("f3", 3000L, targetUid)
                     )
                 )
             }
@@ -86,7 +86,7 @@ class GoogleDriveRetentionAndRecoveryTest {
         val fakeClient = object : DriveApiClient {
             override suspend fun ensureBackupFolder(accessToken: String): Result<String> = Result.success("folder_1")
             override suspend fun uploadBackupFile(accessToken: String, folderId: String, file: File, manifest: Com.ak.testseries.data.backup.BackupManifest): Result<GoogleDriveRemoteBackup> = Result.failure(Exception())
-            override suspend fun listBackups(accessToken: String, folderId: String, ownerUid: String): Result<List<GoogleDriveRemoteBackup>> = Result.success(backups)
+            override suspend fun listBackups(accessToken: String, folderId: String, targetUid: String): Result<List<GoogleDriveRemoteBackup>> = Result.success(backups)
             override suspend fun downloadBackupFile(accessToken: String, fileId: String, destinationFile: File): Result<File> = Result.success(destinationFile)
             override suspend fun deleteBackupFile(accessToken: String, fileId: String): Result<Boolean> {
                 deletedIds.add(fileId)

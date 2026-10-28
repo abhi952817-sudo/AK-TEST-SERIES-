@@ -6927,10 +6927,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAutoRestoreOnNewDeviceEnabled(context: android.content.Context, enabled: Boolean) {
         _autoRestoreOnNewDeviceEnabled.value = enabled
-        val uid = (try {
-            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
-        } catch (_: Exception) { null } ?: currentUserId.value).trim()
-        GoogleDriveAuthManager.setAutoRestoreOnNewDeviceEnabled(context, enabled, uid)
+        GoogleDriveAuthManager.setAutoRestoreOnNewDeviceEnabled(context, enabled)
         if (enabled) {
             triggerCloudAutoRestoreCheck(context)
         }
@@ -7270,10 +7267,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         _autoBackupFrequency.value = GoogleDriveAuthManager.getAutoBackupFrequency(context)
         _autoBackupWifiOnly.value = GoogleDriveAuthManager.isWifiOnlyRequired(context)
         _autoBackupChargingOnly.value = GoogleDriveAuthManager.isChargingOnlyRequired(context)
-        val uid = (try {
-            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
-        } catch (_: Exception) { null } ?: currentUserId.value).trim()
-        _autoRestoreOnNewDeviceEnabled.value = GoogleDriveAuthManager.isAutoRestoreOnNewDeviceEnabled(context, uid)
+        _autoRestoreOnNewDeviceEnabled.value = GoogleDriveAuthManager.isAutoRestoreOnNewDeviceEnabled(context)
 
         if (isConnected) {
             fetchRemoteGoogleDriveBackups(context)
@@ -7285,10 +7279,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun handleGoogleDriveSignInResult(data: Intent?, context: Context) {
-        val uid = (try {
-            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
-        } catch (_: Exception) { null } ?: currentUserId.value).trim()
-        val result = GoogleDriveAuthManager.handleSignInResult(data, context, uid)
+        val result = GoogleDriveAuthManager.handleSignInResult(data, context)
         if (result.isSuccess) {
             val account = result.getOrThrow()
             _isDriveConnected.value = true
@@ -7378,8 +7369,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (currentUser == null || authenticatedUid.isBlank()) {
             _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
                 title = "Upload Denied",
-                message = "An authenticated user account is required to upload a backup. Please sign in.",
-                errorCode = Com.ak.testseries.data.backup.BackupErrorCode.UNAUTHENTICATED
+                message = "An authenticated user account is required to upload a backup. Please sign in."
             )
             return
         }
@@ -7387,16 +7377,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!GoogleDriveAuthManager.isDriveConnected(context)) {
             _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
                 title = "Drive Not Connected",
-                message = "Please connect your Google Drive account first.",
-                errorCode = Com.ak.testseries.data.backup.BackupErrorCode.UNAUTHENTICATED
+                message = "Please connect your Google Drive account first."
             )
             return
         }
 
-        _remoteBackupOperationState.value = RemoteBackupOperationState.Progress(
-            message = "Exporting and packing account data...",
-            progressFraction = 0.05f
-        )
+        _remoteBackupOperationState.value = RemoteBackupOperationState.Loading("Exporting and uploading to Google Drive...")
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -7411,23 +7397,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     displayName = displayName,
                     appVersionCode = BuildConfig.VERSION_CODE,
                     appVersionName = BuildConfig.VERSION_NAME,
-                    includeDiagrams = includeDiagrams,
-                    onProgress = { frac, bytes, total ->
-                        val percentInt = (frac * 100).toInt()
-                        val msg = if (total > 0L) {
-                            val currentKb = bytes / 1024
-                            val totalKb = total / 1024
-                            "Uploading to Drive ($percentInt% - ${currentKb}KB/${totalKb}KB)..."
-                        } else {
-                            "Preparing and uploading ($percentInt%)..."
-                        }
-                        _remoteBackupOperationState.value = RemoteBackupOperationState.Progress(
-                            message = msg,
-                            progressFraction = frac,
-                            currentBytes = bytes,
-                            totalBytes = total
-                        )
-                    }
+                    includeDiagrams = includeDiagrams
                 )
 
                 if (result.isSuccess) {
@@ -7440,31 +7410,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     fetchRemoteGoogleDriveBackups(context)
                 } else {
                     val error = result.exceptionOrNull()
-                    val msg = error?.message ?: "Failed to upload backup to Google Drive."
-                    val errCode = when {
-                        msg.contains("Insufficient", ignoreCase = true) -> Com.ak.testseries.data.backup.BackupErrorCode.INSUFFICIENT_STORAGE
-                        msg.contains("binding", ignoreCase = true) -> Com.ak.testseries.data.backup.BackupErrorCode.ACCOUNT_MISMATCH
-                        error is java.net.UnknownHostException || error is java.net.SocketTimeoutException -> Com.ak.testseries.data.backup.BackupErrorCode.NETWORK_ERROR
-                        else -> Com.ak.testseries.data.backup.BackupErrorCode.UNKNOWN
-                    }
                     _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
                         title = "Upload Failed",
-                        message = msg,
-                        errorCode = errCode
+                        message = error?.message ?: "Failed to upload backup to Google Drive."
                     )
                 }
             } catch (e: Exception) {
-                val msg = e.message ?: "An unexpected error occurred during cloud upload."
-                val errCode = when {
-                    msg.contains("Insufficient", ignoreCase = true) -> Com.ak.testseries.data.backup.BackupErrorCode.INSUFFICIENT_STORAGE
-                    msg.contains("binding", ignoreCase = true) -> Com.ak.testseries.data.backup.BackupErrorCode.ACCOUNT_MISMATCH
-                    e is java.net.UnknownHostException || e is java.net.SocketTimeoutException -> Com.ak.testseries.data.backup.BackupErrorCode.NETWORK_ERROR
-                    else -> Com.ak.testseries.data.backup.BackupErrorCode.UNKNOWN
-                }
                 _remoteBackupOperationState.value = RemoteBackupOperationState.Error(
                     title = "Upload Error",
-                    message = msg,
-                    errorCode = errCode
+                    message = e.message ?: "An unexpected error occurred during cloud upload."
                 )
             }
         }
@@ -7476,53 +7430,22 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (authenticatedUid.isBlank()) {
             _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
                 title = "Restore Denied",
-                message = "An authenticated user account is required to restore an account backup. Please sign in.",
-                errorCode = Com.ak.testseries.data.backup.BackupErrorCode.UNAUTHENTICATED
+                message = "An authenticated user account is required to restore an account backup. Please sign in."
             )
             return
         }
 
-        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Validating(
-            message = "Connecting to Google Drive...",
-            progressFraction = 0.05f
-        )
+        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Validating("Downloading and validating cloud backup...")
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val manager = GoogleDriveBackupManager()
-                val outcome = manager.downloadAndStageDriveBackup(
-                    context = context,
-                    fileId = fileId,
-                    activeUid = authenticatedUid,
-                    onProgress = { frac, bytes, total ->
-                        val percentInt = (frac * 100).toInt()
-                        val msg = if (total > 0L) {
-                            val currentKb = bytes / 1024
-                            val totalKb = total / 1024
-                            "Downloading from Drive ($percentInt% - ${currentKb}KB/${totalKb}KB)..."
-                        } else {
-                            "Downloading cloud backup ($percentInt%)..."
-                        }
-                        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Validating(
-                            message = msg,
-                            progressFraction = frac
-                        )
-                    }
-                )
+                val outcome = manager.downloadAndStageDriveBackup(context, fileId, authenticatedUid)
                 when (val stageResult = outcome.stageValidationResult) {
                     is Com.ak.testseries.data.backup.StageValidationResult.Failure -> {
-                        val reasonMsg = "${stageResult.reason}\n${stageResult.details ?: ""}".trim()
-                        val errCode = when {
-                            reasonMsg.contains("Insufficient", ignoreCase = true) -> Com.ak.testseries.data.backup.BackupErrorCode.INSUFFICIENT_STORAGE
-                            reasonMsg.contains("binding", ignoreCase = true) || reasonMsg.contains("owner", ignoreCase = true) -> Com.ak.testseries.data.backup.BackupErrorCode.ACCOUNT_MISMATCH
-                            reasonMsg.contains("corrupt", ignoreCase = true) || reasonMsg.contains("checksum", ignoreCase = true) -> Com.ak.testseries.data.backup.BackupErrorCode.CORRUPTED_ARCHIVE
-                            stageResult.cause is java.net.UnknownHostException || stageResult.cause is java.net.SocketTimeoutException -> Com.ak.testseries.data.backup.BackupErrorCode.NETWORK_ERROR
-                            else -> Com.ak.testseries.data.backup.BackupErrorCode.UNKNOWN
-                        }
                         _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
                             title = "Cloud Validation Failed",
-                            message = reasonMsg,
-                            errorCode = errCode
+                            message = "${stageResult.reason}\n${stageResult.details ?: ""}".trim()
                         )
                     }
                     is Com.ak.testseries.data.backup.StageValidationResult.Success -> {
@@ -7536,16 +7459,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             } catch (e: Exception) {
-                val msg = e.message ?: "Failed to download and stage cloud backup."
-                val errCode = when {
-                    msg.contains("Insufficient", ignoreCase = true) -> Com.ak.testseries.data.backup.BackupErrorCode.INSUFFICIENT_STORAGE
-                    e is java.net.UnknownHostException || e is java.net.SocketTimeoutException -> Com.ak.testseries.data.backup.BackupErrorCode.NETWORK_ERROR
-                    else -> Com.ak.testseries.data.backup.BackupErrorCode.UNKNOWN
-                }
                 _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
                     title = "Download Error",
-                    message = msg,
-                    errorCode = errCode
+                    message = e.message ?: "Failed to download and stage cloud backup."
                 )
             }
         }

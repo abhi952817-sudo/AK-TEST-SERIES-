@@ -147,8 +147,7 @@ class GoogleDriveBackupWorkerTest {
                 displayName: String?,
                 appVersionCode: Int,
                 appVersionName: String,
-                includeDiagrams: Boolean,
-                onProgress: ((Float, Long, Long) -> Unit)?
+                includeDiagrams: Boolean
             ): Result<GoogleDriveRemoteBackup> {
                 return Result.success(
                     GoogleDriveRemoteBackup(

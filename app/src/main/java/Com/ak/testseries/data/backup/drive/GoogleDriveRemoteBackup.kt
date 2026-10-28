@@ -118,11 +118,8 @@ data class GoogleDriveRemoteBackup(
                 } catch (_: Exception) {}
             }
 
-            // Strict Security Rule: Never extract ownerUid from fileName.
-            // Filename spoofing cannot be trusted for account ownership.
-            // If ownerUid is not in appProperties or description metadata, it remains blank/unverified.
-
             return GoogleDriveRemoteBackup(
+
                 fileId = fileId,
                 name = fileName,
                 sizeBytes = sizeBytes,

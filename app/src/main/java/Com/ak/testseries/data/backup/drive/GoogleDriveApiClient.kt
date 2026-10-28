@@ -32,34 +32,16 @@ interface DriveApiClient {
         file: File,
         manifest: BackupManifest
     ): Result<GoogleDriveRemoteBackup>
-
-    suspend fun uploadBackupFile(
-        accessToken: String,
-        folderId: String,
-        file: File,
-        manifest: BackupManifest,
-        onProgress: ((progressPercent: Float, bytesTransferred: Long, totalBytes: Long) -> Unit)?
-    ): Result<GoogleDriveRemoteBackup> = uploadBackupFile(accessToken, folderId, file, manifest)
-
     suspend fun listBackups(
         accessToken: String,
         folderId: String,
         targetUid: String
     ): Result<List<GoogleDriveRemoteBackup>>
-
     suspend fun downloadBackupFile(
         accessToken: String,
         fileId: String,
         destinationFile: File
     ): Result<File>
-
-    suspend fun downloadBackupFile(
-        accessToken: String,
-        fileId: String,
-        destinationFile: File,
-        onProgress: ((progressPercent: Float, bytesTransferred: Long, totalBytes: Long) -> Unit)?
-    ): Result<File> = downloadBackupFile(accessToken, fileId, destinationFile)
-
     suspend fun deleteBackupFile(
         accessToken: String,
         fileId: String
@@ -145,116 +127,69 @@ class OkHttpGoogleDriveApiClient(
         }
     }
 
-    /**
-     * Executes a network operation with exponential backoff retry for transient network dropouts.
-     */
-    private suspend fun <T> executeWithRetry(
-        maxRetries: Int = 3,
-        initialDelayMs: Long = 1000L,
-        operationName: String = "Google Drive operation",
-        block: suspend (attempt: Int) -> Result<T>
-    ): Result<T> {
-        var lastError: Throwable? = null
-        var delayMs = initialDelayMs
-        for (attempt in 1..maxRetries) {
-            val result = block(attempt)
-            if (result.isSuccess) {
-                return result
-            }
-            val ex = result.exceptionOrNull()
-            lastError = ex
-            // Do not retry permanent errors (e.g. 401, 403, 404, or security/validation exceptions)
-            if (ex is SecurityException || ex is IllegalArgumentException) {
-                return result
-            }
-            val msg = ex?.message ?: ""
-            if (msg.contains("HTTP 401") || msg.contains("HTTP 403") || msg.contains("HTTP 404")) {
-                return result
-            }
-            if (attempt < maxRetries) {
-                kotlinx.coroutines.delay(delayMs)
-                delayMs *= 2
-            }
-        }
-        return Result.failure(lastError ?: IOException("$operationName failed after $maxRetries attempts"))
-    }
-
     override suspend fun uploadBackupFile(
         accessToken: String,
         folderId: String,
         file: File,
         manifest: BackupManifest
-    ): Result<GoogleDriveRemoteBackup> = uploadBackupFile(accessToken, folderId, file, manifest, null)
-
-    override suspend fun uploadBackupFile(
-        accessToken: String,
-        folderId: String,
-        file: File,
-        manifest: BackupManifest,
-        onProgress: ((progressPercent: Float, bytesTransferred: Long, totalBytes: Long) -> Unit)?
     ): Result<GoogleDriveRemoteBackup> = withContext(Dispatchers.IO) {
-        if (!file.exists() || !file.isFile) {
-            return@withContext Result.failure(IllegalArgumentException("Backup source file not found: ${file.path}"))
-        }
-
-        executeWithRetry(maxRetries = 3, operationName = "Upload backup to Google Drive") {
-            try {
-                // Drive v3 multipart upload requires multipart/related
-                val metadataJson = JSONObject().apply {
-                    put("name", file.name)
-                    put("parents", JSONArray().put(folderId))
-                    put("description", manifest.toJsonString())
-                    put("appProperties", JSONObject().apply {
-                        put("ownerUid", manifest.owner.uid)
-                        put("schemaVersion", manifest.databaseSchemaVersion.toString())
-                        put("appVersionName", manifest.appVersionName)
-                        val manifestChecksum = manifest.checksums[BackupArchiveEngine.MANIFEST_ENTRY_NAME] ?: ""
-                        put("checksumSha256", manifestChecksum)
-                        put("completeness", manifest.completeness.name)
-                        put("privateTestsCount", manifest.stats.privateTestsCount.toString())
-                        put("attemptsCount", manifest.stats.attemptsCount.toString())
-                        put("questionsCount", manifest.stats.questionsCount.toString())
-                        put("diagramsCount", manifest.stats.diagramsCount.toString())
-                    })
-                }
-
-                val multipartBody = MultipartBody.Builder()
-                    .setType("multipart/related".toMediaType())
-                    .addPart(metadataJson.toString().toRequestBody(JSON_MEDIA_TYPE))
-                    .addPart(file.asRequestBody(OCTET_STREAM_MEDIA_TYPE))
-                    .build()
-
-                val uploadUrl = "$BASE_UPLOAD_API?uploadType=multipart&fields=id,name,size,createdTime,modifiedTime,description,appProperties"
-
-                val request = Request.Builder()
-                    .url(uploadUrl)
-                    .addHeader("Authorization", "Bearer $accessToken")
-                    .post(multipartBody)
-                    .build()
-
-                onProgress?.invoke(0.1f, 0L, file.length())
-
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        val errBody = response.body?.string() ?: ""
-                        return@executeWithRetry Result.failure(
-                            IOException("Google Drive backup upload failed: HTTP ${response.code} $errBody")
-                        )
-                    }
-
-                    val responseBody = response.body?.string() ?: "{}"
-                    val json = JSONObject(responseBody)
-                    val remoteBackup = GoogleDriveRemoteBackup.fromDriveFileJson(json)
-                    if (remoteBackup != null) {
-                        onProgress?.invoke(1.0f, file.length(), file.length())
-                        Result.success(remoteBackup.copy(driveFolderId = folderId))
-                    } else {
-                        Result.failure(IllegalStateException("Failed to parse remote backup metadata from Drive response."))
-                    }
-                }
-            } catch (e: Exception) {
-                Result.failure(e)
+        try {
+            if (!file.exists() || !file.isFile) {
+                return@withContext Result.failure(IllegalArgumentException("Backup source file not found: ${file.path}"))
             }
+
+            // Drive v3 multipart upload requires multipart/related
+            val metadataJson = JSONObject().apply {
+                put("name", file.name)
+                put("parents", JSONArray().put(folderId))
+                put("description", manifest.toJsonString())
+                put("appProperties", JSONObject().apply {
+                    put("ownerUid", manifest.owner.uid)
+                    put("schemaVersion", manifest.databaseSchemaVersion.toString())
+                    put("appVersionName", manifest.appVersionName)
+                    val manifestChecksum = manifest.checksums[BackupArchiveEngine.MANIFEST_ENTRY_NAME] ?: ""
+                    put("checksumSha256", manifestChecksum)
+                    put("completeness", manifest.completeness.name)
+                    put("privateTestsCount", manifest.stats.privateTestsCount.toString())
+                    put("attemptsCount", manifest.stats.attemptsCount.toString())
+                    put("questionsCount", manifest.stats.questionsCount.toString())
+                    put("diagramsCount", manifest.stats.diagramsCount.toString())
+                })
+            }
+
+            val multipartBody = MultipartBody.Builder()
+                .setType("multipart/related".toMediaType())
+                .addPart(metadataJson.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .addPart(file.asRequestBody(OCTET_STREAM_MEDIA_TYPE))
+                .build()
+
+            val uploadUrl = "$BASE_UPLOAD_API?uploadType=multipart&fields=id,name,size,createdTime,modifiedTime,description,appProperties"
+
+            val request = Request.Builder()
+                .url(uploadUrl)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .post(multipartBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errBody = response.body?.string() ?: ""
+                    return@withContext Result.failure(
+                        IOException("Google Drive backup upload failed: HTTP ${response.code} $errBody")
+                    )
+                }
+
+                val responseBody = response.body?.string() ?: "{}"
+                val json = JSONObject(responseBody)
+                val remoteBackup = GoogleDriveRemoteBackup.fromDriveFileJson(json)
+                if (remoteBackup != null) {
+                    Result.success(remoteBackup.copy(driveFolderId = folderId))
+                } else {
+                    Result.failure(IllegalStateException("Failed to parse remote backup metadata from Drive response."))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -294,11 +229,9 @@ class OkHttpGoogleDriveApiClient(
                 for (i in 0 until files.length()) {
                     val fileObj = files.getJSONObject(i)
                     val backup = GoogleDriveRemoteBackup.fromDriveFileJson(fileObj)
-                    // Strict zero-trust filter: require verified ownerUid matching targetUid.
-                    // NEVER accept based on filename containing UID.
-                    // NEVER overwrite foreign or unverified ownerUid with the current UID.
-                    if (backup != null && backup.ownerUid.isNotBlank() && backup.ownerUid == safeUid) {
-                        backupList.add(backup.copy(driveFolderId = folderId))
+                    // Strict zero-trust filter: only include backups owned by active user
+                    if (backup != null && (backup.ownerUid == safeUid || backup.name.contains(safeUid))) {
+                        backupList.add(backup.copy(driveFolderId = folderId, ownerUid = safeUid))
                     }
                 }
 
@@ -315,78 +248,36 @@ class OkHttpGoogleDriveApiClient(
         accessToken: String,
         fileId: String,
         destinationFile: File
-    ): Result<File> = downloadBackupFile(accessToken, fileId, destinationFile, null)
-
-    override suspend fun downloadBackupFile(
-        accessToken: String,
-        fileId: String,
-        destinationFile: File,
-        onProgress: ((progressPercent: Float, bytesTransferred: Long, totalBytes: Long) -> Unit)?
     ): Result<File> = withContext(Dispatchers.IO) {
-        executeWithRetry(maxRetries = 3, operationName = "Download backup $fileId") {
-            try {
-                destinationFile.parentFile?.mkdirs()
-                if (destinationFile.exists()) {
-                    destinationFile.delete()
+        try {
+            destinationFile.parentFile?.mkdirs()
+
+            val downloadUrl = "$BASE_DRIVE_API/$fileId?alt=media"
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errBody = response.body?.string() ?: ""
+                    return@withContext Result.failure(
+                        IOException("Google Drive download failed: HTTP ${response.code} $errBody")
+                    )
                 }
 
-                val downloadUrl = "$BASE_DRIVE_API/$fileId?alt=media"
-                val request = Request.Builder()
-                    .url(downloadUrl)
-                    .addHeader("Authorization", "Bearer $accessToken")
-                    .get()
-                    .build()
+                val inputStream = response.body?.byteStream()
+                    ?: return@withContext Result.failure(IOException("Empty response body from Google Drive."))
 
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        val errBody = response.body?.string() ?: ""
-                        return@executeWithRetry Result.failure(
-                            IOException("Google Drive download failed: HTTP ${response.code} $errBody")
-                        )
-                    }
-
-                    val body = response.body
-                        ?: return@executeWithRetry Result.failure(IOException("Empty response body from Google Drive."))
-                    val totalLength = body.contentLength()
-                    val inputStream = body.byteStream()
-
-                    var bytesReadTotal = 0L
-                    val buffer = ByteArray(8192)
-
-                    try {
-                        FileOutputStream(destinationFile).use { output ->
-                            while (true) {
-                                val read = inputStream.read(buffer)
-                                if (read == -1) break
-                                output.write(buffer, 0, read)
-                                bytesReadTotal += read
-                                if (totalLength > 0L) {
-                                    val frac = (bytesReadTotal.toFloat() / totalLength).coerceIn(0f, 1f)
-                                    onProgress?.invoke(frac, bytesReadTotal, totalLength)
-                                }
-                            }
-                            output.flush()
-                        }
-                        if (destinationFile.length() == 0L) {
-                            destinationFile.delete()
-                            return@executeWithRetry Result.failure(IOException("Downloaded zero-byte backup archive."))
-                        }
-                        onProgress?.invoke(1.0f, bytesReadTotal, if (totalLength > 0L) totalLength else bytesReadTotal)
-                        Result.success(destinationFile)
-                    } catch (ioEx: Exception) {
-                        // Crucial safety cleanup: delete partial file on interruption
-                        if (destinationFile.exists()) {
-                            destinationFile.delete()
-                        }
-                        throw ioEx
-                    }
+                FileOutputStream(destinationFile).use { output ->
+                    inputStream.copyTo(output)
                 }
-            } catch (e: Exception) {
-                if (destinationFile.exists()) {
-                    destinationFile.delete()
-                }
-                Result.failure(e)
+
+                Result.success(destinationFile)
             }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

@@ -1218,29 +1218,15 @@ fun BackupRestoreScreen(
 
         is RemoteBackupOperationState.Progress -> {
             AlertDialog(
-                onDismissRequest = { /* Non-cancellable during progress */ },
-                icon = {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            progress = { remoteState.progressFraction.coerceIn(0f, 1f) },
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Text(
-                            text = "${(remoteState.progressFraction * 100).toInt()}%",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                },
-                title = { Text(if (isHindi) "क्लाउड ट्रांसफ़र प्रगति पर" else "Transfer in Progress") },
+                onDismissRequest = { /* Non-cancellable */ },
+                icon = { CircularProgressIndicator(progress = { remoteState.progressFraction }, modifier = Modifier.size(36.dp)) },
+                title = { Text(if (isHindi) "क्लाउड ऑपरेशन प्रगति पर है" else "Google Drive Operation") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column {
                         Text(remoteState.message)
+                        Spacer(modifier = Modifier.height(8.dp))
                         LinearProgressIndicator(
-                            progress = { remoteState.progressFraction.coerceIn(0f, 1f) },
+                            progress = { remoteState.progressFraction },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -1248,6 +1234,7 @@ fun BackupRestoreScreen(
                 confirmButton = {}
             )
         }
+
 
         is RemoteBackupOperationState.Success -> {
             AlertDialog(

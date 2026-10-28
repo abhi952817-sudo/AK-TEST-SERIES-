@@ -421,7 +421,7 @@ class CloudAutoRestoreSecurityHardeningTest {
 
     private fun createTestArchiveWithAttempt(uid: String, sessionToken: String): File {
         val tempFile = File(context.cacheDir, "test_archive_attempt_$uid.aktsbak")
-        val manifest = BackupArchiveEngine.createAccountOwnedManifest(
+        val baseManifest = BackupArchiveEngine.createAccountOwnedManifest(
             uid = uid,
             email = "$uid@example.com",
             displayName = "User $uid",
@@ -429,6 +429,11 @@ class CloudAutoRestoreSecurityHardeningTest {
             appVersionName = "1.0",
             completeness = BackupCompleteness.COMPLETE_USER_DATA
         ).getOrThrow()
+
+        val manifest = baseManifest.copy(
+            stats = baseManifest.stats.copy(attemptsCount = 1)
+        )
+
 
         val attemptJson = JSONObject().apply {
             put("id", 1L)
