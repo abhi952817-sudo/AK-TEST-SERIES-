@@ -55,7 +55,8 @@ enum class AppScreen {
     SUBSCRIPTION,
     SETTINGS,
     PRIVATE_VAULT,
-    HIERARCHICAL_TEST_FLOW
+    HIERARCHICAL_TEST_FLOW,
+    BACKUP_RESTORE
 }
 
 enum class AppTheme {
@@ -780,6 +781,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             currentUserId.value = initialUid
             listenToCurrentUserAccountStatus(initialUid)
             loadUserBookmarks(initialUid)
+            loadLastBackupMetadata(getApplication(), initialUid)
             authStateListener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { firebaseAuth ->
                 val uid = firebaseAuth.currentUser?.uid ?: ""
                 val previousUid = currentUserId.value
@@ -800,6 +802,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     _examTimeRemaining.value = 0L
                     activeAttemptSessionToken = ""
                     loadUserBookmarks(uid)
+                    loadLastBackupMetadata(getApplication(), uid)
                 }
             }
             auth.addAuthStateListener(authStateListener!!)
@@ -6843,6 +6846,342 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 e.printStackTrace()
             }
         }
+    }
+
+    // --- Phase 4C: Local Backup & Restore ---
+    private val _backupUiState = MutableStateFlow<Com.ak.testseries.data.backup.BackupUiState>(Com.ak.testseries.data.backup.BackupUiState.Idle)
+    val backupUiState: StateFlow<Com.ak.testseries.data.backup.BackupUiState> = _backupUiState.asStateFlow()
+
+    private val _includeDiagramsInBackup = MutableStateFlow(true)
+    val includeDiagramsInBackup: StateFlow<Boolean> = _includeDiagramsInBackup.asStateFlow()
+
+    private val _lastBackupTimestamp = MutableStateFlow<Long?>(null)
+    val lastBackupTimestamp: StateFlow<Long?> = _lastBackupTimestamp.asStateFlow()
+
+    private val _lastBackupStats = MutableStateFlow<String?>(null)
+    val lastBackupStats: StateFlow<String?> = _lastBackupStats.asStateFlow()
+
+    private val _recentExports = MutableStateFlow<List<Com.ak.testseries.data.backup.BackupExportRecord>>(emptyList())
+    val recentExports: StateFlow<List<Com.ak.testseries.data.backup.BackupExportRecord>> = _recentExports.asStateFlow()
+
+    private val _backupReminderEnabled = MutableStateFlow(true)
+    val backupReminderEnabled: StateFlow<Boolean> = _backupReminderEnabled.asStateFlow()
+
+    fun setIncludeDiagramsInBackup(enabled: Boolean) {
+        _includeDiagramsInBackup.value = enabled
+    }
+
+    fun setBackupReminderEnabled(enabled: Boolean, context: android.content.Context) {
+        _backupReminderEnabled.value = enabled
+        val uid = currentUserId.value.trim()
+        if (uid.isNotBlank()) {
+            val prefs = context.getSharedPreferences("user_backup_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("backup_reminder_enabled_$uid", enabled).apply()
+        }
+    }
+
+    fun clearBackupHistory(context: android.content.Context) {
+        val uid = currentUserId.value.trim()
+        if (uid.isNotBlank()) {
+            val prefs = context.getSharedPreferences("user_backup_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().remove("recent_exports_history_$uid").apply()
+        }
+        _recentExports.value = emptyList()
+    }
+
+    fun loadLastBackupMetadata(context: android.content.Context, uid: String) {
+        val safeUid = uid.trim()
+        if (safeUid.isBlank()) {
+            _lastBackupTimestamp.value = null
+            _lastBackupStats.value = null
+            _recentExports.value = emptyList()
+            _backupReminderEnabled.value = true
+            return
+        }
+        val prefs = context.getSharedPreferences("user_backup_prefs", android.content.Context.MODE_PRIVATE)
+        val ts = prefs.getLong("last_backup_timestamp_$safeUid", 0L)
+        _lastBackupTimestamp.value = if (ts > 0L) ts else null
+        _lastBackupStats.value = prefs.getString("last_backup_stats_$safeUid", null)
+        _backupReminderEnabled.value = prefs.getBoolean("backup_reminder_enabled_$safeUid", true)
+        val historyJson = prefs.getString("recent_exports_history_$safeUid", null)
+        _recentExports.value = Com.ak.testseries.data.backup.BackupExportRecord.deserializeList(historyJson)
+    }
+
+    fun exportBackupToUri(
+        uri: android.net.Uri,
+        context: android.content.Context,
+        includeDiagrams: Boolean = _includeDiagramsInBackup.value
+    ) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val currentUser = auth.currentUser
+        val authenticatedUid = currentUser?.uid?.trim() ?: ""
+        if (currentUser == null || authenticatedUid.isBlank()) {
+            _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                title = "Export Denied",
+                message = "An authenticated user account is required to export an account backup. Please sign in."
+            )
+            return
+        }
+
+        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Exporting("Preparing account data archive...")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val tempFile = java.io.File(context.cacheDir, "export_staging_${System.currentTimeMillis()}.aktsbak")
+            try {
+                val email = currentUser.email?.ifBlank { null }
+                val displayName = currentUser.displayName?.ifBlank { null } ?: _userProfile.value.name.ifBlank { null }
+                val versionCode = Com.ak.testseries.BuildConfig.VERSION_CODE
+                val versionName = Com.ak.testseries.BuildConfig.VERSION_NAME
+
+                val fos = java.io.FileOutputStream(tempFile)
+                val exportResult = Com.ak.testseries.data.backup.AccountDataBackupAdapter.exportAccountBackup(
+                    context = context,
+                    db = db,
+                    uid = authenticatedUid,
+                    email = email,
+                    displayName = displayName,
+                    appVersionCode = versionCode,
+                    appVersionName = versionName,
+                    outputStream = fos,
+                    strictAssetIntegrity = true,
+                    includeDiagrams = includeDiagrams
+                )
+                fos.close()
+
+                if (exportResult.isFailure) {
+                    tempFile.delete()
+                    val err = exportResult.exceptionOrNull()
+                    _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                        title = "Export Failed",
+                        message = err?.message ?: "Unable to export account backup."
+                    )
+                    return@launch
+                }
+
+                val manifest = exportResult.getOrThrow()
+                _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Exporting("Writing archive to destination...")
+
+                val outputStream = context.contentResolver.openOutputStream(uri)
+                if (outputStream == null) {
+                    tempFile.delete()
+                    _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                        title = "Export Failed",
+                        message = "Could not open selected destination for writing. Permission or storage error."
+                    )
+                    return@launch
+                }
+
+                outputStream.use { out ->
+                    java.io.FileInputStream(tempFile).use { inStream ->
+                        inStream.copyTo(out, bufferSize = 8192)
+                    }
+                    out.flush()
+                }
+
+                val completenessDesc = if (manifest.completeness == Com.ak.testseries.data.backup.BackupCompleteness.COMPLETE_USER_DATA) {
+                    "Complete User Data"
+                } else {
+                    "Structural Only (Incomplete)"
+                }
+
+                val now = System.currentTimeMillis()
+                val statsSummary = "Tests: ${manifest.stats.privateTestsCount}, Attempts: ${manifest.stats.attemptsCount}, " +
+                        "Bookmarks: ${manifest.stats.bookmarkedCount}, Diagrams: ${manifest.stats.diagramsCount}"
+
+                val isComplete = manifest.completeness == Com.ak.testseries.data.backup.BackupCompleteness.COMPLETE_USER_DATA
+                val newRecord = Com.ak.testseries.data.backup.BackupExportRecord(
+                    timestamp = now,
+                    fileName = uri.lastPathSegment ?: "backup_${now}.aktsbak",
+                    statsSummary = statsSummary,
+                    totalBytes = tempFile.length(),
+                    isComplete = isComplete
+                )
+
+                try {
+                    val currentList = _recentExports.value.toMutableList()
+                    currentList.add(0, newRecord)
+                    val trimmed = currentList.take(5)
+                    _recentExports.value = trimmed
+
+                    val prefs = context.getSharedPreferences("user_backup_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putLong("last_backup_timestamp_$authenticatedUid", now)
+                        .putString("last_backup_stats_$authenticatedUid", statsSummary)
+                        .putString("recent_exports_history_$authenticatedUid", Com.ak.testseries.data.backup.BackupExportRecord.serializeList(trimmed))
+                        .apply()
+                    _lastBackupTimestamp.value = now
+                    _lastBackupStats.value = statsSummary
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.ExportSuccess(
+                    manifest = manifest,
+                    message = "Backup exported successfully ($completenessDesc).\n$statsSummary"
+                )
+            } catch (e: Exception) {
+                _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                    title = "Export Failed",
+                    message = e.message ?: "An unexpected I/O error occurred during export."
+                )
+            } finally {
+                if (tempFile.exists()) {
+                    tempFile.delete()
+                }
+            }
+        }
+    }
+
+    fun stageAndValidateBackupFromUri(uri: android.net.Uri, context: android.content.Context) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val currentUser = auth.currentUser
+        val authenticatedUid = currentUser?.uid?.trim() ?: ""
+        if (currentUser == null || authenticatedUid.isBlank()) {
+            _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                title = "Restore Denied",
+                message = "An authenticated user account is required to restore an account backup. Please sign in."
+            )
+            return
+        }
+
+        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Validating("Reading and validating backup file...")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val stagingFile = java.io.File(context.cacheDir, "import_staging_${System.currentTimeMillis()}.aktsbak")
+            try {
+                val inStream = context.contentResolver.openInputStream(uri)
+                if (inStream == null) {
+                    _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                        title = "Import Failed",
+                        message = "Could not read the selected backup file."
+                    )
+                    return@launch
+                }
+
+                java.io.FileOutputStream(stagingFile).use { outStream ->
+                    inStream.use { src ->
+                        src.copyTo(outStream, bufferSize = 8192)
+                    }
+                    outStream.flush()
+                }
+
+                if (stagingFile.length() == 0L) {
+                    stagingFile.delete()
+                    _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                        title = "Empty File",
+                        message = "Selected file is empty (0 bytes). Not a valid backup archive."
+                    )
+                    return@launch
+                }
+
+                val stageResult = java.io.FileInputStream(stagingFile).use { fis ->
+                    Com.ak.testseries.data.backup.AccountDataRestoreEngine.stageAndValidateAccountBackup(
+                        context = context,
+                        authenticatedUid = authenticatedUid,
+                        archiveInputStream = fis
+                    )
+                }
+
+                when (stageResult) {
+                    is Com.ak.testseries.data.backup.StageValidationResult.Failure -> {
+                        stagingFile.delete()
+                        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                            title = "Validation Failed",
+                            message = "${stageResult.reason}\n${stageResult.details ?: ""}".trim()
+                        )
+                    }
+                    is Com.ak.testseries.data.backup.StageValidationResult.Success -> {
+                        val staged = stageResult.stagedData
+                        val manifest = staged.manifest
+
+                        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.ValidationReady(
+                            manifest = manifest,
+                            stagingFile = stagingFile,
+                            stagedData = staged
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                if (stagingFile.exists()) stagingFile.delete()
+                _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                    title = "Import Error",
+                    message = e.message ?: "An error occurred while inspecting the backup file."
+                )
+            }
+        }
+    }
+
+    fun confirmAndExecuteRestore(context: android.content.Context) {
+        val currentState = _backupUiState.value
+        if (currentState !is Com.ak.testseries.data.backup.BackupUiState.ValidationReady) {
+            return
+        }
+
+        val stagingFile = currentState.stagingFile
+        val manifest = currentState.manifest
+        val stagedData = currentState.stagedData
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val authenticatedUid = auth.currentUser?.uid?.trim() ?: ""
+
+        if (authenticatedUid.isBlank() || authenticatedUid != manifest.owner.uid) {
+            stagedData?.cleanUp()
+            stagingFile.delete()
+            _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                title = "Restore Rejected",
+                message = "Authentication verification failed prior to commit."
+            )
+            return
+        }
+
+        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Restoring("Restoring tests, attempts, and bookmarks...")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val restoreResult = java.io.FileInputStream(stagingFile).use { fis ->
+                    Com.ak.testseries.data.backup.AccountDataRestoreEngine.restoreAccountBackup(
+                        context = context,
+                        db = db,
+                        authenticatedUid = authenticatedUid,
+                        archiveInputStream = fis
+                    )
+                }
+
+                when (restoreResult) {
+                    is Com.ak.testseries.data.backup.RestoreResult.Failure -> {
+                        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                            title = "Restore Failed",
+                            message = "${restoreResult.reason}\n${restoreResult.details ?: ""}".trim()
+                        )
+                    }
+                    is Com.ak.testseries.data.backup.RestoreResult.Success -> {
+                        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.RestoreSuccess(restoreResult)
+                        loadUserBookmarks(authenticatedUid)
+                        loadUserProfile()
+                    }
+                }
+            } catch (e: Exception) {
+                _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Error(
+                    title = "Restore Failed",
+                    message = e.message ?: "Unexpected error during restore commit."
+                )
+            } finally {
+                stagedData?.cleanUp()
+                if (stagingFile.exists()) {
+                    stagingFile.delete()
+                }
+            }
+        }
+    }
+
+    fun dismissBackupDialog() {
+        val current = _backupUiState.value
+        if (current is Com.ak.testseries.data.backup.BackupUiState.ValidationReady) {
+            current.stagedData?.cleanUp()
+            if (current.stagingFile.exists()) {
+                current.stagingFile.delete()
+            }
+        }
+        _backupUiState.value = Com.ak.testseries.data.backup.BackupUiState.Idle
     }
 }
 

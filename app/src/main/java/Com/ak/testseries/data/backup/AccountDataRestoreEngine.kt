@@ -43,6 +43,45 @@ sealed class RestoreResult {
 }
 
 /**
+ * Validated in-memory staging data container for an account backup archive.
+ * Staged data is verified and ready for inspection without writing to live Room tables or files.
+ */
+data class StagedBackupData(
+    val manifest: BackupManifest,
+    val tests: List<TestEntity>,
+    val questions: List<QuestionEntity>,
+    val attempts: List<AttemptEntity>,
+    val bookmarks: BookmarksBackupPayload,
+    val progress: ProgressBackupPayload,
+    val syllabus: SyllabusBackupPayload,
+    val profile: ProfileBackupPayload,
+    val stagedDiagramFiles: List<File>,
+    val stagedAvatarFile: File?,
+    val stagingDir: File
+) {
+    fun cleanUp() {
+        if (stagingDir.exists()) {
+            stagingDir.deleteRecursively()
+        }
+    }
+}
+
+/**
+ * Result contract for the staging and validation phase of the backup archive pipeline.
+ */
+sealed class StageValidationResult {
+    data class Success(
+        val stagedData: StagedBackupData
+    ) : StageValidationResult()
+
+    data class Failure(
+        val reason: String,
+        val details: String? = null,
+        val cause: Throwable? = null
+    ) : StageValidationResult()
+}
+
+/**
  * Transactional and validation-driven restore engine for AK TEST SERIES `.aktsbak` archives.
  *
  * Guarantees:
@@ -69,19 +108,21 @@ object AccountDataRestoreEngine {
     )
 
     /**
-     * Restores an account backup from [archiveInputStream] for the currently authenticated user [authenticatedUid].
+     * Validates and stages an account backup archive into an isolated staging directory.
+     * CRITICAL SAFEGUARD: This method validates all format versions, checksums, schema compatibility,
+     * entry limits, duplicate IDs, and account ownership, and parses all payloads into memory / staging,
+     * WITHOUT modifying live Room database tables, SharedPreferences, or live app files.
      */
-    suspend fun restoreAccountBackup(
+    fun stageAndValidateAccountBackup(
         context: Context,
-        db: AppDatabase,
         authenticatedUid: String,
         archiveInputStream: InputStream,
         limits: ArchiveLimits = ArchiveLimits(),
         overrideStagingDir: File? = null
-    ): RestoreResult {
+    ): StageValidationResult {
         val safeUid = authenticatedUid.trim()
         if (safeUid.isBlank()) {
-            return RestoreResult.Failure(
+            return StageValidationResult.Failure(
                 reason = "Unauthenticated restore rejected.",
                 details = "An authenticated user UID is required to restore an account backup. Unauthenticated guests cannot restore data."
             )
@@ -94,15 +135,17 @@ object AccountDataRestoreEngine {
 
         try {
             // STEP 1: Unpack and validate archive structure into staging directory
-            val unpackResult = unpackAndVerifyChecksums(archiveInputStream, stagingDir, limits)
-            if (unpackResult is RestoreResult.Failure) {
-                return unpackResult
+            val unpackError = unpackAndVerifyChecksums(archiveInputStream, stagingDir, limits)
+            if (unpackError != null) {
+                stagingDir.deleteRecursively()
+                return unpackError
             }
 
             // STEP 2: Parse and validate manifest
             val manifestFile = File(stagingDir, MANIFEST_FILE_NAME)
             if (!manifestFile.exists()) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Missing mandatory root manifest: $MANIFEST_FILE_NAME"
                 )
             }
@@ -110,7 +153,8 @@ object AccountDataRestoreEngine {
             val manifest = try {
                 BackupManifest.fromJsonString(manifestFile.readText(Charsets.UTF_8))
             } catch (e: Exception) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Malformed manifest JSON in archive.",
                     details = e.message,
                     cause = e
@@ -119,29 +163,34 @@ object AccountDataRestoreEngine {
 
             // Version checks
             if (manifest.formatVersion > BackupArchiveEngine.CURRENT_FORMAT_VERSION) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Unsupported future format version (${manifest.formatVersion}). Current supported version is ${BackupArchiveEngine.CURRENT_FORMAT_VERSION}."
                 )
             }
             if (manifest.formatVersion < 1) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Invalid format version (${manifest.formatVersion})."
                 )
             }
             if (manifest.databaseSchemaVersion > BackupArchiveEngine.CURRENT_SCHEMA_VERSION) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Unsupported future database schema version (${manifest.databaseSchemaVersion}). Current supported version is ${BackupArchiveEngine.CURRENT_SCHEMA_VERSION}."
                 )
             }
             if (manifest.databaseSchemaVersion < manifest.compatibility.minSupportedSchemaVersion) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Unsupported legacy database schema version (${manifest.databaseSchemaVersion})."
                 )
             }
 
             // Completeness check
             if (manifest.completeness != BackupCompleteness.COMPLETE_USER_DATA) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Incomplete backup archive rejected.",
                     details = "Archive completeness is '${manifest.completeness.name}', but full account restore requires '${BackupCompleteness.COMPLETE_USER_DATA.name}'."
                 )
@@ -149,7 +198,8 @@ object AccountDataRestoreEngine {
 
             // Account ownership check: strict match
             if (manifest.owner.uid != safeUid) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Account ownership mismatch rejected.",
                     details = "Backup owner UID ('${manifest.owner.uid}') does not match currently authenticated user ('$safeUid'). Cross-account restoration is prohibited."
                 )
@@ -159,7 +209,8 @@ object AccountDataRestoreEngine {
             for (category in MANDATORY_DATA_CATEGORIES) {
                 val categoryFile = File(stagingDir, category)
                 if (!categoryFile.exists() || !categoryFile.isFile) {
-                    return RestoreResult.Failure(
+                    stagingDir.deleteRecursively()
+                    return StageValidationResult.Failure(
                         reason = "Missing mandatory backup category: $category"
                     )
                 }
@@ -170,22 +221,36 @@ object AccountDataRestoreEngine {
                 val testsFile = File(stagingDir, "data/tests.json")
                 val testsArray = JSONArray(testsFile.readText(Charsets.UTF_8))
                 if (testsArray.length() != manifest.stats.privateTestsCount) {
-                    return RestoreResult.Failure(
+                    stagingDir.deleteRecursively()
+                    return StageValidationResult.Failure(
                         reason = "Inconsistent manifest stats: Expected ${manifest.stats.privateTestsCount} tests, found ${testsArray.length()} in data/tests.json."
                     )
                 }
-                (0 until testsArray.length()).map { i ->
+                val list = (0 until testsArray.length()).map { i ->
                     val entity = AccountDataBackupAdapter.jsonToTestEntity(testsArray.getJSONObject(i))
                     if (entity.uploaderId != safeUid) {
-                        return RestoreResult.Failure(
+                        stagingDir.deleteRecursively()
+                        return StageValidationResult.Failure(
                             reason = "Foreign account test detected in archive payload.",
                             details = "Test '${entity.id}' belongs to '${entity.uploaderId}', expected '$safeUid'."
                         )
                     }
                     entity
                 }
+                // Duplicate Test ID check
+                val seenTestIds = mutableSetOf<String>()
+                for (entity in list) {
+                    if (!seenTestIds.add(entity.id)) {
+                        stagingDir.deleteRecursively()
+                        return StageValidationResult.Failure(
+                            reason = "Duplicate test ID detected in archive: ${entity.id}"
+                        )
+                    }
+                }
+                list
             } catch (e: JSONException) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Invalid JSON structure in data/tests.json: ${e.message}",
                     cause = e
                 )
@@ -197,22 +262,36 @@ object AccountDataRestoreEngine {
                 val questionsFile = File(stagingDir, "data/questions.json")
                 val qArray = JSONArray(questionsFile.readText(Charsets.UTF_8))
                 if (qArray.length() != manifest.stats.questionsCount) {
-                    return RestoreResult.Failure(
+                    stagingDir.deleteRecursively()
+                    return StageValidationResult.Failure(
                         reason = "Inconsistent manifest stats: Expected ${manifest.stats.questionsCount} questions, found ${qArray.length()} in data/questions.json."
                     )
                 }
-                (0 until qArray.length()).map { i ->
+                val list = (0 until qArray.length()).map { i ->
                     val q = AccountDataBackupAdapter.jsonToQuestionEntity(qArray.getJSONObject(i))
                     if (!validTestIds.contains(q.testId)) {
-                        return RestoreResult.Failure(
+                        stagingDir.deleteRecursively()
+                        return StageValidationResult.Failure(
                             reason = "Orphaned question in backup payload.",
                             details = "Question '${q.id}' references unknown testId '${q.testId}'."
                         )
                     }
                     q
                 }
+                // Duplicate Question ID check
+                val seenQuestionIds = mutableSetOf<String>()
+                for (q in list) {
+                    if (!seenQuestionIds.add(q.id)) {
+                        stagingDir.deleteRecursively()
+                        return StageValidationResult.Failure(
+                            reason = "Duplicate question ID detected in archive: ${q.id}"
+                        )
+                    }
+                }
+                list
             } catch (e: JSONException) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Invalid JSON structure in data/questions.json: ${e.message}",
                     cause = e
                 )
@@ -222,22 +301,43 @@ object AccountDataRestoreEngine {
                 val attemptsFile = File(stagingDir, "data/attempts.json")
                 val attemptsArray = JSONArray(attemptsFile.readText(Charsets.UTF_8))
                 if (attemptsArray.length() != manifest.stats.attemptsCount) {
-                    return RestoreResult.Failure(
+                    stagingDir.deleteRecursively()
+                    return StageValidationResult.Failure(
                         reason = "Inconsistent manifest stats: Expected ${manifest.stats.attemptsCount} attempts, found ${attemptsArray.length()} in data/attempts.json."
                     )
                 }
-                (0 until attemptsArray.length()).map { i ->
+                val list = (0 until attemptsArray.length()).map { i ->
                     val attempt = AccountDataBackupAdapter.jsonToAttemptEntity(attemptsArray.getJSONObject(i))
                     if (attempt.userId != safeUid) {
-                        return RestoreResult.Failure(
+                        stagingDir.deleteRecursively()
+                        return StageValidationResult.Failure(
                             reason = "Foreign account attempt detected in archive payload.",
                             details = "Attempt '${attempt.id}' belongs to '${attempt.userId}', expected '$safeUid'."
                         )
                     }
                     attempt
                 }
+                // Duplicate Attempt ID and Session Token check
+                val seenAttemptIds = mutableSetOf<Int>()
+                val seenAttemptSessionTokens = mutableSetOf<String>()
+                for (attempt in list) {
+                    if (attempt.id > 0 && !seenAttemptIds.add(attempt.id)) {
+                        stagingDir.deleteRecursively()
+                        return StageValidationResult.Failure(
+                            reason = "Duplicate attempt ID detected in archive: ${attempt.id}"
+                        )
+                    }
+                    if (attempt.attemptSessionToken.isNotBlank() && !seenAttemptSessionTokens.add(attempt.attemptSessionToken)) {
+                        stagingDir.deleteRecursively()
+                        return StageValidationResult.Failure(
+                            reason = "Duplicate attempt session token detected in archive: ${attempt.attemptSessionToken}"
+                        )
+                    }
+                }
+                list
             } catch (e: JSONException) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Invalid JSON structure in data/attempts.json: ${e.message}",
                     cause = e
                 )
@@ -247,13 +347,15 @@ object AccountDataRestoreEngine {
                 val bookmarksFile = File(stagingDir, "data/bookmarks.json")
                 val payload = BookmarksBackupPayload.fromJsonObject(JSONObject(bookmarksFile.readText(Charsets.UTF_8)))
                 if (payload.userId != safeUid) {
-                    return RestoreResult.Failure(
+                    stagingDir.deleteRecursively()
+                    return StageValidationResult.Failure(
                         reason = "Foreign account bookmarks detected: ${payload.userId}"
                     )
                 }
                 payload
             } catch (e: JSONException) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Invalid JSON in data/bookmarks.json: ${e.message}",
                     cause = e
                 )
@@ -263,13 +365,15 @@ object AccountDataRestoreEngine {
                 val progressFile = File(stagingDir, "data/progress.json")
                 val payload = ProgressBackupPayload.fromJsonObject(JSONObject(progressFile.readText(Charsets.UTF_8)))
                 if (payload.userId != safeUid) {
-                    return RestoreResult.Failure(
+                    stagingDir.deleteRecursively()
+                    return StageValidationResult.Failure(
                         reason = "Foreign account progress detected: ${payload.userId}"
                     )
                 }
                 payload
             } catch (e: JSONException) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Invalid JSON in data/progress.json: ${e.message}",
                     cause = e
                 )
@@ -279,13 +383,15 @@ object AccountDataRestoreEngine {
                 val syllabusFile = File(stagingDir, "data/syllabus.json")
                 val payload = SyllabusBackupPayload.fromJsonObject(JSONObject(syllabusFile.readText(Charsets.UTF_8)))
                 if (payload.userId != safeUid) {
-                    return RestoreResult.Failure(
+                    stagingDir.deleteRecursively()
+                    return StageValidationResult.Failure(
                         reason = "Foreign account syllabus detected: ${payload.userId}"
                     )
                 }
                 payload
             } catch (e: JSONException) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Invalid JSON in data/syllabus.json: ${e.message}",
                     cause = e
                 )
@@ -295,13 +401,15 @@ object AccountDataRestoreEngine {
                 val profileFile = File(stagingDir, "data/profile.json")
                 val payload = ProfileBackupPayload.fromJsonObject(JSONObject(profileFile.readText(Charsets.UTF_8)))
                 if (payload.userId != safeUid) {
-                    return RestoreResult.Failure(
+                    stagingDir.deleteRecursively()
+                    return StageValidationResult.Failure(
                         reason = "Foreign account profile detected: ${payload.userId}"
                     )
                 }
                 payload
             } catch (e: JSONException) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Invalid JSON in data/profile.json: ${e.message}",
                     cause = e
                 )
@@ -311,15 +419,93 @@ object AccountDataRestoreEngine {
             val diagramsDir = File(stagingDir, "assets/diagrams")
             val stagedDiagramFiles = mutableListOf<File>()
             if (diagramsDir.exists() && diagramsDir.isDirectory) {
+                val stagingCanonical = stagingDir.canonicalFile.path
                 diagramsDir.walkTopDown().filter { it.isFile }.forEach { file ->
+                    val fileCanonical = file.canonicalFile.path
+                    if (!fileCanonical.startsWith(stagingCanonical)) {
+                        stagingDir.deleteRecursively()
+                        return StageValidationResult.Failure(
+                            reason = "Path traversal detected in diagram asset: ${file.path}"
+                        )
+                    }
                     stagedDiagramFiles.add(file)
                 }
             }
             if (stagedDiagramFiles.size != manifest.stats.diagramsCount) {
-                return RestoreResult.Failure(
+                stagingDir.deleteRecursively()
+                return StageValidationResult.Failure(
                     reason = "Inconsistent manifest stats: Expected ${manifest.stats.diagramsCount} diagrams, found ${stagedDiagramFiles.size}."
                 )
             }
+
+            val stagedAvatar = File(stagingDir, "assets/profile/avatar.jpg")
+            val stagedAvatarFile = if (stagedAvatar.exists() && stagedAvatar.isFile) stagedAvatar else null
+
+            return StageValidationResult.Success(
+                stagedData = StagedBackupData(
+                    manifest = manifest,
+                    tests = parsedTests,
+                    questions = parsedQuestions,
+                    attempts = parsedAttempts,
+                    bookmarks = parsedBookmarks,
+                    progress = parsedProgress,
+                    syllabus = parsedSyllabus,
+                    profile = parsedProfile,
+                    stagedDiagramFiles = stagedDiagramFiles,
+                    stagedAvatarFile = stagedAvatarFile,
+                    stagingDir = stagingDir
+                )
+            )
+        } catch (e: Exception) {
+            stagingDir.deleteRecursively()
+            return StageValidationResult.Failure(
+                reason = "Unexpected error during backup staging and validation: ${e.message}",
+                cause = e
+            )
+        }
+    }
+
+    /**
+     * Restores an account backup from [archiveInputStream] for the currently authenticated user [authenticatedUid].
+     */
+    suspend fun restoreAccountBackup(
+        context: Context,
+        db: AppDatabase,
+        authenticatedUid: String,
+        archiveInputStream: InputStream,
+        limits: ArchiveLimits = ArchiveLimits(),
+        overrideStagingDir: File? = null
+    ): RestoreResult {
+        val stageResult = stageAndValidateAccountBackup(
+            context = context,
+            authenticatedUid = authenticatedUid,
+            archiveInputStream = archiveInputStream,
+            limits = limits,
+            overrideStagingDir = overrideStagingDir
+        )
+
+        if (stageResult is StageValidationResult.Failure) {
+            return RestoreResult.Failure(
+                reason = stageResult.reason,
+                details = stageResult.details,
+                cause = stageResult.cause
+            )
+        }
+
+        val stagedData = (stageResult as StageValidationResult.Success).stagedData
+        val stagingDir = stagedData.stagingDir
+        val safeUid = authenticatedUid.trim()
+
+        try {
+            val manifest = stagedData.manifest
+            val parsedTests = stagedData.tests
+            val parsedQuestions = stagedData.questions
+            val parsedAttempts = stagedData.attempts
+            val parsedBookmarks = stagedData.bookmarks
+            val parsedProgress = stagedData.progress
+            val parsedSyllabus = stagedData.syllabus
+            val parsedProfile = stagedData.profile
+            val stagedDiagramFiles = stagedData.stagedDiagramFiles
 
             // STEP 4: Conflict Resolution and Entity Preparation
             val testsToInsert = mutableListOf<TestEntity>()
@@ -596,7 +782,7 @@ object AccountDataRestoreEngine {
         inputStream: InputStream,
         stagingDir: File,
         limits: ArchiveLimits
-    ): RestoreResult? {
+    ): StageValidationResult.Failure? {
         val zipIn = ZipInputStream(BufferedInputStream(inputStream))
         val seenEntryNames = mutableSetOf<String>()
         val computedChecksums = mutableMapOf<String, String>()
@@ -608,7 +794,7 @@ object AccountDataRestoreEngine {
             while (zipEntry != null) {
                 totalEntries++
                 if (totalEntries > limits.maxEntries) {
-                    return RestoreResult.Failure(
+                    return StageValidationResult.Failure(
                         reason = "Archive exceeds maximum allowed entry count (${limits.maxEntries})."
                     )
                 }
@@ -616,7 +802,7 @@ object AccountDataRestoreEngine {
                 val rawName = zipEntry.name
                 val pathValidation = BackupArchiveEngine.sanitizeEntryPath(rawName)
                 if (pathValidation.isFailure) {
-                    return RestoreResult.Failure(
+                    return StageValidationResult.Failure(
                         reason = "Path traversal or illegal entry path in archive: $rawName",
                         details = pathValidation.exceptionOrNull()?.message
                     )
@@ -624,7 +810,7 @@ object AccountDataRestoreEngine {
                 val cleanPath = pathValidation.getOrThrow()
 
                 if (!seenEntryNames.add(cleanPath)) {
-                    return RestoreResult.Failure(
+                    return StageValidationResult.Failure(
                         reason = "Duplicate entry detected in archive: $cleanPath"
                     )
                 }
@@ -632,7 +818,7 @@ object AccountDataRestoreEngine {
                 val targetFile = File(stagingDir, cleanPath)
                 val canonicalTarget = targetFile.canonicalFile
                 if (!canonicalTarget.path.startsWith(stagingDir.canonicalFile.path)) {
-                    return RestoreResult.Failure(
+                    return StageValidationResult.Failure(
                         reason = "ZipSlip detected: Entry path '$rawName' resolves outside staging directory."
                     )
                 }
@@ -646,13 +832,13 @@ object AccountDataRestoreEngine {
                 while (zipIn.read(buffer).also { read = it } != -1) {
                     entryBytesRead += read
                     if (entryBytesRead > limits.maxSingleEntryBytes) {
-                        return RestoreResult.Failure(
+                        return StageValidationResult.Failure(
                             reason = "Archive entry '$cleanPath' exceeds single entry limit (${limits.maxSingleEntryBytes} bytes)."
                         )
                     }
                     totalUncompressedBytes += read
                     if (totalUncompressedBytes > limits.maxTotalUncompressedBytes) {
-                        return RestoreResult.Failure(
+                        return StageValidationResult.Failure(
                             reason = "Archive total uncompressed bytes exceeds limit (${limits.maxTotalUncompressedBytes} bytes)."
                         )
                     }
@@ -670,7 +856,7 @@ object AccountDataRestoreEngine {
                 zipEntry = zipIn.nextEntry
             }
         } catch (e: Exception) {
-            return RestoreResult.Failure(
+            return StageValidationResult.Failure(
                 reason = "Archive container is corrupted or not a valid ZIP: ${e.message}",
                 cause = e
             )
@@ -679,7 +865,7 @@ object AccountDataRestoreEngine {
         // Validate manifest entry presence
         val manifestFile = File(stagingDir, MANIFEST_FILE_NAME)
         if (!manifestFile.exists()) {
-            return RestoreResult.Failure(
+            return StageValidationResult.Failure(
                 reason = "Missing mandatory root manifest: $MANIFEST_FILE_NAME"
             )
         }
@@ -687,7 +873,7 @@ object AccountDataRestoreEngine {
         val manifest = try {
             BackupManifest.fromJsonString(manifestFile.readText(Charsets.UTF_8))
         } catch (e: Exception) {
-            return RestoreResult.Failure(
+            return StageValidationResult.Failure(
                 reason = "Malformed manifest JSON in archive: ${e.message}",
                 cause = e
             )
@@ -697,12 +883,12 @@ object AccountDataRestoreEngine {
         for ((expectedPath, expectedHash) in manifest.checksums) {
             val foundHash = computedChecksums[expectedPath]
             if (foundHash == null) {
-                return RestoreResult.Failure(
+                return StageValidationResult.Failure(
                     reason = "Manifest declares file '$expectedPath', but it was not found in the archive."
                 )
             }
             if (!foundHash.equals(expectedHash, ignoreCase = true)) {
-                return RestoreResult.Failure(
+                return StageValidationResult.Failure(
                     reason = "Integrity check failed: Checksum mismatch for '$expectedPath'.",
                     details = "Expected: $expectedHash, Found: $foundHash"
                 )
@@ -712,7 +898,7 @@ object AccountDataRestoreEngine {
         // Check for unmanifested extraneous files
         for (foundPath in computedChecksums.keys) {
             if (!manifest.checksums.containsKey(foundPath)) {
-                return RestoreResult.Failure(
+                return StageValidationResult.Failure(
                     reason = "Archive contains unmanifested extra file: '$foundPath'."
                 )
             }

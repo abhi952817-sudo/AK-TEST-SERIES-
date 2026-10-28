@@ -265,6 +265,53 @@ object AccountDataBackupAdapter {
         )
     }
 
+    /**
+     * Serializes a list of [TestEntity] records into a JSON array preserving all 40 fields.
+     */
+    fun serializeTestsToJsonArray(tests: List<TestEntity>): JSONArray {
+        val array = JSONArray()
+        tests.forEach { array.put(testEntityToJson(it)) }
+        return array
+    }
+
+    /**
+     * Safely deserializes a JSON array of tests into a list of [TestEntity] instances.
+     * Validates that entries are valid JSON objects and contain non-blank primary keys.
+     */
+    fun deserializeTestsFromJsonArray(jsonArray: JSONArray): Result<List<TestEntity>> {
+        val list = mutableListOf<TestEntity>()
+        for (i in 0 until jsonArray.length()) {
+            val item = jsonArray.optJSONObject(i)
+                ?: return Result.failure(IllegalArgumentException("Malformed item at index $i: expected JSON object"))
+            val id = item.optString("id", "").trim()
+            if (id.isBlank()) {
+                return Result.failure(IllegalArgumentException("Malformed item at index $i: missing or blank 'id'"))
+            }
+            try {
+                list.add(jsonToTestEntity(item))
+            } catch (e: Exception) {
+                return Result.failure(IllegalArgumentException("Failed to parse test at index $i: ${e.message}", e))
+            }
+        }
+        return Result.success(list)
+    }
+
+    /**
+     * Filters tests strictly to eligible private tests owned by [authenticatedUid].
+     * Excludes:
+     * - Tests owned by other users
+     * - Unauthenticated or blank UID queries
+     * - Anonymous tests
+     * - Public community tests (unless marked as private vault tests)
+     */
+    fun filterEligiblePrivateTests(allTests: List<TestEntity>, authenticatedUid: String): List<TestEntity> {
+        val safeUid = authenticatedUid.trim()
+        if (safeUid.isBlank() || safeUid == "anonymous" || safeUid.equals("admin", ignoreCase = true)) return emptyList()
+        return allTests.filter { test ->
+            test.uploaderId.isNotBlank() && test.uploaderId != "anonymous" && test.uploaderId == safeUid && (!test.isPublic || test.institute.contains("Private", ignoreCase = true))
+        }.sortedBy { it.id }
+    }
+
     fun questionEntityToJson(entity: QuestionEntity): JSONObject {
         return JSONObject().apply {
             put("id", entity.id)
@@ -325,6 +372,41 @@ object AccountDataBackupAdapter {
             optionE = if (json.has("optionE") && !json.isNull("optionE")) json.getString("optionE") else null,
             optionEHi = if (json.has("optionEHi") && !json.isNull("optionEHi")) json.getString("optionEHi") else null
         )
+    }
+
+    /**
+     * Serializes a list of [QuestionEntity] records into a JSON array preserving all 26 fields.
+     */
+    fun serializeQuestionsToJsonArray(questions: List<QuestionEntity>): JSONArray {
+        val array = JSONArray()
+        questions.forEach { array.put(questionEntityToJson(it)) }
+        return array
+    }
+
+    /**
+     * Safely deserializes a JSON array of questions into a list of [QuestionEntity] instances.
+     * Validates that entries are valid JSON objects and contain non-blank primary key 'id' and foreign key 'testId'.
+     */
+    fun deserializeQuestionsFromJsonArray(jsonArray: JSONArray): Result<List<QuestionEntity>> {
+        val list = mutableListOf<QuestionEntity>()
+        for (i in 0 until jsonArray.length()) {
+            val item = jsonArray.optJSONObject(i)
+                ?: return Result.failure(IllegalArgumentException("Malformed item at index $i: expected JSON object"))
+            val id = item.optString("id", "").trim()
+            if (id.isBlank()) {
+                return Result.failure(IllegalArgumentException("Malformed item at index $i: missing or blank 'id'"))
+            }
+            val testId = item.optString("testId", "").trim()
+            if (testId.isBlank()) {
+                return Result.failure(IllegalArgumentException("Malformed item at index $i: missing or blank 'testId'"))
+            }
+            try {
+                list.add(jsonToQuestionEntity(item))
+            } catch (e: Exception) {
+                return Result.failure(IllegalArgumentException("Failed to parse question at index $i (id=$id): ${e.message}", e))
+            }
+        }
+        return Result.success(list)
     }
 
     fun attemptEntityToJson(entity: AttemptEntity): JSONObject {
@@ -425,65 +507,8 @@ object AccountDataBackupAdapter {
         questions: List<QuestionEntity>,
         limits: ArchiveLimits = ArchiveLimits()
     ): Result<Map<String, ByteArray>> {
-        val diagramEntries = mutableMapOf<String, ByteArray>()
-        val missingReferencedAssets = mutableListOf<String>()
-        val filesDirCanonical = context.filesDir.canonicalFile
-
-        try {
-            for (test in ownedTests) {
-                val testDiagramsDir = File(context.filesDir, "private_tests/${test.id}/diagrams")
-                if (testDiagramsDir.exists() && testDiagramsDir.isDirectory) {
-                    val files = testDiagramsDir.listFiles() ?: emptyArray()
-                    for (file in files) {
-                        if (file.isFile) {
-                            val canonical = file.canonicalFile
-                            if (!canonical.path.startsWith(filesDirCanonical.path)) {
-                                return Result.failure(
-                                    SecurityException("Diagram file path escapes filesDir boundary: ${file.path}")
-                                )
-                            }
-                            if (file.length() > limits.maxSingleEntryBytes) {
-                                return Result.failure(
-                                    IllegalStateException("Diagram file ${file.name} exceeds max single-entry limit (${file.length()} bytes)")
-                                )
-                            }
-                            val entryPath = "assets/diagrams/${test.id}/${file.name}"
-                            diagramEntries[entryPath] = file.readBytes()
-                        }
-                    }
-                }
-            }
-
-            // Also check individual question imageUrls if pointing to local files in filesDir
-            for (question in questions) {
-                val imgUrl = question.imageUrl
-                if (!imgUrl.isNullOrBlank() && !imgUrl.startsWith("http://") && !imgUrl.startsWith("https://")) {
-                    val localFile = File(imgUrl).let {
-                        if (it.isAbsolute) it else File(context.filesDir, imgUrl)
-                    }
-                    if (localFile.exists() && localFile.isFile) {
-                        val canonical = localFile.canonicalFile
-                        if (canonical.path.startsWith(filesDirCanonical.path)) {
-                            val entryPath = "assets/diagrams/${question.testId}/${canonical.name}"
-                            if (!diagramEntries.containsKey(entryPath)) {
-                                if (localFile.length() > limits.maxSingleEntryBytes) {
-                                    return Result.failure(
-                                        IllegalStateException("Question diagram ${localFile.name} exceeds max single-entry limit")
-                                    )
-                                }
-                                diagramEntries[entryPath] = localFile.readBytes()
-                            }
-                        }
-                    } else {
-                        missingReferencedAssets.add("Question '${question.id}' in test '${question.testId}' references missing diagram: $imgUrl")
-                    }
-                }
-            }
-
-            return Result.success(diagramEntries)
-        } catch (e: Exception) {
-            return Result.failure(e)
-        }
+        val result = collectDiagramAssetsWithMissingDetection(context, ownedTests, questions, limits)
+        return result.map { it.entries }
     }
 
     /**
@@ -501,13 +526,15 @@ object AccountDataBackupAdapter {
 
         try {
             for (test in ownedTests) {
+                // 1. Diagrams directory for this test
                 val testDiagramsDir = File(context.filesDir, "private_tests/${test.id}/diagrams")
                 if (testDiagramsDir.exists() && testDiagramsDir.isDirectory) {
                     val files = testDiagramsDir.listFiles() ?: emptyArray()
                     for (file in files) {
                         if (file.isFile) {
                             val canonical = file.canonicalFile
-                            if (!canonical.path.startsWith(filesDirCanonical.path)) {
+                            val isWithinFilesDir = canonical.path == filesDirCanonical.path || canonical.path.startsWith(filesDirCanonical.path + File.separator)
+                            if (!isWithinFilesDir) {
                                 return Result.failure(
                                     SecurityException("Diagram file path escapes filesDir boundary: ${file.path}")
                                 )
@@ -522,26 +549,52 @@ object AccountDataBackupAdapter {
                         }
                     }
                 }
+
+                // 2. Direct test-level image/banner reference if pointing to local file
+                val testImg = test.imageUrl
+                if (!testImg.isNullOrBlank() && !testImg.startsWith("http://") && !testImg.startsWith("https://") && !testImg.startsWith("content://")) {
+                    val localFile = if (File(testImg).isAbsolute) File(testImg) else File(context.filesDir, testImg)
+                    val canonical = localFile.canonicalFile
+                    val isWithinFilesDir = canonical.path == filesDirCanonical.path || canonical.path.startsWith(filesDirCanonical.path + File.separator)
+                    if (!isWithinFilesDir) {
+                        return Result.failure(
+                            SecurityException("Test banner path escapes filesDir boundary: $testImg")
+                        )
+                    }
+                    if (localFile.exists() && localFile.isFile) {
+                        val entryPath = "assets/diagrams/${test.id}/${canonical.name}"
+                        if (!diagramEntries.containsKey(entryPath)) {
+                            if (localFile.length() > limits.maxSingleEntryBytes) {
+                                return Result.failure(
+                                    IllegalStateException("Test banner ${localFile.name} exceeds max single-entry limit (${localFile.length()} bytes)")
+                                )
+                            }
+                            diagramEntries[entryPath] = localFile.readBytes()
+                        }
+                    } else {
+                        missingReferencedAssets.add("Test '${test.id}' references missing image: $testImg")
+                    }
+                }
             }
 
+            // 3. Question diagram references
             for (question in questions) {
                 val imgUrl = question.imageUrl
                 if (!imgUrl.isNullOrBlank() && !imgUrl.startsWith("http://") && !imgUrl.startsWith("https://") && !imgUrl.startsWith("content://")) {
-                    val localFile = File(imgUrl).let {
-                        if (it.isAbsolute) it else File(context.filesDir, imgUrl)
+                    val localFile = if (File(imgUrl).isAbsolute) File(imgUrl) else File(context.filesDir, imgUrl)
+                    val canonical = localFile.canonicalFile
+                    val isWithinFilesDir = canonical.path == filesDirCanonical.path || canonical.path.startsWith(filesDirCanonical.path + File.separator)
+                    if (!isWithinFilesDir) {
+                        return Result.failure(
+                            SecurityException("Question diagram path escapes filesDir boundary: $imgUrl")
+                        )
                     }
                     if (localFile.exists() && localFile.isFile) {
-                        val canonical = localFile.canonicalFile
-                        if (!canonical.path.startsWith(filesDirCanonical.path)) {
-                            return Result.failure(
-                                SecurityException("Question diagram path escapes filesDir: ${localFile.path}")
-                            )
-                        }
                         val entryPath = "assets/diagrams/${question.testId}/${canonical.name}"
                         if (!diagramEntries.containsKey(entryPath)) {
                             if (localFile.length() > limits.maxSingleEntryBytes) {
                                 return Result.failure(
-                                    IllegalStateException("Question diagram ${localFile.name} exceeds max single-entry limit")
+                                    IllegalStateException("Question diagram ${localFile.name} exceeds max single-entry limit (${localFile.length()} bytes)")
                                 )
                             }
                             diagramEntries[entryPath] = localFile.readBytes()
@@ -559,6 +612,169 @@ object AccountDataBackupAdapter {
     }
 
     // --- Main Export Orchestrator ---
+
+    /**
+     * Phase 4B-1: Room Test Data Backup Adapter Only.
+     * Serializes only eligible private tests owned by [uid] into a verifiable .aktsbak archive.
+     *
+     * Rules:
+     * - Only exports eligible private tests owned by the authenticated UID.
+     * - Excludes other users' tests and unauthenticated/blank UIDs.
+     * - Declares BackupCompleteness.STRUCTURAL_ONLY because this contains only Room test data.
+     * - Packages data into 'data/tests.json'.
+     */
+    suspend fun exportRoomTestsBackup(
+        db: AppDatabase,
+        uid: String,
+        email: String? = null,
+        displayName: String? = null,
+        appVersionCode: Int = 1,
+        appVersionName: String = "1.0",
+        outputStream: OutputStream,
+        limits: ArchiveLimits = ArchiveLimits()
+    ): Result<BackupManifest> {
+        val safeUid = uid.trim()
+        if (safeUid.isBlank()) {
+            return Result.failure(
+                IllegalArgumentException("Authenticated UID is required for account backup. Unauthenticated or blank UID cannot create an account backup.")
+            )
+        }
+
+        try {
+            val allTests = db.testDao().getAllTestsList()
+            val ownedTests = filterEligiblePrivateTests(allTests, safeUid)
+
+            val testsJsonArray = serializeTestsToJsonArray(ownedTests)
+            val entries = mutableMapOf<String, ByteArray>()
+            entries["data/tests.json"] = testsJsonArray.toString(2).toByteArray(Charsets.UTF_8)
+
+            // Completeness is explicitly STRUCTURAL_ONLY (only Room tests; questions/attempts/bookmarks/etc. are not included)
+            val completenessStatus = BackupCompleteness.STRUCTURAL_ONLY
+
+            val manifestDraft = BackupArchiveEngine.createAccountOwnedManifest(
+                uid = safeUid,
+                email = email?.trim()?.ifBlank { null },
+                displayName = displayName?.trim()?.ifBlank { null },
+                appVersionCode = appVersionCode,
+                appVersionName = appVersionName,
+                completeness = completenessStatus
+            ).getOrThrow()
+
+            val stats = BackupStats(
+                privateTestsCount = ownedTests.size,
+                questionsCount = 0,
+                attemptsCount = 0,
+                inProgressCount = 0,
+                bookmarkedCount = 0,
+                diagramsCount = 0
+            )
+
+            val manifestWithStats = manifestDraft.copy(stats = stats)
+            return BackupArchiveEngine.buildArchive(outputStream, manifestWithStats, entries, limits)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    /**
+     * Phase 4B-2: Question & Diagram Backup Adapter.
+     * Serializes only eligible private tests owned by [uid], their canonical Room [QuestionEntity] records,
+     * and any referenced diagram/media assets into a verifiable .aktsbak archive.
+     *
+     * Rules:
+     * - Only exports questions for tests owned by the authenticated UID (using [filterEligiblePrivateTests]).
+     * - Excludes other users' questions, public tests, and unauthenticated/blank UIDs.
+     * - Collects diagrams from filesDir/private_tests/{testId}/diagrams/ and referenced question/test local images.
+     * - Strictly prevents path traversal outside filesDir boundary.
+     * - Enforces per-file and total archive limits.
+     * - Declares BackupCompleteness.STRUCTURAL_ONLY (because user attempt history, bookmarks, progress, etc. are excluded).
+     * - Packages data into 'data/tests.json', 'data/questions.json', and 'assets/diagrams/{testId}/{filename}'.
+     */
+    suspend fun exportRoomQuestionsAndDiagramsBackup(
+        context: Context,
+        db: AppDatabase,
+        uid: String,
+        email: String? = null,
+        displayName: String? = null,
+        appVersionCode: Int = 1,
+        appVersionName: String = "1.0",
+        outputStream: OutputStream,
+        limits: ArchiveLimits = ArchiveLimits(),
+        strictAssetIntegrity: Boolean = true
+    ): Result<BackupManifest> {
+        val safeUid = uid.trim()
+        if (safeUid.isBlank()) {
+            return Result.failure(
+                IllegalArgumentException("Authenticated UID is required for account backup. Unauthenticated or blank UID cannot create an account backup.")
+            )
+        }
+
+        try {
+            val allTests = db.testDao().getAllTestsList()
+            val ownedTests = filterEligiblePrivateTests(allTests, safeUid)
+
+            // Canonical question source is Room QuestionEntity
+            val allQuestions = mutableListOf<QuestionEntity>()
+            for (test in ownedTests) {
+                val questionsForTest = db.questionDao().getQuestionsForTestList(test.id)
+                allQuestions.addAll(questionsForTest)
+            }
+            allQuestions.sortBy { it.id }
+
+            val diagramsResult = collectDiagramAssetsWithMissingDetection(context, ownedTests, allQuestions, limits)
+            if (diagramsResult.isFailure) {
+                return Result.failure(diagramsResult.exceptionOrNull()!!)
+            }
+            val diagramCollection = diagramsResult.getOrThrow()
+            val diagramEntries = diagramCollection.entries
+            val missingAssets = diagramCollection.missingReferencedAssets
+
+            if (missingAssets.isNotEmpty() && strictAssetIntegrity) {
+                return Result.failure(
+                    IllegalStateException(
+                        "Missing ${missingAssets.size} referenced diagram asset(s): ${missingAssets.joinToString("; ")}. Cannot export backup with missing referenced diagrams in strict mode."
+                    )
+                )
+            }
+
+            val testsJsonArray = serializeTestsToJsonArray(ownedTests)
+            val questionsJsonArray = serializeQuestionsToJsonArray(allQuestions)
+
+            val entries = mutableMapOf<String, ByteArray>()
+            entries["data/tests.json"] = testsJsonArray.toString(2).toByteArray(Charsets.UTF_8)
+            entries["data/questions.json"] = questionsJsonArray.toString(2).toByteArray(Charsets.UTF_8)
+
+            diagramEntries.forEach { (path, bytes) ->
+                entries[path] = bytes
+            }
+
+            // Completeness is explicitly STRUCTURAL_ONLY
+            val completenessStatus = BackupCompleteness.STRUCTURAL_ONLY
+
+            val manifestDraft = BackupArchiveEngine.createAccountOwnedManifest(
+                uid = safeUid,
+                email = email?.trim()?.ifBlank { null },
+                displayName = displayName?.trim()?.ifBlank { null },
+                appVersionCode = appVersionCode,
+                appVersionName = appVersionName,
+                completeness = completenessStatus
+            ).getOrThrow()
+
+            val stats = BackupStats(
+                privateTestsCount = ownedTests.size,
+                questionsCount = allQuestions.size,
+                attemptsCount = 0,
+                inProgressCount = 0,
+                bookmarkedCount = 0,
+                diagramsCount = diagramEntries.size
+            )
+
+            val manifestWithStats = manifestDraft.copy(stats = stats)
+            return BackupArchiveEngine.buildArchive(outputStream, manifestWithStats, entries, limits)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
 
     /**
      * Reads and packages an authenticated user's private data into a verifiable .aktsbak archive.
@@ -584,7 +800,8 @@ object AccountDataBackupAdapter {
         appVersionName: String = "1.0",
         outputStream: OutputStream,
         limits: ArchiveLimits = ArchiveLimits(),
-        strictAssetIntegrity: Boolean = true
+        strictAssetIntegrity: Boolean = true,
+        includeDiagrams: Boolean = true
     ): Result<BackupManifest> {
         val safeUid = uid.trim()
         if (safeUid.isBlank()) {
@@ -596,9 +813,7 @@ object AccountDataBackupAdapter {
         try {
             // 1. Fetch owned tests (strictly private / user-authored vault tests)
             val allTests = db.testDao().getAllTestsList()
-            val ownedTests = allTests.filter { test ->
-                test.uploaderId == safeUid && (!test.isPublic || test.institute.contains("Private", ignoreCase = true))
-            }.sortedBy { it.id }
+            val ownedTests = filterEligiblePrivateTests(allTests, safeUid)
 
             // 2. Fetch questions for owned tests from canonical Room source
             val allQuestions = mutableListOf<QuestionEntity>()
@@ -656,20 +871,27 @@ object AccountDataBackupAdapter {
             )
 
             // 7. Collect diagram assets safely with missing referenced asset detection
-            val diagramsResult = collectDiagramAssetsWithMissingDetection(context, ownedTests, allQuestions, limits)
-            if (diagramsResult.isFailure) {
-                return Result.failure(diagramsResult.exceptionOrNull()!!)
-            }
-            val diagramCollection = diagramsResult.getOrThrow()
-            val diagramEntries = diagramCollection.entries
-            val missingAssets = diagramCollection.missingReferencedAssets
+            val diagramEntries: Map<String, ByteArray>
+            val missingAssets: List<String>
+            if (includeDiagrams) {
+                val diagramsResult = collectDiagramAssetsWithMissingDetection(context, ownedTests, allQuestions, limits)
+                if (diagramsResult.isFailure) {
+                    return Result.failure(diagramsResult.exceptionOrNull()!!)
+                }
+                val diagramCollection = diagramsResult.getOrThrow()
+                diagramEntries = diagramCollection.entries
+                missingAssets = diagramCollection.missingReferencedAssets
 
-            if (missingAssets.isNotEmpty() && strictAssetIntegrity) {
-                return Result.failure(
-                    IllegalStateException(
-                        "Missing ${missingAssets.size} referenced diagram asset(s): ${missingAssets.joinToString("; ")}. A complete user data backup cannot be produced when referenced assets are missing."
+                if (missingAssets.isNotEmpty() && strictAssetIntegrity) {
+                    return Result.failure(
+                        IllegalStateException(
+                            "Missing ${missingAssets.size} referenced diagram asset(s): ${missingAssets.joinToString("; ")}. A complete user data backup cannot be produced when referenced assets are missing."
+                        )
                     )
-                )
+                }
+            } else {
+                diagramEntries = emptyMap()
+                missingAssets = emptyList()
             }
 
             // 8. Collect profile avatar if locally available

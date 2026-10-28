@@ -821,6 +821,55 @@ class AccountDataBackupAdapterTest {
         assertFalse("Stale secondary questionsJson must not override canonical rows", ids.contains("stale_secondary_override"))
     }
 
+    @Test
+    fun testExportAccountBackup_ambiguousLegacyOwnershipExclusion() = runBlocking {
+        val authUid = "user_auth_123"
+
+        // 1. Anonymous test (default uploaderId)
+        val anonTest = TestEntity(
+            id = "test_anon",
+            title = "Anonymous Test",
+            description = "Desc",
+            institute = "Private Vault",
+            batchName = "Batch",
+            facultyName = "Faculty",
+            language = "English",
+            subject = "Biology",
+            difficulty = "Easy",
+            testType = "Chapter Test",
+            questionsCount = 0,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            isPublic = false,
+            uploaderId = "anonymous"
+        )
+
+        // 2. Blank uploaderId test
+        val blankTest = anonTest.copy(id = "test_blank", title = "Blank Uploader", uploaderId = "")
+
+        // 3. Admin placeholder test
+        val adminTest = anonTest.copy(id = "test_admin", title = "Admin Placeholder", uploaderId = "admin")
+
+        // 4. Legacy unassigned test
+        val legacyTest = anonTest.copy(id = "test_legacy", title = "Legacy Unassigned", uploaderId = "unassigned_legacy")
+
+        // 5. Genuine authenticated user test
+        val userTest = anonTest.copy(id = "test_genuine", title = "Genuine User Test", uploaderId = authUid)
+
+        db.testDao().insertTests(listOf(anonTest, blankTest, adminTest, legacyTest, userTest))
+
+        val out = ByteArrayOutputStream()
+        val result = AccountDataBackupAdapter.exportAccountBackup(context, db, authUid, outputStream = out)
+        assertTrue("Export must succeed", result.isSuccess)
+
+        val entries = unpackZip(out.toByteArray())
+        val testsArray = JSONArray(String(entries["data/tests.json"]!!, Charsets.UTF_8))
+
+        assertEquals("Exactly one authenticated test must be exported", 1, testsArray.length())
+        val exportedId = testsArray.getJSONObject(0).getString("id")
+        assertEquals("test_genuine", exportedId)
+    }
+
     private fun unpackZip(zipBytes: ByteArray): Map<String, ByteArray> {
         val result = mutableMapOf<String, ByteArray>()
         val zipIn = ZipInputStream(ByteArrayInputStream(zipBytes))

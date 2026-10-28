@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import Com.ak.testseries.viewmodel.AppLanguage
 import Com.ak.testseries.viewmodel.AppTheme
 import Com.ak.testseries.exam.UniversalExamRegistry
+import androidx.compose.ui.platform.testTag
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,12 +38,30 @@ fun SettingsScreen(
     val appTheme by viewModel.appTheme.collectAsStateWithLifecycle()
     val isOfflineMode by viewModel.isOfflineMode.collectAsStateWithLifecycle()
     val userProfileData by viewModel.userProfile.collectAsStateWithLifecycle()
-    
+    val currentAuthUid by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val backupUiState by viewModel.backupUiState.collectAsStateWithLifecycle()
+
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showExamDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    val createDocumentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            viewModel.exportBackupToUri(uri, context)
+        }
+    }
+
+    val openDocumentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            viewModel.stageAndValidateBackupFromUri(uri, context)
+        }
+    }
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -95,6 +114,55 @@ fun SettingsScreen(
             SettingsMenuItem(icon = Icons.Rounded.Star, title = if (isHindi) "मेरी सदस्यता" else "My Subscription", subtitle = if (isHindi) "प्रीमियम प्लान प्रबंधित करें" else "Manage premium plans", onClick = { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.SUBSCRIPTION) })
             SettingsMenuItem(icon = Icons.Rounded.Notifications, title = if (isHindi) "सूचनाएं" else stringRes("Notifications"), subtitle = if (isHindi) "पुश और ईमेल प्राथमिकताएं" else "Push and email preferences", onClick = { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.USER_NOTIFICATIONS) })
             
+            Spacer(modifier = Modifier.height(16.dp))
+            SettingsSectionTitle(if (isHindi) "स्थानीय बैकअप (.aktsbak)" else "Local Backup (.aktsbak)")
+
+            val isUserAuthenticated = currentAuthUid.isNotBlank() || userProfileData.email.isNotEmpty()
+            if (isUserAuthenticated) {
+                SettingsMenuItem(
+                    icon = Icons.Rounded.SettingsBackupRestore,
+                    title = if (isHindi) "खाता बैकअप और पुनर्स्थापना केंद्र" else "Backup & Restore Center",
+                    subtitle = if (isHindi) "डेटा अवलोकन, पूर्वावलोकन और SAF प्रबंधन स्क्रीन" else "Dedicated data overview, preview, and SAF controls",
+                    onClick = {
+                        viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.BACKUP_RESTORE)
+                    },
+                    modifier = Modifier.testTag("backup_center_menu_item")
+                )
+                SettingsMenuItem(
+                    icon = Icons.Rounded.CloudUpload,
+                    title = if (isHindi) "त्वरित बैकअप निर्यात (.aktsbak)" else "Quick Export (.aktsbak)",
+                    subtitle = if (isHindi) "निजी टेस्ट, प्रयास और बुकमार्क फ़ाइल में सहेजें" else "Save private tests, attempts, and bookmarks to SAF file",
+                    onClick = {
+                        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                        createDocumentLauncher.launch("ak_test_series_backup_$timestamp.aktsbak")
+                    },
+                    modifier = Modifier.testTag("export_backup_menu_item")
+                )
+                SettingsMenuItem(
+                    icon = Icons.Rounded.CloudDownload,
+                    title = if (isHindi) "त्वरित बैकअप पुनर्स्थापित करें" else "Quick Restore (.aktsbak)",
+                    subtitle = if (isHindi) "सत्यापन और सारांश के साथ .aktsbak फ़ाइल से पुनर्स्थापित करें" else "Safely validate, review summary and restore from .aktsbak file",
+                    onClick = {
+                        openDocumentLauncher.launch(arrayOf("*/*", "application/octet-stream", "application/zip"))
+                    },
+                    modifier = Modifier.testTag("restore_backup_menu_item")
+                )
+            } else {
+                SettingsMenuItem(
+                    icon = Icons.Rounded.CloudUpload,
+                    title = if (isHindi) "स्थानीय बैकअप (साइन इन आवश्यक)" else "Local Backup (Sign In Required)",
+                    subtitle = if (isHindi) "खाता-स्वामित्व वाले बैकअप के लिए कृपया साइन इन करें" else "Sign in to export or restore account-owned data",
+                    onClick = {
+                        android.widget.Toast.makeText(
+                            context,
+                            if (isHindi) "बैकअप के लिए कृपया पहले साइन इन करें" else "Please sign in to export or restore account data",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    modifier = Modifier.testTag("backup_disabled_menu_item")
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             SettingsSectionTitle(if (isHindi) "ऐप प्राथमिकताएं" else "App Preferences")
             
@@ -388,6 +456,176 @@ fun SettingsScreen(
             }
         }
     }
+
+    when (val state = backupUiState) {
+        is Com.ak.testseries.data.backup.BackupUiState.Exporting -> {
+            AlertDialog(
+                onDismissRequest = {},
+                confirmButton = {},
+                title = { Text(if (isHindi) "बैकअप निर्यात हो रहा है" else "Exporting Backup") },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(state.message, fontSize = 14.sp)
+                    }
+                }
+            )
+        }
+        is Com.ak.testseries.data.backup.BackupUiState.Validating -> {
+            AlertDialog(
+                onDismissRequest = {},
+                confirmButton = {},
+                title = { Text(if (isHindi) "बैकअप की पुष्टि हो रही है" else "Validating Backup Archive") },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(state.message, fontSize = 14.sp)
+                    }
+                }
+            )
+        }
+        is Com.ak.testseries.data.backup.BackupUiState.Restoring -> {
+            AlertDialog(
+                onDismissRequest = {},
+                confirmButton = {},
+                title = { Text(if (isHindi) "डेटा पुनर्स्थापित हो रहा है" else "Restoring Account Data") },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(state.message, fontSize = 14.sp)
+                    }
+                }
+            )
+        }
+        is Com.ak.testseries.data.backup.BackupUiState.ValidationReady -> {
+            val manifest = state.manifest
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissBackupDialog() },
+                title = { Text(if (isHindi) "बैकअप पुनर्स्थापना की पुष्टि करें" else "Confirm Data Restore") },
+                text = {
+                    val staged = state.stagedData
+                    val testsCount = staged?.tests?.size ?: manifest.stats.privateTestsCount
+                    val questionsCount = staged?.questions?.size ?: manifest.stats.questionsCount
+                    val attemptsCount = staged?.attempts?.size ?: manifest.stats.attemptsCount
+                    val bookmarksCount = staged?.bookmarks?.testBookmarks?.size ?: manifest.stats.bookmarkedCount
+                    val diagramsCount = staged?.stagedDiagramFiles?.size ?: manifest.stats.diagramsCount
+                    val syllabusCount = staged?.syllabus?.completedChaptersByExam?.values?.sumOf { it.size } ?: 0
+
+                    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        Text(
+                            text = if (isHindi) "बैकअप फ़ाइल सफलतापूर्वक सत्यापित हुई। विवरण:" else "Backup archive verified successfully. Summary:",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("• Account: ${manifest.owner.email ?: manifest.owner.displayName ?: manifest.owner.uid}", fontSize = 13.sp)
+                        Text("• Private Tests: $testsCount", fontSize = 13.sp)
+                        Text("• Questions: $questionsCount", fontSize = 13.sp)
+                        Text("• Completed Attempts: $attemptsCount", fontSize = 13.sp)
+                        Text("• Bookmarks: $bookmarksCount", fontSize = 13.sp)
+                        Text("• Media Diagrams: $diagramsCount", fontSize = 13.sp)
+                        if (syllabusCount > 0) {
+                            Text("• Completed Topics: $syllabusCount", fontSize = 13.sp)
+                        }
+                        Text("• Completeness: ${manifest.completeness.name}", fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (isHindi) "सूचना: यह बैकअप आपके मौजूदा खाते के डेटा में विलय हो जाएगा। स्थानीय नए टेस्ट सुरक्षित रहेंगे।"
+                                else "Notice: Restoring will merge data into your active account. Live tests with newer edits are preserved.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.confirmAndExecuteRestore(context) },
+                        modifier = Modifier.testTag("confirm_restore_button")
+                    ) {
+                        Text(if (isHindi) "पुनर्स्थापित करें" else "Restore Now")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { viewModel.dismissBackupDialog() },
+                        modifier = Modifier.testTag("cancel_restore_button")
+                    ) {
+                        Text(if (isHindi) "रद्द करें" else "Cancel")
+                    }
+                }
+            )
+        }
+        is Com.ak.testseries.data.backup.BackupUiState.ExportSuccess -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissBackupDialog() },
+                icon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                title = { Text(if (isHindi) "बैकअप निर्यात सफल" else "Backup Export Complete") },
+                text = { Text(state.message, fontSize = 14.sp) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissBackupDialog() },
+                        modifier = Modifier.testTag("export_success_dismiss_button")
+                    ) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+        is Com.ak.testseries.data.backup.BackupUiState.RestoreSuccess -> {
+            val res = state.result
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissBackupDialog() },
+                icon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                title = { Text(if (isHindi) "पुनर्स्थापना पूर्ण" else "Restore Successful") },
+                text = {
+                    Column {
+                        Text(
+                            if (isHindi) "खाता डेटा सफलतापूर्वक पुनर्स्थापित किया गया।" else "Account data restored successfully.",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("• Tests Restored: ${res.restoredTestsCount}", fontSize = 13.sp)
+                        Text("• Questions: ${res.restoredQuestionsCount}", fontSize = 13.sp)
+                        Text("• Attempts: ${res.restoredAttemptsCount} (${res.skippedDuplicateAttemptsCount} duplicates skipped)", fontSize = 13.sp)
+                        Text("• Diagrams: ${res.restoredDiagramsCount}", fontSize = 13.sp)
+                        if (res.preservedNewerTestsCount > 0) {
+                            Text("• Newer local tests preserved: ${res.preservedNewerTestsCount}", fontSize = 13.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissBackupDialog() },
+                        modifier = Modifier.testTag("restore_success_dismiss_button")
+                    ) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+        is Com.ak.testseries.data.backup.BackupUiState.Error -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissBackupDialog() },
+                icon = { Icon(Icons.Rounded.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                title = { Text(state.title) },
+                text = { Text(state.message, fontSize = 14.sp) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissBackupDialog() },
+                        modifier = Modifier.testTag("error_dialog_dismiss_button")
+                    ) {
+                        Text(if (isHindi) "ठीक है" else "Dismiss")
+                    }
+                }
+            )
+        }
+        is Com.ak.testseries.data.backup.BackupUiState.Idle -> {
+            // Idle state
+        }
+    }
 }
 
 @Composable
@@ -406,10 +644,11 @@ fun SettingsMenuItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 12.dp),

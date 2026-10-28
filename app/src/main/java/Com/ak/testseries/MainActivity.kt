@@ -284,6 +284,12 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel
                             )
                         }
+                        AppScreen.BACKUP_RESTORE -> {
+                            Com.ak.testseries.ui.BackupRestoreScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { viewModel.navigateToScreen(AppScreen.SETTINGS) }
+                            )
+                        }
                         AppScreen.HOW_IT_WORKS -> {
                             Com.ak.testseries.ui.HowItWorksScreen(
                                 onNavigateBack = { viewModel.navigateToScreen(AppScreen.DASHBOARD) }
@@ -3124,6 +3130,25 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
                         }
                         IconButton(onClick = { viewModel.showProfileEditDialog.value = true }) {
                             Icon(Icons.Rounded.Edit, contentDescription = "Edit Profile", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        OutlinedButton(
+                            onClick = { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.BACKUP_RESTORE) },
+                            modifier = Modifier.testTag("profile_backup_settings_button"),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                if (selectedLanguage == AppLanguage.HINDI) "खाता बैकअप व पुनर्स्थापना" else "Backup & Restore",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }

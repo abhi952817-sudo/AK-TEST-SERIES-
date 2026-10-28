@@ -643,4 +643,332 @@ class AccountDataRestoreEngineTest {
         assertTrue("Restored diagram file must exist", restoredDiagramFile.exists())
         assertArrayEquals(diagramBytes, restoredDiagramFile.readBytes())
     }
+
+    @Test
+    fun testStageAndValidate_stagesWithoutModifyingLiveRoomData() = runBlocking {
+        val uid = "user_staging_only"
+        val testId = "test_staging_cuj"
+        val archiveBytes = createValidArchiveBytes(uid = uid, testId = testId)
+
+        val stageResult = AccountDataRestoreEngine.stageAndValidateAccountBackup(
+            context = context,
+            authenticatedUid = uid,
+            archiveInputStream = ByteArrayInputStream(archiveBytes)
+        )
+
+        assertTrue("Staging and validation must succeed", stageResult is StageValidationResult.Success)
+        val success = stageResult as StageValidationResult.Success
+        val staged = success.stagedData
+
+        // Verify entities were parsed into staging container
+        assertEquals(1, staged.tests.size)
+        assertEquals(testId, staged.tests[0].id)
+        assertEquals(1, staged.questions.size)
+        assertEquals("q_res_1", staged.questions[0].id)
+        assertEquals(1, staged.attempts.size)
+        assertEquals(1, staged.bookmarks.testBookmarks.size)
+        assertEquals(1, staged.progress.inProgressSessions.size)
+        assertEquals(1, staged.syllabus.completedChaptersByExam.size)
+
+        // CRITICAL CHECK: Live Room tables must remain 100% UNTOUCHED
+        val testsInLiveDb = db.testDao().getAllTestsList()
+        assertTrue("Live tests table must be completely empty during staging", testsInLiveDb.isEmpty())
+
+        val questionsInLiveDb = db.questionDao().getQuestionsForTestList(testId)
+        assertTrue("Live questions table must be completely empty during staging", questionsInLiveDb.isEmpty())
+
+        val attemptsInLiveDb = db.attemptDao().getAllAttempts().first()
+        assertTrue("Live attempts table must be completely empty during staging", attemptsInLiveDb.isEmpty())
+
+        // Live preferences must remain untouched
+        val bookmarksPrefs = context.getSharedPreferences("user_bookmarks_store", Context.MODE_PRIVATE)
+        assertTrue("Live bookmarks preferences must be empty", bookmarksPrefs.all.isEmpty())
+
+        staged.cleanUp()
+    }
+
+    @Test
+    fun testStageAndValidate_reprocessingSameArchiveDoesNotDuplicate() = runBlocking {
+        val uid = "user_reprocess_cuj"
+        val archiveBytes = createValidArchiveBytes(uid = uid)
+
+        val run1 = AccountDataRestoreEngine.stageAndValidateAccountBackup(
+            context = context,
+            authenticatedUid = uid,
+            archiveInputStream = ByteArrayInputStream(archiveBytes)
+        )
+        assertTrue("Run 1 must succeed", run1 is StageValidationResult.Success)
+        val staged1 = (run1 as StageValidationResult.Success).stagedData
+        assertEquals(1, staged1.tests.size)
+        staged1.cleanUp()
+
+        // Reprocessing the identical archive
+        val run2 = AccountDataRestoreEngine.stageAndValidateAccountBackup(
+            context = context,
+            authenticatedUid = uid,
+            archiveInputStream = ByteArrayInputStream(archiveBytes)
+        )
+        assertTrue("Run 2 must succeed identically", run2 is StageValidationResult.Success)
+        val staged2 = (run2 as StageValidationResult.Success).stagedData
+        assertEquals(1, staged2.tests.size)
+        assertEquals(staged1.tests[0].id, staged2.tests[0].id)
+        staged2.cleanUp()
+
+        // Verify live Room database is still 100% untouched
+        assertTrue("Live DB must still have 0 tests", db.testDao().getAllTestsList().isEmpty())
+    }
+
+    @Test
+    fun testStageAndValidate_rejectsDuplicateTestIds() = runBlocking {
+        val uid = "user_dup_test"
+        val testEntity = TestEntity(
+            id = "test_dup_1",
+            title = "Test 1",
+            description = "Desc",
+            institute = "Private Vault",
+            batchName = "Batch",
+            facultyName = "Faculty",
+            language = "English",
+            subject = "Physics",
+            difficulty = "Medium",
+            testType = "Chapter Test",
+            questionsCount = 1,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            isPublic = false,
+            uploaderId = uid
+        )
+
+        // Put duplicate test ID into testsArray
+        val testsArr = JSONArray().put(AccountDataBackupAdapter.testEntityToJson(testEntity))
+            .put(AccountDataBackupAdapter.testEntityToJson(testEntity))
+
+        val entries = mutableMapOf<String, ByteArray>()
+        entries["data/tests.json"] = testsArr.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/questions.json"] = JSONArray().toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/attempts.json"] = JSONArray().toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/bookmarks.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("testBookmarks", JSONArray())
+            put("questionBookmarks", JSONArray())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/progress.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("inProgressSessions", JSONObject())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/syllabus.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("completedChaptersByExam", JSONObject())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/profile.json"] = JSONObject().apply {
+            put("userId", uid)
+        }.toString(2).toByteArray(Charsets.UTF_8)
+
+        val checksums = entries.mapValues { BackupArchiveEngine.computeSha256(it.value) }
+        val manifest = BackupManifest(
+            formatVersion = 1,
+            databaseSchemaVersion = 19,
+            completeness = BackupCompleteness.COMPLETE_USER_DATA,
+            owner = BackupOwner(uid = uid),
+            stats = BackupStats(
+                privateTestsCount = 2,
+                questionsCount = 0,
+                attemptsCount = 0,
+                diagramsCount = 0,
+                entryCount = entries.size + 1
+            ),
+            checksums = checksums
+        )
+
+        val out = ByteArrayOutputStream()
+        val zipOut = ZipOutputStream(out)
+        zipOut.putNextEntry(ZipEntry(BackupArchiveEngine.MANIFEST_ENTRY_NAME))
+        zipOut.write(manifest.toJsonString().toByteArray(Charsets.UTF_8))
+        zipOut.closeEntry()
+        for ((p, b) in entries) {
+            zipOut.putNextEntry(ZipEntry(p))
+            zipOut.write(b)
+            zipOut.closeEntry()
+        }
+        zipOut.finish()
+
+        val result = AccountDataRestoreEngine.stageAndValidateAccountBackup(
+            context = context,
+            authenticatedUid = uid,
+            archiveInputStream = ByteArrayInputStream(out.toByteArray())
+        )
+
+        assertTrue("Must fail due to duplicate test ID", result is StageValidationResult.Failure)
+        val failure = result as StageValidationResult.Failure
+        assertTrue(failure.reason.contains("Duplicate test ID", ignoreCase = true))
+    }
+
+    @Test
+    fun testStageAndValidate_rejectsDuplicateQuestionIds() = runBlocking {
+        val uid = "user_dup_q"
+        val testEntity = TestEntity(
+            id = "test_1",
+            title = "Test 1",
+            description = "Desc",
+            institute = "Private Vault",
+            batchName = "Batch",
+            facultyName = "Faculty",
+            language = "English",
+            subject = "Physics",
+            difficulty = "Medium",
+            testType = "Chapter Test",
+            questionsCount = 2,
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            isPublic = false,
+            uploaderId = uid
+        )
+
+        val qEntity = QuestionEntity(
+            id = "q_duplicate_id",
+            testId = "test_1",
+            questionText = "Q Text",
+            optionA = "A", optionB = "B", optionC = "C", optionD = "D",
+            correctAnswer = "A", explanation = "Exp", subject = "Physics", chapter = "Mechanics"
+        )
+
+        val testsArr = JSONArray().put(AccountDataBackupAdapter.testEntityToJson(testEntity))
+        val qArr = JSONArray().put(AccountDataBackupAdapter.questionEntityToJson(qEntity))
+            .put(AccountDataBackupAdapter.questionEntityToJson(qEntity))
+
+        val entries = mutableMapOf<String, ByteArray>()
+        entries["data/tests.json"] = testsArr.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/questions.json"] = qArr.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/attempts.json"] = JSONArray().toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/bookmarks.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("testBookmarks", JSONArray())
+            put("questionBookmarks", JSONArray())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/progress.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("inProgressSessions", JSONObject())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/syllabus.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("completedChaptersByExam", JSONObject())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/profile.json"] = JSONObject().apply {
+            put("userId", uid)
+        }.toString(2).toByteArray(Charsets.UTF_8)
+
+        val checksums = entries.mapValues { BackupArchiveEngine.computeSha256(it.value) }
+        val manifest = BackupManifest(
+            formatVersion = 1,
+            databaseSchemaVersion = 19,
+            completeness = BackupCompleteness.COMPLETE_USER_DATA,
+            owner = BackupOwner(uid = uid),
+            stats = BackupStats(
+                privateTestsCount = 1,
+                questionsCount = 2,
+                attemptsCount = 0,
+                diagramsCount = 0,
+                entryCount = entries.size + 1
+            ),
+            checksums = checksums
+        )
+
+        val out = ByteArrayOutputStream()
+        val zipOut = ZipOutputStream(out)
+        zipOut.putNextEntry(ZipEntry(BackupArchiveEngine.MANIFEST_ENTRY_NAME))
+        zipOut.write(manifest.toJsonString().toByteArray(Charsets.UTF_8))
+        zipOut.closeEntry()
+        for ((p, b) in entries) {
+            zipOut.putNextEntry(ZipEntry(p))
+            zipOut.write(b)
+            zipOut.closeEntry()
+        }
+        zipOut.finish()
+
+        val result = AccountDataRestoreEngine.stageAndValidateAccountBackup(
+            context = context,
+            authenticatedUid = uid,
+            archiveInputStream = ByteArrayInputStream(out.toByteArray())
+        )
+
+        assertTrue("Must fail due to duplicate question ID", result is StageValidationResult.Failure)
+        val failure = result as StageValidationResult.Failure
+        assertTrue(failure.reason.contains("Duplicate question ID", ignoreCase = true))
+    }
+
+    @Test
+    fun testStageAndValidate_rejectsDuplicateAttemptIds() = runBlocking {
+        val uid = "user_dup_att"
+        val attemptEntity = AttemptEntity(
+            id = 55,
+            userId = uid,
+            testId = "test_1",
+            testTitle = "Test 1",
+            score = 10.0, maxScore = 10.0, percentile = 90.0, accuracy = 90.0,
+            correctCount = 1, incorrectCount = 0, skippedCount = 0, timeSpentSeconds = 60L,
+            answersJson = "{}"
+        )
+
+        val attemptsArr = JSONArray().put(AccountDataBackupAdapter.attemptEntityToJson(attemptEntity))
+            .put(AccountDataBackupAdapter.attemptEntityToJson(attemptEntity))
+
+        val entries = mutableMapOf<String, ByteArray>()
+        entries["data/tests.json"] = JSONArray().toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/questions.json"] = JSONArray().toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/attempts.json"] = attemptsArr.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/bookmarks.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("testBookmarks", JSONArray())
+            put("questionBookmarks", JSONArray())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/progress.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("inProgressSessions", JSONObject())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/syllabus.json"] = JSONObject().apply {
+            put("userId", uid)
+            put("completedChaptersByExam", JSONObject())
+        }.toString(2).toByteArray(Charsets.UTF_8)
+        entries["data/profile.json"] = JSONObject().apply {
+            put("userId", uid)
+        }.toString(2).toByteArray(Charsets.UTF_8)
+
+        val checksums = entries.mapValues { BackupArchiveEngine.computeSha256(it.value) }
+        val manifest = BackupManifest(
+            formatVersion = 1,
+            databaseSchemaVersion = 19,
+            completeness = BackupCompleteness.COMPLETE_USER_DATA,
+            owner = BackupOwner(uid = uid),
+            stats = BackupStats(
+                privateTestsCount = 0,
+                questionsCount = 0,
+                attemptsCount = 2,
+                diagramsCount = 0,
+                entryCount = entries.size + 1
+            ),
+            checksums = checksums
+        )
+
+        val out = ByteArrayOutputStream()
+        val zipOut = ZipOutputStream(out)
+        zipOut.putNextEntry(ZipEntry(BackupArchiveEngine.MANIFEST_ENTRY_NAME))
+        zipOut.write(manifest.toJsonString().toByteArray(Charsets.UTF_8))
+        zipOut.closeEntry()
+        for ((p, b) in entries) {
+            zipOut.putNextEntry(ZipEntry(p))
+            zipOut.write(b)
+            zipOut.closeEntry()
+        }
+        zipOut.finish()
+
+        val result = AccountDataRestoreEngine.stageAndValidateAccountBackup(
+            context = context,
+            authenticatedUid = uid,
+            archiveInputStream = ByteArrayInputStream(out.toByteArray())
+        )
+
+        assertTrue("Must fail due to duplicate attempt ID", result is StageValidationResult.Failure)
+        val failure = result as StageValidationResult.Failure
+        assertTrue(failure.reason.contains("Duplicate attempt ID", ignoreCase = true))
+    }
 }
