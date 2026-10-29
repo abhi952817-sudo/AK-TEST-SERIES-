@@ -428,7 +428,9 @@ class CloudAutoRestoreSecurityHardeningTest {
             appVersionCode = 1,
             appVersionName = "1.0",
             completeness = BackupCompleteness.COMPLETE_USER_DATA
-        ).getOrThrow()
+        ).getOrThrow().let { m ->
+            m.copy(stats = m.stats.copy(attemptsCount = 1))
+        }
 
         val manifest = baseManifest.copy(
             stats = baseManifest.stats.copy(attemptsCount = 1)
