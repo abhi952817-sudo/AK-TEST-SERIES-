@@ -296,53 +296,43 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         AppScreen.ADMIN_PANEL -> {
+                            // Continuous verification
+                            LaunchedEffect(Unit) {
+                                viewModel.requireAdminAccess { isAllowed ->
+                                    if (!isAllowed) {
+                                        viewModel.navigateToScreen(AppScreen.DASHBOARD)
+                                    }
+                                }
+                            }
+
                             if (!viewModel.isAdmin) {
                                 androidx.activity.compose.BackHandler {
                                     viewModel.navigateToScreen(AppScreen.DASHBOARD)
                                 }
                                 Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(24.dp),
+                                    modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(0.9f),
-                                        shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(24.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Icon(
-                                                Icons.Rounded.Security,
-                                                contentDescription = "Access Restricted",
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(56.dp)
-                                            )
-                                            Spacer(modifier = Modifier.height(16.dp))
-                                            Text(
-                                                text = "Access Restricted",
-                                                fontSize = 20.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Text(
-                                                text = "Administrator privileges are required to access the Master Admin Panel.",
-                                                fontSize = 14.sp,
-                                                textAlign = TextAlign.Center,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                            )
-                                            Spacer(modifier = Modifier.height(24.dp))
-                                            Button(
-                                                onClick = { viewModel.navigateToScreen(AppScreen.DASHBOARD) },
-                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                                            ) {
-                                                Text("Return to Dashboard")
-                                            }
-                                        }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Lock,
+                                            contentDescription = null,
+                                            tint = Color.Red,
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "Access Denied",
+                                            color = Color.Red,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 22.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "You do not have administrator privileges.",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center
+                                        )
                                     }
                                 }
                             } else {
@@ -641,12 +631,8 @@ fun DashboardScreen(
         prefs.edit().putBoolean("is_first_time_launch", false).apply() 
     } 
 
-    var showAdminPasswordDialog by remember { mutableStateOf(false) }
-    
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    var adminTapCount by remember { mutableIntStateOf(0) }
-    var adminTapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var isFabVisible by remember { mutableStateOf(true) }
     val nestedScrollConnection = remember {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
@@ -681,53 +667,6 @@ fun DashboardScreen(
         )
     }
 
-    if (showAdminPasswordDialog) {
-        var passwordInput by remember { mutableStateOf("") }
-        var errorMsg by remember { mutableStateOf("") }
-        val context = LocalContext.current
-        val prefs = context.getSharedPreferences("AdminPrefs", android.content.Context.MODE_PRIVATE)
-        val currentPassword = prefs.getString("admin_password", "admin123") ?: "admin123"
-
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showAdminPasswordDialog = false },
-            title = { Text(stringRes("Admin Access")) },
-            text = {
-                Column {
-                    Text(stringRes("Enter admin password to continue:"))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = passwordInput,
-                        onValueChange = { passwordInput = it; errorMsg = "" },
-                        label = { Text(stringRes("Password")) },
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        singleLine = true,
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
-                    )
-                    if (errorMsg.isNotEmpty()) {
-                        Text(errorMsg, color = Color.Red, fontSize = 12.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val isOwner = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.let {
-                        it.email?.equals("abhi952817@gmail.com", ignoreCase = true) == true && it.isEmailVerified
-                    } == true
-                    if (!viewModel.isAdmin && !isOwner) {
-                        errorMsg = "Unauthorized: Admin privileges required on your account."
-                    } else if (isOwner || (currentPassword.isNotBlank() && passwordInput == currentPassword)) {
-                        showAdminPasswordDialog = false
-                        viewModel.navigateToScreen(AppScreen.ADMIN_PANEL)
-                    } else {
-                        errorMsg = "Incorrect password"
-                    }
-                }) { Text(stringRes("Login")) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAdminPasswordDialog = false }) { Text(stringRes("Cancel")) }
-            }
-        )
-    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -748,26 +687,7 @@ fun DashboardScreen(
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                            modifier = Modifier
-                                .size(40.dp)
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onTap = {
-                                            adminTapCount++
-                                            if (adminTapCount >= 3 && viewModel.isAdmin) {
-                                                adminTapCount = 0
-                                                adminTapJob?.cancel()
-                                                showAdminPasswordDialog = true
-                                            } else {
-                                                adminTapJob?.cancel()
-                                                adminTapJob = scope.launch {
-                                                    kotlinx.coroutines.delay(400)
-                                                    adminTapCount = 0
-                                                }
-                                            }
-                                        }
-                                    )
-                                }
+                            modifier = Modifier.size(40.dp)
                         ) {
                             androidx.compose.foundation.Image(
                                 painter = painterResource(id = R.drawable.ic_ak_logo),
@@ -979,6 +899,30 @@ fun DashboardScreen(
 
     
                     
+                    if (viewModel.isAdmin) {
+                        NavigationDrawerItem(
+                            icon = { 
+                                Icon(
+                                    Icons.Rounded.AdminPanelSettings, 
+                                    contentDescription = "Admin Panel"
+                                ) 
+                            },
+                            label = { 
+                                Text("Admin Panel", fontWeight = FontWeight.Bold) 
+                            },
+                            selected = viewModel.currentScreen.value == AppScreen.ADMIN_PANEL,
+                            onClick = {
+                                viewModel.navigateToAdminPanelSafely(
+                                    onDenied = {
+                                        // Access Denied
+                                    }
+                                )
+                                scope.launch { drawerState.close() }
+                            },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                    }
+
                     NavigationDrawerItem(
                         icon = { Icon(Icons.Rounded.Settings, contentDescription = stringRes("Settings")) },
                         label = { Text(stringRes("Settings")) },
@@ -2379,9 +2323,15 @@ fun DeleteConfirmDialog(viewModel: NEETViewModel) {
         confirmButton = {
             androidx.compose.material3.TextButton(
                 onClick = { 
-                    viewModel.deleteTest(test!!)
-                    viewModel.showDeleteConfirmDialog.value = false
-                    android.widget.Toast.makeText(context, "Test deleted permanently.", android.widget.Toast.LENGTH_SHORT).show()
+                    viewModel.requireReAuthentication { isAllowed ->
+                        if (isAllowed) {
+                            viewModel.deleteTest(test!!)
+                            viewModel.showDeleteConfirmDialog.value = false
+                            android.widget.Toast.makeText(context, "Test deleted permanently.", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "Permission denied: Re-authentication failed.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             ) {
                 Text(stringRes("Delete"), color = Color.Red)

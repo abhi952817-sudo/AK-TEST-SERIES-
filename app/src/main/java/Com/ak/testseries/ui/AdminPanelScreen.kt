@@ -31,71 +31,7 @@ import Com.ak.testseries.viewmodel.NEETViewModel
 
 
 
-@Composable
-fun ChangePasswordSection() {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var oldPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
 
-    AdminSectionCard(
-        title = "Change Admin Password",
-        icon = Icons.Rounded.Speed,
-        description = "Update the password used to access this Admin Panel."
-    ) {
-        OutlinedTextField(
-            value = oldPassword,
-            onValueChange = { oldPassword = it },
-            label = { Text("Old Password") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = newPassword,
-            onValueChange = { newPassword = it },
-            label = { Text("New Password") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = confirmPassword,
-            onValueChange = { confirmPassword = it },
-            label = { Text("Confirm New Password") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val prefs = context.getSharedPreferences("AdminPrefs", android.content.Context.MODE_PRIVATE)
-                val current = prefs.getString("admin_password", "admin123") ?: "admin123"
-                if (oldPassword != current) {
-                    message = "Old password is incorrect"
-                } else if (newPassword.isEmpty() || newPassword != confirmPassword) {
-                    message = "New passwords do not match or are empty"
-                } else {
-                    prefs.edit().putString("admin_password", newPassword).apply()
-                    message = "Password updated successfully"
-                    oldPassword = ""
-                    newPassword = ""
-                    confirmPassword = ""
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Update Password")
-        }
-        if (message.isNotEmpty()) {
-            Text(message, color = if (message.contains("success")) androidx.compose.ui.graphics.Color.Green else androidx.compose.ui.graphics.Color.Red, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-        }
-    }
-}
 
 @Composable
 fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {

@@ -98,38 +98,158 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val firestoreDb: com.google.firebase.firestore.FirebaseFirestore
         get() = Com.ak.testseries.data.remote.FirestoreHelper.getInstance(getApplication())
 
-    private var _isAdminOverride: Boolean? = null
     val isAdminFlow = MutableStateFlow(false)
-    var isAdmin: Boolean
-        get() = _isAdminOverride ?: isAdminFlow.value
-        set(value) {
-            _isAdminOverride = value
-            isAdminFlow.value = value
-        }
-        
-    fun checkAdminCustomClaim() {
+
+    val isAdmin: Boolean
+        get() = isAdminFlow.value
+
+    /**
+     * Server-verified Admin Check (Phase 2)
+     * - Always forces fresh ID token
+     * - Trusts only Custom Claim `admin: true` or verified owner email
+     * - Clears admin status on any failure
+     */
+    fun checkAdminCustomClaim(forceRefresh: Boolean = true) {
         val user = try {
             com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
         } catch (e: Exception) {
             null
         }
-        if (user != null) {
-            val isOwnerEmail = user.email?.equals("abhi952817@gmail.com", ignoreCase = true) == true && user.isEmailVerified
-            if (isOwnerEmail) {
-                _isAdminOverride = true
-                isAdminFlow.value = true
-            }
-            user.getIdToken(false).addOnSuccessListener { result ->
-                val isAdminClaim = result.claims["admin"] == true || isOwnerEmail
-                _isAdminOverride = isAdminClaim
-                isAdminFlow.value = isAdminClaim
-            }.addOnFailureListener {
-                _isAdminOverride = isOwnerEmail
-                isAdminFlow.value = isOwnerEmail
-            }
-        } else {
-            _isAdminOverride = false
+
+        if (user == null) {
             isAdminFlow.value = false
+            return
+        }
+
+        user.getIdToken(forceRefresh)
+            .addOnSuccessListener { result ->
+                val hasAdminClaim = result.claims["admin"] == true
+                val isVerifiedOwner = user.email
+                    ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
+                        && user.isEmailVerified
+
+                isAdminFlow.value = hasAdminClaim || isVerifiedOwner
+            }
+            .addOnFailureListener {
+                isAdminFlow.value = false
+            }
+    }
+
+    /**
+     * Call this every time before opening Admin Panel
+     * or performing sensitive admin actions.
+     */
+    fun requireAdminAccess(onResult: (Boolean) -> Unit) {
+        val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            isAdminFlow.value = false
+            onResult(false)
+            return
+        }
+
+        user.getIdToken(true) // always force refresh
+            .addOnSuccessListener { result ->
+                val hasAdminClaim = result.claims["admin"] == true
+                val isVerifiedOwner = user.email
+                    ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
+                        && user.isEmailVerified
+
+                val isAllowed = hasAdminClaim || isVerifiedOwner
+                isAdminFlow.value = isAllowed
+                onResult(isAllowed)
+            }
+            .addOnFailureListener {
+                isAdminFlow.value = false
+                onResult(false)
+            }
+    }
+
+    /**
+     * Phase 3: Force re-authentication before sensitive admin actions
+     * (Ban user, Delete test, Publish test, Change roles etc.)
+     */
+    fun requireReAuthentication(onResult: (Boolean) -> Unit) {
+        val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            onResult(false)
+            return
+        }
+
+        // Fresh token + claim check
+        user.getIdToken(true)
+            .addOnSuccessListener { result ->
+                val hasAdminClaim = result.claims["admin"] == true
+                val isVerifiedOwner = user.email
+                    ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
+                        && user.isEmailVerified
+
+                val isAllowed = hasAdminClaim || isVerifiedOwner
+                isAdminFlow.value = isAllowed
+                onResult(isAllowed)
+            }
+            .addOnFailureListener {
+                isAdminFlow.value = false
+                onResult(false)
+            }
+    }
+
+    /**
+     * Safe navigation to Admin Panel
+     */
+    fun navigateToAdminPanelSafely(onDenied: (() -> Unit)? = null) {
+        requireAdminAccess { isAllowed ->
+            if (isAllowed) {
+                navigateToScreen(AppScreen.ADMIN_PANEL)
+            } else {
+                onDenied?.invoke()
+            }
+        }
+    }
+
+    /**
+     * Phase 4: Tamper-proof Admin Audit Logging
+     * Writes to Firestore `Admin_Audit_Logs` collection with server timestamp.
+     * Records action, performedBy (admin UID), targetId, details, and client timestamp.
+     */
+    fun logAdminAudit(
+        action: String,
+        targetId: String? = null,
+        details: Map<String, Any> = emptyMap(),
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            onComplete?.invoke(false)
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val db = firestoreDb
+                val auditData = hashMapOf<String, Any>(
+                    "action" to action,
+                    "performedBy" to user.uid,
+                    "performedByEmail" to (user.email ?: ""),
+                    "targetId" to (targetId ?: ""),
+                    "details" to details,
+                    "clientTimestamp" to System.currentTimeMillis(),
+                    "timestamp" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                )
+
+                db.collection("Admin_Audit_Logs")
+                    .add(auditData)
+                    .addOnSuccessListener {
+                        android.util.Log.d("NEETViewModel", "Admin audit log created: $action on $targetId")
+                        onComplete?.invoke(true)
+                    }
+                    .addOnFailureListener { e ->
+                        android.util.Log.e("NEETViewModel", "Admin audit logging failed: ${e.message}")
+                        onComplete?.invoke(false)
+                    }
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "Audit log exception", e)
+                onComplete?.invoke(false)
+            }
         }
     }
 
@@ -258,6 +378,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleUserBan(userId: String, isBanned: Boolean) {
+        if (!isAdmin) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val db = firestoreDb
@@ -265,6 +386,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 _adminUsers.value = _adminUsers.value.map {
                     if (it.id == userId) it.copy(isBanned = isBanned) else it
                 }
+                logAdminAudit(
+                    action = if (isBanned) "BAN_USER" else "UNBAN_USER",
+                    targetId = userId,
+                    details = mapOf("isBanned" to isBanned)
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -1843,7 +1969,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (e: Exception) {
                     android.util.Log.e("NEETViewModel", "Firebase deletion failed or offline", e)
                 }
-                
+
+                if (isAdmin) {
+                    logAdminAudit(
+                        action = "DELETE_TEST",
+                        targetId = test.id,
+                        details = mapOf(
+                            "title" to test.title,
+                            "targetExam" to test.targetExam
+                        )
+                    )
+                }
+
                 android.util.Log.d("NEETViewModel", "Test deleted: ${test.title}")
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -6285,7 +6422,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             leaderboardListener?.remove()
             leaderboardListener = null
             currentUserId.value = ""
-            _isAdminOverride = false
             isAdminFlow.value = false
             checkAdminCustomClaim()
             saveUserProfile("", "", "", "", "")
@@ -6342,7 +6478,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             leaderboardListener?.remove()
             leaderboardListener = null
             currentUserId.value = ""
-            _isAdminOverride = false
             isAdminFlow.value = false
             saveUserProfile("", "", "", "", "")
             _leaderboard.value = emptyList()
@@ -6425,6 +6560,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     testDocRef.update(updates).await()
+                    logAdminAudit(
+                        action = "UPDATE_TEST_VISIBILITY",
+                        targetId = testId,
+                        details = mapOf("isPublic" to isPublic)
+                    )
                 }
                 
             } catch (e: Exception) {
@@ -6472,6 +6612,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         )
                         testDocRef.collection("private_keys").document("answerKey").set(keysDoc).await()
                     }
+
+                    logAdminAudit(
+                        action = "PUBLISH_REVIEWED_TEST",
+                        targetId = testId,
+                        details = mapOf("status" to "Published", "isPublic" to true)
+                    )
                 }
                 
                 withContext(Dispatchers.Main) {
