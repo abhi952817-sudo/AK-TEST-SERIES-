@@ -970,6 +970,8 @@ fun UploadAiTabScreen(viewModel: NEETViewModel) {
             // STEP 2: TEST DETAILS & UPLOAD FORM
             // =========================================================
             val selectedPdfUri by viewModel.selectedPdfUri.collectAsStateWithLifecycle()
+            val resumableSessions by viewModel.resumablePdfSessions.collectAsStateWithLifecycle()
+            val activePdfSession by viewModel.activePdfSession.collectAsStateWithLifecycle()
             val pdfPickerLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.GetContent()
             ) { uri: Uri? ->
@@ -1057,6 +1059,122 @@ fun UploadAiTabScreen(viewModel: NEETViewModel) {
                         color = Slate500,
                         fontWeight = FontWeight.Medium
                     )
+
+                    // --- FLOW 1: SESSION RECOVERY & PERSISTENT STORAGE RESUME BANNER ---
+                    if (resumableSessions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        resumableSessions.forEach { session ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.5.dp, Violet400)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .background(Violet100, RoundedCornerShape(10.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Restore,
+                                                    contentDescription = null,
+                                                    tint = Violet600,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    text = session.fileName,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Slate900,
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    text = "Status: ${session.status} • Saved Page ${session.lastProcessedPage}/${session.pageCount}",
+                                                    fontSize = 11.sp,
+                                                    color = Slate600
+                                                )
+                                            }
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = when (session.status) {
+                                                "PARSING" -> Violet100
+                                                "PAUSED" -> Amber100
+                                                else -> Slate200
+                                            }
+                                        ) {
+                                            Text(
+                                                text = session.status,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = when (session.status) {
+                                                    "PARSING" -> Violet600
+                                                    "PAUSED" -> Amber800
+                                                    else -> Slate700
+                                                },
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (session.pageCount > 0) {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        val progress = (session.lastProcessedPage.toFloat() / session.pageCount.toFloat()).coerceIn(0f, 1f)
+                                        LinearProgressIndicator(
+                                            progress = { progress },
+                                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                            color = Violet600,
+                                            trackColor = Violet100
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = { viewModel.resumePdfSession(context, session.sessionId) },
+                                            modifier = Modifier.weight(1f).height(38.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Violet600, contentColor = Color.White)
+                                        ) {
+                                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = if (selectedLanguage == AppLanguage.HINDI) "पुनः शुरू करें (Resume)" else "Resume Processing",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        OutlinedButton(
+                                            onClick = { viewModel.deletePdfSession(context, session.sessionId) },
+                                            modifier = Modifier.height(38.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            border = BorderStroke(1.dp, Slate300),
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Slate600)
+                                        ) {
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = "Discard", modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // --- ⚡ AUTOMATIC WORKFLOW ROUTING BANNER ---
                     val isCurrentlyPrivate = selectedTestType == "private" || !isPublic

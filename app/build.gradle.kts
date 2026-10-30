@@ -122,6 +122,7 @@ dependencies {
   // implementation(libs.firebase.messaging)
   implementation(libs.firebase.crashlytics)
   implementation(libs.play.services.auth)
+  implementation(libs.play.services.mlkit.text.recognition)
   implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)

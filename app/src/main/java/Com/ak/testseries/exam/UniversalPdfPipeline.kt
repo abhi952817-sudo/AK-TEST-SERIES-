@@ -520,7 +520,7 @@ object UniversalPdfPipeline {
         prompt: String,
         systemInstruction: String?
     ): GeminiApiExecutionResult? = withContext(Dispatchers.IO) {
-        val candidateModels = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash")
+        val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {
                 val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")

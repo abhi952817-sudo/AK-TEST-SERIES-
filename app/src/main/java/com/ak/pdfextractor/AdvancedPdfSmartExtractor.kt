@@ -104,13 +104,18 @@ data class StructuredQuestion(
     val pageNumber: Int = 1,
     val bounds: BoundingBox? = null,
     val associatedImageId: String? = null,
-    val imageBitmap: Bitmap? = null
+    val imageBitmap: Bitmap? = null,
+    val localImagePath: String? = null,
+    val isNeedsReview: Boolean = false,
+    val anomalyReason: String? = null
 ) {
     val hasAllFourOptions: Boolean
         get() {
             val keys = options.map { it.key.uppercase() }.toSet()
             return (keys.contains("A") && keys.contains("B") && keys.contains("C") && keys.contains("D")) ||
-                   (keys.contains("1") && keys.contains("2") && keys.contains("3") && keys.contains("4"))
+                   (keys.contains("1") && keys.contains("2") && keys.contains("3") && keys.contains("4")) ||
+                   (keys.contains("अ") && keys.contains("ब") && keys.contains("स") && keys.contains("द")) ||
+                   (keys.contains("क") && keys.contains("ख") && keys.contains("ग") && keys.contains("घ"))
         }
 
     val optionKeys: List<String>
@@ -153,6 +158,15 @@ object LocalQuestionClassifier {
         "properties", "summary", "concept", "principle", "notes"
     )
 
+    fun hasBrokenMathOrCorruptedUnicode(text: String): Boolean {
+        if (text.isBlank()) return false
+        if (text.contains('\uFFFD')) return true
+        if (Regex("""\?{2,}""").containsMatchIn(text)) return true
+        if (text.any { it.code in 0x0000..0x001F && it != '\n' && it != '\r' && it != '\t' }) return true
+        if (text.contains("""\sqrt""") && !text.contains("{") && !text.contains("[")) return true
+        return false
+    }
+
     fun extractStructuredQuestions(
         textBlocks: List<TextBlock>,
         pageNum: Int = 1,
@@ -172,6 +186,25 @@ object LocalQuestionClassifier {
                 val associatedImg = currentBlockId?.let { bId ->
                     associations.find { it.textBlockId == bId }?.associatedImageId
                 }
+                val keys = currentOptions.map { it.key.uppercase() }.toSet()
+                val hasAllFour = (keys.contains("A") && keys.contains("B") && keys.contains("C") && keys.contains("D")) ||
+                                 (keys.contains("1") && keys.contains("2") && keys.contains("3") && keys.contains("4")) ||
+                                 (keys.contains("अ") && keys.contains("ब") && keys.contains("स") && keys.contains("द")) ||
+                                 (keys.contains("क") && keys.contains("ख") && keys.contains("ग") && keys.contains("घ"))
+
+                val brokenMath = hasBrokenMathOrCorruptedUnicode(qText) || currentOptions.any { hasBrokenMathOrCorruptedUnicode(it.text) }
+                val incompleteOpts = currentOptions.size < 4 || !hasAllFour
+                val shortStem = qText.isNotBlank() && qText.length < 5
+
+                val isAnomaly = incompleteOpts || brokenMath || shortStem
+                val reason = when {
+                    incompleteOpts && brokenMath -> "Incomplete options (${currentOptions.size}/4) & unparsed math symbols"
+                    incompleteOpts -> "Incomplete options (${currentOptions.size}/4 detected)"
+                    brokenMath -> "Broken math/formula symbols or corrupted font glyphs"
+                    shortStem -> "Question stem text is incomplete"
+                    else -> null
+                }
+
                 questions.add(
                     StructuredQuestion(
                         questionNumber = qNum,
@@ -179,7 +212,9 @@ object LocalQuestionClassifier {
                         options = currentOptions.toList(),
                         pageNumber = pageNum,
                         bounds = currentBounds,
-                        associatedImageId = associatedImg
+                        associatedImageId = associatedImg,
+                        isNeedsReview = isAnomaly,
+                        anomalyReason = reason
                     )
                 )
             }
@@ -601,66 +636,92 @@ class AdvancedPdfSmartExtractor(private val context: Context) {
             val pfd = ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_ONLY)
             val pdfRenderer = PdfRenderer(pfd)
             val pageCount = pdfRenderer.pageCount
-            val pagesToProcess = minOf(pageCount, 5) // Process up to 5 pages safely
+            val pagesToProcess = minOf(pageCount, 50) // Safely process up to 50 pages using sliding batching
+            val slidingBatchSize = 5
 
-            for (i in 0 until pagesToProcess) {
-                val page = pdfRenderer.openPage(i)
-                val pageNum = i + 1
+            for (batchStart in 0 until pagesToProcess step slidingBatchSize) {
+                val batchEnd = minOf(batchStart + slidingBatchSize, pagesToProcess)
+                for (i in batchStart until batchEnd) {
+                    val page = pdfRenderer.openPage(i)
+                    val pageNum = i + 1
 
-                // Method 13: Full-page high-resolution rendering
-                val w = (page.width * options.scaleFactor).toInt()
-                val h = (page.height * options.scaleFactor).toInt()
-                val renderBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                renderBitmap.eraseColor(android.graphics.Color.WHITE)
-                page.render(renderBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                page.close()
+                    // Method 13: Full-page high-resolution rendering
+                    val w = (page.width * options.scaleFactor).toInt()
+                    val h = (page.height * options.scaleFactor).toInt()
+                    val renderBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                    renderBitmap.eraseColor(android.graphics.Color.WHITE)
+                    page.render(renderBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    page.close()
 
-                // Method 11: Orientation/rotated text detection
-                val osdResult = detectOrientationAndScript(renderBitmap)
-                val correctedBitmap = rotateBitmapIfNeeded(renderBitmap, osdResult.orientationAngleDegrees)
+                    // Method 11: Orientation/rotated text detection
+                    val osdResult = detectOrientationAndScript(renderBitmap)
+                    val correctedBitmap = rotateBitmapIfNeeded(renderBitmap, osdResult.orientationAngleDegrees)
 
-                // Method 12: Embedded diagrams and image regions via local CV density analysis
-                val images = extractImagesWithBounds(correctedBitmap, pageNum, options)
+                    // Method 12: Embedded diagrams and image regions via local CV density analysis
+                    val images = extractImagesWithBounds(correctedBitmap, pageNum, options)
 
-                // Associated stream text for this page if available
-                val pageStreamText = if (i < rawPdfTexts.size) rawPdfTexts[i] else emptyList()
+                    // Associated stream text for this page if available
+                    val pageStreamText = if (i < rawPdfTexts.size) rawPdfTexts[i] else emptyList()
+                    val hasReadableStreamText = pageStreamText.isNotEmpty() && pageStreamText.joinToString(" ").trim().length > 30
 
-                // Methods 1, 2, 4, 5, 7, 8, 9, 10: Extract real layout text lines and words
-                val rawTextBlocks = extractAllTextLevels(correctedBitmap, pageStreamText, languageCode, pageNum, images)
+                    // Smart Two-Tier Fallback:
+                    // Tier 1: Ultra-fast Zlib raw stream parser
+                    // Tier 2: Lightweight on-device Google ML Kit OCR if stream is empty/scanned
+                    val (rawTextBlocks, pageFullText) = if (hasReadableStreamText) {
+                        val blocks = extractAllTextLevels(correctedBitmap, pageStreamText, languageCode, pageNum, images)
+                        Pair(blocks, blocks.joinToString("\n") { it.text })
+                    } else {
+                        val mlResult = MlKitLocalOcrEngine.recognizeTextFromBitmap(correctedBitmap, pageNum)
+                        val blocks = if (mlResult.textBlocks.isNotEmpty()) {
+                            mlResult.textBlocks
+                        } else {
+                            extractAllTextLevels(correctedBitmap, pageStreamText, languageCode, pageNum, images)
+                        }
+                        val text = if (mlResult.fullText.isNotBlank()) mlResult.fullText else blocks.joinToString("\n") { it.text }
+                        Pair(blocks, text)
+                    }
 
-                // Method 3, 15: Left->Right / Top->Bottom Reading order
-                val sortedTextBlocks = sortBlocksByReadingOrder(rawTextBlocks)
+                    // Method 3, 15: Left->Right / Top->Bottom Reading order
+                    val sortedTextBlocks = sortBlocksByReadingOrder(rawTextBlocks)
 
-                // Method 14: Text + image association
-                val layoutAssociations = analyzeLayoutAssociations(sortedTextBlocks, images)
+                    // Method 14: Text + image association
+                    val layoutAssociations = analyzeLayoutAssociations(sortedTextBlocks, images)
 
-                // Method 6: Region OCR
-                val regionRois = extractRegionBasedOcr(correctedBitmap, sortedTextBlocks)
+                    // Method 6: Region OCR
+                    val regionRois = extractRegionBasedOcr(correctedBitmap, sortedTextBlocks)
 
-                val annotatedBitmap = generateAnnotatedOverlay(correctedBitmap, sortedTextBlocks, images)
+                    val annotatedBitmap = generateAnnotatedOverlay(correctedBitmap, sortedTextBlocks, images)
 
-                val fullText = sortedTextBlocks.joinToString("\n") { it.text }
-                val totalChars = sortedTextBlocks.sumOf { it.lines.sumOf { l -> l.wordBoxes.sumOf { w -> w.charBoxes.size } } }
+                    val totalChars = sortedTextBlocks.sumOf { it.lines.sumOf { l -> l.wordBoxes.sumOf { w -> w.charBoxes.size } } }
 
-                // Local classification: Extract structured questions with options A, B, C, D
-                val pageQuestions = LocalQuestionClassifier.extractStructuredQuestions(sortedTextBlocks, pageNum, layoutAssociations)
+                    // Local classification: Extract structured questions with options A, B, C, D & Anomaly Flags
+                    val pageQuestions = LocalQuestionClassifier.extractStructuredQuestions(sortedTextBlocks, pageNum, layoutAssociations)
 
-                results.add(
-                    PdfPageResult(
-                        pageNumber = pageNum,
-                        textBlocks = sortedTextBlocks,
-                        extractedImages = images,
-                        layoutAssociations = layoutAssociations,
-                        regionRois = regionRois,
-                        osdResult = osdResult,
-                        renderedBitmap = renderBitmap,
-                        annotatedBitmap = annotatedBitmap,
-                        correctedBitmap = correctedBitmap,
-                        fullText = fullText,
-                        totalCharCount = totalChars,
-                        structuredQuestions = pageQuestions
+                    results.add(
+                        PdfPageResult(
+                            pageNumber = pageNum,
+                            textBlocks = sortedTextBlocks,
+                            extractedImages = images,
+                            layoutAssociations = layoutAssociations,
+                            regionRois = regionRois,
+                            osdResult = osdResult,
+                            renderedBitmap = renderBitmap,
+                            annotatedBitmap = annotatedBitmap,
+                            correctedBitmap = correctedBitmap,
+                            fullText = pageFullText,
+                            totalCharCount = totalChars,
+                            structuredQuestions = pageQuestions
+                        )
                     )
-                )
+
+                    // Strict Memory Management: Immediately recycle intermediate bitmaps not needed in result overlay
+                    if (renderBitmap != annotatedBitmap && !renderBitmap.isRecycled) {
+                        renderBitmap.recycle()
+                    }
+                    if (correctedBitmap != annotatedBitmap && !correctedBitmap.isRecycled) {
+                        correctedBitmap.recycle()
+                    }
+                }
             }
             pdfRenderer.close()
             pfd.close()
@@ -1246,6 +1307,83 @@ class AdvancedPdfSmartExtractor(private val context: Context) {
         return pages.map { it.joinToString("\n") }.filter { it.isNotBlank() }
     }
 
+    /**
+     * Extracts text for a specific 1-based page range (inclusive) from a PDF file.
+     * Uses stream extraction when available, falling back to ML Kit OCR with explicit bitmap recycling.
+     */
+    suspend fun extractPageRangeText(pdfFile: File, startPage: Int, endPage: Int): String {
+        val streamPages = extractStreamPagesText(pdfFile)
+        val sb = StringBuilder()
+        
+        // If stream text is available for these pages
+        if (streamPages.isNotEmpty()) {
+            for (p in startPage..endPage) {
+                val idx = p - 1
+                if (idx in streamPages.indices) {
+                    val text = streamPages[idx].trim()
+                    if (text.isNotBlank()) {
+                        sb.append(text).append("\n\n")
+                    }
+                }
+            }
+            if (sb.isNotBlank()) {
+                return sb.toString().trim()
+            }
+        }
+
+        // Tier 2: OCR via native PdfRenderer and ML Kit
+        try {
+            val pfd = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
+            pfd.use { descriptor ->
+                val renderer = PdfRenderer(descriptor)
+                try {
+                    val total = renderer.pageCount
+                    val safeStart = (startPage - 1).coerceIn(0, (total - 1).coerceAtLeast(0))
+                    val safeEnd = (endPage - 1).coerceIn(safeStart, (total - 1).coerceAtLeast(0))
+                    for (i in safeStart..safeEnd) {
+                        val page = renderer.openPage(i)
+                        try {
+                            // Memory control: clamp max rendering dimension to 2048px to prevent OOM on high-res pages
+                            val maxSide = maxOf(page.width, page.height).toFloat()
+                            val scale = if (maxSide > 2048f) (2048f / maxSide) else 1.5f
+                            val w = (page.width * scale).toInt().coerceIn(100, 2048)
+                            val h = (page.height * scale).toInt().coerceIn(100, 2048)
+
+                            var bitmap: Bitmap? = null
+                            try {
+                                bitmap = try {
+                                    Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                                } catch (_: OutOfMemoryError) {
+                                    System.gc()
+                                    Bitmap.createBitmap(w / 2, h / 2, Bitmap.Config.RGB_565)
+                                }
+                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+
+                                val mlResult = MlKitLocalOcrEngine.recognizeTextFromBitmap(bitmap, i + 1)
+                                if (mlResult.fullText.isNotBlank()) {
+                                    sb.append(mlResult.fullText).append("\n\n")
+                                }
+                            } finally {
+                                if (bitmap != null && !bitmap.isRecycled) {
+                                    bitmap.recycle()
+                                }
+                            }
+                        } finally {
+                            page.close()
+                        }
+                    }
+                } finally {
+                    renderer.close()
+                }
+            }
+        } catch (_: Throwable) {
+            // Fallback to stream text if PdfRenderer fails in headless test environments
+            return extractAllStreamText(pdfFile)
+        }
+
+        return if (sb.isNotBlank()) sb.toString().trim() else extractAllStreamText(pdfFile)
+    }
+
     private fun extractPdfStreamText(file: File): List<List<String>> {
         val pagesText = mutableListOf<List<String>>()
         try {
@@ -1566,6 +1704,7 @@ fun ExtractorScreen() {
     val extractor = remember { AdvancedPdfSmartExtractor(context) }
     val config = remember { OcrLanguageConfig() }
 
+    var selectedPdfUri by remember { mutableStateOf<Uri?>(null) }
     var selectedLanguage by remember { mutableStateOf("eng") }
     var selectedFileName by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -1574,6 +1713,7 @@ fun ExtractorScreen() {
 
     val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
+            selectedPdfUri = it
             selectedFileName = "Document Selected"
             isLoading = true
             coroutineScope.launch {
@@ -1655,7 +1795,7 @@ fun ExtractorScreen() {
                 if (activeTab == 0) {
                     LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         item {
-                            StructuredQuestionsTab(classification, pdfResults)
+                            StructuredQuestionsTab(classification, pdfResults, selectedPdfUri)
                         }
                     }
                 } else {
@@ -1885,7 +2025,11 @@ fun MetricPill(label: String, value: String, color: Color) {
 }
 
 @Composable
-fun StructuredQuestionsTab(classification: PdfClassificationResult, pages: List<PdfPageResult>) {
+fun StructuredQuestionsTab(
+    classification: PdfClassificationResult,
+    pages: List<PdfPageResult>,
+    pdfUri: Uri? = null
+) {
     if (classification.detectedQuestions.isEmpty()) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -1932,6 +2076,37 @@ fun StructuredQuestionsTab(classification: PdfClassificationResult, pages: List<
         val allImages = pages.flatMap { it.extractedImages }
         val viewModel: Com.ak.testseries.viewmodel.NEETViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
         var savedStatus by remember { mutableStateOf<String?>(null) }
+        var currentQuestions by remember(classification) { mutableStateOf(classification.detectedQuestions) }
+        var cropTargetQuestion by remember { mutableStateOf<StructuredQuestion?>(null) }
+
+        // Fallback to Manual Crop Engine dialog when user requests visual correction
+        if (cropTargetQuestion != null && pdfUri != null) {
+            val target = cropTargetQuestion!!
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { cropTargetQuestion = null },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    Com.ak.testseries.ui.PdfCropperScreen(
+                        uri = pdfUri,
+                        initialPage = (target.pageNumber - 1).coerceAtLeast(0),
+                        onClose = { cropTargetQuestion = null },
+                        onCropResult = { croppedBitmap ->
+                            currentQuestions = currentQuestions.map { q ->
+                                if (q.questionNumber == target.questionNumber && q.pageNumber == target.pageNumber) {
+                                    q.copy(
+                                        imageBitmap = croppedBitmap,
+                                        isNeedsReview = false,
+                                        anomalyReason = null
+                                    )
+                                } else q
+                            }
+                            cropTargetQuestion = null
+                        }
+                    )
+                }
+            }
+        }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Card(
@@ -1947,7 +2122,7 @@ fun StructuredQuestionsTab(classification: PdfClassificationResult, pages: List<
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Parsed ${classification.detectedQuestions.size} Structured Questions",
+                            text = "Parsed ${currentQuestions.size} Structured Questions",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -1962,10 +2137,10 @@ fun StructuredQuestionsTab(classification: PdfClassificationResult, pages: List<
                     Button(
                         onClick = {
                             viewModel.saveExtractedQuestionsToPrivateRoomDatabase(
-                                testTitle = "Parsed PDF Test (${classification.detectedQuestions.size} Qs)",
+                                testTitle = "Parsed PDF Test (${currentQuestions.size} Qs)",
                                 subject = "Full Syllabus",
                                 targetExam = "NEET",
-                                structuredQuestions = classification.detectedQuestions,
+                                structuredQuestions = currentQuestions,
                                 onSuccess = { id ->
                                     savedStatus = "✅ Saved to Room DB ($id)"
                                 }
@@ -1979,7 +2154,7 @@ fun StructuredQuestionsTab(classification: PdfClassificationResult, pages: List<
                 }
             }
 
-            classification.detectedQuestions.forEach { question ->
+            currentQuestions.forEach { question ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -1996,7 +2171,32 @@ fun StructuredQuestionsTab(classification: PdfClassificationResult, pages: List<
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            if (question.hasAllFourOptions) {
+                            if (question.isNeedsReview) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = "Review Needed",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFEF4444)
+                                        )
+                                    }
+                                }
+                            } else if (question.hasAllFourOptions) {
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFF10B981).copy(alpha = 0.15f),
@@ -2117,6 +2317,57 @@ fun StructuredQuestionsTab(classification: PdfClassificationResult, pages: List<
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Anomaly Warning Banner & Manual Crop Fallback Button
+                        if (question.isNeedsReview) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "⚠️ ${question.anomalyReason ?: "Math formula or options anomaly detected"}",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                        Text(
+                                            text = "Crop exact region directly from PDF page.",
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            cropTargetQuestion = question
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = MaterialTheme.colorScheme.onError
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Crop,
+                                            contentDescription = "Manual Crop",
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("✂️ Manual Crop", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }

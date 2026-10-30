@@ -953,6 +953,30 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             seedBundledMockTestsIfNeeded()
             seedSyllabusIfNeeded()
         }
+
+        // Flow 1: Initialize PDF Session Recovery and cleanup orphaned temporary files
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                Com.ak.testseries.data.pdf.PdfStorageManager.cleanupOrphanedTempFiles(getApplication())
+                db.pdfSessionDao().getAllSessions().collect { sessions ->
+                    allPdfSessions.value = sessions
+                    resumablePdfSessions.value = sessions.filter {
+                        it.status == Com.ak.testseries.data.PdfSessionStatus.PARSING.name ||
+                        it.status == Com.ak.testseries.data.PdfSessionStatus.PAUSED.name ||
+                        it.status == Com.ak.testseries.data.PdfSessionStatus.READY.name
+                    }
+                    val currentActive = activePdfSession.value
+                    if (currentActive != null) {
+                        val match = sessions.find { it.sessionId == currentActive.sessionId }
+                        if (match != null) {
+                            activePdfSession.value = match
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     override fun onCleared() {
@@ -4741,6 +4765,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val _pdfAnalysisState = MutableStateFlow<PdfAnalysisState>(PdfAnalysisState.Idle)
     val pdfAnalysisState: StateFlow<PdfAnalysisState> = _pdfAnalysisState.asStateFlow()
 
+    // --- Flow 1: Persistent PDF Storage & Recovery Sessions ---
+    val activePdfSession = MutableStateFlow<Com.ak.testseries.data.PdfSessionEntity?>(null)
+    val resumablePdfSessions = MutableStateFlow<List<Com.ak.testseries.data.PdfSessionEntity>>(emptyList())
+    val allPdfSessions = MutableStateFlow<List<Com.ak.testseries.data.PdfSessionEntity>>(emptyList())
+
     val autoRoutedWorkflow = MutableStateFlow<String?>(null) // "private" or "public"
     val autoRoutingExplanation = MutableStateFlow<String?>(null)
     val extractedDiagramPaths = MutableStateFlow<List<String>>(emptyList())
@@ -4753,32 +4782,154 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         extractedDiagramPaths.value = emptyList()
         extractedDiagramCount.value = 0
         lastExtractedPdfPages.value = emptyList()
+        activePdfSession.value = null
+    }
+
+    /**
+     * Resumes background processing for a previously paused or interrupted session.
+     */
+    fun resumePdfSession(context: android.content.Context, sessionId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val session = db.pdfSessionDao().getSessionById(sessionId) ?: return@launch
+            db.pdfSessionDao().updateStatus(sessionId, Com.ak.testseries.data.PdfSessionStatus.PARSING.name)
+            activePdfSession.value = session.copy(status = Com.ak.testseries.data.PdfSessionStatus.PARSING.name)
+            Com.ak.testseries.data.pdf.PdfProcessingScheduler.scheduleProcessing(context, sessionId)
+        }
+    }
+
+    /**
+     * Retries processing for a session, optionally resetting to page 1.
+     */
+    fun retryPdfSession(context: android.content.Context, sessionId: String, resetToBeginning: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (resetToBeginning) {
+                db.pdfSessionDao().updateProgress(sessionId, processedPages = 0, lastProcessedPage = 0)
+            }
+            db.pdfSessionDao().updateStatus(sessionId, Com.ak.testseries.data.PdfSessionStatus.READY.name)
+            val session = db.pdfSessionDao().getSessionById(sessionId)
+            activePdfSession.value = session
+            Com.ak.testseries.data.pdf.PdfProcessingScheduler.scheduleProcessing(context, sessionId)
+        }
+    }
+
+    /**
+     * Cancels an ongoing background processing worker and marks the session as PAUSED.
+     */
+    fun cancelPdfSession(context: android.content.Context, sessionId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            Com.ak.testseries.data.pdf.PdfProcessingScheduler.cancelProcessing(context, sessionId)
+            db.pdfSessionDao().updateStatus(sessionId, Com.ak.testseries.data.PdfSessionStatus.PAUSED.name)
+            val session = db.pdfSessionDao().getSessionById(sessionId)
+            activePdfSession.value = session
+        }
+    }
+
+    /**
+     * Deletes a session and removes its persistent files from internal storage.
+     */
+    fun deletePdfSession(context: android.content.Context, sessionId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            Com.ak.testseries.data.pdf.PdfProcessingScheduler.cancelProcessing(context, sessionId)
+            Com.ak.testseries.data.pdf.PdfStorageManager.deleteSessionFiles(context, sessionId)
+            db.pdfSessionDao().deleteSession(sessionId)
+            if (activePdfSession.value?.sessionId == sessionId) {
+                activePdfSession.value = null
+            }
+        }
     }
 
     fun analyzePdfWithAI(context: android.content.Context, uri: android.net.Uri) {
         viewModelScope.launch {
             _pdfAnalysisState.value = PdfAnalysisState.ExtractingText
             delay(500)
-            
-            // 1. Extract text from PDF streams locally in page chunks using unified AdvancedPdfSmartExtractor
-            val (pdfPages, pdfText) = withContext(Dispatchers.IO) {
-                try {
-                    val tempFile = java.io.File.createTempFile("user_pdf_", ".pdf", context.cacheDir)
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        tempFile.outputStream().use { output -> input.copyTo(output) }
+
+            // Step 2 & 6: Persistent PDF Storage with atomic copy, SHA-256 hash & disk space check
+            val (pdfName, _) = Com.ak.testseries.data.pdf.PdfStorageManager.queryUriMetadata(context, uri)
+            val storageResult = withContext(Dispatchers.IO) {
+                Com.ak.testseries.data.pdf.PdfStorageManager.storePdfSafely(
+                    context = context,
+                    inputStreamProvider = { context.contentResolver.openInputStream(uri) },
+                    fileName = pdfName,
+                    targetExam = genTargetExam.value.ifBlank { "NEET UG" },
+                    existingSessionLookup = { hash -> db.pdfSessionDao().getSessionByHash(hash) }
+                )
+            }
+
+            val session = when (storageResult) {
+                is Com.ak.testseries.data.pdf.PdfStorageResult.Success -> {
+                    withContext(Dispatchers.IO) { db.pdfSessionDao().insertSession(storageResult.session) }
+                    storageResult.session
+                }
+                is Com.ak.testseries.data.pdf.PdfStorageResult.DuplicateFound -> {
+                    storageResult.existingSession
+                }
+                is Com.ak.testseries.data.pdf.PdfStorageResult.InsufficientStorage -> {
+                    val errorMsg = "Internal device storage is below 50MB. Please free up storage before uploading."
+                    _pdfAnalysisState.value = PdfAnalysisState.Error(errorMsg)
+                    aiGenStatusMessage.value = errorMsg
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
                     }
+                    return@launch
+                }
+                is Com.ak.testseries.data.pdf.PdfStorageResult.InvalidPdf -> {
+                    val errorMsg = "Invalid or corrupted PDF: ${storageResult.reason}"
+                    _pdfAnalysisState.value = PdfAnalysisState.Error(errorMsg)
+                    aiGenStatusMessage.value = errorMsg
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+                is Com.ak.testseries.data.pdf.PdfStorageResult.Error -> {
+                    val errorMsg = "Failed to store PDF safely: ${storageResult.exception.message}"
+                    _pdfAnalysisState.value = PdfAnalysisState.Error(errorMsg)
+                    aiGenStatusMessage.value = errorMsg
+                    return@launch
+                }
+            }
+            activePdfSession.value = session
+            val persistentPdfFile = java.io.File(session.filePath)
+
+            // 1. Extract text from persistent PDF file locally in page chunks using AdvancedPdfSmartExtractor
+            withContext(Dispatchers.IO) {
+                db.pdfSessionDao().updateStatus(session.sessionId, Com.ak.testseries.data.PdfSessionStatus.PARSING.name)
+            }
+
+            var (pdfPages, pdfText) = withContext(Dispatchers.IO) {
+                try {
                     val smartExtractor = com.ak.pdfextractor.AdvancedPdfSmartExtractor(context)
-                    val pages = smartExtractor.extractStreamPagesText(tempFile)
-                    val fullText = if (pages.isNotEmpty()) pages.joinToString("\n") else smartExtractor.extractAllStreamText(tempFile)
-                    tempFile.delete()
+                    val pages = smartExtractor.extractStreamPagesText(persistentPdfFile)
+                    val fullText = if (pages.isNotEmpty()) pages.joinToString("\n") else smartExtractor.extractAllStreamText(persistentPdfFile)
                     Pair(pages, fullText)
                 } catch (e: Exception) {
                     Pair(emptyList<String>(), "")
                 }
             }
 
+            // Smart Two-Tier Fallback: If raw stream text is empty/scanned, invoke Tier 2 On-Device ML Kit OCR
+            if (pdfText.isBlank() || pdfText.length < 30) {
+                aiGenStatusMessage.value = "Scanned PDF detected: Running on-device ML Kit OCR..."
+                val ocrResults = withContext(Dispatchers.IO) {
+                    try {
+                        val smartExtractor = com.ak.pdfextractor.AdvancedPdfSmartExtractor(context)
+                        smartExtractor.processPdfUri(android.net.Uri.fromFile(persistentPdfFile), "eng")
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                }
+                val ocrText = ocrResults.joinToString("\n\n") { it.fullText }
+                if (ocrText.isNotBlank()) {
+                    pdfText = ocrText
+                    pdfPages = ocrResults.map { it.fullText }
+                }
+            }
+
             if (pdfText.isBlank()) {
                 val errorMsg = "PDF से readable text नहीं निकाला जा सका। यह scanned/image-only या unsupported PDF हो सकती है।"
+                withContext(Dispatchers.IO) {
+                    db.pdfSessionDao().updateError(session.sessionId, errorMsg, Com.ak.testseries.data.PdfSessionStatus.FAILED.name)
+                }
                 _pdfAnalysisState.value = PdfAnalysisState.Error(errorMsg)
                 aiGenStatusMessage.value = errorMsg
                 withContext(Dispatchers.Main) {
@@ -4793,12 +4944,23 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             lastExtractedPdfText.value = compactMarkdown
             val extractedText = compactMarkdown
 
+            withContext(Dispatchers.IO) {
+                try {
+                    val sessionDir = Com.ak.testseries.data.pdf.PdfStorageManager.getSessionDirectory(context, session.sessionId)
+                    val mdFile = java.io.File(sessionDir, "source_extracted.md")
+                    mdFile.writeText(compactMarkdown)
+                    val totalP = session.pageCount.coerceAtLeast(pdfPages.size).coerceAtLeast(1)
+                    db.pdfSessionDao().updateProgress(session.sessionId, processedPages = totalP, lastProcessedPage = totalP)
+                    db.pdfSessionDao().updateExtractedPath(session.sessionId, mdFile.absolutePath, Com.ak.testseries.data.PdfSessionStatus.EXTRACTED.name)
+                } catch (_: Exception) {}
+            }
+
             // 2. Extract diagrams, formulas, charts & image regions locally (100% Offline via Android PdfRenderer)
             val extractedDiagrams = withContext(Dispatchers.IO) {
                 try {
                     Com.ak.testseries.utils.LocalPdfImageExtractor.extractDiagramCandidates(
                         context = context,
-                        pdfUri = uri,
+                        pdfUri = android.net.Uri.fromFile(persistentPdfFile),
                         testId = "pdf_${System.currentTimeMillis()}",
                         maxPagesToScan = 30
                     )
@@ -5143,7 +5305,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         prompt: String,
         systemInstruction: String? = null
     ): String? = withContext(Dispatchers.IO) {
-        val candidateModels = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash")
+        val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {
                 val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")
@@ -5208,7 +5370,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun callGeminiApiText(apiKey: String, prompt: String): String? = withContext(Dispatchers.IO) {
-        val candidateModels = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash")
+        val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {
                 val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")

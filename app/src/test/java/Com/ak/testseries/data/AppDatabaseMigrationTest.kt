@@ -594,5 +594,200 @@ class AppDatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testMigration19To20_createsPdfSessionsTable_andPreservesAllExistingData() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val callback = object : SupportSQLiteOpenHelper.Callback(19) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                // Base tables as in v19
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS tests (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        institute TEXT NOT NULL,
+                        batchName TEXT NOT NULL,
+                        facultyName TEXT NOT NULL,
+                        language TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        difficulty TEXT NOT NULL,
+                        testType TEXT NOT NULL,
+                        questionsCount INTEGER NOT NULL,
+                        isOfficial INTEGER NOT NULL,
+                        isVerifiedCommunity INTEGER NOT NULL,
+                        isPublic INTEGER NOT NULL,
+                        countsTowardRanking INTEGER NOT NULL,
+                        rating REAL NOT NULL,
+                        rating1Count INTEGER NOT NULL,
+                        rating2Count INTEGER NOT NULL,
+                        rating3Count INTEGER NOT NULL,
+                        rating4Count INTEGER NOT NULL,
+                        rating5Count INTEGER NOT NULL,
+                        attemptsCount INTEGER NOT NULL,
+                        downloadsCount INTEGER NOT NULL,
+                        isDownloaded INTEGER NOT NULL,
+                        isBookmarked INTEGER NOT NULL,
+                        timestamp INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        aiConfidence INTEGER NOT NULL,
+                        uploaderId TEXT NOT NULL,
+                        targetExam TEXT NOT NULL,
+                        durationMinutes INTEGER NOT NULL,
+                        classLevel TEXT NOT NULL,
+                        chapter TEXT NOT NULL,
+                        topic TEXT NOT NULL,
+                        imageUrl TEXT,
+                        questionsJson TEXT,
+                        examId TEXT,
+                        stageId TEXT,
+                        paperId TEXT,
+                        scoringVersion INTEGER
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS questions (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        testId TEXT NOT NULL,
+                        questionNumber INTEGER NOT NULL,
+                        questionText TEXT NOT NULL,
+                        questionTextHi TEXT NOT NULL,
+                        optionA TEXT NOT NULL,
+                        optionB TEXT NOT NULL,
+                        optionC TEXT NOT NULL,
+                        optionD TEXT NOT NULL,
+                        optionAHi TEXT NOT NULL,
+                        optionBHi TEXT NOT NULL,
+                        optionCHi TEXT NOT NULL,
+                        optionDHi TEXT NOT NULL,
+                        correctOption TEXT NOT NULL,
+                        explanation TEXT NOT NULL,
+                        explanationHi TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        chapter TEXT NOT NULL,
+                        topic TEXT NOT NULL,
+                        difficulty TEXT NOT NULL,
+                        isBookmarked INTEGER NOT NULL,
+                        imageUrl TEXT,
+                        optionE TEXT,
+                        optionEHi TEXT
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS attempts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        userId TEXT NOT NULL DEFAULT '',
+                        testId TEXT NOT NULL,
+                        testTitle TEXT NOT NULL,
+                        score REAL NOT NULL,
+                        maxScore REAL NOT NULL,
+                        percentile REAL NOT NULL,
+                        accuracy REAL NOT NULL,
+                        correctCount INTEGER NOT NULL,
+                        incorrectCount INTEGER NOT NULL,
+                        skippedCount INTEGER NOT NULL,
+                        timeSpentSeconds INTEGER NOT NULL,
+                        dateTaken INTEGER NOT NULL,
+                        answersJson TEXT NOT NULL,
+                        attemptSessionToken TEXT NOT NULL DEFAULT '',
+                        verifiedServerSide INTEGER NOT NULL DEFAULT 0,
+                        submissionStatus TEXT NOT NULL DEFAULT 'CONFIRMED'
+                    )
+                """.trimIndent())
+            }
+
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+        }
+
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name("test_db_migration_19_20")
+            .callback(callback)
+            .build()
+        val helper = FrameworkSQLiteOpenHelperFactory().create(config)
+        val db = helper.writableDatabase
+
+        // 1. Insert pre-existing v19 records
+        db.execSQL("""
+            INSERT INTO tests (
+                id, title, description, institute, batchName, facultyName, language, subject,
+                difficulty, testType, questionsCount, isOfficial, isVerifiedCommunity, isPublic,
+                countsTowardRanking, rating, rating1Count, rating2Count, rating3Count, rating4Count,
+                rating5Count, attemptsCount, downloadsCount, isDownloaded, isBookmarked, timestamp,
+                status, aiConfidence, uploaderId, targetExam, durationMinutes, classLevel, chapter, topic,
+                examId, stageId, paperId, scoringVersion
+            ) VALUES (
+                'test_v19', 'NEET Full Test 2024', 'Full syllabus mock', 'Allen', 'Leader', 'Dr. Sharma',
+                'English', 'Full Syllabus', 'Medium', 'Full Mock', 200, 1, 1, 1, 1, 4.8, 0, 1, 2, 5, 20,
+                100, 50, 1, 0, 1700000000, 'PUBLISHED', 95, 'admin_1', 'NEET UG', 200, '12th', 'All', 'All',
+                'neet_ug', 'neet_stage_1', 'paper_1', 1
+            )
+        """.trimIndent())
+
+        // 2. Execute Room Migration 19 -> 20
+        AppDatabase.MIGRATION_19_20.migrate(db)
+
+        // 3. Verify pdf_sessions table was created
+        val tableCursor = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='pdf_sessions'")
+        assertTrue("pdf_sessions table must exist after migration 19_20", tableCursor.moveToFirst())
+        tableCursor.close()
+
+        // 4. Verify columns in pdf_sessions
+        val pragmaCursor = db.query("PRAGMA table_info('pdf_sessions')")
+        val columns = mutableSetOf<String>()
+        while (pragmaCursor.moveToNext()) {
+            columns.add(pragmaCursor.getString(pragmaCursor.getColumnIndexOrThrow("name")))
+        }
+        pragmaCursor.close()
+
+        val requiredColumns = listOf(
+            "sessionId", "filePath", "fileName", "fileSize", "fileHash",
+            "pageCount", "processedPages", "lastProcessedPage", "status",
+            "createdAt", "updatedAt", "errorMessage", "extractedTextPath", "examTarget"
+        )
+        for (col in requiredColumns) {
+            assertTrue("Column '$col' must be present in pdf_sessions", columns.contains(col))
+        }
+
+        // 5. Verify index exists on fileHash and status
+        val indexCursor = db.query("PRAGMA index_list('pdf_sessions')")
+        val indices = mutableSetOf<String>()
+        while (indexCursor.moveToNext()) {
+            indices.add(indexCursor.getString(indexCursor.getColumnIndexOrThrow("name")))
+        }
+        indexCursor.close()
+        assertTrue(indices.contains("index_pdf_sessions_fileHash"))
+        assertTrue(indices.contains("index_pdf_sessions_status"))
+
+        // 6. Verify inserting into pdf_sessions succeeds
+        db.execSQL("""
+            INSERT INTO pdf_sessions (
+                sessionId, filePath, fileName, fileSize, fileHash, pageCount,
+                processedPages, lastProcessedPage, status, createdAt, updatedAt,
+                errorMessage, extractedTextPath, examTarget
+            ) VALUES (
+                'session_test_1', '/data/user/0/Com.ak.testseries/files/pdf_sessions/session_test_1/source.pdf',
+                'neet_2024.pdf', 1048576, 'abcdef1234567890', 50, 10, 10, 'PARSING',
+                1700000000, 1700000100, NULL, NULL, 'NEET UG'
+            )
+        """.trimIndent())
+
+        val sessionCursor = db.query("SELECT * FROM pdf_sessions WHERE sessionId = 'session_test_1'")
+        assertTrue(sessionCursor.moveToFirst())
+        assertEquals("neet_2024.pdf", sessionCursor.getString(sessionCursor.getColumnIndexOrThrow("fileName")))
+        assertEquals(50, sessionCursor.getInt(sessionCursor.getColumnIndexOrThrow("pageCount")))
+        assertEquals(10, sessionCursor.getInt(sessionCursor.getColumnIndexOrThrow("lastProcessedPage")))
+        assertEquals("PARSING", sessionCursor.getString(sessionCursor.getColumnIndexOrThrow("status")))
+        sessionCursor.close()
+
+        // 7. Verify pre-existing v19 data remains intact
+        val testCursor = db.query("SELECT id, title FROM tests WHERE id = 'test_v19'")
+        assertTrue(testCursor.moveToFirst())
+        assertEquals("NEET Full Test 2024", testCursor.getString(testCursor.getColumnIndexOrThrow("title")))
+        testCursor.close()
+
+        db.close()
+    }
 }
 

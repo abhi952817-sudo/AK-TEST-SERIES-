@@ -128,8 +128,8 @@ interface RecentSearchDao {
 }
 
 @Database(
-    entities = [TestEntity::class, QuestionEntity::class, AttemptEntity::class, SyllabusEntity::class, RecentSearchEntity::class],
-    version = 19,
+    entities = [TestEntity::class, QuestionEntity::class, AttemptEntity::class, SyllabusEntity::class, RecentSearchEntity::class, PdfSessionEntity::class],
+    version = 20,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -138,6 +138,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun attemptDao(): AttemptDao
     abstract fun syllabusDao(): SyllabusDao
     abstract fun recentSearchDao(): RecentSearchDao
+    abstract fun pdfSessionDao(): PdfSessionDao
 
     companion object {
         @Volatile
@@ -216,6 +217,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_19_20 = object : androidx.room.migration.Migration(19, 20) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `pdf_sessions` (
+                        `sessionId` TEXT NOT NULL,
+                        `filePath` TEXT NOT NULL,
+                        `fileName` TEXT NOT NULL,
+                        `fileSize` INTEGER NOT NULL,
+                        `fileHash` TEXT NOT NULL,
+                        `pageCount` INTEGER NOT NULL,
+                        `processedPages` INTEGER NOT NULL,
+                        `lastProcessedPage` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        `errorMessage` TEXT,
+                        `extractedTextPath` TEXT,
+                        `examTarget` TEXT,
+                        PRIMARY KEY(`sessionId`)
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_pdf_sessions_fileHash` ON `pdf_sessions` (`fileHash`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_pdf_sessions_status` ON `pdf_sessions` (`status`)")
+            }
+        }
+
         fun getDatabase(context: android.content.Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -223,7 +250,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "neet_test_series_db"
                 )
-                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -232,3 +259,4 @@ abstract class AppDatabase : RoomDatabase() {
         }
     }
 }
+

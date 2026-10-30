@@ -41,7 +41,7 @@ object GeminiPdfExtractor {
                 Return ONLY a JSON array of objects without markdown fences.
             """.trimIndent()
             
-            val candidateModels = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash")
+            val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
             var responseText: String? = null
             var activeModel: String? = null
             var activeVersion: String? = null

@@ -318,4 +318,65 @@ class LocalQuestionClassifierTest {
         val remainingChunks = (resumedChunkIndex until totalChunks).toList()
         assertEquals(listOf(2), remainingChunks)
     }
+
+    @Test
+    fun testAnomalyDetectionIncompleteOptionsFlaggedForReview() {
+        val dummyBounds = BoundingBox(0f, 0f, 100f, 20f)
+        val textBlocks = listOf(
+            TextBlock(
+                id = "b1",
+                text = "1. Which element has the highest electronegativity? (A) Fluorine (B) Chlorine",
+                bounds = dummyBounds
+            )
+        )
+
+        val questions = LocalQuestionClassifier.extractStructuredQuestions(textBlocks)
+        assertEquals(1, questions.size)
+        val q1 = questions[0]
+        assertEquals(1, q1.questionNumber)
+        assertEquals(2, q1.options.size)
+        assertTrue("Question with incomplete options must be flagged for review", q1.isNeedsReview)
+        assertNotNull("Anomaly reason should be present", q1.anomalyReason)
+        assertTrue(q1.anomalyReason!!.contains("Incomplete options"))
+    }
+
+    @Test
+    fun testAnomalyDetectionBrokenMathGlyphsFlaggedForReview() {
+        val dummyBounds = BoundingBox(0f, 0f, 100f, 20f)
+        val textBlocks = listOf(
+            TextBlock(
+                id = "b1",
+                text = "1. The integral ??? dt is equal to \ufffd (A) 0 (B) 1 (C) -1 (D) Infinity",
+                bounds = dummyBounds
+            )
+        )
+
+        val questions = LocalQuestionClassifier.extractStructuredQuestions(textBlocks)
+        assertEquals(1, questions.size)
+        val q1 = questions[0]
+        assertEquals(1, q1.questionNumber)
+        assertTrue("Broken math glyphs must trigger needsReview flag", q1.isNeedsReview)
+        assertNotNull(q1.anomalyReason)
+        assertTrue(q1.anomalyReason!!.contains("Broken math") || q1.anomalyReason!!.contains("unparsed"))
+    }
+
+    @Test
+    fun testCleanCompleteFourOptionsNotFlaggedForReview() {
+        val dummyBounds = BoundingBox(0f, 0f, 100f, 20f)
+        val textBlocks = listOf(
+            TextBlock(
+                id = "b1",
+                text = "1. What is the value of gravitational acceleration? (A) 9.8 m/s^2 (B) 8.9 m/s^2 (C) 10.5 m/s^2 (D) 9.0 m/s^2",
+                bounds = dummyBounds
+            )
+        )
+
+        val questions = LocalQuestionClassifier.extractStructuredQuestions(textBlocks)
+        assertEquals(1, questions.size)
+        val q1 = questions[0]
+        assertEquals(4, q1.options.size)
+        assertTrue(q1.hasAllFourOptions)
+        org.junit.Assert.assertFalse("Clean complete question must not be flagged for review", q1.isNeedsReview)
+        org.junit.Assert.assertNull(q1.anomalyReason)
+    }
 }
