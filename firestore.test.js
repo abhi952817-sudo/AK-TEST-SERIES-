@@ -324,6 +324,50 @@ test("Student: CANNOT read questions of an unpublished test", async () => {
   );
 });
 
+test("F-016: Student CANNOT read private_keys subcollection or TestAnswerKeys directly from Firestore", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    // Official published test
+    await ctx.firestore().collection("Tests").doc("official_neet_2026").set({
+      title: "NEET Official Mock",
+      status: "Published",
+      isPublic: true,
+      isOfficial: true,
+      countsTowardRanking: true
+    });
+    // Private answer key inside subcollection
+    await ctx.firestore().collection("Tests").doc("official_neet_2026").collection("private_keys").doc("answerKey").set({
+      keys: [{ id: "q1", correctAnswer: "B", explanation: "Official solution" }]
+    });
+    // Standalone TestAnswerKeys document
+    await ctx.firestore().collection("TestAnswerKeys").doc("official_neet_2026").set({
+      keys: [{ id: "q1", correctAnswer: "B", explanation: "Official solution" }]
+    });
+  });
+
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  // Alice can read public test doc
+  await assertSucceeds(aliceDb.collection("Tests").doc("official_neet_2026").get());
+
+  // Alice is BLOCKED from reading private_keys subcollection
+  await assertFails(
+    aliceDb.collection("Tests").doc("official_neet_2026").collection("private_keys").doc("answerKey").get()
+  );
+
+  // Alice is BLOCKED from reading TestAnswerKeys root collection
+  await assertFails(
+    aliceDb.collection("TestAnswerKeys").doc("official_neet_2026").get()
+  );
+
+  // Admin CAN read private_keys and TestAnswerKeys
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await assertSucceeds(
+    adminDb.collection("Tests").doc("official_neet_2026").collection("private_keys").doc("answerKey").get()
+  );
+  await assertSucceeds(
+    adminDb.collection("TestAnswerKeys").doc("official_neet_2026").get()
+  );
+});
+
 // =========================================================================
 // 5. COMMUNITY POSTS AND DISCUSSIONS SECURITY
 // =========================================================================

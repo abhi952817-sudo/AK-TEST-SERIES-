@@ -282,7 +282,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
           negativeMarksPenalty: existing.negativeMarksPenalty || 0,
           isFirstAttempt: existing.isFirstAttempt || false,
           countsTowardRanking: existing.countsTowardRanking || false,
-          solutionKeys,
           isRetry: true
         };
       } else {
@@ -457,7 +456,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
       isFirstAttempt,
       countsTowardRanking,
-      solutionKeys,
     };
   });
 });
@@ -623,3 +621,189 @@ exports.setAdminRole = functions.https.onCall(async (data, context) => {
   await admin.auth().setCustomUserClaims(uidToPromote, { admin: grantAdmin !== false });
   return { success: true, targetUid: uidToPromote, admin: grantAdmin !== false };
 });
+
+/**
+ * Cloud Function: getTestAttemptSolutions (Remediation F-016)
+ * Dedicated, authoritative solution retrieval flow.
+ * Solutions are strictly gated:
+ * 1. User must be authenticated and active (not banned).
+ * 2. User must have an existing, completed attempt record for this test (verified on server).
+ * 3. Cannot be accessed across different users or arbitrary attempt IDs.
+ * 4. Test must not explicitly disallow solution review.
+ * 5. Live test solutions are held until the live exam window ends.
+ */
+exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) => {
+  // 1. Verify Authentication
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated to retrieve test solutions."
+    );
+  }
+
+  const userId = context.auth.uid;
+  const { testId, attemptSessionToken } = data || {};
+
+  // 2. Validate Parameters
+  if (!testId || typeof testId !== "string" || testId.trim().length === 0) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Missing or invalid testId parameter."
+    );
+  }
+
+  if (!attemptSessionToken || typeof attemptSessionToken !== "string" || attemptSessionToken.trim().length === 0) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Missing or invalid attemptSessionToken parameter."
+    );
+  }
+
+  const cleanTestId = testId.trim();
+  const cleanAttemptId = attemptSessionToken.trim();
+
+  // 3. Verify Authoritative Account Status & Ban Enforcement
+  const userRef = db.collection("Users_Data").doc(userId);
+  let userSnap;
+  try {
+    userSnap = await userRef.get();
+  } catch (err) {
+    throw new functions.https.HttpsError(
+      "internal",
+      "Failed to verify account status. Please try again."
+    );
+  }
+
+  if (!userSnap.exists) {
+    throw new functions.https.HttpsError("not-found", "User record does not exist.");
+  }
+
+  const userData = userSnap.data();
+  try {
+    assertActiveUserStatus(userData, userId);
+  } catch (err) {
+    throw new functions.https.HttpsError(
+      err.code || "permission-denied",
+      err.message
+    );
+  }
+
+  // 4. Verify Attempt Ownership and Completion Status (Fail-Closed)
+  let attemptSnap = await userRef.collection("Attempts").doc(cleanAttemptId).get();
+  if (!attemptSnap.exists) {
+    attemptSnap = await userRef.collection("attempts").doc(cleanAttemptId).get();
+  }
+
+  if (!attemptSnap.exists) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Solutions can only be accessed after completing and submitting the test attempt."
+    );
+  }
+
+  const attemptData = attemptSnap.data();
+  if (attemptData.userId !== userId || attemptData.testId !== cleanTestId) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Attempt does not match authenticated user or requested test."
+    );
+  }
+
+  const isCompleted = attemptData.verifiedServerSide === true ||
+                      attemptData.submissionStatus === "CONFIRMED" ||
+                      attemptData.submissionStatus === "COMPLETED" ||
+                      Boolean(attemptData.submittedAt);
+
+  if (!isCompleted) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Test attempt is not completed. You must complete and submit the test before retrieving solutions."
+    );
+  }
+
+  // 5. Verify Test Document and Review Permissions
+  let testDoc = await db.collection("Tests_Data").doc(cleanTestId).get();
+  if (!testDoc.exists) {
+    testDoc = await db.collection("Tests").doc(cleanTestId).get();
+  }
+  if (!testDoc.exists) {
+    testDoc = await db.collection("Shared_Community_Tests").doc(cleanTestId).get();
+  }
+  if (!testDoc.exists) {
+    throw new functions.https.HttpsError("not-found", "Test document not found.");
+  }
+
+  const testData = testDoc.data();
+  const isCallerAdmin = Boolean(
+    context.auth.token && (
+      context.auth.token.admin === true ||
+      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+    )
+  );
+
+  // Check explicit review disallowance
+  if (!isCallerAdmin && testData.allowSolutionsReview === false) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Detailed solutions review has been disabled for this examination."
+    );
+  }
+
+  // Check live test window
+  if (!isCallerAdmin && (testData.isLive === true || testData.liveEndTime)) {
+    const now = Date.now();
+    const liveEndTime = typeof testData.liveEndTime === "number"
+      ? testData.liveEndTime
+      : (testData.liveEndTime?.toMillis ? testData.liveEndTime.toMillis() : 0);
+    if (liveEndTime > 0 && now < liveEndTime) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Solutions for live examinations are locked until the live exam window concludes."
+      );
+    }
+  }
+
+  // 6. Securely Load Questions and Private Solution Keys
+  let questions = [];
+  if (testData.questionsJson) {
+    try {
+      questions = JSON.parse(testData.questionsJson);
+    } catch (e) {
+      questions = [];
+    }
+  }
+
+  if (!questions || questions.length === 0) {
+    const qSnap = await testDoc.ref.collection("questions").get();
+    if (!qSnap.empty) {
+      questions = qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+      const qSnapUpper = await testDoc.ref.collection("Questions").get();
+      if (!qSnapUpper.empty) {
+        questions = qSnapUpper.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+    }
+  }
+
+  let privateKeyDoc = await testDoc.ref.collection("private_keys").doc("answerKey").get();
+  if (!privateKeyDoc.exists) {
+    privateKeyDoc = await db.collection("TestAnswerKeys").doc(cleanTestId).get();
+  }
+
+  const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+  let solutionKeys = {};
+  try {
+    const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
+    solutionKeys = validated.solutionKeys;
+  } catch (err) {
+    throw new functions.https.HttpsError(err.code || "failed-precondition", err.message);
+  }
+
+  return {
+    success: true,
+    testId: cleanTestId,
+    attemptSessionToken: cleanAttemptId,
+    solutionKeys,
+  };
+});
+

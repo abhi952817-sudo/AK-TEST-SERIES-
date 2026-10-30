@@ -172,7 +172,6 @@ function validateCallableSubmission(
     testRank,
     testTotalCandidates,
     countsTowardRanking,
-    solutionKeys,
     isRetry: false
   };
 }
@@ -278,8 +277,7 @@ test("Authoritative evaluation uses protected private answer keys", () => {
   assert.strictEqual(result.verifiedServerSide, true);
   assert.strictEqual(result.score, 3); // +4 for q1, -1 for q2
   assert.strictEqual(result.maxScore, 8);
-  assert.strictEqual(result.solutionKeys.q1.correctAnswer, "A");
-  assert.strictEqual(result.solutionKeys.q1.explanation, "c = 3x10^8 m/s in vacuum");
+  assert.strictEqual(result.solutionKeys, undefined, "Solution keys must NEVER be returned in submitTestAttemptServerSide response");
 });
 
 test("Callable rejects unexpected question IDs not in test questions", () => {
@@ -845,4 +843,355 @@ test("assertActiveUserStatus helper behavior", () => {
     (err) => err.code === "not-found"
   );
 });
+
+// =========================================================================
+// REMEDIATION F-016: Authorized Solution Retrieval & Key Protection Tests
+// =========================================================================
+
+function validateGetSolutions(
+  data,
+  context,
+  testDocData,
+  privateKeyData = null,
+  userAttemptData = null,
+  userData = { isBanned: false }
+) {
+  if (!context || !context.auth || !context.auth.uid) {
+    const err = new Error("User must be authenticated to retrieve test solutions.");
+    err.code = "unauthenticated";
+    throw err;
+  }
+
+  const userId = context.auth.uid;
+  const { testId, attemptSessionToken } = data || {};
+
+  if (!testId || typeof testId !== "string" || testId.trim().length === 0) {
+    const err = new Error("Missing or invalid testId parameter.");
+    err.code = "invalid-argument";
+    throw err;
+  }
+
+  if (!attemptSessionToken || typeof attemptSessionToken !== "string" || attemptSessionToken.trim().length === 0) {
+    const err = new Error("Missing or invalid attemptSessionToken parameter.");
+    err.code = "invalid-argument";
+    throw err;
+  }
+
+  const cleanTestId = testId.trim();
+  const cleanAttemptId = attemptSessionToken.trim();
+
+  assertActiveUserStatus(userData, userId);
+
+  if (!userAttemptData) {
+    const err = new Error("Solutions can only be accessed after completing and submitting the test attempt.");
+    err.code = "permission-denied";
+    throw err;
+  }
+
+  if (userAttemptData.userId !== userId || userAttemptData.testId !== cleanTestId) {
+    const err = new Error("Attempt does not match authenticated user or requested test.");
+    err.code = "permission-denied";
+    throw err;
+  }
+
+  const isCompleted = userAttemptData.verifiedServerSide === true ||
+                      userAttemptData.submissionStatus === "CONFIRMED" ||
+                      userAttemptData.submissionStatus === "COMPLETED" ||
+                      Boolean(userAttemptData.submittedAt);
+  if (!isCompleted) {
+    const err = new Error("Test attempt is not completed. You must complete and submit the test before retrieving solutions.");
+    err.code = "permission-denied";
+    throw err;
+  }
+
+  if (!testDocData) {
+    const err = new Error("Test document not found.");
+    err.code = "not-found";
+    throw err;
+  }
+
+  const isCallerAdmin = Boolean(
+    context.auth.token && (
+      context.auth.token.admin === true ||
+      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+    )
+  );
+
+  if (!isCallerAdmin && testDocData.allowSolutionsReview === false) {
+    const err = new Error("Detailed solutions review has been disabled for this examination.");
+    err.code = "permission-denied";
+    throw err;
+  }
+
+  if (!isCallerAdmin && (testDocData.isLive === true || testDocData.liveEndTime)) {
+    const now = Date.now();
+    const liveEndTime = typeof testDocData.liveEndTime === "number"
+      ? testDocData.liveEndTime
+      : (testDocData.liveEndTime?.toMillis ? testDocData.liveEndTime.toMillis() : 0);
+    if (liveEndTime > 0 && now < liveEndTime) {
+      const err = new Error("Solutions for live examinations are locked until the live exam window concludes.");
+      err.code = "permission-denied";
+      throw err;
+    }
+  }
+
+  let questions = [];
+  if (testDocData.questionsJson) {
+    try { questions = JSON.parse(testDocData.questionsJson); } catch (e) { questions = []; }
+  }
+
+  const validated = validateAndMergeAnswerKeys(testDocData, questions, privateKeyData);
+  return {
+    success: true,
+    testId: cleanTestId,
+    attemptSessionToken: cleanAttemptId,
+    solutionKeys: validated.solutionKeys,
+  };
+}
+
+test("F-016: submitTestAttemptServerSide NEVER returns solutionKeys in submission response", () => {
+  const context = { auth: { uid: "student_submitting" } };
+  const testDoc = {
+    id: "neet_mock_secure",
+    status: "Published",
+    isPublic: true,
+    targetExam: "NEET UG",
+    countsTowardRanking: true,
+    questionsJson: JSON.stringify([
+      { id: "q1", questionText: "Speed of light?" },
+      { id: "q2", questionText: "Plank constant?" }
+    ])
+  };
+  const privateKeyData = {
+    questions: [
+      { id: "q1", correctAnswer: "A", explanation: "3x10^8 m/s" },
+      { id: "q2", correctAnswer: "B", explanation: "6.626x10^-34 J s" }
+    ]
+  };
+
+  const response = validateCallableSubmission(
+    { testId: "neet_mock_secure", attemptSessionToken: "att_101", answers: { q1: "A" }, timeSpentSeconds: 60 },
+    context,
+    testDoc,
+    privateKeyData
+  );
+
+  assert.strictEqual(response.success, true);
+  assert.strictEqual(response.verifiedServerSide, true);
+  assert.strictEqual(response.score, 4);
+  assert.strictEqual(response.solutionKeys, undefined, "CRITICAL: Private solutionKeys must be undefined in submission response");
+  assert.strictEqual("correctAnswer" in response, false);
+  assert.strictEqual("explanation" in response, false);
+});
+
+test("F-016: submitTestAttemptServerSide retry NEVER returns solutionKeys", () => {
+  const context = { auth: { uid: "student_submitting" } };
+  const existingAttempt = {
+    userId: "student_submitting",
+    testId: "neet_mock_secure",
+    score: 4,
+    answersJson: JSON.stringify({ q1: "A" })
+  };
+
+  const retryResponse = validateCallableSubmission(
+    { testId: "neet_mock_secure", attemptSessionToken: "att_101", answers: { q1: "A" }, timeSpentSeconds: 60 },
+    context,
+    { id: "neet_mock_secure", status: "Published", isPublic: true, questionsJson: JSON.stringify([{ id: "q1", questionText: "Speed of light?", correctAnswer: "A" }]) },
+    null,
+    existingAttempt
+  );
+
+  assert.strictEqual(retryResponse.isRetry, true);
+  assert.strictEqual(retryResponse.solutionKeys, undefined, "CRITICAL: Private solutionKeys must be undefined on retry response");
+});
+
+test("F-016: getTestAttemptSolutions rejects unauthenticated callers with unauthenticated", () => {
+  assert.throws(
+    () => validateGetSolutions({ testId: "t1", attemptSessionToken: "att_1" }, null, {}),
+    { code: "unauthenticated" }
+  );
+  assert.throws(
+    () => validateGetSolutions({ testId: "t1", attemptSessionToken: "att_1" }, { auth: null }, {}),
+    { code: "unauthenticated" }
+  );
+});
+
+test("F-016: getTestAttemptSolutions rejects missing or invalid arguments", () => {
+  const context = { auth: { uid: "student_1" } };
+  assert.throws(
+    () => validateGetSolutions({ testId: "", attemptSessionToken: "att_1" }, context, {}),
+    { code: "invalid-argument" }
+  );
+  assert.throws(
+    () => validateGetSolutions({ testId: "t1", attemptSessionToken: "" }, context, {}),
+    { code: "invalid-argument" }
+  );
+});
+
+test("F-016: getTestAttemptSolutions rejects banned students with permission-denied", () => {
+  const context = { auth: { uid: "banned_student" } };
+  const bannedUser = { uid: "banned_student", isBanned: true };
+  assert.throws(
+    () => validateGetSolutions(
+      { testId: "t1", attemptSessionToken: "att_1" },
+      context,
+      { id: "t1" },
+      null,
+      { userId: "banned_student", testId: "t1", verifiedServerSide: true },
+      bannedUser
+    ),
+    { code: "permission-denied" }
+  );
+});
+
+test("F-016: getTestAttemptSolutions rejects requests without completed attempt record (prevents pre-exam cheating)", () => {
+  const context = { auth: { uid: "student_cheater" } };
+  const testDoc = { id: "neet_real", status: "Published", isPublic: true };
+  // Cheater calls getTestAttemptSolutions before ever submitting or completing an attempt
+  assert.throws(
+    () => validateGetSolutions(
+      { testId: "neet_real", attemptSessionToken: "random_forged_attempt" },
+      context,
+      testDoc,
+      { questions: [{ id: "q1", correctAnswer: "A" }] },
+      null // No attempt record exists
+    ),
+    { code: "permission-denied" }
+  );
+});
+
+test("F-016: getTestAttemptSolutions rejects attempt belonging to a different user (cross-user attack)", () => {
+  const context = { auth: { uid: "student_attacker" } };
+  const otherUserAttempt = {
+    userId: "victim_student", // Belongs to victim
+    testId: "neet_real",
+    verifiedServerSide: true
+  };
+  assert.throws(
+    () => validateGetSolutions(
+      { testId: "neet_real", attemptSessionToken: "victim_attempt_token" },
+      context,
+      { id: "neet_real" },
+      null,
+      otherUserAttempt
+    ),
+    { code: "permission-denied" }
+  );
+});
+
+test("F-016: getTestAttemptSolutions rejects incomplete or unsubmitted attempt", () => {
+  const context = { auth: { uid: "student_mid_exam" } };
+  const incompleteAttempt = {
+    userId: "student_mid_exam",
+    testId: "neet_real",
+    verifiedServerSide: false,
+    submissionStatus: "PENDING", // Still pending / in-progress
+    submittedAt: null
+  };
+  assert.throws(
+    () => validateGetSolutions(
+      { testId: "neet_real", attemptSessionToken: "att_mid_1" },
+      context,
+      { id: "neet_real" },
+      null,
+      incompleteAttempt
+    ),
+    { code: "permission-denied" }
+  );
+});
+
+test("F-016: getTestAttemptSolutions rejects solutions for active live tests before window ends", () => {
+  const context = { auth: { uid: "student_live" } };
+  const futureEndTime = Date.now() + 3600000; // 1 hour in future
+  const liveTestDoc = {
+    id: "neet_all_india_live_1",
+    isLive: true,
+    liveEndTime: futureEndTime,
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+  };
+  const completedAttempt = {
+    userId: "student_live",
+    testId: "neet_all_india_live_1",
+    verifiedServerSide: true,
+    submissionStatus: "CONFIRMED"
+  };
+  assert.throws(
+    () => validateGetSolutions(
+      { testId: "neet_all_india_live_1", attemptSessionToken: "att_live_1" },
+      context,
+      liveTestDoc,
+      { questions: [{ id: "q1", correctAnswer: "A" }] },
+      completedAttempt
+    ),
+    { code: "permission-denied" }
+  );
+});
+
+test("F-016: getTestAttemptSolutions rejects solutions when allowSolutionsReview is explicitly false", () => {
+  const context = { auth: { uid: "student_restricted" } };
+  const restrictedTestDoc = {
+    id: "neet_blind_eval",
+    allowSolutionsReview: false,
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+  };
+  const completedAttempt = {
+    userId: "student_restricted",
+    testId: "neet_blind_eval",
+    verifiedServerSide: true,
+    submissionStatus: "CONFIRMED"
+  };
+  assert.throws(
+    () => validateGetSolutions(
+      { testId: "neet_blind_eval", attemptSessionToken: "att_blind_1" },
+      context,
+      restrictedTestDoc,
+      { questions: [{ id: "q1", correctAnswer: "A" }] },
+      completedAttempt
+    ),
+    { code: "permission-denied" }
+  );
+});
+
+test("F-016: getTestAttemptSolutions successfully authorizes and returns solutionKeys when test is completed and review allowed", () => {
+  const context = { auth: { uid: "student_valid" } };
+  const testDoc = {
+    id: "neet_chapter_1",
+    status: "Published",
+    isPublic: true,
+    questionsJson: JSON.stringify([
+      { id: "q1", questionText: "Q1 text" },
+      { id: "q2", questionText: "Q2 text" }
+    ])
+  };
+  const privateKeyData = {
+    questions: [
+      { id: "q1", correctAnswer: "C", explanation: "Because of Newton 3rd Law" },
+      { id: "q2", correctAnswer: "A", explanation: "Conservation of energy" }
+    ]
+  };
+  const completedAttempt = {
+    userId: "student_valid",
+    testId: "neet_chapter_1",
+    verifiedServerSide: true,
+    submissionStatus: "CONFIRMED"
+  };
+
+  const result = validateGetSolutions(
+    { testId: "neet_chapter_1", attemptSessionToken: "att_valid_1" },
+    context,
+    testDoc,
+    privateKeyData,
+    completedAttempt
+  );
+
+  assert.strictEqual(result.success, true);
+  assert.strictEqual(result.testId, "neet_chapter_1");
+  assert.strictEqual(result.attemptSessionToken, "att_valid_1");
+  assert.ok(result.solutionKeys);
+  assert.strictEqual(result.solutionKeys.q1.correctAnswer, "C");
+  assert.strictEqual(result.solutionKeys.q1.explanation, "Because of Newton 3rd Law");
+  assert.strictEqual(result.solutionKeys.q2.correctAnswer, "A");
+  assert.strictEqual(result.solutionKeys.q2.explanation, "Conservation of energy");
+});
+
 

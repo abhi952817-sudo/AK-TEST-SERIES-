@@ -4660,7 +4660,16 @@ fun ResultScreen(viewModel: NEETViewModel) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showSolutions = !showSolutions },
+                    .clickable {
+                        showSolutions = !showSolutions
+                        if (showSolutions) {
+                            val tId = activeTest?.id ?: ""
+                            val aTok = activeResult?.attemptSessionToken ?: ""
+                            if (tId.isNotBlank() && aTok.isNotBlank()) {
+                                viewModel.fetchTestSolutions(tId, aTok)
+                            }
+                        }
+                    },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -5324,6 +5333,8 @@ fun FullScreenSolutionPage(
     val displayOptionD = if (isHindi && !question.optionDHi.isNullOrEmpty()) question.optionDHi else question.optionD
     val displayExplanation = if (isHindi && !question.explanationHi.isNullOrEmpty()) question.explanationHi else question.explanation
 
+    val isFetchingSolutions by viewModel.isFetchingSolutions.collectAsStateWithLifecycle()
+    val solutionsFetchError by viewModel.solutionsFetchError.collectAsStateWithLifecycle()
     var isDoubtSolverOpen by remember { mutableStateOf(false) }
     var activeDoubtTab by remember { mutableStateOf(DoubtTab.AI) }
 
@@ -5629,26 +5640,82 @@ fun FullScreenSolutionPage(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            val explanationText = displayExplanation?.ifEmpty {
-                                if (isHindi) "स्पष्टीकरण अभी उपलब्ध नहीं है।" else "Explanation is not available for this question."
-                            } ?: ""
+                            val hasAnswerKey = !question.correctAnswer.isNullOrBlank()
+                            val explanationText = when {
+                                !displayExplanation.isNullOrBlank() -> displayExplanation
+                                isFetchingSolutions -> if (isHindi) "सर्वर से आधिकारिक समाधान प्राप्त किया जा रहा है..." else "Fetching authorized solution from server..."
+                                solutionsFetchError != null -> if (isHindi) "समाधान लोड नहीं हो सका: $solutionsFetchError" else "Unable to load solution: $solutionsFetchError"
+                                else -> if (isHindi) "इस प्रश्न के लिए विस्तृत समाधान अभी उपलब्ध नहीं है या लॉक है।" else "Detailed solution is currently unavailable or locked."
+                            }
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(Color(0xFF2E7D32).copy(alpha = 0.15f), RoundedCornerShape(6.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = if (isHindi) "सही उत्तर: विकल्प ${question.correctAnswer}" else "Correct Option: ${question.correctAnswer}",
-                                        color = Color(0xFF1B5E20),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
+                                if (hasAnswerKey) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFF2E7D32).copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isHindi) "सही उत्तर: विकल्प ${question.correctAnswer}" else "Correct Option: ${question.correctAnswer}",
+                                            color = Color(0xFF1B5E20),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                } else if (isFetchingSolutions) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            androidx.compose.material3.CircularProgressIndicator(
+                                                modifier = Modifier.size(12.dp),
+                                                strokeWidth = 2.dp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = if (isHindi) "समाधान लोड हो रहा है..." else "Loading solutions...",
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                } else if (solutionsFetchError != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                viewModel.fetchTestSolutions(test.id, result.attemptSessionToken)
+                                            }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isHindi) "पुनः प्रयास करें (Tap to Retry)" else "Tap to Retry",
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isHindi) "समाधान समीक्षा लॉक है" else "Solution Review Locked",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
                                 }
+
                                 if (question.chapter.isNotBlank() && question.chapter != "All") {
                                     Box(
                                         modifier = Modifier

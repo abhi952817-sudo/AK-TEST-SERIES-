@@ -4270,6 +4270,50 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    val isFetchingSolutions = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val solutionsFetchError = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+    fun fetchTestSolutions(testId: String, attemptSessionToken: String, onResult: ((Boolean) -> Unit)? = null) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val user = auth.currentUser
+        if (user == null || testId.isBlank() || attemptSessionToken.isBlank()) {
+            onResult?.invoke(false)
+            return
+        }
+        viewModelScope.launch {
+            isFetchingSolutions.value = true
+            solutionsFetchError.value = null
+            try {
+                val functions = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                val callable = functions.getHttpsCallable("getTestAttemptSolutions")
+                val payload = hashMapOf<String, Any>(
+                    "testId" to testId,
+                    "attemptSessionToken" to attemptSessionToken
+                )
+                val callResult = callable.call(payload).await()
+                val resultMap = callResult.data as? Map<*, *>
+                if (resultMap != null && resultMap["success"] == true) {
+                    val solutionKeys = resultMap["solutionKeys"] as? Map<*, *>
+                    if (solutionKeys != null && solutionKeys.isNotEmpty()) {
+                        updateActiveQuestionsWithSolutions(solutionKeys)
+                        isFetchingSolutions.value = false
+                        onResult?.invoke(true)
+                        return@launch
+                    }
+                }
+                solutionsFetchError.value = "Solutions are currently unavailable for this attempt."
+                onResult?.invoke(false)
+            } catch (e: Exception) {
+                val msg = e.message ?: "Failed to retrieve authorized solutions."
+                android.util.Log.e("NEETViewModel", "Authorized solutions retrieval failed: $msg", e)
+                solutionsFetchError.value = msg
+                onResult?.invoke(false)
+            } finally {
+                isFetchingSolutions.value = false
+            }
+        }
+    }
+
     fun submitTest() {
         if (isCurrentUserBanned.value) {
             android.widget.Toast.makeText(getApplication(), "Your account has been suspended by administration. Test submission is disabled.", android.widget.Toast.LENGTH_LONG).show()
@@ -4391,11 +4435,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 repository.insertAttempt(attempt)
                             }
 
-                            // Update active questions with authoritative solution keys returned by server
-                            val solutionKeys = resultMap["solutionKeys"] as? Map<*, *>
-                            if (solutionKeys != null) {
-                                updateActiveQuestionsWithSolutions(solutionKeys)
-                            }
+                            // Remediation F-016: Retrieve authoritative solutions via separate authorized flow
+                            fetchTestSolutions(test.id, sessionToken)
 
                             // Refresh public leaderboard & rank
                             fetchLeaderboard(test.targetExam)
