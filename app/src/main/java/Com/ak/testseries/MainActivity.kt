@@ -1027,15 +1027,17 @@ fun DashboardScreen(
                                                     tint = MaterialTheme.colorScheme.onSurface,
                                                     modifier = Modifier.size(26.dp)
                                                 )
-                                                // Always show dot for visual demo as requested
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopEnd)
-                                                        .padding(top = 8.dp, end = 8.dp)
-                                                        .size(8.dp)
-                                                        .background(Color(0xFFFF5252), CircleShape)
-                                                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                                                )
+                                                val hasNotifications = notifications.isNotEmpty()
+                                                if (hasNotifications) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .align(Alignment.TopEnd)
+                                                            .padding(top = 8.dp, end = 8.dp)
+                                                            .size(8.dp)
+                                                            .background(Color(0xFFFF5252), CircleShape)
+                                                            .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                                    )
+                                                }
                                             }
                                         }
                                     }

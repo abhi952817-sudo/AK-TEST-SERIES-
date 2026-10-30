@@ -275,17 +275,7 @@ fun LoginScreen(
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
 
-                OutlinedButton(
-                    onClick = { onSignInClick("demo@aktest.com", "123456") },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                ) {
-                    Icon(Icons.Filled.AccountCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp))
-                    Text("Sign in with Demo Account", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                }
                 
                 Spacer(modifier = Modifier.height(32.dp))
                 

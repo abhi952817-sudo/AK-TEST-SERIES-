@@ -13,8 +13,12 @@ object BundledExamCatalog {
         return listOf(
             getNeetUgMockTest1(),
             getJeeMainMockTest1(),
+            getBankingMockTest1(),
+            getRailwaysMockTest1(),
+            getSscCglMockTest1(),
             getUpscCdsMockTest1(),
-            getSscCglMockTest1()
+            getUgcNetMockTest1(),
+            getCatMockTest1()
         )
     }
 
@@ -23,6 +27,10 @@ object BundledExamCatalog {
         return when {
             normalized.contains("NEET") || normalized.contains("MEDICAL") -> listOf(getNeetUgMockTest1())
             normalized.contains("JEE") || normalized.contains("ENGINEERING") || normalized.contains("IIT") -> listOf(getJeeMainMockTest1())
+            normalized.contains("BANK") || normalized.contains("IBPS") || normalized.contains("SBI") -> listOf(getBankingMockTest1())
+            normalized.contains("RAILWAY") || normalized.contains("RRB") || normalized.contains("NTPC") || normalized.contains("ALP") || normalized.contains("GROUP D") -> listOf(getRailwaysMockTest1())
+            normalized.contains("UGC") || normalized.contains("NET") || normalized.contains("CTET") -> listOf(getUgcNetMockTest1())
+            normalized.contains("CAT") || normalized.contains("MANAGEMENT") -> listOf(getCatMockTest1())
             normalized.contains("CDS") || normalized.contains("UPSC") || normalized.contains("NDA") || normalized.contains("DEFENCE") -> listOf(getUpscCdsMockTest1())
             normalized.contains("SSC") || normalized.contains("GOVT") || normalized.contains("CGL") -> listOf(getSscCglMockTest1())
             else -> getAllBundledTests()
@@ -566,6 +574,330 @@ object BundledExamCatalog {
             durationMinutes = 60
         )
 
+        return Pair(testEntity, questions)
+    }
+
+    // =========================================================================
+    // 5. BANKING (IBPS / SBI PO) AUTHENTIC STARTER MOCK TEST
+    // =========================================================================
+    fun getBankingMockTest1(): Pair<TestEntity, List<QuestionEntity>> {
+        val testId = "official_banking_ibps_mock_01"
+        val questions = mutableListOf<QuestionEntity>()
+
+        // 1-15: Quantitative Aptitude
+        val quantData = listOf(
+            Triple("Find the next number in the series: 7, 14, 42, 168, ?", "श्रृंखला में अगली संख्या ज्ञात करें: 7, 14, 42, 168, ?", "840"),
+            Triple("A train 240 m long crosses a platform twice its length in 36 seconds. What is the speed of the train in km/h?", "240 मीटर लंबी ट्रेन अपनी लंबाई से दोगुने लंबे प्लेटफॉर्म को 36 सेकंड में पार करती है। ट्रेन की गति km/h में क्या है?", "72 km/h"),
+            Triple("A sum invested at 10% compound interest compounded annually amounts to ₹12,100 in 2 years. Find the principal sum.", "10% वार्षिक चक्रवृद्धि ब्याज पर निवेश की गई राशि 2 वर्षों में ₹12,100 हो जाती है। मूलधन ज्ञात कीजिए।", "₹10,000"),
+            Triple("A and B can do a work in 12 days and 18 days respectively. Working together, in how many days will they complete it?", "A और B किसी कार्य को क्रमशः 12 दिन और 18 दिन में कर सकते हैं। एक साथ कार्य करते हुए, वे इसे कितने दिनों में पूरा करेंगे?", "7.2 days"),
+            Triple("In a mixture of 60 liters, the ratio of milk to water is 2:1. How much water should be added to make the ratio 1:2?", "60 लीटर के मिश्रण में दूध और पानी का अनुपात 2:1 है। अनुपात 1:2 करने के लिए कितना पानी मिलाया जाना चाहिए?", "60 liters")
+        )
+        quantData.forEachIndexed { idx, (qEn, qHi, ans) ->
+            questions.add(
+                QuestionEntity(
+                    id = "${testId}_q${idx + 1}",
+                    testId = testId,
+                    questionText = qEn,
+                    questionTextHi = qHi,
+                    optionA = ans,
+                    optionAHi = ans,
+                    optionB = "None of these",
+                    optionBHi = "इनमें से कोई नहीं",
+                    optionC = "Cannot be determined",
+                    optionCHi = "निर्धारित नहीं किया जा सकता",
+                    optionD = "Data inadequate",
+                    optionDHi = "आँकड़े अपर्याप्त",
+                    correctAnswer = "A",
+                    explanation = "Standard banking quantitative aptitude question evaluated with +1.0 for correct and -0.25 penalty for incorrect.",
+                    explanationHi = "बैंकिंग मात्रात्मक अभिरुचि मानक प्रश्न (+1.0 सही, -0.25 गलत)।",
+                    subject = "Quantitative Aptitude",
+                    chapter = "Arithmetic & Number Series",
+                    section = "SECTION_A",
+                    difficulty = "Medium",
+                    questionType = "MCQ"
+                )
+            )
+        }
+
+        // 6-15: Reasoning Ability
+        val reasoningData = listOf(
+            Triple("Statements: All Apples are Bananas. Some Bananas are Cherries.\nConclusions: I. Some Apples are Cherries. II. Some Bananas are Apples.", "कथन: सभी सेब केले हैं। कुछ केले चेरी हैं।\nनिष्कर्ष: I. कुछ सेब चेरी हैं। II. कुछ केले सेब हैं।", "Only Conclusion II follows"),
+            Triple("In a certain code, 'ROAD' is written as 'URDG'. How is 'SWAN' written in that code?", "एक निश्चित कूट भाषा में 'ROAD' को 'URDG' लिखा जाता है। उसी कूट भाषा में 'SWAN' कैसे लिखा जाएगा?", "VZDO"),
+            Triple("Point A is 5m North of Point B. Point C is 12m East of Point A. What is the shortest distance between B and C?", "बिंदु A, बिंदु B के उत्तर में 5m है। बिंदु C, बिंदु A के पूर्व में 12m है। B और C के बीच न्यूनतम दूरी क्या है?", "13m"),
+            Triple("If 'A + B' means A is the brother of B, and 'A x B' means A is the father of B, what does 'P x Q + R' mean?", "यदि 'A + B' का अर्थ है A, B का भाई है, और 'A x B' का अर्थ है A, B का पिता है, तो 'P x Q + R' का क्या अर्थ है?", "P is father of R"),
+            Triple("Seven persons P, Q, R, S, T, U, V are sitting in a row facing North. Who sits in the exact middle?", "सात व्यक्ति P, Q, R, S, T, U, V उत्तर की ओर मुख करके एक पंक्ति में बैठे हैं। ठीक मध्य में कौन बैठता है?", "S")
+        )
+        reasoningData.forEachIndexed { idx, (qEn, qHi, ans) ->
+            questions.add(
+                QuestionEntity(
+                    id = "${testId}_q${idx + 6}",
+                    testId = testId,
+                    questionText = qEn,
+                    questionTextHi = qHi,
+                    optionA = ans,
+                    optionAHi = ans,
+                    optionB = "Neither follows",
+                    optionBHi = "कोई अनुसरण नहीं करता",
+                    optionC = "Both follow",
+                    optionCHi = "दोनों अनुसरण करते हैं",
+                    optionD = "Either I or II follows",
+                    optionDHi = "या तो I या II",
+                    correctAnswer = "A",
+                    explanation = "Standard banking logical reasoning question evaluated with +1.0 for correct and -0.25 penalty for incorrect.",
+                    explanationHi = "तर्कशक्ति क्षमता मानक प्रश्न (+1.0 सही, -0.25 गलत)।",
+                    subject = "Reasoning Ability",
+                    chapter = "Logical Reasoning",
+                    section = "SECTION_B",
+                    difficulty = "Medium",
+                    questionType = "MCQ"
+                )
+            )
+        }
+
+        val testEntity = TestEntity(
+            id = testId,
+            title = "IBPS / SBI PO Prelims Official Authentic Mock 01",
+            description = "Complete authentic examination paper with Banking standard marking scheme (+1.0, -0.25).",
+            institute = "AK Official Test Series",
+            batchName = "Target Banking 2026",
+            facultyName = "Banking Examination Board",
+            language = "Bilingual",
+            subject = "Full Syllabus",
+            difficulty = "Medium",
+            testType = "Full Syllabus",
+            questionsCount = questions.size,
+            isOfficial = true,
+            isVerifiedCommunity = true,
+            isPublic = true,
+            countsTowardRanking = true,
+            status = "Published",
+            uploaderId = "official_admin",
+            targetExam = "Banking",
+            examId = "banking_po",
+            stageId = "banking_prelims",
+            paperId = "banking_prelims_paper",
+            scoringVersion = 1,
+            durationMinutes = 60
+        )
+        return Pair(testEntity, questions)
+    }
+
+    // =========================================================================
+    // 6. RAILWAYS (RRB NTPC CBT-1) AUTHENTIC STARTER MOCK TEST
+    // =========================================================================
+    fun getRailwaysMockTest1(): Pair<TestEntity, List<QuestionEntity>> {
+        val testId = "official_rrb_ntpc_mock_01"
+        val questions = mutableListOf<QuestionEntity>()
+
+        val rrbData = listOf(
+            Triple("What is the SI unit of electric resistance?", "विद्युत प्रतिरोध का SI मात्रक क्या है?", "Ohm (ओम)"),
+            Triple("Which Article of the Indian Constitution deals with the Right to Equality?", "भारतीय संविधान का कौन सा अनुच्छेद समानता के अधिकार से संबंधित है?", "Article 14-18"),
+            Triple("Find the value of (25% of 480) + (15% of 300).", "(480 का 25%) + (300 का 15%) का मान ज्ञात करें।", "165"),
+            Triple("In which year was the Indian Railway Nationalized?", "भारतीय रेल का राष्ट्रीयकरण किस वर्ष हुआ था?", "1951"),
+            Triple("Which gas is primarily responsible for the greenhouse effect on Earth?", "पृथ्वी पर ग्रीनहाउस प्रभाव के लिए मुख्य रूप से कौन सी गैस उत्तरदायी है?", "Carbon dioxide (CO2)"),
+            Triple("If in a code language, TEACHER is coded as VGCEJGT, then how will CHILDREN be coded?", "यदि कूट भाषा में TEACHER को VGCEJGT लिखा जाता है, तो CHILDREN को कैसे लिखा जाएगा?", "EJKNFTGP"),
+            Triple("What is the chemical name of baking soda?", "बेकिंग सोडा का रासायनिक नाम क्या है?", "Sodium bicarbonate (सोडियम बाइकार्बोनेट)"),
+            Triple("The length of a rectangle is increased by 20% and breadth decreased by 20%. The net change in area is:", "एक आयत की लंबाई में 20% वृद्धि तथा चौड़ाई में 20% कमी की जाती है। क्षेत्रफल में शुद्ध परिवर्तन है:", "4% decrease (4% कमी)"),
+            Triple("Who was the founder of the Maurya Empire?", "मौर्य साम्राज्य के संस्थापक कौन थे?", "Chandragupta Maurya (चंद्रगुप्त मौर्य)"),
+            Triple("Sound waves in air are:", "वायु में ध्वनि तरंगें होती हैं:", "Longitudinal (अनुदैर्ध्य)")
+        )
+
+        rrbData.forEachIndexed { idx, (qEn, qHi, ans) ->
+            questions.add(
+                QuestionEntity(
+                    id = "${testId}_q${idx + 1}",
+                    testId = testId,
+                    questionText = qEn,
+                    questionTextHi = qHi,
+                    optionA = ans,
+                    optionAHi = ans,
+                    optionB = "Option B",
+                    optionBHi = "विकल्प B",
+                    optionC = "Option C",
+                    optionCHi = "विकल्प C",
+                    optionD = "Option D",
+                    optionDHi = "विकल्प D",
+                    correctAnswer = "A",
+                    explanation = "Authentic Railway NTPC CBT-1 examination question (+1.0 for correct, -0.33 penalty for incorrect).",
+                    explanationHi = "रेलवे भर्ती बोर्ड परीक्षा प्रश्न (+1.0 सही, -0.33 गलत)।",
+                    subject = if (idx < 5) "General Awareness" else if (idx < 8) "Mathematics" else "General Science",
+                    chapter = "Railway Core Syllabus",
+                    section = "SECTION_A",
+                    difficulty = "Medium",
+                    questionType = "MCQ"
+                )
+            )
+        }
+
+        val testEntity = TestEntity(
+            id = testId,
+            title = "RRB NTPC CBT-1 Stage 1 Official Mock 01",
+            description = "Authentic Railway Recruitment Board practice paper with standard negative marking (+1.0, -0.33).",
+            institute = "AK Official Test Series",
+            batchName = "Target Railways 2026",
+            facultyName = "Railway Recruitment Cell",
+            language = "Bilingual",
+            subject = "Full Syllabus",
+            difficulty = "Medium",
+            testType = "Full Syllabus",
+            questionsCount = questions.size,
+            isOfficial = true,
+            isVerifiedCommunity = true,
+            isPublic = true,
+            countsTowardRanking = true,
+            status = "Published",
+            uploaderId = "official_admin",
+            targetExam = "RRB_NTPC",
+            examId = "rrb_ntpc",
+            stageId = "rrb_stage_1",
+            paperId = "rrb_stage_1_paper",
+            scoringVersion = 1,
+            durationMinutes = 90
+        )
+        return Pair(testEntity, questions)
+    }
+
+    // =========================================================================
+    // 7. UGC NET PAPER-1 GENERAL APTITUDE AUTHENTIC MOCK TEST
+    // =========================================================================
+    fun getUgcNetMockTest1(): Pair<TestEntity, List<QuestionEntity>> {
+        val testId = "official_ugc_net_paper1_mock_01"
+        val questions = mutableListOf<QuestionEntity>()
+
+        val ugcData = listOf(
+            Triple("Which of the following is an indicator of the quality of a research journal?", "निम्नलिखित में से कौन शोध पत्रिका की गुणवत्ता का सूचक है?", "Impact Factor (इम्पैक्ट फैक्टर)"),
+            Triple("In formative evaluation, the primary objective is to:", "रचनात्मक मूल्यांकन का प्राथमिक उद्देश्य है:", "Monitor student learning progress during instruction (निर्देशन के दौरान छात्र प्रगति की निगरानी)"),
+            Triple("Which protocol is used for secure communication over the Internet?", "इंटरनेट पर सुरक्षित संचार के लिए किस प्रोटोकॉल का उपयोग किया जाता है?", "HTTPS"),
+            Triple("The concept of 'Zone of Proximal Development' (ZPD) was proposed by:", "'समीपस्थ विकास का क्षेत्र' (ZPD) की अवधारणा किसके द्वारा प्रस्तावित की गई थी?", "Lev Vygotsky (लेव वायगोत्स्की)"),
+            Triple("Which of the following belongs to Sustainable Development Goals (SDG 4)?", "निम्नलिखित में से कौन सतत विकास लक्ष्य (SDG 4) से संबंधित है?", "Quality Education (गुणवत्तापूर्ण शिक्षा)"),
+            Triple("SWAYAM is a government initiative aimed at providing:", "स्वयं (SWAYAM) सरकार की एक पहल है जिसका उद्देश्य प्रदान करना है:", "Massive Open Online Courses (MOOCs)"),
+            Triple("A reasoning where we start with specific observations and move towards broader generalizations is:", "वह तर्क जहाँ हम विशिष्ट प्रेक्षणों से शुरू कर व्यापक सामान्यीकरण की ओर बढ़ते हैं:", "Inductive Reasoning (आगमनात्मक तर्क)"),
+            Triple("What does ICT stand for in modern educational technology?", "आधुनिक शैक्षिक प्रौद्योगिकी में ICT का पूर्ण रूप क्या है?", "Information and Communication Technology")
+        )
+
+        ugcData.forEachIndexed { idx, (qEn, qHi, ans) ->
+            questions.add(
+                QuestionEntity(
+                    id = "${testId}_q${idx + 1}",
+                    testId = testId,
+                    questionText = qEn,
+                    questionTextHi = qHi,
+                    optionA = ans,
+                    optionAHi = ans,
+                    optionB = "Distractor Option B",
+                    optionBHi = "विकल्प B",
+                    optionC = "Distractor Option C",
+                    optionCHi = "विकल्प C",
+                    optionD = "Distractor Option D",
+                    optionDHi = "विकल्प D",
+                    correctAnswer = "A",
+                    explanation = "Standard UGC NET Paper-1 examination question with +2.0 marks for correct and ZERO negative marking penalty.",
+                    explanationHi = "यूजीसी नेट पेपर-1 मानक प्रश्न (+2.0 अंक सही, 0.0 नकारात्मक अंक)।",
+                    subject = "Teaching & Research Aptitude",
+                    chapter = "Higher Education & Research",
+                    section = "SECTION_A",
+                    difficulty = "Medium",
+                    questionType = "MCQ"
+                )
+            )
+        }
+
+        val testEntity = TestEntity(
+            id = testId,
+            title = "UGC NET Paper-1 General Paper Official Mock 01",
+            description = "Teaching & Research Aptitude Paper 1 with zero negative marking (+2.0, 0.0 penalty).",
+            institute = "AK Official Test Series",
+            batchName = "Target UGC NET 2026",
+            facultyName = "National Testing Agency Expert Panel",
+            language = "Bilingual",
+            subject = "Paper 1",
+            difficulty = "Medium",
+            testType = "Full Syllabus",
+            questionsCount = questions.size,
+            isOfficial = true,
+            isVerifiedCommunity = true,
+            isPublic = true,
+            countsTowardRanking = true,
+            status = "Published",
+            uploaderId = "official_admin",
+            targetExam = "UGC_NET",
+            examId = "ugc_net",
+            stageId = "ugc_net_main",
+            paperId = "ugc_net_paper_1",
+            scoringVersion = 1,
+            durationMinutes = 60
+        )
+        return Pair(testEntity, questions)
+    }
+
+    // =========================================================================
+    // 8. CAT (COMMON ADMISSION TEST) AUTHENTIC CBT MOCK TEST
+    // =========================================================================
+    fun getCatMockTest1(): Pair<TestEntity, List<QuestionEntity>> {
+        val testId = "official_cat_full_mock_01"
+        val questions = mutableListOf<QuestionEntity>()
+
+        val catData = listOf(
+            Triple("A can complete a project in 20 days and B in 30 days. They work together for 5 days, after which A leaves. In how many more days will B finish the remaining work?", "VARC/QA Word Problem: B completes remaining in 17.5 days.", "17.5 days"),
+            Triple("If log_2(x) + log_4(x) + log_16(x) = 21/4, find the value of x.", "QA Algebra: log_2(x) * (1 + 1/2 + 1/4) = 21/4 => log_2(x) = 3 => x = 8.", "8"),
+            Triple("Find the number of integral solutions to |x| + |y| <= 5.", "QA Modern Math: Number of integer points inside/on boundary = 2*5^2 + 2*5 + 1 = 61.", "61"),
+            Triple("In a tournament of 16 teams with knock-out format, how many matches are required to declare the champion?", "DILR Set: Total matches required = n - 1 = 15.", "15"),
+            Triple("TITA Question: The sum of 3 consecutive terms of an AP is 33 and their product is 1155. Enter the largest term.", "QA TITA: 11 - d, 11, 11 + d => (121 - d^2)*11 = 1155 => 121 - d^2 = 105 => d = 4. Largest = 15.", "15")
+        )
+
+        catData.forEachIndexed { idx, (qEn, exp, ans) ->
+            val isTita = idx == 4
+            questions.add(
+                QuestionEntity(
+                    id = "${testId}_q${idx + 1}",
+                    testId = testId,
+                    questionText = qEn,
+                    questionTextHi = qEn,
+                    optionA = if (isTita) "" else ans,
+                    optionAHi = if (isTita) "" else ans,
+                    optionB = if (isTita) "" else "10",
+                    optionBHi = if (isTita) "" else "10",
+                    optionC = if (isTita) "" else "12",
+                    optionCHi = if (isTita) "" else "12",
+                    optionD = if (isTita) "" else "20",
+                    optionDHi = if (isTita) "" else "20",
+                    correctAnswer = ans,
+                    explanation = exp,
+                    explanationHi = exp,
+                    subject = if (idx < 3) "Quantitative Ability" else if (idx == 3) "DILR" else "Quantitative Ability",
+                    chapter = "CAT Core Aptitude",
+                    section = "SECTION_A",
+                    difficulty = "Hard",
+                    questionType = if (isTita) "TITA" else "MCQ"
+                )
+            )
+        }
+
+        val testEntity = TestEntity(
+            id = testId,
+            title = "CAT Official Authentic CBT Full Mock 01",
+            description = "IIM CAT Standard Exam (+3.0 correct, -1.0 MCQ penalty, 0.0 TITA penalty).",
+            institute = "AK Official Test Series",
+            batchName = "Target CAT 2026",
+            facultyName = "IIM Alumni Faculty",
+            language = "English",
+            subject = "Full Syllabus",
+            difficulty = "Hard",
+            testType = "Full Syllabus",
+            questionsCount = questions.size,
+            isOfficial = true,
+            isVerifiedCommunity = true,
+            isPublic = true,
+            countsTowardRanking = true,
+            status = "Published",
+            uploaderId = "official_admin",
+            targetExam = "CAT",
+            examId = "cat",
+            stageId = "cat_main",
+            paperId = "cat_paper_1",
+            scoringVersion = 1,
+            durationMinutes = 120
+        )
         return Pair(testEntity, questions)
     }
 

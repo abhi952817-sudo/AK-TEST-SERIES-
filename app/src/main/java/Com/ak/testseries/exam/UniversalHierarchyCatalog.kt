@@ -58,11 +58,16 @@ object UniversalHierarchyCatalog {
 
     fun getAllExams(): List<ExamHierarchyItem> {
         return listOf(
+            getNeetUgHierarchy(),
             getJeeMainsHierarchy(),
             getJeeAdvancedHierarchy(),
-            getNeetUgHierarchy(),
-            getUpscHierarchy(),
+            getBankingHierarchy(),
+            getRailwaysHierarchy(),
             getSscCglHierarchy(),
+            getUpscHierarchy(),
+            getUgcNetHierarchy(),
+            getCatHierarchy(),
+            getCuetHierarchy(),
             getClass11Hierarchy(),
             getClass12Hierarchy()
         )
@@ -73,9 +78,14 @@ object UniversalHierarchyCatalog {
         return when {
             upper.contains("ADVANCED") || upper == "JEE_ADVANCED" -> getJeeAdvancedHierarchy()
             upper.contains("JEE") -> getJeeMainsHierarchy()
-            upper.contains("NEET") -> getNeetUgHierarchy()
-            upper.contains("UPSC") || upper.contains("CDS") || upper.contains("NDA") -> getUpscHierarchy()
-            upper.contains("SSC") || upper.contains("CGL") -> getSscCglHierarchy()
+            upper.contains("NEET") || upper.contains("MEDICAL") -> getNeetUgHierarchy()
+            upper.contains("BANK") || upper.contains("IBPS") || upper.contains("SBI") -> getBankingHierarchy()
+            upper.contains("RAILWAY") || upper.contains("RRB") || upper.contains("NTPC") || upper.contains("ALP") || upper.contains("GROUP D") -> getRailwaysHierarchy()
+            upper.contains("UGC") || upper.contains("NET") || upper.contains("CTET") -> getUgcNetHierarchy()
+            upper.contains("CAT") || upper.contains("MANAGEMENT") -> getCatHierarchy()
+            upper.contains("CUET") -> getCuetHierarchy()
+            upper.contains("UPSC") || upper.contains("CDS") || upper.contains("NDA") || upper.contains("CIVIL") -> getUpscHierarchy()
+            upper.contains("SSC") || upper.contains("CGL") || upper.contains("CHSL") || upper.contains("MTS") -> getSscCglHierarchy()
             upper.contains("11") -> getClass11Hierarchy()
             upper.contains("12") -> getClass12Hierarchy()
             else -> getNeetUgHierarchy()
@@ -638,6 +648,393 @@ object UniversalHierarchyCatalog {
             nameHi = "कक्षा 12",
             category = "Board & Entrance",
             subjects = getNeetUgHierarchy().subjects
+        )
+    }
+
+    // =========================================================================
+    // 6. BANKING EXAMS HIERARCHY (IBPS & SBI PO / CLERK)
+    // =========================================================================
+    fun getBankingHierarchy(): ExamHierarchyItem {
+        val quantChapters = listOf(
+            ChapterHierarchyItem(
+                id = "bank_quant_di",
+                nameEn = "Data Interpretation (DI)",
+                nameHi = "डेटा इंटरप्रिटेशन (आँकड़ों का विश्लेषण)",
+                topicsCount = 5,
+                weightagePercent = 35,
+                topics = listOf(
+                    TopicHierarchyItem("bank_di_bar", "Bar & Line Graph DI", "बार एवं लाइन ग्राफ डीआई", 25, listOf(TestMetaInfo("b_di_1", "Bar Graph DI Practice", "बार ग्राफ अभ्यास", 10, 10)), emptyList()),
+                    TopicHierarchyItem("bank_di_pie", "Pie Chart & Caselet DI", "पाई चार्ट एवं केसलेट डीआई", 30, listOf(TestMetaInfo("b_di_2", "Pie & Caselet Mastery", "पाई व केसलेट अभ्यास", 10, 10)), emptyList()),
+                    TopicHierarchyItem("bank_di_radar", "Missing & Radar DI", "मिसिंग एवं राडार डीआई", 20, listOf(TestMetaInfo("b_di_3", "Advanced Missing DI", "मिसिंग डीआई टेस्ट", 10, 12)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("bank_full_di", "Complete DI Speed Test", "संपूर्ण डीआई स्पीड टेस्ट", 25, 20)
+            ),
+            ChapterHierarchyItem(
+                id = "bank_quant_num",
+                nameEn = "Number Series & Quadratic Equations",
+                nameHi = "संख्या श्रृंखला एवं द्विघात समीकरण",
+                topicsCount = 4,
+                weightagePercent = 25,
+                topics = listOf(
+                    TopicHierarchyItem("bank_ns_miss", "Missing Number Series", "मिसिंग नंबर सीरीज", 30, listOf(TestMetaInfo("b_ns_1", "Missing Series 2-Min Speed", "मिसिंग सीरीज स्पीड", 10, 5)), emptyList()),
+                    TopicHierarchyItem("bank_ns_wrong", "Wrong Number Series", "रॉन्ग नंबर सीरीज", 25, listOf(TestMetaInfo("b_ns_2", "Wrong Number Series Drill", "रॉन्ग सीरीज टेस्ट", 10, 7)), emptyList()),
+                    TopicHierarchyItem("bank_quad_eq", "Quadratic Inequalities (x vs y)", "द्विघात समीकरण असमानताएँ", 30, listOf(TestMetaInfo("b_quad_1", "Sign Method Quadratic Speed", "द्विघात समीकरण अभ्यास", 10, 5)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("bank_full_speed_math", "Speed Math Full Test", "स्पीड मैथ संपूर्ण टेस्ट", 20, 12)
+            ),
+            ChapterHierarchyItem(
+                id = "bank_quant_arith",
+                nameEn = "Arithmetic Word Problems",
+                nameHi = "अंकगणित व्यावहारिक प्रश्न",
+                topicsCount = 6,
+                weightagePercent = 40,
+                topics = listOf(
+                    TopicHierarchyItem("bank_arith_tsw", "Time & Work, Pipes & Cisterns", "समय, कार्य एवं नल-टंकी", 25, listOf(TestMetaInfo("b_arith_1", "Time & Work Practice", "समय और कार्य अभ्यास", 10, 10)), emptyList()),
+                    TopicHierarchyItem("bank_arith_tsd", "Time, Speed & Distance, Trains", "चाल, समय, दूरी एवं रेलगाड़ी", 25, listOf(TestMetaInfo("b_arith_2", "TSD & Trains Drill", "चाल व दूरी टेस्ट", 10, 10)), emptyList()),
+                    TopicHierarchyItem("bank_arith_si_ci", "Simple & Compound Interest", "साधारण एवं चक्रवृद्धि ब्याज", 20, listOf(TestMetaInfo("b_arith_3", "SI & CI Concepts", "ब्याज अभ्यास", 10, 10)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("bank_full_arith", "Arithmetic Comprehensive Test", "अंकगणित संपूर्ण टेस्ट", 25, 25)
+            )
+        )
+
+        val reasoningChapters = listOf(
+            ChapterHierarchyItem(
+                id = "bank_reas_puzzles",
+                nameEn = "Puzzles & Seating Arrangement",
+                nameHi = "पहेलियाँ एवं बैठक व्यवस्था",
+                topicsCount = 5,
+                weightagePercent = 50,
+                topics = listOf(
+                    TopicHierarchyItem("bank_puz_circ", "Circular & Square Seating", "वृत्ताकार एवं वर्गाकार बैठक व्यवस्था", 30, listOf(TestMetaInfo("b_puz_1", "Circular Seating Drill", "वृत्ताकार व्यवस्था टेस्ट", 10, 10)), emptyList()),
+                    TopicHierarchyItem("bank_puz_linear", "Linear Row & Parallel Rows", "समानांतर पंक्तियाँ व्यवस्था", 25, listOf(TestMetaInfo("b_puz_2", "Linear Rows Practice", "रेखीय पंक्ति अभ्यास", 10, 10)), emptyList()),
+                    TopicHierarchyItem("bank_puz_floor", "Floor & Flat-Based Puzzles", "फ्लोर एवं फ्लैट पहेली", 25, listOf(TestMetaInfo("b_puz_3", "Floor Flat Puzzle Test", "फ्लोर पहेली अभ्यास", 10, 12)), emptyList()),
+                    TopicHierarchyItem("bank_puz_box", "Box, Day & Month Puzzles", "बॉक्स, दिन एवं माह आधारित पहेली", 25, listOf(TestMetaInfo("b_puz_4", "Scheduling Puzzles", "शेड्यूलिंग पहेली", 10, 10)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("bank_full_puzzle", "Puzzles Speed Test", "पहेली स्पीड टेस्ट", 20, 15)
+            ),
+            ChapterHierarchyItem(
+                id = "bank_reas_misc",
+                nameEn = "Syllogism, Inequalities & Coding",
+                nameHi = "न्याय निगमन, असमानता एवं कोडिंग",
+                topicsCount = 4,
+                weightagePercent = 50,
+                topics = listOf(
+                    TopicHierarchyItem("bank_reas_syllo", "Only a Few Syllogisms", "ओनली ए फ्यू सिलोगिज्म", 30, listOf(TestMetaInfo("b_syl_1", "Syllogism Mastery", "सिलोगिज्म टेस्ट", 10, 5)), emptyList()),
+                    TopicHierarchyItem("bank_reas_ineq", "Coded & Direct Inequalities", "असमानताएँ", 25, listOf(TestMetaInfo("b_ineq_1", "Inequality Speed Run", "असमानता अभ्यास", 10, 5)), emptyList()),
+                    TopicHierarchyItem("bank_reas_blood", "Blood Relations & Direction Sense", "रक्त संबंध एवं दिशा ज्ञान", 20, listOf(TestMetaInfo("b_br_1", "Blood Relations Drill", "रक्त संबंध टेस्ट", 10, 8)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("bank_full_misc_reas", "Reasoning Standalone Topics", "तर्कशक्ति विविध विषय टेस्ट", 20, 12)
+            )
+        )
+
+        val englishChapters = listOf(
+            ChapterHierarchyItem(
+                id = "bank_eng_rc",
+                nameEn = "Reading Comprehension",
+                nameHi = "पठन बोध (आरसी)",
+                topicsCount = 3,
+                weightagePercent = 40,
+                topics = listOf(
+                    TopicHierarchyItem("bank_rc_eco", "Banking & Economic Passages", "बैंकिंग एवं आर्थिक परिच्छेद", 20, listOf(TestMetaInfo("b_rc_1", "Economy RC Drill", "इकोनॉमी आरसी टेस्ट", 8, 10)), emptyList()),
+                    TopicHierarchyItem("bank_rc_story", "Inference & Tone Questions", "निष्कर्ष एवं टोन आधारित प्रश्न", 15, listOf(TestMetaInfo("b_rc_2", "Inference RC Drill", "इनफेरेंस आरसी", 8, 10)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("bank_full_rc", "RC Full Test", "आरसी संपूर्ण टेस्ट", 15, 15)
+            ),
+            ChapterHierarchyItem(
+                id = "bank_eng_grammar",
+                nameEn = "Error Spotting & Cloze Test",
+                nameHi = "त्रुटि पहचान एवं क्लोज़ टेस्ट",
+                topicsCount = 4,
+                weightagePercent = 60,
+                topics = listOf(
+                    TopicHierarchyItem("bank_err_spot", "Grammar Error Detection", "व्याकरण त्रुटि पहचान", 30, listOf(TestMetaInfo("b_err_1", "Error Detection Practice", "एरर डिटेक्शन टेस्ट", 10, 7)), emptyList()),
+                    TopicHierarchyItem("bank_cloze", "Cloze Test & Fillers", "क्लोज़ टेस्ट एवं फिलर्स", 25, listOf(TestMetaInfo("b_clz_1", "Cloze Test Drill", "क्लोज़ टेस्ट", 10, 8)), emptyList()),
+                    TopicHierarchyItem("bank_parajumble", "Para Jumbles & Sentence Rearrangement", "पैरा जंबल्स", 20, listOf(TestMetaInfo("b_pj_1", "Para Jumbles Practice", "पैरा जंबल्स टेस्ट", 5, 6)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("bank_full_grammar", "Grammar & Vocab Full Test", "व्याकरण व शब्दकोश टेस्ट", 20, 15)
+            )
+        )
+
+        return ExamHierarchyItem(
+            id = "banking_exams",
+            nameEn = "Banking (IBPS & SBI PO/Clerk)",
+            nameHi = "बैंकिंग एवं वित्तीय भर्ती परीक्षाएँ",
+            category = "Banking & Finance",
+            subjects = listOf(
+                SubjectHierarchyItem("bank_quant", "Quantitative Aptitude", "मात्रात्मक अभिरुचि", quantChapters.size, quantChapters, TestMetaInfo("b_full_quant", "Full Quant Mock", "पूर्ण गणित मॉक", 35, 20)),
+                SubjectHierarchyItem("bank_reasoning", "Reasoning Ability", "तर्कशक्ति क्षमता", reasoningChapters.size, reasoningChapters, TestMetaInfo("b_full_reas", "Full Reasoning Mock", "पूर्ण तर्कशक्ति मॉक", 35, 20)),
+                SubjectHierarchyItem("bank_english", "English Language", "अंग्रेजी भाषा", englishChapters.size, englishChapters, TestMetaInfo("b_full_eng", "Full English Mock", "पूर्ण अंग्रेजी मॉक", 30, 20))
+            )
+        )
+    }
+
+    // =========================================================================
+    // 7. RAILWAYS EXAMS HIERARCHY (RRB NTPC, GROUP D, ALP)
+    // =========================================================================
+    fun getRailwaysHierarchy(): ExamHierarchyItem {
+        val mathChapters = listOf(
+            ChapterHierarchyItem(
+                id = "rrb_math_basic",
+                nameEn = "Number System, Decimals & Fractions",
+                nameHi = "संख्या पद्धति, दशमलव एवं भिन्न",
+                topicsCount = 4,
+                weightagePercent = 30,
+                topics = listOf(
+                    TopicHierarchyItem("rrb_num_sys", "BODMAS & Divisibility", "बोडमास एवं विभाज्यता", 25, listOf(TestMetaInfo("r_num_1", "BODMAS Speed Test", "बोडमास टेस्ट", 10, 8)), emptyList()),
+                    TopicHierarchyItem("rrb_lcm_hcf", "LCM and HCF Problems", "ल.स.प. एवं म.स.प.", 20, listOf(TestMetaInfo("r_lcm_1", "LCM & HCF Drill", "लसप मसप टेस्ट", 10, 8)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("rrb_full_basic_math", "Basic Math Full Test", "आधारभूत गणित संपूर्ण टेस्ट", 20, 18)
+            ),
+            ChapterHierarchyItem(
+                id = "rrb_math_commercial",
+                nameEn = "Commercial Math & Mensuration",
+                nameHi = "व्यावसायिक गणित एवं क्षेत्रमिति",
+                topicsCount = 5,
+                weightagePercent = 70,
+                topics = listOf(
+                    TopicHierarchyItem("rrb_perc_pl", "Percentage, Profit & Loss", "प्रतिशत, लाभ एवं हानि", 30, listOf(TestMetaInfo("r_pl_1", "Profit & Loss Practice", "लाभ व हानि टेस्ट", 10, 10)), emptyList()),
+                    TopicHierarchyItem("rrb_time_dist", "Speed, Distance & Train Problems", "चाल, दूरी एवं ट्रेन संबंधित प्रश्न", 25, listOf(TestMetaInfo("r_train_1", "Train Problems Drill", "ट्रेन प्रश्न टेस्ट", 10, 10)), emptyList()),
+                    TopicHierarchyItem("rrb_mensuration", "2D & 3D Mensuration Formulas", "2D एवं 3D क्षेत्रमिति", 20, listOf(TestMetaInfo("r_mens_1", "Mensuration Drill", "क्षेत्रमिति टेस्ट", 10, 10)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("rrb_full_commercial", "Commercial Math Full Test", "व्यावसायिक गणित टेस्ट", 25, 22)
+            )
+        )
+
+        val generalScienceChapters = listOf(
+            ChapterHierarchyItem(
+                id = "rrb_sci_physics",
+                nameEn = "General Physics (Class 10 CBSE)",
+                nameHi = "सामान्य भौतिक विज्ञान",
+                topicsCount = 4,
+                weightagePercent = 35,
+                topics = listOf(
+                    TopicHierarchyItem("rrb_phy_work", "Work, Power, Energy & Gravity", "कार्य, ऊर्जा, शक्ति एवं गुरुत्वाकर्षण", 25, listOf(TestMetaInfo("r_phy_1", "Physics Units & Energy", "ऊर्जा व शक्ति टेस्ट", 10, 8)), emptyList()),
+                    TopicHierarchyItem("rrb_phy_optics", "Light, Reflection, Refraction & Electricity", "प्रकाश, परावर्तन, अपवर्तन एवं विद्युत", 25, listOf(TestMetaInfo("r_phy_2", "Optics & Current", "प्रकाश एवं धारा टेस्ट", 10, 8)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("rrb_full_phy", "Railway Physics Full Test", "रेलवे भौतिकी संपूर्ण टेस्ट", 20, 15)
+            ),
+            ChapterHierarchyItem(
+                id = "rrb_sci_chemistry",
+                nameEn = "General Chemistry (Class 10 CBSE)",
+                nameHi = "सामान्य रसायन विज्ञान",
+                topicsCount = 3,
+                weightagePercent = 30,
+                topics = listOf(
+                    TopicHierarchyItem("rrb_chem_period", "Periodic Table & Chemical Reactions", "आवर्त सारणी एवं रासायनिक अभिक्रियाएँ", 25, listOf(TestMetaInfo("r_chem_1", "Periodic Table Drill", "आवर्त सारणी टेस्ट", 10, 8)), emptyList()),
+                    TopicHierarchyItem("rrb_chem_acid", "Acids, Bases, Salts & Metals", "अम्ल, क्षार, लवण एवं धातुएँ", 25, listOf(TestMetaInfo("r_chem_2", "Acids & Metals Test", "अम्ल व धातु टेस्ट", 10, 8)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("rrb_full_chem", "Railway Chemistry Full Test", "रेलवे रसायन संपूर्ण टेस्ट", 20, 15)
+            ),
+            ChapterHierarchyItem(
+                id = "rrb_sci_biology",
+                nameEn = "Life Sciences (Class 10 CBSE)",
+                nameHi = "जीव विज्ञान एवं मानव शरीर",
+                topicsCount = 3,
+                weightagePercent = 35,
+                topics = listOf(
+                    TopicHierarchyItem("rrb_bio_human", "Human Body Systems & Diseases", "मानव शरीर तंत्र एवं प्रमुख रोग", 30, listOf(TestMetaInfo("r_bio_1", "Human Systems Drill", "मानव तंत्र टेस्ट", 10, 8)), emptyList()),
+                    TopicHierarchyItem("rrb_bio_plant", "Plant Physiology & Nutrition", "पादप कार्यिकी एवं पोषण", 20, listOf(TestMetaInfo("r_bio_2", "Plant Nutrition Test", "पादप पोषण टेस्ट", 10, 8)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("rrb_full_bio", "Railway Biology Full Test", "रेलवे जीवविज्ञान संपूर्ण टेस्ट", 20, 15)
+            )
+        )
+
+        val reasoningChapters = listOf(
+            ChapterHierarchyItem(
+                id = "rrb_reas_logic",
+                nameEn = "Logical & Analytical Reasoning",
+                nameHi = "तार्किक एवं विश्लेषणात्मक तर्कशक्ति",
+                topicsCount = 4,
+                weightagePercent = 100,
+                topics = listOf(
+                    TopicHierarchyItem("rrb_reas_analogy", "Analogies & Classification", "सादृश्यता एवं वर्गीकरण", 25, listOf(TestMetaInfo("r_an_1", "Analogy Practice", "सादृश्यता टेस्ट", 10, 8)), emptyList()),
+                    TopicHierarchyItem("rrb_reas_coding", "Coding-Decoding & Series", "कोडिंग-डिकोडिंग एवं श्रृंखला", 25, listOf(TestMetaInfo("r_cd_1", "Coding Test", "कोडिंग टेस्ट", 10, 8)), emptyList()),
+                    TopicHierarchyItem("rrb_reas_venn", "Venn Diagrams & Syllogism", "वेन आरेख एवं न्याय निगमन", 25, listOf(TestMetaInfo("r_vd_1", "Venn Diagram Practice", "वेन आरेख टेस्ट", 10, 8)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("rrb_full_reas", "Railway Reasoning Full Test", "रेलवे तर्कशक्ति संपूर्ण टेस्ट", 30, 25)
+            )
+        )
+
+        return ExamHierarchyItem(
+            id = "railway_exams",
+            nameEn = "Railways (RRB NTPC, Group D, ALP)",
+            nameHi = "रेलवे भर्ती बोर्ड (RRB NTPC, ग्रुप D, ALP)",
+            category = "Railway Recruitment",
+            subjects = listOf(
+                SubjectHierarchyItem("rrb_science", "General Science", "सामान्य विज्ञान", generalScienceChapters.size, generalScienceChapters, TestMetaInfo("r_full_sci", "Full General Science Mock", "संपूर्ण सामान्य विज्ञान मॉक", 30, 25)),
+                SubjectHierarchyItem("rrb_math", "Mathematics", "गणित", mathChapters.size, mathChapters, TestMetaInfo("r_full_math", "Full Mathematics Mock", "संपूर्ण गणित मॉक", 30, 25)),
+                SubjectHierarchyItem("rrb_reasoning", "General Intelligence & Reasoning", "सामान्य बुद्धिमत्ता एवं तर्कशक्ति", reasoningChapters.size, reasoningChapters, TestMetaInfo("r_full_reas_sub", "Full Reasoning Mock", "संपूर्ण तर्कशक्ति मॉक", 30, 25))
+            )
+        )
+    }
+
+    // =========================================================================
+    // 8. UGC NET PAPER-1 HIERARCHY
+    // =========================================================================
+    fun getUgcNetHierarchy(): ExamHierarchyItem {
+        val paper1Chapters = listOf(
+            ChapterHierarchyItem(
+                id = "ugc_chap_teach",
+                nameEn = "Teaching & Research Aptitude",
+                nameHi = "शिक्षण एवं शोध अभिक्षमता",
+                topicsCount = 4,
+                weightagePercent = 40,
+                topics = listOf(
+                    TopicHierarchyItem("ugc_teach_meth", "Teaching: Concepts & Evaluation Systems", "शिक्षण: अवधारणाएँ एवं मूल्यांकन प्रणाली", 25, listOf(TestMetaInfo("u_t_1", "Teaching Aptitude Drill", "शिक्षण अभिक्षमता टेस्ट", 10, 10)), emptyList()),
+                    TopicHierarchyItem("ugc_res_meth", "Research: Types, Methods & Ethics", "शोध: प्रकार, विधियाँ एवं शोध नैतिकता", 25, listOf(TestMetaInfo("u_r_1", "Research Methodology Drill", "शोध पद्धति टेस्ट", 10, 10)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("ugc_full_tr", "Teaching & Research Full Test", "शिक्षण एवं शोध संपूर्ण टेस्ट", 25, 25)
+            ),
+            ChapterHierarchyItem(
+                id = "ugc_chap_ict_env",
+                nameEn = "ICT, People & Environment",
+                nameHi = "सूचना प्रौद्योगिकी एवं पर्यावरण",
+                topicsCount = 4,
+                weightagePercent = 60,
+                topics = listOf(
+                    TopicHierarchyItem("ugc_ict_gen", "ICT: Terminology, Internet & Governance", "आईसीटी: शब्दावली, इंटरनेट एवं डिजिटल पहल", 25, listOf(TestMetaInfo("u_ict_1", "ICT Practice Test", "आईसीटी टेस्ट", 10, 10)), emptyList()),
+                    TopicHierarchyItem("ugc_env_dev", "People, Development & Climate Change", "पर्यावरण, प्रदूषण एवं जलवायु परिवर्तन", 25, listOf(TestMetaInfo("u_env_1", "Environment & SDG Test", "पर्यावरण व विकास टेस्ट", 10, 10)), emptyList()),
+                    TopicHierarchyItem("ugc_high_edu", "Higher Education System in India", "भारत में उच्च शिक्षा प्रणाली", 20, listOf(TestMetaInfo("u_he_1", "Higher Education Policies", "उच्च शिक्षा नीतियां", 10, 10)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("ugc_full_ict_env", "ICT & Higher Education Test", "आईसीटी व उच्च शिक्षा टेस्ट", 25, 25)
+            )
+        )
+
+        return ExamHierarchyItem(
+            id = "ugc_net",
+            nameEn = "UGC NET Paper-1",
+            nameHi = "यूजीसी नेट (सामान्य प्रश्नपत्र - 1)",
+            category = "Teaching & Eligibility",
+            subjects = listOf(
+                SubjectHierarchyItem("ugc_paper1", "Teaching & Research Aptitude (General Paper 1)", "शिक्षण एवं शोध अभिक्षमता (पेपर 1)", paper1Chapters.size, paper1Chapters, TestMetaInfo("ugc_full_p1", "UGC NET Paper 1 Full Mock", "यूजीसी नेट पेपर 1 संपूर्ण मॉक", 50, 60))
+            )
+        )
+    }
+
+    // =========================================================================
+    // 9. CAT HIERARCHY (MANAGEMENT ENTRANCE)
+    // =========================================================================
+    fun getCatHierarchy(): ExamHierarchyItem {
+        val varcChapters = listOf(
+            ChapterHierarchyItem(
+                id = "cat_varc_rc",
+                nameEn = "Reading Comprehension (Philosophy, Sociology, Tech)",
+                nameHi = "रीडिंग कॉम्प्रिहेंशन (विभिन्न विषय)",
+                topicsCount = 3,
+                weightagePercent = 70,
+                topics = listOf(
+                    TopicHierarchyItem("cat_rc_long", "4-Question RC Passages Drill", "4-प्रश्न आरसी पैसेज", 20, listOf(TestMetaInfo("c_rc_1", "Philosophy & Economics RC", "अर्थशास्त्र आरसी टेस्ट", 8, 15)), emptyList()),
+                    TopicHierarchyItem("cat_rc_crit", "Critical Reasoning & Author Tone", "क्रिटिकल रीजनिंग व टोन", 15, listOf(TestMetaInfo("c_rc_2", "Critical Reasoning Drill", "क्रिटिकल रीजनिंग", 8, 12)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("cat_full_rc", "CAT Full RC Test", "कैट संपूर्ण आरसी टेस्ट", 16, 25)
+            ),
+            ChapterHierarchyItem(
+                id = "cat_varc_va",
+                nameEn = "Verbal Ability (Para-Jumbles & Summary)",
+                nameHi = "वर्बल एबिलिटी (पैरा समरी व जंबल्स)",
+                topicsCount = 3,
+                weightagePercent = 30,
+                topics = listOf(
+                    TopicHierarchyItem("cat_va_pj", "TITA Para-Jumbles (No Options)", "टीआईटीए पैरा जंबल्स", 20, listOf(TestMetaInfo("c_va_1", "TITA Para-Jumbles Practice", "पैरा जंबल्स टेस्ट", 5, 10)), emptyList()),
+                    TopicHierarchyItem("cat_va_ps", "Para-Summary & Odd Sentence Out", "पैरा समरी एवं ऑड सेंटेंस", 15, listOf(TestMetaInfo("c_va_2", "Para Summary Drill", "पैरा समरी टेस्ट", 5, 10)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("cat_full_va", "CAT Verbal Ability Test", "कैट वर्बल एबिलिटी टेस्ट", 10, 15)
+            )
+        )
+
+        val dilrChapters = listOf(
+            ChapterHierarchyItem(
+                id = "cat_dilr_sets",
+                nameEn = "DILR High-Level Reasoning Sets",
+                nameHi = "डीआईएलआर तार्किक सेट",
+                topicsCount = 4,
+                weightagePercent = 100,
+                topics = listOf(
+                    TopicHierarchyItem("cat_dilr_arr", "Games, Tournaments & Matrix Arrangements", "गेम्स, टूर्नामेंट एवं अरेंजमेंट", 20, listOf(TestMetaInfo("c_dilr_1", "Tournaments Set Practice", "टूर्नामेंट सेट टेस्ट", 5, 15)), emptyList()),
+                    TopicHierarchyItem("cat_dilr_venn", "Multi-Set Venn Diagrams & Networks", "मल्टी-सेट वेन डायग्राम", 20, listOf(TestMetaInfo("c_dilr_2", "Venn Networks Set Drill", "वेन नेटवर्क्स टेस्ट", 5, 15)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("cat_full_dilr", "CAT Full DILR Sectional", "कैट डीआईएलआर सेक्शनल टेस्ट", 20, 40)
+            )
+        )
+
+        val quantChapters = listOf(
+            ChapterHierarchyItem(
+                id = "cat_qa_arith",
+                nameEn = "Arithmetic Mastery (TSD, TW, Percentages)",
+                nameHi = "अंकगणित महारत",
+                topicsCount = 4,
+                weightagePercent = 40,
+                topics = listOf(
+                    TopicHierarchyItem("cat_qa_tsd", "Time, Speed, Distance, Circular Tracks", "चाल, समय, दूरी एवं वृत्तीय पथ", 25, listOf(TestMetaInfo("c_qa_1", "TSD Advanced Drill", "चाल व समय एडवांस्ड", 10, 15)), emptyList()),
+                    TopicHierarchyItem("cat_qa_tw", "Time & Work, Pipes, Efficiencies", "समय व कार्य क्षमता", 20, listOf(TestMetaInfo("c_qa_2", "Work & Efficiency Test", "कार्य क्षमता टेस्ट", 10, 15)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("cat_full_arith_qa", "CAT Arithmetic Full Test", "कैट अंकगणित टेस्ट", 15, 25)
+            ),
+            ChapterHierarchyItem(
+                id = "cat_qa_algebra",
+                nameEn = "Algebra & Modern Math",
+                nameHi = "बीजगणित एवं आधुनिक गणित",
+                topicsCount = 4,
+                weightagePercent = 60,
+                topics = listOf(
+                    TopicHierarchyItem("cat_qa_func", "Functions, Maxima-Minima & Logarithms", "फंक्शन्स, उच्चिष्ठ-निम्निष्ठ एवं लघुगणक", 25, listOf(TestMetaInfo("c_qa_3", "Functions & Logs Drill", "फंक्शन्स टेस्ट", 10, 15)), emptyList()),
+                    TopicHierarchyItem("cat_qa_geom", "Geometry, Circles, Coordinate & Trigonometry", "ज्यामिति, वृत्त एवं निर्देशांक", 25, listOf(TestMetaInfo("c_qa_4", "CAT Geometry Drill", "कैट ज्यामिति टेस्ट", 10, 15)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("cat_full_alg_geom", "CAT Algebra & Geometry Test", "कैट बीजगणित व ज्यामिति टेस्ट", 15, 25)
+            )
+        )
+
+        return ExamHierarchyItem(
+            id = "cat_exam",
+            nameEn = "CAT (Common Admission Test)",
+            nameHi = "कैट (प्रबंधन प्रवेश परीक्षा)",
+            category = "Management Entrance",
+            subjects = listOf(
+                SubjectHierarchyItem("cat_varc", "Verbal Ability & Reading Comprehension (VARC)", "वर्बल एबिलिटी एवं आरसी", varcChapters.size, varcChapters, TestMetaInfo("c_full_varc", "Full VARC Sectional Mock", "पूर्ण वीएआरसी सेक्शनल मॉक", 24, 40)),
+                SubjectHierarchyItem("cat_dilr", "Data Interpretation & Logical Reasoning (DILR)", "डेटा इंटरप्रिटेशन एवं एलआर", dilrChapters.size, dilrChapters, TestMetaInfo("c_full_dilr_sub", "Full DILR Sectional Mock", "पूर्ण डीआईएलआर सेक्शनल मॉक", 20, 40)),
+                SubjectHierarchyItem("cat_qa", "Quantitative Ability (QA)", "मात्रात्मक योग्यता (गणित)", quantChapters.size, quantChapters, TestMetaInfo("c_full_qa", "Full QA Sectional Mock", "पूर्ण क्यूए सेक्शनल मॉक", 22, 40))
+            )
+        )
+    }
+
+    // =========================================================================
+    // 10. CUET UG HIERARCHY (CENTRAL UNIVERSITIES ENTRANCE)
+    // =========================================================================
+    fun getCuetHierarchy(): ExamHierarchyItem {
+        val generalTestChapters = listOf(
+            ChapterHierarchyItem(
+                id = "cuet_gt_quant_reas",
+                nameEn = "General Mental Ability & Quantitative Reasoning",
+                nameHi = "सामान्य मानसिक योग्यता एवं संख्यात्मक अभिरुचि",
+                topicsCount = 4,
+                weightagePercent = 60,
+                topics = listOf(
+                    TopicHierarchyItem("cuet_gt_math", "Basic Arithmetic & Percentages", "आधारभूत अंकगणित एवं प्रतिशत", 25, listOf(TestMetaInfo("cu_m_1", "CUET General Math", "सीयूईटी गणित अभ्यास", 10, 10)), emptyList()),
+                    TopicHierarchyItem("cuet_gt_reas", "Logical, Analytical & Visual Reasoning", "तार्किक एवं दृश्यात्मक तर्कशक्ति", 25, listOf(TestMetaInfo("cu_r_1", "CUET Reasoning Drill", "सीयूईटी तर्कशक्ति टेस्ट", 10, 10)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("cuet_full_gt_mr", "General Test Mental Ability Full", "सामान्य मानसिक योग्यता टेस्ट", 25, 25)
+            ),
+            ChapterHierarchyItem(
+                id = "cuet_gt_gk",
+                nameEn = "General Knowledge & Current Affairs",
+                nameHi = "सामान्य ज्ञान एवं समसामयिकी",
+                topicsCount = 3,
+                weightagePercent = 40,
+                topics = listOf(
+                    TopicHierarchyItem("cuet_gt_cur", "National & International Events", "राष्ट्रीय एवं अंतर्राष्ट्रीय घटनाक्रम", 25, listOf(TestMetaInfo("cu_gk_1", "Current Affairs Drill", "करेंट अफेयर्स टेस्ट", 10, 8)), emptyList())
+                ),
+                fullChapterTest = TestMetaInfo("cuet_full_gt_gk", "General Knowledge Full Test", "सामान्य ज्ञान संपूर्ण टेस्ट", 25, 20)
+            )
+        )
+
+        return ExamHierarchyItem(
+            id = "cuet_ug",
+            nameEn = "CUET UG",
+            nameHi = "सीयूईटी यूजी (विश्वविद्यालय प्रवेश)",
+            category = "University Entrance",
+            subjects = listOf(
+                SubjectHierarchyItem("cuet_gen_test", "Section III: General Test", "सामान्य परीक्षण (जनरल टेस्ट)", generalTestChapters.size, generalTestChapters, TestMetaInfo("cuet_full_gt", "CUET General Test Full Mock", "सीयूईटी जनरल टेस्ट पूर्ण मॉक", 60, 60))
+            )
         )
     }
 
