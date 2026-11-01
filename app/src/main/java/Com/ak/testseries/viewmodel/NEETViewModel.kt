@@ -1249,11 +1249,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         
                         _userNotifications.value = list
                         
-                        // Show a local notification if a brand new notification arrives and it's not the initial load
+                        // Show a local notification only if a brand new notification arrives and matches this student
                         if (!isFirstLoad && list.isNotEmpty()) {
                             val latest = list.first()
                             if (latest.timestamp > previousLatestTimestamp) {
-                                triggerLocalNotification(latest.title, latest.message)
+                                val userProfile = _userProfile.value
+                                val isTargetedToUser = when {
+                                    latest.targetEmail != null -> latest.targetEmail.equals(userProfile.email, ignoreCase = true)
+                                    latest.targetGroup.equals("All", ignoreCase = true) || latest.targetGroup.startsWith("All Aspirants", ignoreCase = true) -> true
+                                    userProfile.targetExam.isNotBlank() && (latest.targetGroup.contains(userProfile.targetExam, ignoreCase = true) || userProfile.targetExam.contains(latest.targetGroup, ignoreCase = true)) -> true
+                                    userProfile.classLevel.isNotBlank() && latest.targetGroup.contains(userProfile.classLevel, ignoreCase = true) -> true
+                                    else -> false
+                                }
+                                if (isTargetedToUser) {
+                                    triggerLocalNotification(latest.title, latest.message, latest.linkUrl)
+                                }
                             }
                         }
                     }
@@ -1263,17 +1273,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun triggerLocalNotification(title: String, messageBody: String) {
+    private fun triggerLocalNotification(title: String, messageBody: String, linkUrl: String? = null) {
         val context = getApplication<Application>()
         val intent = Intent(context, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            if (!linkUrl.isNullOrBlank()) {
+                putExtra("EXTRA_DEEP_LINK", linkUrl)
+                if (linkUrl.startsWith("app://test/")) {
+                    val targetTestId = linkUrl.removePrefix("app://test/").substringBefore("?").trim()
+                    putExtra("EXTRA_TEST_ID", targetTestId)
+                }
+                data = Uri.parse(linkUrl)
+            }
         }
         val pendingIntent = PendingIntent.getActivity(
-            context, 0, intent,
-            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            context, System.currentTimeMillis().toInt(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val channelId = "neet_test_series_notifications"
+        val channelId = "ak_test_series_notifications"
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
@@ -1287,10 +1305,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "NEET Test Series Announcements",
+                "AK Test Series Announcements",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Channel for NEET Test Series push notifications"
+                description = "Channel for All India Test Series notifications and updates"
             }
             notificationManager.createNotificationChannel(channel)
         }
@@ -1458,49 +1476,37 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         scheduledTime: String,
         durationMinutes: Int,
         questionsCount: Int,
-        pdfUri: Uri? = null
+        pdfUri: Uri? = null,
+        targetExam: String = "NEET UG",
+        customQuestions: List<QuestionEntity>? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val db = firestoreDb
                 val testId = "live_" + System.currentTimeMillis()
 
-                val questions = mutableListOf<QuestionEntity>()
-                for (i in 0 until questionsCount) {
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i}",
-                            testId = testId,
-                            questionText = "Realistic Scheduled NEET ${subject} Question ${i + 1}?",
-                            optionA = "Option A",
-                            optionB = "Option B",
-                            optionC = "Option C",
-                            optionD = "Option D",
-                            correctAnswer = "A",
-                            explanation = "Correct option is A.",
-                            subject = subject,
-                            chapter = chapter,
-                            topic = "Live Syllabus",
-                            questionTextHi = "यथार्थवादी अनुसूचित NEET ${subject} प्रश्न ${i + 1}?",
-                            optionAHi = "विकल्प A",
-                            optionBHi = "विकल्प B",
-                            optionCHi = "विकल्प C",
-                            optionDHi = "विकल्प D",
-                            explanationHi = "सही विकल्प A है।"
-                        )
-                    )
+                val questions = if (!customQuestions.isNullOrEmpty()) {
+                    customQuestions.mapIndexed { idx, q -> q.copy(id = "${testId}_q$idx", testId = testId) }
+                } else if (pdfUri == null) {
+                    buildDynamicQuestionsForExam(targetExam, subject, testId).take(questionsCount).ifEmpty {
+                        emptyList()
+                    }
+                } else {
+                    emptyList()
                 }
                 val questionsJsonString = serializeQuestionsToJson(questions)
+                val effectiveQCount = if (questions.isNotEmpty()) questions.size else questionsCount
 
                 val testData = hashMapOf(
                     "id" to testId,
                     "title" to title,
                     "subject" to subject,
                     "classLevel" to classLevel,
+                    "targetExam" to targetExam,
                     "chapter" to chapter,
                     "scheduledTime" to scheduledTime,
                     "durationMinutes" to durationMinutes,
-                    "questionsCount" to questionsCount,
+                    "questionsCount" to effectiveQCount,
                     "isLive" to true,
                     "timestamp" to System.currentTimeMillis(),
                     "questionsJson" to questionsJsonString
@@ -1522,16 +1528,32 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                 db.collection("LiveTests").document(testId).set(testData).await()
 
+                // Broadcast Live Test Notification to UserNotifications in Firestore
+                try {
+                    val notifTarget = if (targetExam.isNotBlank() && targetExam != "All") targetExam else classLevel.ifBlank { "All" }
+                    val notifData = hashMapOf<String, Any>(
+                        "title" to "🔴 Live Test शुरू: $title",
+                        "message" to "$title ($targetExam) ऑल-इंडिया लाइव मॉक शुरू हो चुका है ($effectiveQCount प्रश्न • $durationMinutes मिनट)। अपनी ऑल-इंडिया रैंक सुरक्षित करने के लिए अभी भाग लें!",
+                        "timestamp" to System.currentTimeMillis(),
+                        "targetGroup" to notifTarget,
+                        "linkUrl" to "app://live_test/$testId",
+                        "isPinned" to true
+                    )
+                    db.collection("UserNotifications").add(notifData).await()
+                } catch (ne: Exception) {
+                    android.util.Log.e("NEETViewModel", "Error broadcasting live test notification: ${ne.message}")
+                }
+
                 // Trigger AI Extraction if PDF was uploaded
                 if (finalPdfUrl.isNotEmpty()) {
                     viewModelScope.launch(Dispatchers.IO) {
                         val keys = getGeminiApiKeys()
-                        val apiKey = if (keys.isNotEmpty()) keys.first().second else "" // Fetch first available active key
+                        val apiKey = if (keys.isNotEmpty()) keys.first().second else ""
                         Com.ak.testseries.utils.GeminiPdfExtractor.processPdfWithGemini(
                             pdfUrl = finalPdfUrl,
                             testId = testId,
                             apiKey = apiKey,
-                            totalQuestionsExpected = questionsCount
+                            totalQuestionsExpected = effectiveQCount
                         )
                     }
                 }
@@ -1547,18 +1569,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     subject = subject,
                     difficulty = "Medium",
                     testType = "Live",
-                    questionsCount = questionsCount,
+                    questionsCount = effectiveQCount,
                     isOfficial = true,
                     isVerifiedCommunity = true,
                     classLevel = classLevel,
+                    targetExam = targetExam,
                     chapter = chapter,
                     timestamp = System.currentTimeMillis(),
                     imageUrl = null,
                     questionsJson = questionsJsonString,
-            isPublic = genIsPublic.value
+                    isPublic = true
                 )
                 repository.insertTest(roomTest)
-                repository.insertQuestions(questions)
+                if (questions.isNotEmpty()) {
+                    repository.insertQuestions(questions)
+                }
                 uploadTestToFirestore(roomTest, questionsJsonString)
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -2385,6 +2410,22 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         android.util.Log.d("NEETViewModel", "Cleaned up legacy duplicate CommunityPost: ${dupDoc.id}")
                     } catch (e: Exception) {
                         android.util.Log.w("NEETViewModel", "Could not delete legacy duplicate ${dupDoc.id}: ${e.message}")
+                    }
+                }
+
+                if (!alreadyShared) {
+                    try {
+                        val notifMap = hashMapOf<String, Any>(
+                            "title" to "📝 नया कम्युनिटी टेस्ट: $targetExam",
+                            "message" to "$authorName ने नया टेस्ट '${test.title}' कम्युनिटी में शेयर किया है ($finalQuestionCount प्रश्न • $durationMinutes मिनट)। अभी हल करें!",
+                            "timestamp" to System.currentTimeMillis(),
+                            "targetGroup" to targetExam,
+                            "linkUrl" to "app://test/${test.id}",
+                            "isPinned" to false
+                        )
+                        db.collection("UserNotifications").add(notifMap).await()
+                    } catch (ne: Exception) {
+                        android.util.Log.e("NEETViewModel", "Error broadcasting community test notification: ${ne.message}")
                     }
                 }
 
@@ -3328,7 +3369,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // 2c. Show error if unavailable in both
+            // 2c. Fallback to LiveTests/{testId}
+            if (testAndQuestions == null) {
+                try {
+                    val liveDoc = db.collection("LiveTests").document(cleanTestId).get().await()
+                    if (liveDoc != null && liveDoc.exists()) {
+                        testAndQuestions = parseAndValidatePublicTest(cleanTestId, liveDoc)
+                    }
+                } catch (e: Exception) {
+                    lastNetworkException = e
+                    android.util.Log.e("NEETViewModel", "Error fetching LiveTests fallback for $cleanTestId: ${e.message}", e)
+                }
+            }
+
+            // 2d. Show error if unavailable across all collections
             if (testAndQuestions == null) {
                 withContext(Dispatchers.Main) {
                     val errMsg = lastNetworkException?.message?.lowercase() ?: ""
@@ -5803,11 +5857,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             if (isLiveTest) {
                 try {
                     val db = firestoreDb
+                    val canonicalExam = genTargetExam.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET UG" } }
                     val liveTestData = hashMapOf(
                         "id" to testId,
                         "title" to genTestName.value,
                         "subject" to genSubject.value,
                         "classLevel" to genBatch.value,
+                        "targetExam" to canonicalExam,
                         "chapter" to primaryChapter,
                         "scheduledTime" to genLiveScheduledTime.value,
                         "durationMinutes" to genLiveDurationMinutes.value,
@@ -5816,6 +5872,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         "timestamp" to System.currentTimeMillis()
                     )
                     db.collection("LiveTests").document(testId).set(liveTestData).await()
+
+                    // Broadcast Live Test Notification
+                    try {
+                        val notifMap = hashMapOf<String, Any>(
+                            "title" to "🔴 Live Test शुरू: ${genTestName.value}",
+                            "message" to "${genTestName.value} ($canonicalExam) ऑल-इंडिया लाइव मॉक शुरू हो चुका है (${jsonArray.length()} प्रश्न • ${genLiveDurationMinutes.value} मिनट)। अपनी ऑल-इंडिया रैंक सुरक्षित करने के लिए अभी हल करें!",
+                            "timestamp" to System.currentTimeMillis(),
+                            "targetGroup" to canonicalExam,
+                            "linkUrl" to "app://live_test/$testId",
+                            "isPinned" to true
+                        )
+                        db.collection("UserNotifications").add(notifMap).await()
+                    } catch (ne: Exception) {
+                        android.util.Log.e("NEETViewModel", "Error broadcasting live test notification from generator: ${ne.message}")
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -7119,6 +7190,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         targetId = testId,
                         details = mapOf("status" to "Published", "isPublic" to true)
                     )
+
+                    try {
+                        val canonicalExam = updatedTest.targetExam.ifBlank { updatedTest.examId ?: "All" }
+                        val notifMap = hashMapOf<String, Any>(
+                            "title" to "📝 नया टेस्ट जारी: $canonicalExam",
+                            "message" to "${updatedTest.title} अब सभी छात्रों के अभ्यास के लिए लाइव है। अभी अटेम्प्ट करें!",
+                            "timestamp" to System.currentTimeMillis(),
+                            "targetGroup" to canonicalExam,
+                            "linkUrl" to "app://test/$testId",
+                            "isPinned" to false
+                        )
+                        db.collection("UserNotifications").add(notifMap).await()
+                    } catch (ne: Exception) {
+                        android.util.Log.e("NEETViewModel", "Error broadcasting reviewed test notification: ${ne.message}")
+                    }
                 }
                 
                 withContext(Dispatchers.Main) {
@@ -7371,6 +7457,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             "questionsJson" to sanitizedQuestionsJson
                         )
                         db.collection("Tests_Data").document(testId).set(firestoreMap).await()
+                        try {
+                            val canonicalExamName = examConfig?.examName ?: examName
+                            val notifMap = hashMapOf<String, Any>(
+                                "title" to "📝 नया टेस्ट जारी: $canonicalExamName",
+                                "message" to "${finalTestEntity.title} अभ्यास के लिए लाइव हो चुका है (${finalTestEntity.questionsCount} प्रश्न • ${finalTestEntity.durationMinutes} मिनट)। अपनी ऑल-इंडिया रैंक के लिए अभी हल करें!",
+                                "timestamp" to System.currentTimeMillis(),
+                                "targetGroup" to canonicalExamName,
+                                "linkUrl" to "app://test/$testId",
+                                "isPinned" to false
+                            )
+                            db.collection("UserNotifications").add(notifMap).await()
+                        } catch (ne: Exception) {
+                            android.util.Log.e("NEETViewModel", "Error broadcasting universal test notification: ${ne.message}")
+                        }
                     }
                 } else {
                     android.util.Log.d("NEETViewModel", "Private test $testId stored strictly inside local Room DB without network calls.")

@@ -81,10 +81,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         val testIdFromDeepLink: String? = intent?.data?.let { data ->
-            if ((data.scheme == "http" || data.scheme == "https") && data.host == "aktestseries.app" && data.pathSegments.firstOrNull() == "test") {
-                data.pathSegments.getOrNull(1)
-            } else null
-        }
+            when {
+                (data.scheme == "http" || data.scheme == "https") && data.host == "aktestseries.app" && (data.pathSegments.firstOrNull() == "test" || data.pathSegments.firstOrNull() == "live_test") -> {
+                    data.pathSegments.getOrNull(1)
+                }
+                data.scheme == "app" && (data.host == "test" || data.host == "live_test") -> {
+                    data.pathSegments.firstOrNull() ?: data.lastPathSegment
+                }
+                data.toString().startsWith("app://test/") -> {
+                    data.toString().removePrefix("app://test/").substringBefore("?").substringBefore("/").trim()
+                }
+                data.toString().startsWith("app://live_test/") -> {
+                    data.toString().removePrefix("app://live_test/").substringBefore("?").substringBefore("/").trim()
+                }
+                else -> null
+            }
+        } ?: intent?.getStringExtra("EXTRA_TEST_ID")
         
         val magicLink: String? = intent?.data?.let { data ->
             if ((data.scheme == "http" || data.scheme == "https") && data.host == "aktestseries.app" && data.pathSegments.firstOrNull() == "login") {
@@ -1015,6 +1027,20 @@ fun DashboardScreen(
                                     // Notification Icon
                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp)) {
                                         val notifications by viewModel.userNotifications.collectAsStateWithLifecycle()
+                                        val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+                                        val hasNotifications = notifications.any { notif ->
+                                            if (notif.targetEmail != null) {
+                                                notif.targetEmail.equals(userProfile.email, ignoreCase = true)
+                                            } else {
+                                                val grp = notif.targetGroup.trim()
+                                                val userExam = userProfile.targetExam.trim()
+                                                val userClass = userProfile.classLevel.trim()
+                                                grp.equals("All", ignoreCase = true) ||
+                                                grp.startsWith("All Aspirants", ignoreCase = true) ||
+                                                (userExam.isNotEmpty() && (grp.contains(userExam, ignoreCase = true) || userExam.contains(grp, ignoreCase = true))) ||
+                                                (userClass.isNotEmpty() && grp.contains(userClass, ignoreCase = true))
+                                            }
+                                        }
                                         Surface(
                                             shape = CircleShape,
                                             color = Color.Transparent,
@@ -1027,7 +1053,6 @@ fun DashboardScreen(
                                                     tint = MaterialTheme.colorScheme.onSurface,
                                                     modifier = Modifier.size(26.dp)
                                                 )
-                                                val hasNotifications = notifications.isNotEmpty()
                                                 if (hasNotifications) {
                                                     Box(
                                                         modifier = Modifier
@@ -7334,6 +7359,8 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
 
     // Live test schedule state
     var title by remember { mutableStateOf("") }
+    var targetExam by remember { mutableStateOf("NEET UG") }
+    var targetExamExpanded by remember { mutableStateOf(false) }
     var classLevel by remember { mutableStateOf("11th") }
     var classLevelExpanded by remember { mutableStateOf(false) }
     
@@ -7421,6 +7448,28 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                // Target Exam Selection
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { targetExamExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Target Exam: $targetExam", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                    }
+                    androidx.compose.material3.DropdownMenu(expanded = targetExamExpanded, onDismissRequest = { targetExamExpanded = false }) {
+                        listOf(
+                            "NEET UG", "JEE Main", "JEE Advanced", "CUET UG",
+                            "UPSC Civil Services", "SSC CGL", "SSC CHSL", "RRB NTPC",
+                            "RRB Group D", "IBPS PO", "SBI PO", "CAT", "UGC NET", "CTET", "NDA & NA", "GATE"
+                        ).forEach { ex ->
+                            androidx.compose.material3.DropdownMenuItem(text = { Text(ex) }, onClick = { targetExam = ex; targetExamExpanded = false })
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // Class Selection
                 Box(modifier = Modifier.fillMaxWidth()) {
                     androidx.compose.material3.OutlinedButton(
@@ -7428,11 +7477,11 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Class: $classLevel", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
+                        Text("Class / Batch: $classLevel", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                     }
                     androidx.compose.material3.DropdownMenu(expanded = classLevelExpanded, onDismissRequest = { classLevelExpanded = false }) {
-                        listOf("11th", "12th", stringRes("Dropper")).forEach { clazz ->
+                        listOf("11th", "12th", stringRes("Dropper"), "Target Batch", "All Batches").forEach { clazz ->
                             androidx.compose.material3.DropdownMenuItem(text = { Text(clazz) }, onClick = { classLevel = clazz; classLevelExpanded = false })
                         }
                     }
@@ -7450,7 +7499,7 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                     }
                     androidx.compose.material3.DropdownMenu(expanded = subjectExpanded, onDismissRequest = { subjectExpanded = false }) {
-                        listOf("Physics", "Chemistry", "Biology").forEach { sub ->
+                        listOf("Physics", "Chemistry", "Biology", "Mathematics", "General Studies", "Quantitative Aptitude", "Reasoning", "Full Syllabus").forEach { sub ->
                             androidx.compose.material3.DropdownMenuItem(text = { Text(sub) }, onClick = { subject = sub; subjectExpanded = false })
                         }
                     }
@@ -7513,7 +7562,8 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
                                 chapter = chapterName,
                                 scheduledTime = scheduledTime,
                                 durationMinutes = durationMinutes.toIntOrNull() ?: 180,
-                                questionsCount = questionsCount.toIntOrNull() ?: 90
+                                questionsCount = questionsCount.toIntOrNull() ?: 90,
+                                targetExam = targetExam
                             )
                             statusMessage = "Successfully Scheduled & Synchronized to Firestore!"
                             title = ""
@@ -9234,9 +9284,26 @@ fun UserNotificationsScreen(viewModel: NEETViewModel) {
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     
     val filteredNotifications = notifications.filter { notif ->
-        if (notif.targetEmail != null && notif.targetEmail != userProfile.email) return@filter false
-        if (notif.targetEmail == null && notif.targetGroup != "All" && notif.targetGroup != "Specific" && notif.targetGroup != userProfile.targetExam && notif.targetGroup != userProfile.classLevel) return@filter false
-        true
+        if (notif.targetEmail != null) {
+            return@filter notif.targetEmail.equals(userProfile.email, ignoreCase = true)
+        }
+        val grp = notif.targetGroup.trim()
+        val userExam = userProfile.targetExam.trim()
+        val userClass = userProfile.classLevel.trim()
+        val isUniversal = grp.equals("All", ignoreCase = true) || 
+                          grp.startsWith("All Aspirants", ignoreCase = true) || 
+                          grp.isEmpty()
+        val matchesExam = isUniversal ||
+                          (userExam.isNotEmpty() && (
+                              grp.equals(userExam, ignoreCase = true) ||
+                              grp.contains(userExam, ignoreCase = true) ||
+                              userExam.contains(grp, ignoreCase = true)
+                          ))
+        val matchesClass = userClass.isNotEmpty() && (
+                              grp.equals(userClass, ignoreCase = true) ||
+                              grp.contains(userClass, ignoreCase = true)
+                          )
+        isUniversal || matchesExam || matchesClass
     }.sortedWith(compareByDescending<UserNotification> { it.isPinned }.thenByDescending { it.timestamp })
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -9264,35 +9331,94 @@ fun UserNotificationsScreen(viewModel: NEETViewModel) {
                 }
             } else {
                 androidx.compose.foundation.lazy.LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(filteredNotifications.size) { index ->
                         val notification = filteredNotifications[index]
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = notification.linkUrl != null) {
+                                .clickable(enabled = !notification.linkUrl.isNullOrBlank()) {
                                     notification.linkUrl?.let { url ->
-                                        try {
-                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
+                                        when {
+                                            url.startsWith("app://test/") || url.startsWith("app://live_test/") -> {
+                                                val extractedTestId = when {
+                                                    url.startsWith("app://test/") -> url.removePrefix("app://test/").substringBefore("?").trim()
+                                                    url.startsWith("app://live_test/") -> url.removePrefix("app://live_test/").substringBefore("?").trim()
+                                                    else -> ""
+                                                }
+                                                if (extractedTestId.isNotBlank()) {
+                                                    viewModel.handleDeepLinkTest(extractedTestId)
+                                                } else {
+                                                    viewModel.navigateToScreen(AppScreen.HIERARCHICAL_TEST_FLOW)
+                                                }
+                                            }
+                                            url.startsWith("app://tests") || url.startsWith("app://hierarchy") || url.startsWith("app://live_test") -> {
+                                                viewModel.navigateToScreen(AppScreen.HIERARCHICAL_TEST_FLOW)
+                                            }
+                                            url.startsWith("app://analytics") -> {
+                                                viewModel.navigateToScreen(AppScreen.ANALYTICS)
+                                            }
+                                            url.startsWith("app://study") || url.startsWith("app://notes") -> {
+                                                viewModel.navigateToScreen(AppScreen.STUDY_MATERIAL)
+                                            }
+                                            url.startsWith("app://community") || url.startsWith("app://vault") -> {
+                                                viewModel.navigateToScreen(AppScreen.PRIVATE_VAULT)
+                                            }
+                                            url.startsWith("app://settings") -> {
+                                                viewModel.navigateToScreen(AppScreen.SETTINGS)
+                                            }
+                                            url.startsWith("app://dashboard") -> {
+                                                viewModel.navigateToScreen(AppScreen.DASHBOARD)
+                                            }
+                                            url.startsWith("http://") || url.startsWith("https://") -> {
+                                                try {
+                                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                                    context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
+                                                }
+                                            }
+                                            else -> {
+                                                viewModel.navigateToScreen(AppScreen.HIERARCHICAL_TEST_FLOW)
+                                            }
                                         }
                                     }
                                 },
-                            colors = CardDefaults.cardColors(containerColor = if (notification.isPinned) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+                            colors = CardDefaults.cardColors(containerColor = if (notification.isPinned) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, if (notification.isPinned) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                if (notification.isPinned) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.PushPin, contentDescription = "Pinned", modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Pinned", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (notification.isPinned) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.PushPin, contentDescription = "Pinned", modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Pinned", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                        }
+                                    } else {
+                                        Spacer(modifier = Modifier.width(1.dp))
                                     }
-                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant
+                                    ) {
+                                        Text(
+                                            text = if (notification.targetEmail != null) "Personal Direct Message" else notification.targetGroup,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
+                                Spacer(modifier = Modifier.height(6.dp))
+
                                 if (notification.imageUrl != null) {
                                     coil.compose.AsyncImage(
                                         model = notification.imageUrl,
@@ -9303,15 +9429,35 @@ fun UserNotificationsScreen(viewModel: NEETViewModel) {
                                             .height(160.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                     )
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
                                 }
-                                Text(notification.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(notification.title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(notification.message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Text(notification.message, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, lineHeight = 18.sp)
                                 Spacer(modifier = Modifier.height(8.dp))
-                                
-                                val date = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(notification.timestamp))
-                                Text(date, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val date = java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(notification.timestamp))
+                                    Text(date, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                                    if (!notification.linkUrl.isNullOrBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.primary
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("Open ➔", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -9327,9 +9473,7 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
     var notificationMessage by remember { mutableStateOf("") }
     var imageUrl by remember { mutableStateOf("") }
     var linkUrl by remember { mutableStateOf("") }
-    var sendVia by remember { mutableStateOf("Push Notification") }
-    var targetGroup by remember { mutableStateOf("All") }
-    var targetEmail by remember { mutableStateOf("") }
+    var targetGroup by remember { mutableStateOf("All Aspirants (Universal)") }
     var isPinned by remember { mutableStateOf(false) }
     
     var editingNotifId by remember { mutableStateOf<String?>(null) }
@@ -9344,9 +9488,20 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
     }
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
     
+    val predefinedExams = remember {
+        listOf(
+            "All Aspirants (Universal)",
+            "NEET UG", "JEE Main", "JEE Advanced", "CUET UG",
+            "UPSC Civil Services", "SSC CGL", "SSC CHSL", "SSC MTS", "SSC GD Constable", "SSC CPO",
+            "RRB NTPC", "RRB Group D", "RRB ALP", "RRB Technician", "RRB JE",
+            "IBPS PO", "IBPS Clerk", "SBI PO", "SBI Clerk",
+            "CAT", "UGC NET", "CTET", "NDA & NA", "CDS", "GATE",
+            "Class 11", "Class 12", "Droppers"
+        )
+    }
     val dynamicClasses = allUsers.mapNotNull { it["classLevel"] as? String }.filter { it.isNotBlank() }.distinct()
     val dynamicExams = allUsers.mapNotNull { it["targetExam"] as? String }.filter { it.isNotBlank() }.distinct()
-    val allTargetGroups = (listOf("All", "Class 11", "Class 12", "Dropper", "NEET", "JEE") + dynamicClasses + dynamicExams).distinct()
+    val allTargetGroups = (predefinedExams + dynamicClasses + dynamicExams).distinct()
     
     val notifications by viewModel.userNotifications.collectAsStateWithLifecycle()
 
@@ -9366,54 +9521,277 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
     }
 
     Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(bottom = 60.dp)) {
-        Text(stringRes("Announcements & Notifications"), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(12.dp))
+        // Header
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Rounded.NotificationsActive,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(
+                    stringRes("Admin Notification Control Center"),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "Real-time Firebase Firestore broadcast for 20+ competitive exams",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(14.dp))
 
+        // Quick Presets Section
+        Text("⚡ Quick Notification Presets", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Live Test Alert Preset
+            FilterChip(
+                selected = false,
+                onClick = {
+                    notificationTitle = "🔴 All India Live Mock Test is LIVE!"
+                    notificationMessage = "Official timed Live Test has started. Compete with thousands of aspirants nationwide and secure your All-India rank! Tap to join."
+                    linkUrl = "app://live_test"
+                    isPinned = true
+                    targetGroup = "All Aspirants (Universal)"
+                },
+                label = { Text("🔴 Live Test Alert", fontSize = 11.sp) }
+            )
+            // Live Test Ending Soon Preset
+            FilterChip(
+                selected = false,
+                onClick = {
+                    notificationTitle = "⏰ अंतिम 30 मिनट शेष: Live Exam Window Closing Soon!"
+                    notificationMessage = "लाइव परीक्षा की समय-सीमा समाप्त होने वाली है। अपनी ऑल-इंडिया रैंक सुरक्षित करने के लिए अभी टेस्ट पूरा करें और सबमिट करें!"
+                    linkUrl = "app://live_test"
+                    isPinned = true
+                    targetGroup = "All Aspirants (Universal)"
+                },
+                label = { Text("⏰ 30-Min Alert", fontSize = 11.sp) }
+            )
+            // New Test Uploaded Preset
+            FilterChip(
+                selected = false,
+                onClick = {
+                    notificationTitle = "📝 New Full Mock Test Series Released"
+                    notificationMessage = "Fresh test series papers with bilingual questions, step-by-step solutions, and instant AI analytics are now available for practice."
+                    linkUrl = "app://tests"
+                    isPinned = false
+                    targetGroup = "All Aspirants (Universal)"
+                },
+                label = { Text("📝 New Mock Test", fontSize = 11.sp) }
+            )
+            // Exam Announcement Preset
+            FilterChip(
+                selected = false,
+                onClick = {
+                    notificationTitle = "📢 Official Exam Notification & Schedule"
+                    notificationMessage = "Important updates regarding exam dates, admit cards, and latest syllabus guidelines. Check announcements section now!"
+                    linkUrl = "app://announcements"
+                    isPinned = true
+                    targetGroup = "All Aspirants (Universal)"
+                },
+                label = { Text("📢 Exam Notice", fontSize = 11.sp) }
+            )
+            // Daily Quiz Preset
+            FilterChip(
+                selected = false,
+                onClick = {
+                    notificationTitle = "⚡ Daily High-Yield Speed Quiz"
+                    notificationMessage = "Boost your speed and accuracy with 15 handpicked high-yield questions for today. Maintain your daily study streak!"
+                    linkUrl = "app://tests"
+                    isPinned = false
+                    targetGroup = "All Aspirants (Universal)"
+                },
+                label = { Text("⚡ Daily Quiz", fontSize = 11.sp) }
+            )
+            // Community Notes Preset
+            FilterChip(
+                selected = false,
+                onClick = {
+                    notificationTitle = "💬 New Verified High-Yield Notes Shared"
+                    notificationMessage = "New formula sheets, handwritten revision notes, and peer study material are now available in the Community Vault!"
+                    linkUrl = "app://community"
+                    isPinned = false
+                    targetGroup = "All Aspirants (Universal)"
+                },
+                label = { Text("💬 Community Notes", fontSize = 11.sp) }
+            )
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Broadcast Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f))
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(if(editingNotifId != null) "Edit Announcement" else stringRes("Broadcast New Announcement"), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(stringRes("Send a push notification and update the announcements section."), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (editingNotifId != null) "✏️ Edit Announcement" else stringRes("Broadcast New Announcement"),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    if (editingNotifId != null) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                "Editing Mode",
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+                Text(
+                    "Broadcasts live push notification and synchronizes instantly across all connected students.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = notificationTitle,
                     onValueChange = { notificationTitle = it },
                     label = { Text(stringRes("Announcement Title"), fontSize = 10.sp) },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    placeholder = { Text("e.g. 🔴 NEET 2026 Grand Mock Test is Live!", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     singleLine = true,
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = notificationMessage,
                     onValueChange = { notificationMessage = it },
                     label = { Text(stringRes("Announcement Message"), fontSize = 10.sp) },
-                    modifier = Modifier.fillMaxWidth().height(80.dp),
+                    placeholder = { Text("Enter detailed message for students...", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth().height(86.dp),
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
                     maxLines = 4
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
+                // Target Group Selector (All 20+ Exams)
+                Text("Target Audience (20+ Exams & Foundation Batches)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(4.dp))
+                var expandedTargetGroup by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(
+                        onClick = { expandedTargetGroup = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(targetGroup, fontSize = 12.sp, maxLines = 1)
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = expandedTargetGroup,
+                        onDismissRequest = { expandedTargetGroup = false },
+                        modifier = Modifier.heightIn(max = 350.dp)
+                    ) {
+                        allTargetGroups.forEach { group ->
+                            DropdownMenuItem(
+                                text = { 
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = RoundedCornerShape(3.dp),
+                                            color = when {
+                                                group.contains("NEET") -> Color(0xFF10B981)
+                                                group.contains("JEE") -> Color(0xFF6366F1)
+                                                group.contains("Bank") || group.contains("IBPS") || group.contains("SBI") -> Color(0xFF0D9488)
+                                                group.contains("RRB") || group.contains("Railway") || group.contains("NTPC") -> Color(0xFF0284C7)
+                                                group.contains("SSC") -> Color(0xFFF59E0B)
+                                                group.contains("UPSC") || group.contains("NDA") || group.contains("CDS") -> Color(0xFFEA580C)
+                                                group.contains("CAT") -> Color(0xFF8B5CF6)
+                                                group.contains("NET") || group.contains("CTET") -> Color(0xFF059669)
+                                                else -> Color(0xFF6C63FF)
+                                            },
+                                            modifier = Modifier.size(8.dp)
+                                        ) {}
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(group, fontSize = 12.sp)
+                                    }
+                                },
+                                onClick = { 
+                                    targetGroup = group
+                                    expandedTargetGroup = false 
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Link URL with Deep Link Helpers
+                OutlinedTextField(
+                    value = linkUrl,
+                    onValueChange = { linkUrl = it },
+                    label = { Text("Deep Link / Action URL (Optional)", fontSize = 10.sp) },
+                    placeholder = { Text("app://tests or https://...", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                // Quick Deep Link Chips
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        "app://live_test" to "Live Test",
+                        "app://tests" to "Test Series",
+                        "app://community" to "Community",
+                        "app://leaderboard" to "Ranks",
+                        "app://announcements" to "Announcements"
+                    ).forEach { (deepLink, label) ->
+                        SuggestionChip(
+                            onClick = { linkUrl = deepLink },
+                            label = { Text(label, fontSize = 10.sp) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Image URL & Picker
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = imageUrl,
                         onValueChange = { imageUrl = it },
                         label = { Text(stringRes("Image URL (Optional)"), fontSize = 10.sp) },
-                        modifier = Modifier.weight(1f).height(52.dp),
+                        modifier = Modifier.weight(1f).height(56.dp),
                         singleLine = true,
                         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = { imagePickerLauncher.launch("image/*") },
-                        modifier = Modifier.height(52.dp),
+                        modifier = Modifier.height(56.dp),
                         enabled = !isUploading,
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         if (isUploading) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onSurface, strokeWidth = 2.dp)
@@ -9423,39 +9801,12 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = linkUrl,
-                    onValueChange = { linkUrl = it },
-                    label = { Text(stringRes("Link URL (Optional)"), fontSize = 10.sp) },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text("Target Group (Filters)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                var expandedTargetGroup by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(onClick = { expandedTargetGroup = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(targetGroup, fontSize = 12.sp)
-                    }
-                    DropdownMenu(expanded = expandedTargetGroup, onDismissRequest = { expandedTargetGroup = false }) {
-                        allTargetGroups.forEach { group ->
-                            DropdownMenuItem(
-                                text = { Text(group, fontSize = 12.sp) },
-                                onClick = { targetGroup = group; expandedTargetGroup = false }
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isPinned, onCheckedChange = { isPinned = it })
-                    Text("Pin this message to the top", fontSize = 12.sp)
+                    Text("Pin this notification to top of student feed", fontSize = 12.sp)
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (editingNotifId != null) {
@@ -9467,15 +9818,21 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
                                 imageUrl = ""
                                 linkUrl = ""
                                 isPinned = false
-                                targetGroup = "All"
+                                targetGroup = "All Aspirants (Universal)"
                             },
-                            modifier = Modifier.weight(1f).height(40.dp)
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
                             Text("Cancel Edit", fontSize = 12.sp)
                         }
                     }
                     Button(
                         onClick = {
+                            if (notificationTitle.isBlank() || notificationMessage.isBlank()) {
+                                android.widget.Toast.makeText(context, "Please enter title and message", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            val cleanTarget = if (targetGroup.startsWith("All Aspirants")) "All" else targetGroup
                             scope.launch {
                                 if (editingNotifId != null) {
                                     viewModel.updateNotification(
@@ -9484,21 +9841,23 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
                                         message = notificationMessage,
                                         imageUrl = imageUrl.takeIf { it.isNotBlank() },
                                         linkUrl = linkUrl.takeIf { it.isNotBlank() },
-                                        targetGroup = targetGroup,
+                                        targetGroup = cleanTarget,
                                         targetEmail = null,
                                         isPinned = isPinned
                                     )
                                     editingNotifId = null
+                                    android.widget.Toast.makeText(context, "Notification updated in Firebase!", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
                                     viewModel.addNotification(
                                         title = notificationTitle,
                                         message = notificationMessage,
                                         imageUrl = imageUrl.takeIf { it.isNotBlank() },
                                         linkUrl = linkUrl.takeIf { it.isNotBlank() },
-                                        targetGroup = targetGroup,
+                                        targetGroup = cleanTarget,
                                         targetEmail = null,
                                         isPinned = isPinned
                                     )
+                                    android.widget.Toast.makeText(context, "Broadcasted to $cleanTarget via Firestore!", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                                 showSuccessSnackbar = true
                                 notificationTitle = ""
@@ -9506,54 +9865,94 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
                                 imageUrl = ""
                                 linkUrl = ""
                                 isPinned = false
-                                targetGroup = "All"
+                                targetGroup = "All Aspirants (Universal)"
                             }
                         },
-                        modifier = Modifier.weight(1f).height(40.dp),
+                        modifier = Modifier.weight(1f).height(44.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C63FF)),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.Default.Notifications, contentDescription = "Send", modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if(editingNotifId != null) "Update" else stringRes("Send Notification"), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(
+                            if (editingNotifId != null) "Update Broadcast" else stringRes("Send Notification"),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
         }
         
         Spacer(modifier = Modifier.height(24.dp))
-        Text("Send Direct Message to User", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Direct Student Messaging Section
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Send, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Send Direct 1-to-1 Message to Student", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
         
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f))
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                var selectedUserEmail by remember { mutableStateOf("Select a User") }
+            Column(modifier = Modifier.padding(14.dp)) {
+                var selectedUserEmail by remember { mutableStateOf("Select a Student") }
                 var expandedUsers by remember { mutableStateOf(false) }
                 
-                Text("Select User", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Select Student (from Registered Database)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(4.dp))
                 Box {
-                    OutlinedButton(onClick = { expandedUsers = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(selectedUserEmail, fontSize = 12.sp, maxLines = 1)
+                    OutlinedButton(
+                        onClick = { expandedUsers = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(selectedUserEmail, fontSize = 12.sp, maxLines = 1)
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        }
                     }
-                    DropdownMenu(expanded = expandedUsers, onDismissRequest = { expandedUsers = false }) {
-                        allUsers.forEach { user ->
-                            val userEmail = user["email"] as? String ?: "No Email"
-                            val userName = user["name"] as? String ?: "Unknown"
+                    DropdownMenu(
+                        expanded = expandedUsers,
+                        onDismissRequest = { expandedUsers = false },
+                        modifier = Modifier.heightIn(max = 300.dp)
+                    ) {
+                        if (allUsers.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("$userName ($userEmail)", fontSize = 12.sp) },
-                                onClick = { 
-                                    selectedUserEmail = userEmail
-                                    expandedUsers = false 
-                                }
+                                text = { Text("No students found yet", fontSize = 12.sp) },
+                                onClick = { expandedUsers = false }
                             )
+                        } else {
+                            allUsers.forEach { user ->
+                                val userEmail = user["email"] as? String ?: "No Email"
+                                val userName = user["name"] as? String ?: "Student"
+                                val targetExam = user["targetExam"] as? String ?: "NEET"
+                                DropdownMenuItem(
+                                    text = { 
+                                        Column {
+                                            Text("$userName ($userEmail)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                            Text("Exam: $targetExam", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    },
+                                    onClick = { 
+                                        selectedUserEmail = userEmail
+                                        expandedUsers = false 
+                                    }
+                                )
+                            }
                         }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 var directMessage by remember { mutableStateOf("") }
                 var directTitle by remember { mutableStateOf("") }
                 
@@ -9561,16 +9960,18 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
                     value = directTitle,
                     onValueChange = { directTitle = it },
                     label = { Text("Direct Message Title", fontSize = 10.sp) },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    placeholder = { Text("e.g. Test feedback / Subscription activated", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     singleLine = true,
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = directMessage,
                     onValueChange = { directMessage = it },
                     label = { Text("Message Content", fontSize = 10.sp) },
-                    modifier = Modifier.fillMaxWidth().height(80.dp),
+                    placeholder = { Text("Write personal message...", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth().height(86.dp),
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
                     maxLines = 4
                 )
@@ -9578,9 +9979,9 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = {
-                        if (selectedUserEmail != "Select a User" && directMessage.isNotBlank()) {
+                        if (selectedUserEmail != "Select a Student" && directMessage.isNotBlank()) {
                             viewModel.addNotification(
-                                title = directTitle,
+                                title = if (directTitle.isBlank()) "Personal Message from Admin" else directTitle,
                                 message = directMessage,
                                 targetGroup = "Specific",
                                 targetEmail = selectedUserEmail,
@@ -9588,13 +9989,14 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
                             )
                             directMessage = ""
                             directTitle = ""
-                            selectedUserEmail = "Select a User"
-                            android.widget.Toast.makeText(context, "Direct message sent!", android.widget.Toast.LENGTH_SHORT).show()
+                            selectedUserEmail = "Select a Student"
+                            android.widget.Toast.makeText(context, "Direct message dispatched to student!", android.widget.Toast.LENGTH_SHORT).show()
                         } else {
-                            android.widget.Toast.makeText(context, "Please select a user and enter a message.", android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(context, "Please select a student and enter a message.", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(Icons.Default.Send, contentDescription = "Send", modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
@@ -9604,38 +10006,131 @@ fun AdminNotificationsContent(viewModel: NEETViewModel) {
         }
         
         Spacer(modifier = Modifier.height(24.dp))
-        Text("Manage Previous Notifications", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        notifications.forEach { notif ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Active Broadcasts (${notifications.size})", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(notif.title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Row {
-                            IconButton(onClick = { 
-                                notificationTitle = notif.title
-                                notificationMessage = notif.message
-                                imageUrl = notif.imageUrl ?: ""
-                                linkUrl = notif.linkUrl ?: ""
-                                isPinned = notif.isPinned
-                                targetGroup = notif.targetGroup
-                                editingNotifId = notif.id
-                            }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    "Firestore Live Sync",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        
+        if (notifications.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No broadcasts created yet. Create your first announcement above!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            notifications.forEach { notif ->
+                val badgeColor = when {
+                    notif.targetGroup.contains("NEET") -> Color(0xFF10B981)
+                    notif.targetGroup.contains("JEE") -> Color(0xFF6366F1)
+                    notif.targetGroup.contains("Bank") || notif.targetGroup.contains("IBPS") || notif.targetGroup.contains("SBI") -> Color(0xFF0D9488)
+                    notif.targetGroup.contains("Railway") || notif.targetGroup.contains("RRB") -> Color(0xFF0284C7)
+                    notif.targetGroup.contains("SSC") -> Color(0xFFF59E0B)
+                    notif.targetGroup.contains("UPSC") || notif.targetGroup.contains("NDA") || notif.targetGroup.contains("CDS") -> Color(0xFFEA580C)
+                    notif.targetGroup.contains("CAT") -> Color(0xFF8B5CF6)
+                    notif.targetGroup.contains("NET") || notif.targetGroup.contains("CTET") -> Color(0xFF059669)
+                    notif.targetGroup.equals("All", ignoreCase = true) -> Color(0xFF7C3AED)
+                    else -> Color(0xFF4B5563)
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, if (notif.isPinned) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (notif.isPinned) {
+                                        Icon(Icons.Default.PushPin, contentDescription = "Pinned", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(notif.title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
                             }
-                            IconButton(onClick = { viewModel.deleteNotification(notif.id) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                            Row {
+                                IconButton(
+                                    onClick = { 
+                                        notificationTitle = notif.title
+                                        notificationMessage = notif.message
+                                        imageUrl = notif.imageUrl ?: ""
+                                        linkUrl = notif.linkUrl ?: ""
+                                        isPinned = notif.isPinned
+                                        targetGroup = notif.targetGroup
+                                        editingNotifId = notif.id
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                }
+                                IconButton(
+                                    onClick = { 
+                                        viewModel.deleteNotification(notif.id)
+                                        android.widget.Toast.makeText(context, "Deleted announcement", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                }
                             }
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(notif.message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        
+                        if (!notif.imageUrl.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            coil.compose.AsyncImage(
+                                model = notif.imageUrl,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxWidth().height(100.dp).clip(RoundedCornerShape(6.dp)),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Target badge
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = badgeColor.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = if (notif.targetEmail != null) "Direct: ${notif.targetEmail}" else "Target: ${notif.targetGroup}",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = badgeColor,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            
+                            val dateStr = if (notif.timestamp > 0) {
+                                java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(notif.timestamp))
+                            } else "Just now"
+                            Text(dateStr, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(notif.message, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Target: ${if(notif.targetEmail != null) notif.targetEmail else notif.targetGroup} | Pinned: ${notif.isPinned}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

@@ -207,44 +207,200 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
 }
 
 @Composable
-fun PushNotificationSection() {
+fun PushNotificationSection(viewModel: NEETViewModel? = null) {
     var title by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
+    var targetExam by remember { mutableStateOf("All") }
+    var expandedExamDropdown by remember { mutableStateOf(false) }
+    var imageUrl by remember { mutableStateOf("") }
+    var linkUrl by remember { mutableStateOf("") }
+    var isPinned by remember { mutableStateOf(false) }
+    var isSending by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val allExams = remember {
+        listOf(
+            "All", "NEET UG", "JEE Main", "JEE Advanced", "CUET UG",
+            "UPSC Civil Services", "SSC CGL", "SSC CHSL", "SSC MTS", "SSC GD Constable", "SSC CPO",
+            "RRB NTPC", "RRB Group D", "RRB ALP", "RRB Technician", "RRB JE",
+            "IBPS PO", "IBPS Clerk", "SBI PO", "SBI Clerk",
+            "CAT", "UGC NET", "CTET", "NDA & NA", "CDS", "GATE",
+            "Class 11", "Class 12", "Dropper"
+        )
+    }
+
     AdminSectionCard(
-        title = "Push Notifications",
+        title = "Push Notifications & Announcements",
         icon = Icons.Rounded.Notifications,
-        description = "Send notifications to all users."
+        description = "Broadcast live real-time notifications to all users or specific target exams (20+ competitive exams supported)."
     ) {
+        // Quick Presets
+        Text("Quick Presets (त्वरित टेम्पलेट):", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            AssistChip(
+                onClick = {
+                    title = "🔴 LIVE EXAM ALERT: All-India Test is Live!"
+                    message = "The scheduled national mock exam is active now. Complete your attempt before the window closes."
+                    linkUrl = "app://live_test"
+                    isPinned = true
+                },
+                label = { Text("Live Test", fontSize = 10.sp) }
+            )
+            AssistChip(
+                onClick = {
+                    title = "📝 नया टेस्ट जारी: New Mock Available"
+                    message = "A new authentic full-syllabus practice test has been uploaded to your exam catalog."
+                    linkUrl = "app://tests"
+                    isPinned = false
+                },
+                label = { Text("New Test", fontSize = 10.sp) }
+            )
+            AssistChip(
+                onClick = {
+                    title = "📢 महत्वपूर्ण सूचना / Announcement"
+                    message = "Important exam updates and syllabus guidelines have been published."
+                    linkUrl = "app://announcements"
+                    isPinned = true
+                },
+                label = { Text("Notice", fontSize = 10.sp) }
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Target Exam Selector
+        Text("Target Audience / Exam Group:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { expandedExamDropdown = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (targetExam == "All") "👥 All Students (सभी छात्र)" else "🎯 $targetExam Aspirants",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 12.sp
+                )
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(
+                expanded = expandedExamDropdown,
+                onDismissRequest = { expandedExamDropdown = false }
+            ) {
+                allExams.forEach { exam ->
+                    DropdownMenuItem(
+                        text = { Text(if (exam == "All") "All Students (सभी छात्र)" else exam, fontSize = 12.sp) },
+                        onClick = {
+                            targetExam = exam
+                            expandedExamDropdown = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedTextField(
             value = title,
             onValueChange = { title = it },
-            label = { Text("Notification Title") },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text("Notification Title (शीर्षक)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = message,
             onValueChange = { message = it },
-            label = { Text("Notification Message") },
+            label = { Text("Notification Message (संदेश)") },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = linkUrl,
+            onValueChange = { linkUrl = it },
+            label = { Text("Action / Deep Link URL (e.g. app://tests, app://live_test)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = imageUrl,
+            onValueChange = { imageUrl = it },
+            label = { Text("Image URL (Optional)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = isPinned, onCheckedChange = { isPinned = it })
+            Text("Pin this message to the top (शीर्ष पर पिन करें)", fontSize = 12.sp)
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
         Button(
             onClick = {
-                // Note: Realistically, you should trigger a Cloud Function here to send the notification
-                // via FCM HTTP v1 API. Sending directly from the client without a backend is a security risk.
+                if (title.isBlank() || message.isBlank()) {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("Please enter both title and message.")
+                    }
+                    return@Button
+                }
+                isSending = true
                 coroutineScope.launch {
-                    // Simulate sending
-                    snackbarHostState.showSnackbar("Notification triggered successfully")
+                    try {
+                        val cleanTarget = if (targetExam.startsWith("All")) "All" else targetExam
+                        if (viewModel != null) {
+                            viewModel.addNotification(
+                                title = title.trim(),
+                                message = message.trim(),
+                                imageUrl = imageUrl.trim().takeIf { it.isNotBlank() },
+                                linkUrl = linkUrl.trim().takeIf { it.isNotBlank() },
+                                targetGroup = cleanTarget,
+                                targetEmail = null,
+                                isPinned = isPinned
+                            )
+                        } else {
+                            val notifData = hashMapOf<String, Any>(
+                                "title" to title.trim(),
+                                "message" to message.trim(),
+                                "timestamp" to System.currentTimeMillis(),
+                                "targetGroup" to cleanTarget,
+                                "isPinned" to isPinned
+                            )
+                            if (imageUrl.isNotBlank()) notifData["imageUrl"] = imageUrl.trim()
+                            if (linkUrl.isNotBlank()) notifData["linkUrl"] = linkUrl.trim()
+                            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                                .collection("UserNotifications")
+                                .add(notifData)
+                        }
+                        snackbarHostState.showSnackbar("✅ Notification broadcast successfully to $cleanTarget!")
+                        title = ""
+                        message = ""
+                        linkUrl = ""
+                        imageUrl = ""
+                        isPinned = false
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Error sending: ${e.localizedMessage}")
+                    } finally {
+                        isSending = false
+                    }
                 }
             },
-            modifier = Modifier.align(Alignment.End)
+            modifier = Modifier.align(Alignment.End),
+            enabled = !isSending
         ) {
-            Text("Send Notification")
+            if (isSending) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text("Broadcast Live Notification")
         }
         SnackbarHost(hostState = snackbarHostState)
     }
