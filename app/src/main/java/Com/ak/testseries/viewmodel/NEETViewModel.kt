@@ -98,6 +98,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val firestoreDb: com.google.firebase.firestore.FirebaseFirestore
         get() = Com.ak.testseries.data.remote.FirestoreHelper.getInstance(getApplication())
 
+    val defaultExceptionHandler = Com.ak.testseries.crash.AppCoroutineExceptionHandler.create(
+        tag = "NEETViewModel",
+        appContext = application
+    )
+
     val isAdminFlow = MutableStateFlow(false)
 
     val isAdmin: Boolean

@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">AK TEST SERIES</string>
     <string name="default_web_client_id">836952428988-t2rvn8alppn2c8o2o9ecsh56fi8jlq37.apps.googleusercontent.com</string>
+    <string name="google_app_id" translatable="false">1:836952428988:android:aktestseries</string>
+    <string name="google_api_key" translatable="false">AIzaSyMockKeyForInitializationAKTestSeries</string>
+    <string name="project_id" translatable="false">ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612</string>
+    <string name="gcm_defaultSenderId" translatable="false">836952428988</string>
 </resources>

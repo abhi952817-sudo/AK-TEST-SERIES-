@@ -138,6 +138,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Reset rolling crash loop sentinel once the app launch succeeds and stabilizes
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(5000L)
+                Com.ak.testseries.crash.CrashReportVault.resetCrashLoopCounter(this@MainActivity)
+            }
+
+            // Global background coroutine exception notification
+            LaunchedEffect(Unit) {
+                Com.ak.testseries.crash.AppCoroutineExceptionHandler.userAlertEvents.collect { alert ->
+                    android.widget.Toast.makeText(this@MainActivity, alert.message, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+
             // FCM token retrieval disabled in emulator environment to prevent TOO_MANY_REGISTRATIONS errors
             val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
 

@@ -257,6 +257,27 @@ abstract class AppDatabase : RoomDatabase() {
                 instance
             }
         }
+
+        /**
+         * Safely closes open database handles and recreates the SQLite database file
+         * when severe corruption or crash loops occur.
+         */
+        fun emergencyResetDatabase(context: android.content.Context): Boolean {
+            return synchronized(this) {
+                try {
+                    try {
+                        INSTANCE?.close()
+                    } catch (_: Throwable) {}
+                    INSTANCE = null
+                    context.applicationContext.deleteDatabase("neet_test_series_db")
+                    // Re-instantiate fresh clean database tables
+                    getDatabase(context.applicationContext)
+                    true
+                } catch (_: Throwable) {
+                    false
+                }
+            }
+        }
     }
 }
 

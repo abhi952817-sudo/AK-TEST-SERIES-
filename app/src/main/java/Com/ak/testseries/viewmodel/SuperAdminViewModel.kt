@@ -63,12 +63,16 @@ class SuperAdminViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(AdminDashboardState())
     val uiState: StateFlow<AdminDashboardState> = _uiState.asStateFlow()
 
+    private val exceptionHandler = Com.ak.testseries.crash.AppCoroutineExceptionHandler.create(
+        tag = "SuperAdminViewModel"
+    )
+
     init {
         fetchDashboardData()
     }
 
     private fun fetchDashboardData() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + exceptionHandler) {
             val logs = mutableListOf<SystemLog>()
             val timeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
             

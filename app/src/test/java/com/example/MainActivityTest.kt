@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.robolectric.annotation.Config
 import Com.ak.testseries.ui.LoginScreen
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,20 +18,24 @@ class MainActivityTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun testFullDemoSignInFlow() {
-        try {
-            var clicked = false
-            composeTestRule.setContent {
-                LoginScreen(
-                    onGoogleSignInClick = {},
-                    onSignInClick = { _, _ -> clicked = true },
-                    onSignUpClick = { _, _, _ -> }
-                )
-            }
-            composeTestRule.onNodeWithText("Sign in with Demo Account").performScrollTo().performClick()
-            org.junit.Assert.assertTrue("Demo sign in should be triggered", clicked)
-        } catch (e: Exception) {
-            println("Handled Robolectric environment exception: ${e.message}")
+    fun testRealSignInFlowRenderAndInteraction() {
+        var googleSignInClicked = false
+        var magicLinkClicked = false
+
+        composeTestRule.setContent {
+            LoginScreen(
+                onGoogleSignInClick = { googleSignInClicked = true },
+                onSignInClick = { _, _ -> },
+                onSignUpClick = { _, _, _ -> },
+                onMagicLinkClick = { magicLinkClicked = true }
+            )
         }
+
+        // Verify Real Google Auth button is rendered and clickable
+        composeTestRule.onNodeWithText("Continue with Google").performScrollTo().performClick()
+        assertTrue("Google sign in should be triggered", googleSignInClicked)
+
+        // Verify Magic Link button is rendered
+        composeTestRule.onNodeWithText("Send Magic Link").performScrollTo().assertIsDisplayed()
     }
 }
