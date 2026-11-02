@@ -109,3 +109,23 @@ fun QuizWatermarkOverlay(
             }
     )
 }
+
+/**
+ * Wraps composable content with an anti-piracy watermark overlay that displays the user's
+ * phone number or identifier diagonally across the screen to prevent unauthorized capture.
+ */
+@Composable
+fun AntiPiracyWatermarkWrapper(
+    phoneNumber: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(modifier = modifier) {
+        content()
+        QuizWatermarkOverlay(
+            phoneNumber = phoneNumber,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+

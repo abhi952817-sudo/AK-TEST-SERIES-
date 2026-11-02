@@ -1758,6 +1758,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val attemptHistory: StateFlow<List<AttemptEntity>> = currentUserId.flatMapLatest { uid ->
         if (uid.isNotBlank()) {
             repository.getAttemptsForUser(uid)
@@ -3117,7 +3118,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 checkAdminCustomClaim()
 
                 // Sync user to database and Restore Data
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                viewModelScope.launch(Dispatchers.IO) {
                     try {
                         userRepository.syncUserToDatabase(user)
                         val backupResult = userRepository.restoreUserData(user.uid)
@@ -3159,10 +3160,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess { user ->
                 currentUserId.value = user.uid
                 checkAdminCustomClaim()
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                    
                 // Restore Cloud Backup Data
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                viewModelScope.launch(Dispatchers.IO) {
                     try {
                         userRepository.syncUserToDatabase(user) 
                         val backupResult = userRepository.restoreUserData(user.uid)
@@ -3184,8 +3183,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                     } catch (e: Exception) { e.printStackTrace() }
-                }
-
                 }
                 
                 syncUserAttemptsFromFirebase() 
@@ -3214,10 +3211,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess { user ->
                 currentUserId.value = user.uid
                 checkAdminCustomClaim()
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                    
                 // Restore Cloud Backup Data
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                viewModelScope.launch(Dispatchers.IO) {
                     try {
                         userRepository.syncUserToDatabase(user) 
                         val backupResult = userRepository.restoreUserData(user.uid)
@@ -3239,8 +3234,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                     } catch (e: Exception) { e.printStackTrace() }
-                }
-
                 }
                 
                 saveUserProfile(user.name, user.email, "", "")
@@ -3264,7 +3257,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 currentUserId.value = user.uid
                 checkAdminCustomClaim()
                 // Sync user to database and Restore Data
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                viewModelScope.launch(Dispatchers.IO) {
                     try {
                         userRepository.syncUserToDatabase(user)
                         val backupResult = userRepository.restoreUserData(user.uid)

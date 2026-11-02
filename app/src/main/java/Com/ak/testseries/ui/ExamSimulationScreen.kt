@@ -166,7 +166,7 @@ fun ExamSimulationScreen(
     }
 
     // Wrap with Anti-Piracy Watermark
-    com.ak.pdfextractor.ui.components.AntiPiracyWatermarkWrapper(
+    AntiPiracyWatermarkWrapper(
         phoneNumber = userPhone,
         modifier = Modifier.fillMaxSize()
     ) {

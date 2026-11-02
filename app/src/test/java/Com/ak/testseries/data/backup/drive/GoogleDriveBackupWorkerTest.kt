@@ -135,7 +135,7 @@ class GoogleDriveBackupWorkerTest {
                     )
                 )
             }
-            override suspend fun listBackups(accessToken: String, folderId: String, ownerUid: String): Result<List<GoogleDriveRemoteBackup>> = Result.success(emptyList())
+            override suspend fun listBackups(accessToken: String, folderId: String, targetUid: String): Result<List<GoogleDriveRemoteBackup>> = Result.success(emptyList())
             override suspend fun downloadBackupFile(accessToken: String, fileId: String, destinationFile: java.io.File): Result<java.io.File> = Result.success(destinationFile)
             override suspend fun deleteBackupFile(accessToken: String, fileId: String): Result<Boolean> = Result.success(true)
         }) {

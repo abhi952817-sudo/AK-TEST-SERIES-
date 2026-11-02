@@ -3946,7 +3946,7 @@ fun ExamModeScreen(viewModel: NEETViewModel) {
         }
     }
 
-    com.ak.pdfextractor.ui.components.AntiPiracyWatermarkWrapper(
+    Com.ak.testseries.ui.AntiPiracyWatermarkWrapper(
         phoneNumber = userPhone,
         modifier = Modifier.fillMaxSize()
     ) {
