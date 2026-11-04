@@ -41,10 +41,14 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
   const mapIndex = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
   if (mapIndex[a] === b || mapIndex[b] === a) return true;
 
-  const num1 = parseFloat(a);
-  const num2 = parseFloat(b);
-  if (!isNaN(num1) && !isNaN(num2)) {
-    return Math.abs(num1 - num2) < 0.0001;
+  // For non-numerical questions, only allow complete numeric aliases
+  // (for example "1" <-> "1.0"); never let parseFloat accept "123abc".
+  const numericPattern = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+  if (numericPattern.test(a) && numericPattern.test(b)) {
+    const num1 = Number(a);
+    const num2 = Number(b);
+    return Number.isFinite(num1) && Number.isFinite(num2) &&
+      Math.abs(num1 - num2) < 0.0001;
   }
   return false;
 }
