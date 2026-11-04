@@ -117,6 +117,8 @@ object ExamScoringEngine {
         var maxPossible = 0.0
 
         val sectionAttemptCounts = mutableMapOf<String, Int>()
+        val sectionQuestionCounts = mutableMapOf<String, Int>()
+        var maxScorableQuestions = 0
 
         questions.forEach { question ->
             val userOpt = userAnswers[question.id]?.trim()?.uppercase()
@@ -128,7 +130,18 @@ object ExamScoringEngine {
             } else {
                 Pair(posMark, negMark)
             }
-            maxPossible += qPosMark
+            val secKey = "${question.subject.lowercase().trim()}_${question.section.lowercase().trim()}"
+            val secLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+                examName = targetExam,
+                sectionNameOrId = question.section,
+                subjectName = question.subject
+            )
+            val sectionQuestionIndex = sectionQuestionCounts.getOrDefault(secKey, 0)
+            sectionQuestionCounts[secKey] = sectionQuestionIndex + 1
+            if (secLimit == null || sectionQuestionIndex < secLimit) {
+                maxPossible += qPosMark
+                maxScorableQuestions++
+            }
 
             val isTitaOrNumerical = question.questionType.equals("TITA", ignoreCase = true) ||
                     question.questionType.equals("NUMERICAL", ignoreCase = true) ||
@@ -138,12 +151,6 @@ object ExamScoringEngine {
             if (userOpt.isNullOrEmpty()) {
                 unanswered++
             } else {
-                val secKey = "${question.subject.lowercase().trim()}_${question.section.lowercase().trim()}"
-                val secLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                    examName = targetExam,
-                    sectionNameOrId = question.section,
-                    subjectName = question.subject
-                )
                 val currentAttempts = sectionAttemptCounts.getOrDefault(secKey, 0)
                 if (secLimit != null && currentAttempts >= secLimit) {
                     // Surplus question in optional section - ignored per official exam rules
@@ -167,10 +174,10 @@ object ExamScoringEngine {
 
         if (!isMultiScheme) {
             val maxAllowedQs = UniversalExamRegistry.getMaximumAttemptQuestionsCountForExam(targetExam)
-            val effectiveCount = if (maxAllowedQs != null && questions.size > maxAllowedQs) {
+            val effectiveCount = if (maxAllowedQs != null && maxScorableQuestions > maxAllowedQs) {
                 maxAllowedQs
             } else {
-                questions.size
+                maxScorableQuestions
             }
             maxPossible = effectiveCount * posMark
         }
