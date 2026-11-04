@@ -248,6 +248,7 @@ object UniversalPdfPipeline {
                         )
                         break
                     }
+                }
             } catch (e: Exception) {
                 onProgress(
                     BatchProgress(
