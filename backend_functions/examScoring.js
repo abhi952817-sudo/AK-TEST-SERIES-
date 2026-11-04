@@ -20,15 +20,26 @@ function isAnswerKeyVerified(key) {
 }
 
 function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
-  if (!ans1 || !ans2) return false;
+  if (ans1 === null || ans1 === undefined || ans2 === null || ans2 === undefined) return false;
   const a = String(ans1).trim().toUpperCase();
   const b = String(ans2).trim().toUpperCase();
+  if (a.length === 0 || b.length === 0) return false;
+
+  // Numerical questions must contain a complete finite number. parseFloat alone
+  // accepts malformed values such as "123abc" as 123, which can award false marks.
+  if (isNumerical) {
+    const numericPattern = /^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/;
+    if (!numericPattern.test(a) || !numericPattern.test(b)) return false;
+    const num1 = Number(a);
+    const num2 = Number(b);
+    return Number.isFinite(num1) && Number.isFinite(num2) &&
+      Math.abs(num1 - num2) < 0.0001;
+  }
+
   if (a === b) return true;
 
-  if (!isNumerical) {
-    const mapIndex = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
-    if (mapIndex[a] === b || mapIndex[b] === a) return true;
-  }
+  const mapIndex = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
+  if (mapIndex[a] === b || mapIndex[b] === a) return true;
 
   const num1 = parseFloat(a);
   const num2 = parseFloat(b);
