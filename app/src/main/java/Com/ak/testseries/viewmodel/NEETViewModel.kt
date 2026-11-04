@@ -1490,17 +1490,27 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val db = firestoreDb
                 val testId = "live_" + System.currentTimeMillis()
 
-                val questions = if (!customQuestions.isNullOrEmpty()) {
-                    customQuestions.mapIndexed { idx, q -> q.copy(id = "${testId}_q$idx", testId = testId) }
-                } else if (pdfUri == null) {
-                    buildDynamicQuestionsForExam(targetExam, subject, testId).take(questionsCount).ifEmpty {
-                        emptyList()
+                // Live tests must be built from real, pre-validated questions.
+                // The legacy exam builder contains hard-coded/demo questions and is not a production source.
+                val questions = customQuestions.orEmpty().mapIndexed { idx, q ->
+                    q.copy(id = "${testId}_q$idx", testId = testId)
+                }
+                if (questions.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            getApplication(),
+                            if (pdfUri != null) {
+                                "PDF Live Test is not published from this screen. Extract and validate questions in Upload AI first."
+                            } else {
+                                "Live Test needs real questions. Add validated questions before scheduling."
+                            },
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
                     }
-                } else {
-                    emptyList()
+                    return@launch
                 }
                 val questionsJsonString = serializeQuestionsToJson(questions)
-                val effectiveQCount = if (questions.isNotEmpty()) questions.size else questionsCount
+                val effectiveQCount = questions.size
 
                 val testData = hashMapOf(
                     "id" to testId,
@@ -1517,20 +1527,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "questionsJson" to questionsJsonString
                 )
 
-                var finalPdfUrl = ""
-                if (pdfUri != null) {
-                    try {
-                        val storageRef = FirebaseStorage.getInstance().reference.child("LiveTests/$testId.pdf")
-                        storageRef.putFile(pdfUri).await()
-                        val downloadUrl = storageRef.downloadUrl.await()
-                        finalPdfUrl = downloadUrl.toString()
-                        testData["pdfUrl"] = finalPdfUrl
-                        testData["processingStatus"] = "Pending Extraction"
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-
+                // Public LiveTests must never upload or retain the source PDF.
+                // Only the validated question text and linked question images are published.
                 db.collection("LiveTests").document(testId).set(testData).await()
 
                 // Broadcast Live Test Notification to UserNotifications in Firestore
@@ -1547,20 +1545,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     db.collection("UserNotifications").add(notifData).await()
                 } catch (ne: Exception) {
                     android.util.Log.e("NEETViewModel", "Error broadcasting live test notification: ${ne.message}")
-                }
-
-                // Trigger AI Extraction if PDF was uploaded
-                if (finalPdfUrl.isNotEmpty()) {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        val keys = getGeminiApiKeys()
-                        val apiKey = if (keys.isNotEmpty()) keys.first().second else ""
-                        Com.ak.testseries.utils.GeminiPdfExtractor.processPdfWithGemini(
-                            pdfUrl = finalPdfUrl,
-                            testId = testId,
-                            apiKey = apiKey,
-                            totalQuestionsExpected = effectiveQCount
-                        )
-                    }
                 }
 
                 val roomTest = TestEntity(
@@ -4820,21 +4804,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // Fallback: Generate structured realistic mock test if API is unavailable and fallback is enabled by Admin
-            if (_isOfflineMockFallbackEnabled.value) {
-                generateMockAiTest()
-                recordDailyGeneration()
-                aiGenStatusMessage.value = "Generated offline fallback mock test!"
-                _aiGenState.value = AiGenerationState.Success
+            // Production safety: never replace failed PDF/AI extraction with synthetic questions.
+            val errorMsg = if (!hasApiKey) {
+                "AI generation is unavailable because no API key is configured. Your extracted PDF data is retained; retry when AI is available."
             } else {
-                val errorMsg = if (!hasApiKey) {
-                    "AI generation is unavailable (no API keys configured) and Offline Mock Fallback is disabled by Admin."
-                } else {
-                    "AI generation failed to extract questions and Offline Mock Fallback is disabled by Admin."
-                }
-                _aiGenState.value = AiGenerationState.Error(errorMsg)
-                aiGenStatusMessage.value = errorMsg
+                "AI could not generate valid questions from this PDF. No mock questions were created; review the PDF and retry."
             }
+            _aiGenState.value = AiGenerationState.Error(errorMsg)
+            aiGenStatusMessage.value = errorMsg
         }
     }
 
