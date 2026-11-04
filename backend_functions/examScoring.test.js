@@ -38,6 +38,17 @@ test("User answer correctness: single, index, multiple correct", () => {
   assert.strictEqual(isUserAnswerCorrect("C", "A, B"), false);
 });
 
+test("NEET numerical answers reject malformed and non-finite values", () => {
+  assert.strictEqual(areOptionsEquivalent("123", "123.0", true), true);
+  assert.strictEqual(areOptionsEquivalent("-12.5", "-12.500", true), true);
+  assert.strictEqual(areOptionsEquivalent("1.25e2", "125", true), true);
+  assert.strictEqual(areOptionsEquivalent("123abc", "123", true), false);
+  assert.strictEqual(areOptionsEquivalent("123abc", "123abc", true), false);
+  assert.strictEqual(areOptionsEquivalent("Infinity", "Infinity", true), false);
+  assert.strictEqual(areOptionsEquivalent("NaN", "NaN", true), false);
+  assert.strictEqual(isUserAnswerCorrect("123abc", "123", true), false);
+});
+
 test("Marking schemes for distinct exams", () => {
   const neet = getMarkingSchemeForExam("NEET UG");
   assert.strictEqual(neet.pos, 4.0);
