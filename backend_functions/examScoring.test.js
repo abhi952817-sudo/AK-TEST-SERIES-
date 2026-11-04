@@ -47,6 +47,11 @@ test("NEET numerical answers reject malformed and non-finite values", () => {
   assert.strictEqual(areOptionsEquivalent("Infinity", "Infinity", true), false);
   assert.strictEqual(areOptionsEquivalent("NaN", "NaN", true), false);
   assert.strictEqual(isUserAnswerCorrect("123abc", "123", true), false);
+  // Even outside a numerical question, partial numeric strings must not match.
+  assert.strictEqual(areOptionsEquivalent("123abc", "123", false), false);
+  assert.strictEqual(isUserAnswerCorrect("123abc", "123", false), false);
+  // Complete numeric aliases remain comparable where numeric option labels are used.
+  assert.strictEqual(areOptionsEquivalent("1.0", "1", false), true);
 });
 
 test("Marking schemes for distinct exams", () => {
