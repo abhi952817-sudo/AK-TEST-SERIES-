@@ -28,7 +28,7 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
   // Numerical questions must contain a complete finite number. parseFloat alone
   // accepts malformed values such as "123abc" as 123, which can award false marks.
   if (isNumerical) {
-    const numericPattern = /^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/;
+    const numericPattern = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
     if (!numericPattern.test(a) || !numericPattern.test(b)) return false;
     const num1 = Number(a);
     const num2 = Number(b);
