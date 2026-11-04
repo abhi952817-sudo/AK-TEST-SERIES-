@@ -112,6 +112,7 @@ test("Section B optional limit: surplus questions are ignored", () => {
   assert.strictEqual(result.correctCount, 10);
   assert.strictEqual(result.unansweredCount, 2);
   assert.strictEqual(result.finalScore, 40.0);
+  assert.strictEqual(result.maxScore, 40.0);
 });
 
 test("CAT TITA questions have zero negative penalty", () => {
