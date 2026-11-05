@@ -1,7 +1,6 @@
 package Com.ak.testseries.exam
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class UniversalPdfPipelineTest {
