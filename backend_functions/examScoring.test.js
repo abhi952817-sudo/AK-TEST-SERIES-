@@ -34,7 +34,9 @@ test("User answer correctness: single, index, multiple correct", () => {
   assert.strictEqual(isUserAnswerCorrect("A", "A"), true);
   assert.strictEqual(isUserAnswerCorrect("1", "A"), true);
   assert.strictEqual(isUserAnswerCorrect("A, B", "B, A"), true);
-  assert.strictEqual(isUserAnswerCorrect("A", "A, B"), true);
+  assert.strictEqual(isUserAnswerCorrect("B, A", "A, B"), true);
+  assert.strictEqual(isUserAnswerCorrect("A", "A, B"), false);
+  assert.strictEqual(isUserAnswerCorrect("B", "A, B"), false);
   assert.strictEqual(isUserAnswerCorrect("C", "A, B"), false);
 });
 
