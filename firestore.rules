@@ -93,7 +93,8 @@ service cloud.firestore {
                             'verifiedServerSide', 'countsTowardRanking', 'submissionStatus'
                           ])
                           && request.resource.data.get('verifiedServerSide', false) == false
-                          && request.resource.data.get('countsTowardRanking', false) == false)
+                          && request.resource.data.get('countsTowardRanking', false) == false
+                          && request.resource.data.get('submissionStatus', 'PENDING') in ['PENDING', 'OFFLINE'])
                       || isAdmin();
         allow update, delete: if isAdmin();
       }
@@ -108,7 +109,8 @@ service cloud.firestore {
                             'verifiedServerSide', 'countsTowardRanking', 'submissionStatus'
                           ])
                           && request.resource.data.get('verifiedServerSide', false) == false
-                          && request.resource.data.get('countsTowardRanking', false) == false)
+                          && request.resource.data.get('countsTowardRanking', false) == false
+                          && request.resource.data.get('submissionStatus', 'PENDING') in ['PENDING', 'OFFLINE'])
                       || isAdmin();
         allow update, delete: if isAdmin();
       }
