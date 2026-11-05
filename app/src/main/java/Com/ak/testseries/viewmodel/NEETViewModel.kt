@@ -2189,7 +2189,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     qObj.optString("questionTextHi").takeIf { it.isNotBlank() }?.let { qClean.put("questionTextHi", it) }
-                    qObj.optString("explanationHi").takeIf { it.isNotBlank() }?.let { qClean.put("explanationHi", it) }
                     qObj.optString("optionAHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionAHi", it) }
                     qObj.optString("optionBHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionBHi", it) }
                     qObj.optString("optionCHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionCHi", it) }
@@ -5610,16 +5609,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val correctAns = qObj.optString("correctAnswer", "")
                 val exp = qObj.optString("explanation", "")
                 
+                val expHi = qObj.optString("explanationHi", "")
                 answerKeys.add(mapOf(
                     "id" to qId,
                     "correctAnswer" to correctAns,
-                    "explanation" to exp
+                    "explanation" to exp,
+                    "explanationHi" to expHi
                 ))
 
-                // Public copy without answer keys
+                // Public copy without answer keys or solution explanations in either language.
                 val publicObj = org.json.JSONObject(qObj.toString())
                 publicObj.remove("correctAnswer")
                 publicObj.remove("explanation")
+                publicObj.remove("explanationHi")
                 publicArray.put(publicObj)
             }
             Pair(publicArray.toString(), answerKeys)
