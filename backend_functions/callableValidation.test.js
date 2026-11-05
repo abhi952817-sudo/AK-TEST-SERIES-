@@ -115,8 +115,8 @@ function validateCallableSubmission(
     }
   }
 
-  // 5. Idempotency handling
-  if (existingAttemptData) {
+  // 5. Idempotency handling: only server-verified records are canonical.
+  if (existingAttemptData && existingAttemptData.verifiedServerSide === true) {
     if (existingAttemptData.userId !== userId || existingAttemptData.testId !== testId) {
       const err = new Error("Attempt ID belongs to a different test or user.");
       err.code = "already-exists";
@@ -136,12 +136,12 @@ function validateCallableSubmission(
         score: existingAttemptData.score,
         isRetry: true
       };
-    } else {
-      const err = new Error("Conflicting attempt submission with different answers for existing attempt ID.");
-      err.code = "already-exists";
-      throw err;
     }
+    const err = new Error("Conflicting attempt submission with different answers for existing attempt ID.");
+    err.code = "already-exists";
+    throw err;
   }
+  // Unverified client-created placeholders are ignored; trusted grading continues below.
 
   // 6. Authoritative evaluation
   const targetExam = testDocData.targetExam || "NEET";
@@ -314,6 +314,7 @@ test("Callable idempotency: Identical retry returns canonical result without dup
     userId: "student_alice",
     testId: "test_real",
     score: 4,
+    verifiedServerSide: true,
     answersJson: JSON.stringify({ q1: { ans: "A" } })
   };
 
@@ -990,6 +991,7 @@ test("F-016: submitTestAttemptServerSide retry NEVER returns solutionKeys", () =
     userId: "student_submitting",
     testId: "neet_mock_secure",
     score: 4,
+    verifiedServerSide: true,
     answersJson: JSON.stringify({ q1: "A" })
   };
 
