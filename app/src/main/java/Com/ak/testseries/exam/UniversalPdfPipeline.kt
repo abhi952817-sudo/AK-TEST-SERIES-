@@ -97,6 +97,7 @@ object UniversalPdfPipeline {
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
         val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
         val effectiveApiKey = apiKey ?: BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
+        var offlineFallbackAttempted = false
 
         // Process in controlled batches to save API tokens and maintain reliability
         for (batchIndex in (resumeFromBatch - 1) until totalBatches) {
@@ -230,20 +231,30 @@ object UniversalPdfPipeline {
 
                     extractedQuestions.addAll(finalBatch)
                 } else {
-                    // PDF mode must never substitute bundled catalog, generic templates, or invented answers.
-                    // Keep only questions that the parser can genuinely identify in this uploaded PDF.
-                    val parsedFromPdf = OfflineMarkdownQuestionParser.parseMarkdownToQuestions(
-                        compactMarkdown, examConfig, subjectId, stageId
-                    )
-                    if (parsedFromPdf.isNotEmpty()) {
-                        extractedQuestions.addAll(parsedFromPdf)
-                    } else {
+                    // The offline parser processes the whole PDF, not one batch. Run it once only;
+                    // otherwise an API failure in every batch would duplicate the entire paper repeatedly.
+                    if (!offlineFallbackAttempted) {
+                        offlineFallbackAttempted = true
+                        val parsedFromPdf = OfflineMarkdownQuestionParser.parseMarkdownToQuestions(
+                            compactMarkdown, examConfig, subjectId, stageId
+                        )
+                        val seenHashes = extractedQuestions.map {
+                            DuplicateDetectionEngine.generateNormalizedHash(it.questionText, it.options)
+                        }.toMutableSet()
+                        val uniqueFromPdf = parsedFromPdf.filter { question ->
+                            val hash = DuplicateDetectionEngine.generateNormalizedHash(question.questionText, question.options)
+                            seenHashes.add(hash)
+                        }
+                        val remaining = (expectedQuestions - extractedQuestions.size).coerceAtLeast(0)
+                        extractedQuestions.addAll(uniqueFromPdf.take(remaining))
+                    }
+                    if (extractedQuestions.isEmpty()) {
                         onProgress(
                             BatchProgress(
                                 totalBatches = totalBatches,
                                 currentBatch = currentBatchNumber,
-                                processedQuestions = extractedQuestions.size,
-                                statusMessage = "No valid questions were extracted from this PDF batch. Please review the PDF or retry."
+                                processedQuestions = 0,
+                                statusMessage = "No valid questions were extracted from this PDF. Please review the PDF or retry."
                             )
                         )
                         break
