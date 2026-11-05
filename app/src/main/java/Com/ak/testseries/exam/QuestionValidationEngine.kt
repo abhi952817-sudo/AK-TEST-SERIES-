@@ -237,7 +237,17 @@ object QuestionValidationEngine {
         // 4.1 Golden Answer / Reference Check
         if (!sourceAnswer.isNullOrBlank() && !sourceAnswer.trim().equals("UNVERIFIED", ignoreCase = true)) {
             val normalizedSource = sourceAnswer.trim().uppercase()
-            if (normalizedAnswer == normalizedSource) {
+            val sourceMatches = when {
+                questionType == QuestionType.MCQ_MULTIPLE -> {
+                    normalizedAnswer.split(",").map { it.trim() }.sorted() ==
+                        normalizedSource.split(",").map { it.trim() }.sorted()
+                }
+                isNumericalType -> ExamScoringEngine.areOptionsEquivalent(
+                    normalizedAnswer, normalizedSource, isNumerical = true
+                )
+                else -> ExamScoringEngine.areOptionsEquivalent(normalizedAnswer, normalizedSource)
+            }
+            if (sourceMatches) {
                 sourceConfidence = 100
             } else {
                 issues.add("⚠ Answer conflict detected: AI answer ($normalizedAnswer) != trusted source answer ($normalizedSource)")
