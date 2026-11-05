@@ -5711,10 +5711,37 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 primaryTopic = qTopic
             }
             
-            val qTextEn = qObj.optString("questionTextEn", "Question Text")
+            val qTextEn = qObj.optString("questionTextEn").ifBlank { qObj.optString("questionText") }.trim()
             val qTextHi = qObj.optString("questionTextHi", "")
             val reasoning = qObj.optString("reasoning", "")
             val expEn = qObj.optString("explanationEn", "").ifBlank { reasoning }
+            val questionType = qObj.optString("questionType", "MCQ").trim().uppercase()
+            val isNumerical = questionType in setOf("NUMERICAL", "NUMERICAL_VALUE", "NAT", "TITA")
+            val optionA = qObj.optString("optionAEn", qObj.optString("optionA", "")).trim()
+            val optionB = qObj.optString("optionBEn", qObj.optString("optionB", "")).trim()
+            val optionC = qObj.optString("optionCEn", qObj.optString("optionC", "")).trim()
+            val optionD = qObj.optString("optionDEn", qObj.optString("optionD", "")).trim()
+            val optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).trim()
+            val answer = qObj.optString("correctAnswer", "").trim()
+            val validAnswer = if (isNumerical) {
+                answer.matches(Regex("^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$"))
+            } else {
+                answer.uppercase() in setOf("A", "B", "C", "D", "E") &&
+                    when (answer.uppercase()) {
+                        "A" -> optionA.isNotBlank()
+                        "B" -> optionB.isNotBlank()
+                        "C" -> optionC.isNotBlank()
+                        "D" -> optionD.isNotBlank()
+                        "E" -> optionE.isNotBlank()
+                        else -> false
+                    } && listOf(optionA, optionB, optionC, optionD).all { it.isNotBlank() }
+            }
+            if (qTextEn.isBlank() || !validAnswer) {
+                _aiGenState.value = AiGenerationState.Error(
+                    "Question ${i + 1} failed validation (question text, options, or answer). Nothing was saved."
+                )
+                return@withContext
+            }
             val combinedText = "$qTextEn $qTextHi $expEn".lowercase()
 
             val diagramKeywords = listOf(
@@ -5743,12 +5770,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     id = "${testId}_q${i}",
                     testId = testId,
                     questionText = qTextEn,
-                    optionA = qObj.optString("optionAEn", "Option A"),
-                    optionB = qObj.optString("optionBEn", "Option B"),
-                    optionC = qObj.optString("optionCEn", "Option C"),
-                    optionD = qObj.optString("optionDEn", "Option D"),
-                    optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
-                    correctAnswer = qObj.optString("correctAnswer", ""),
+                    optionA = if (isNumerical) "" else optionA,
+                    optionB = if (isNumerical) "" else optionB,
+                    optionC = if (isNumerical) "" else optionC,
+                    optionD = if (isNumerical) "" else optionD,
+                    optionE = optionE.takeIf { it.isNotEmpty() },
+                    correctAnswer = answer,
+                    questionType = if (isNumerical) "NUMERICAL" else questionType,
                     explanation = expEn,
                     subject = genSubject.value,
                     chapter = qChapter,
