@@ -406,3 +406,12 @@ The attempt-security review was extended beyond the initial idempotency issue:
 **Deployment dependency:** The new composite index for `Users_Data/{userId}/Attempts` on `testId` and `verifiedServerSide` must be deployed before the updated callable is relied on in production.
 
 **Current status:** Source changes and regression tests are committed to the working branch. No Gradle/JUnit, Node test, Firebase Emulator, Storage Emulator, Android build, or device run has been performed in this session. Do not release or mark the changes runtime-verified until those checks pass.
+
+
+### AI Factual-Verification Gate — 2026-11-06
+
+- `QuestionValidationEngine` no longer assumes source confidence is 100 when no independent source answer is supplied.
+- Missing/UNVERIFIED source answers now set source confidence to 0, add a factual-verification warning, and force `NEEDS_REVIEW` rather than auto-approval.
+- When a trusted source answer is supplied, comparison handles numerical tolerance and order-independent multiple-correct keys.
+- The current PDF response parser still supplies `sourceAnswer = null`; therefore generated questions will require human/source review until a trusted answer-key extraction or independently verified reference is connected.
+- Added regression coverage for the no-source review gate. Test execution remains pending.
