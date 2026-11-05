@@ -216,13 +216,19 @@ object QuestionValidationEngine {
             } else {
                 listOf("A", "B", "C", "D", "1", "2", "3", "4")
             }
-            if (normalizedAnswer !in validAnswers && !options.any { it.trim().equals(trimmedAnswer, ignoreCase = true) }) {
+            if (questionType == QuestionType.MCQ_MULTIPLE) {
+                val answerParts = normalizedAnswer.split(",").map { it.trim() }
+                val validMultipleAnswer = answerParts.size >= 2 &&
+                    answerParts.all { it in validAnswers } &&
+                    answerParts.distinct().size == answerParts.size
+                if (!validMultipleAnswer) {
+                    issues.add("⚠ Answer conflict detected: Multiple-correct questions require at least two distinct valid option keys")
+                    answerConfidence = 0
+                    hasHardFailure = true
+                }
+            } else if (normalizedAnswer !in validAnswers && !options.any { it.trim().equals(trimmedAnswer, ignoreCase = true) }) {
                 issues.add("⚠ Answer conflict detected: Answer '$trimmedAnswer' does not match permitted options ($validAnswers)")
                 answerConfidence = 0
-                hasHardFailure = true
-            } else if (normalizedAnswer.contains("MULTIPLE") || normalizedAnswer.contains(",")) {
-                issues.add("⚠ Multiple options may be correct")
-                answerConfidence = 50
                 hasHardFailure = true
             }
         }
