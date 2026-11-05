@@ -44,6 +44,7 @@ class UniversalPdfPipelineTest {
             options = listOf("Statement A", "Statement B", "Statement C", "Statement D"),
             correctAnswer = "A, B",
             explanation = "Statements A and B satisfy the stated conditions and are therefore correct.",
+            sourceAnswer = "A, B",
             questionType = QuestionType.MCQ_MULTIPLE,
             expectedOptionCount = 4
         )
@@ -62,5 +63,19 @@ class UniversalPdfPipelineTest {
         assertEquals(QuestionType.TITA, UniversalPdfPipeline.resolveQuestionType("TITA", QuestionType.DIRECT_MCQ))
         assertEquals(QuestionType.STATEMENT_BASED, UniversalPdfPipeline.resolveQuestionType("STATEMENT_BASED", QuestionType.DIRECT_MCQ))
         assertEquals(QuestionType.DIRECT_MCQ, UniversalPdfPipeline.resolveQuestionType("MCQ", QuestionType.DIRECT_MCQ))
+    }
+
+    @Test
+    fun missingIndependentSourceAnswerRequiresReview() {
+        val result = QuestionValidationEngine.validateQuestion(
+            questionText = "Which statement correctly describes the physical principle?",
+            options = listOf("Option A", "Option B", "Option C", "Option D"),
+            correctAnswer = "A",
+            explanation = "Option A is the answer according to the explanation supplied.",
+            questionType = QuestionType.MCQ_SINGLE
+        )
+
+        assertEquals(0, result.qualityMetrics.sourceConfidence)
+        assertEquals(ValidationStatus.NEEDS_REVIEW, result.status)
     }
 }
