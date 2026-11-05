@@ -221,6 +221,20 @@ test("Student: CANNOT directly create authoritative server-verified attempts", a
     })
   );
 
+  // Client-controlled completion status must never be accepted.
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Attempts").doc("forged_confirmed").set({
+      testId: "test_1",
+      attemptSessionToken: "att_forged_confirmed",
+      answersJson: "{}",
+      timeSpentSeconds: 30,
+      verifiedServerSide: false,
+      countsTowardRanking: false,
+      submissionStatus: "CONFIRMED",
+      dateTaken: 1700000001,
+    })
+  );
+
   // Safe unverified placeholder metadata is permitted for offline continuity.
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Attempts").doc("test_1_1700000000").set({
