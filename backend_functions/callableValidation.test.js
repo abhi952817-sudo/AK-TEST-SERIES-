@@ -376,6 +376,7 @@ test("Callable idempotency: Conflicting reuse of attempt ID is rejected", () => 
     userId: "student_alice",
     testId: "test_real",
     score: 4,
+    verifiedServerSide: true,
     answersJson: JSON.stringify({ q1: { ans: "A" } })
   };
 
