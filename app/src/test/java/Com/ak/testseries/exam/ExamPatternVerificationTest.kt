@@ -375,4 +375,39 @@ class ExamPatternVerificationTest {
         assertEquals("Fewer than 5 options must drop option integrity", 0, missingFifthOption.qualityMetrics.optionIntegrity)
         assertTrue("Must flag missing 5th option", missingFifthOption.issues.any { it.contains("Fewer than 5 options provided") })
     }
+
+    @Test
+    fun verifyScoringSchemeForEveryConfiguredSectionAcrossAllExams() {
+        val allExams = UniversalExamRegistry.getAllExams()
+        assertEquals(25, allExams.size)
+
+        allExams.forEach { exam ->
+            exam.stages.forEach { stage ->
+                stage.papers.forEach { paper ->
+                    paper.subjects.forEach { subject ->
+                        subject.sections.forEach { section ->
+                            val actual = UniversalExamRegistry.getMarkingSchemeForQuestion(
+                                examName = exam.examName,
+                                sectionIdOrName = section.sectionId,
+                                subjectName = subject.subjectName,
+                                questionTypeStr = section.questionType.name
+                            )
+                            assertEquals(
+                                "${exam.examId}/${stage.stageName}/${paper.paperName}/${subject.subjectName}/${section.sectionName}: positive marks",
+                                section.positiveMarks,
+                                actual.first,
+                                0.001
+                            )
+                            assertEquals(
+                                "${exam.examId}/${stage.stageName}/${paper.paperName}/${subject.subjectName}/${section.sectionName}: negative marks",
+                                section.negativeMarks,
+                                actual.second,
+                                0.001
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
