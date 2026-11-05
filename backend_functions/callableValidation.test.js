@@ -927,10 +927,8 @@ function validateGetSolutions(
     throw err;
   }
 
-  const isCompleted = userAttemptData.verifiedServerSide === true ||
-                      userAttemptData.submissionStatus === "CONFIRMED" ||
-                      userAttemptData.submissionStatus === "COMPLETED" ||
-                      Boolean(userAttemptData.submittedAt);
+  // Only explicit server verification can unlock private answer keys.
+  const isCompleted = userAttemptData.verifiedServerSide === true;
   if (!isCompleted) {
     const err = new Error("Test attempt is not completed. You must complete and submit the test before retrieving solutions.");
     err.code = "permission-denied";
@@ -1108,6 +1106,29 @@ test("F-016: getTestAttemptSolutions rejects attempt belonging to a different us
       { id: "neet_real" },
       null,
       otherUserAttempt
+    ),
+    { code: "permission-denied" }
+  );
+});
+
+test("F-016: Unverified client status cannot unlock private solutions", () => {
+  const context = { auth: { uid: "student_unverified_attempt" } };
+  const testDoc = { id: "neet_secure", status: "Published", isPublic: true };
+  const forgedAttempt = {
+    userId: "student_unverified_attempt",
+    testId: "neet_secure",
+    verifiedServerSide: false,
+    submissionStatus: "CONFIRMED",
+    submittedAt: Date.now()
+  };
+
+  assert.throws(
+    () => validateGetSolutions(
+      { testId: "neet_secure", attemptSessionToken: "att_forged" },
+      context,
+      testDoc,
+      { questions: [{ id: "q1", correctAnswer: "A" }] },
+      forgedAttempt
     ),
     { code: "permission-denied" }
   );
