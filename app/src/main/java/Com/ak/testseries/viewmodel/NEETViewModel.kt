@@ -1439,12 +1439,27 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     fun addNewTest(test: TestEntity, questions: List<QuestionEntity>) {
         viewModelScope.launch(Dispatchers.IO) {
             val validQuestions = questions.filter { question ->
-                question.questionText.isNotBlank() &&
-                    question.optionA.isNotBlank() &&
-                    question.optionB.isNotBlank() &&
-                    question.optionC.isNotBlank() &&
-                    question.optionD.isNotBlank() &&
-                    question.correctAnswer.isNotBlank()
+                val type = question.questionType.trim().uppercase()
+                val isNumerical = type in setOf("NUMERICAL", "NUMERICAL_VALUE", "NAT", "TITA")
+                val answer = question.correctAnswer.trim()
+                val validAnswer = if (isNumerical) {
+                    answer.matches(Regex("^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$"))
+                } else {
+                    answer.uppercase() in setOf("A", "B", "C", "D", "E") &&
+                        when (answer.uppercase()) {
+                            "A" -> question.optionA.isNotBlank()
+                            "B" -> question.optionB.isNotBlank()
+                            "C" -> question.optionC.isNotBlank()
+                            "D" -> question.optionD.isNotBlank()
+                            "E" -> !question.optionE.isNullOrBlank()
+                            else -> false
+                        } &&
+                        listOf(question.optionA, question.optionB, question.optionC, question.optionD)
+                            .count { it.isNotBlank() } >= 2
+                }
+                question.questionText.isNotBlank() && validAnswer &&
+                    (isNumerical || listOf(question.optionA, question.optionB, question.optionC, question.optionD)
+                        .all { it.isNotBlank() })
             }
             if (validQuestions.isEmpty() || validQuestions.size != questions.size) {
                 withContext(Dispatchers.Main) {
@@ -2130,9 +2145,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qType = qObj.optString("questionType", "MCQ")
                     qClean.put("questionType", qType)
 
-                    val correctAns = qObj.optString("correctAnswer", "").trim()
-                    qClean.put("correctAnswer", correctAns)
-
+                    // Community copies are student-facing. Never publish answer keys or explanations here.
+                    // The private/original test remains unchanged on the owner's device.
                     val secId = qObj.optString("section", "SECTION_A")
                     val secName = qObj.optString("sectionName", "Section A")
                     qClean.put("section", secId)
@@ -2161,9 +2175,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qClean.put("positiveMarks", finalPos)
                     qClean.put("negativeMarks", finalNeg)
 
-                    val exp = qObj.optString("explanation", qObj.optString("explanationEn", "")).trim()
-                    qClean.put("explanation", exp)
-
+                    // Explanations are also withheld from the public community copy.
                     qClean.put("subject", qObj.optString("subject", test.subject))
                     qClean.put("chapter", qObj.optString("chapter", test.chapter))
                     qClean.put("topic", qObj.optString("topic", test.topic))
