@@ -388,3 +388,21 @@
 9. Regression-test timer expiry, manual submission, retry after network loss, duplicate callable requests, first-attempt eligibility, and leaderboard atomicity.
 
 **Checkpoint policy:** No item above is runtime-tested merely because a test was added or a source file was updated. Keep runtime verification status pending until the relevant command/emulator/device test is actually executed.
+
+
+### Security Remediation Extension — 2026-11-06
+
+The attempt-security review was extended beyond the initial idempotency issue:
+
+- `submitTestAttemptServerSide` now treats only `verifiedServerSide === true` records as canonical retries.
+- First-attempt ranking eligibility now ignores unverified placeholders and queries only server-verified attempts.
+- Server writes replace the entire attempt document instead of merging into a potentially client-created placeholder.
+- `getTestAttemptSolutions` now requires explicit server verification; client-controlled `submissionStatus` and `submittedAt` values no longer qualify an attempt as completed.
+- Firestore rules permit only a small metadata allowlist for client-created placeholders; score/result fields are rejected, and status is restricted to PENDING/OFFLINE.
+- Local cloud-history sync skips any attempt that is not explicitly server-verified.
+- Added regression coverage for forged scores, forged CONFIRMED status, unverified idempotency placeholders, and unverified solution-review requests.
+- Added a 25-exam, per-section marking-scheme consistency test. This is test code only and has not been executed.
+
+**Deployment dependency:** The new composite index for `Users_Data/{userId}/Attempts` on `testId` and `verifiedServerSide` must be deployed before the updated callable is relied on in production.
+
+**Current status:** Source changes and regression tests are committed to the working branch. No Gradle/JUnit, Node test, Firebase Emulator, Storage Emulator, Android build, or device run has been performed in this session. Do not release or mark the changes runtime-verified until those checks pass.
