@@ -208,13 +208,29 @@ test("Student: CANNOT directly create authoritative server-verified attempts", a
     })
   );
 
-  // Writing unverified local attempt record with no ranking claims -> SUCCEEDS
+  // Client-created attempts may contain only non-scoring metadata.
+  // Any client-supplied score or result field must be rejected.
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Attempts").doc("forged_score").set({
+      testId: "test_1",
+      score: 999999,
+      correctCount: 180,
+      verifiedServerSide: false,
+      countsTowardRanking: false,
+      dateTaken: 1700000000,
+    })
+  );
+
+  // Safe unverified placeholder metadata is permitted for offline continuity.
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Attempts").doc("test_1_1700000000").set({
       testId: "test_1",
-      score: 540,
+      attemptSessionToken: "att_test_1",
+      answersJson: "{}",
+      timeSpentSeconds: 30,
       verifiedServerSide: false,
       countsTowardRanking: false,
+      submissionStatus: "PENDING",
       dateTaken: 1700000000,
     })
   );
@@ -730,7 +746,6 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Attempts").doc("att_active_1").set({
       testId: "test_1",
-      score: 100,
       verifiedServerSide: false,
       countsTowardRanking: false
     })
