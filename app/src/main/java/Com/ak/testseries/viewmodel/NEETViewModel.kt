@@ -1410,6 +1410,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("optionD", q.optionD)
             q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
+            qObj.put("questionType", q.questionType)
             qObj.put("explanation", q.explanation)
             qObj.put("subject", q.subject)
             qObj.put("chapter", q.chapter)
