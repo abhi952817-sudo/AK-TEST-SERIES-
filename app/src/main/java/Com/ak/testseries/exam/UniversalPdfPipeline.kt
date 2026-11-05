@@ -288,7 +288,7 @@ object UniversalPdfPipeline {
         return@withContext extractedQuestions
     }
 
-    private fun parseGeminiResponse(
+    internal fun parseGeminiResponse(
         jsonString: String,
         examConfig: ExamConfig,
         stageId: String,
