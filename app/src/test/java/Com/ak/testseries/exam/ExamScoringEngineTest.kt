@@ -239,9 +239,9 @@ class ExamScoringEngineTest {
 
     @Test
     fun testMultipleCorrectAndCommaSeparatedKeys() {
-        // Either A or B accepted
-        assertTrue(ExamScoringEngine.isUserAnswerCorrect("A", "A, B"))
-        assertTrue(ExamScoringEngine.isUserAnswerCorrect("B", "A, B"))
+        // Partial selections must not receive full credit for a multiple-correct key.
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("A", "A, B"))
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("B", "A, B"))
         assertFalse(ExamScoringEngine.isUserAnswerCorrect("C", "A, B"))
 
         // Full multi-correct answer matches
