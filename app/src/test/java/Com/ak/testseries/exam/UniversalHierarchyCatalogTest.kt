@@ -27,6 +27,16 @@ class UniversalHierarchyCatalogTest {
     }
 
     @Test
+    fun unknownExamDoesNotSilentlyUseNeetHierarchy() {
+        try {
+            UniversalHierarchyCatalog.getExamHierarchy("UNKNOWN_EXAM_123")
+            fail("Unknown exam must be rejected instead of receiving the NEET hierarchy")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("Unsupported exam hierarchy"))
+        }
+    }
+
+    @Test
     fun testJeeMainsHierarchyIntegrity() {
         val jee = UniversalHierarchyCatalog.getExamHierarchy("JEE")
         assertEquals("jee_mains", jee.id)
