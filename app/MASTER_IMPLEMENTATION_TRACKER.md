@@ -348,3 +348,43 @@
 - **Phase 7.6 Status**: **PASS — BAN ENFORCEMENT VERIFIED**.
 
 
+
+
+---
+
+## Audit Continuation Checkpoint — 2026-11-06
+
+**Branch:** `fix/phase1-real-questions-only`  
+**Repository:** `abhi952817-sudo/AK-TEST-SERIES-`  
+**Verification mode:** GitHub static source inspection and code updates only. Android build, Gradle/JUnit execution, Firebase Emulator, Storage Emulator, and real-device tests were NOT run in this session.
+
+### New audit findings and disposition
+
+| Audit ID | Area | Finding / evidence | Code disposition | Verification |
+|---|---|---|---|---|
+| AUD-2026-11-06-01 | Mock generation call sites | `generateMockAiTest()` is private and has no caller in `NEETViewModel.kt`; `buildDynamicQuestionsForExam()` is called only from that unused private mock function. | No reachable caller found in the inspected class. Legacy mock code remains present but unreachable through the inspected call graph. | Static inspection only |
+| AUD-2026-11-06-02 | PDF extraction integration | The main `UniversalPdfPipeline` path uses stream-text extraction; the Advanced PDF extractor has rendered-page OCR/image analysis, while `PdfProcessingWorker` persists extracted text output. End-to-end image-to-question association through the main generation path is not established. | Open; do not claim scanned/image-only PDF generation is fully supported. | Static inspection only |
+| AUD-2026-11-06-03 | AI answer verification | `parseGeminiResponse()` passes no independent source answer to validation and the validation confidence path contains a fixed source-confidence value. Structural checks do not prove factual correctness. | Open; require evidence-backed answer verification and review gating before official publication. | Static inspection only |
+| AUD-2026-11-06-04 | Room migration safety | Database version is 20; explicit migrations begin at 15→16 and continue through 19→20. `fallbackToDestructiveMigration()` remains enabled. | Open; versions 1–14 can still face destructive migration. Historical schemas/DB snapshots are required before a safe migration can be authored. | Static inspection only |
+| AUD-2026-11-06-05 | Multiple-correct scoring | Kotlin and Node scoring accepted one selected key when the trusted answer key contained multiple keys, potentially awarding full marks for a partial selection. | Updated both scoring engines to require the complete answer set; updated Kotlin and Node regression assertions. | Tests added; NOT executed |
+| AUD-2026-11-06-06 | Question-type parsing | Broad `MULTI` matching could conflate `MCQ_MULTIPLE` with `MULTI_STATEMENT`; several registered aliases also fell through to the first configured type. | Added explicit question-type normalization for multiple-select/MSQ, TITA/NAT, passage, case, table, statement, descriptive, and other registered types. Added parser/alias tests. | Tests added; NOT executed |
+| AUD-2026-11-06-07 | Multiple-correct validation | Structural answer validation did not accept a comma-separated complete key for `MCQ_MULTIPLE`. | Added validation for at least two distinct permitted option keys and a regression test. | Tests added; NOT executed |
+| AUD-2026-11-06-08 | Timer accounting | Submission time used a fixed 60 seconds per question rather than the configured paper duration. | Added `calculateElapsedExamTimeSeconds()` and changed submission to use `calculateExamDurationSeconds(test)`; added boundary tests. | Tests added; NOT executed |
+| AUD-2026-11-06-09 | Attempt forgery / idempotency | Client-created unverified attempt documents could be mistaken for canonical retries; the prior-attempt query also counted unverified records. | Server idempotency now trusts only `verifiedServerSide === true`; first-attempt eligibility query filters verified records; unverified placeholders are overwritten by a full authoritative record. Added composite index for the verified-attempt query. | Tests added; NOT executed; index deployment pending |
+| AUD-2026-11-06-10 | Solution release authorization | The solution endpoint accepted client-controlled `submissionStatus` or `submittedAt` as completion evidence. | Solution retrieval now requires `verifiedServerSide === true`; matching test helper and regression test updated. | Tests added; NOT executed |
+| AUD-2026-11-06-11 | Firestore attempt rules | Client attempt creation previously allowed arbitrary score/result fields and a forged CONFIRMED status. | Client-created attempts are now restricted to a metadata allowlist, unverified/ranking-false flags, and PENDING/OFFLINE status. Added negative and positive rule-test cases. | Emulator tests NOT executed |
+| AUD-2026-11-06-12 | Local attempt mirror | Cloud sync previously treated a missing `verifiedServerSide` flag as verified. | Local history sync now mirrors only documents explicitly marked server-verified. | Static inspection only |
+
+### Required follow-up before launch
+
+1. Run Android Gradle/JUnit tests, including the new timer, question-type, multiple-answer, and existing migration suites.
+2. Run Node backend tests, especially `examScoring.test.js` and `callableValidation.test.js`.
+3. Deploy the updated Firestore composite index before deploying the Cloud Function that queries `testId + verifiedServerSide`.
+4. Run Firestore Emulator tests and add/run Storage Emulator tests for upload ownership, MIME spoofing, size limits, path abuse, and public-read behavior.
+5. Complete end-to-end PDF testing with text PDFs, scanned/image-only PDFs, mixed pages, diagrams, Hindi/English, encrypted/corrupt PDFs, and extraction failure cases.
+6. Add source-grounded answer-key verification; do not equate structural validation with factual validation.
+7. Recover Room schemas or representative databases for versions 1–14 and design non-destructive migration paths.
+8. Build a 25-exam scoring parity matrix across Android and backend, including section-specific marks, optional sections, MCQ single/multiple, MSQ, NAT, TITA, matching, passage, table, and numerical tolerance.
+9. Regression-test timer expiry, manual submission, retry after network loss, duplicate callable requests, first-attempt eligibility, and leaderboard atomicity.
+
+**Checkpoint policy:** No item above is runtime-tested merely because a test was added or a source file was updated. Keep runtime verification status pending until the relevant command/emulator/device test is actually executed.
