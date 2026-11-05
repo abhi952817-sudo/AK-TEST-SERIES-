@@ -1432,43 +1432,43 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         return qJsonArray.toString()
     }
 
-    private fun createSampleQuestionsForTest(test: TestEntity): List<QuestionEntity> {
-        val questions = mutableListOf<QuestionEntity>()
-        val count = if (test.questionsCount > 0) test.questionsCount else 10
-        for (i in 0 until count) {
-            questions.add(
-                QuestionEntity(
-                    id = "${test.id}_q${i}",
-                    testId = test.id,
-                    questionText = "${test.subject} Question ${i + 1} (${test.chapter.ifEmpty { "General" }})",
-                    optionA = "Option A",
-                    optionB = "Option B",
-                    optionC = "Option C",
-                    optionD = "Option D",
-                    correctAnswer = "A",
-                    explanation = "Explanation for Question ${i + 1}",
-                    subject = test.subject,
-                    chapter = test.chapter,
-                    topic = test.topic,
-                    questionTextHi = "${test.subject} प्रश्न ${i + 1} (${test.chapter.ifEmpty { "सामान्य" }})",
-                    optionAHi = "विकल्प A",
-                    optionBHi = "विकल्प B",
-                    optionCHi = "विकल्प C",
-                    optionDHi = "विकल्प D",
-                    explanationHi = "प्रश्न ${i + 1} का व्याख्यात्मक उत्तर"
-                )
-            )
-        }
-        return questions
-    }
-
-    fun addNewTest(test: TestEntity) {
+    /**
+     * Creates a test only from caller-supplied, real questions.
+     * Synthetic placeholder questions are deliberately not generated here.
+     */
+    fun addNewTest(test: TestEntity, questions: List<QuestionEntity>) {
         viewModelScope.launch(Dispatchers.IO) {
-            val questions = createSampleQuestionsForTest(test)
-            val questionsJsonString = serializeQuestionsToJson(questions)
-            val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
+            val validQuestions = questions.filter { question ->
+                question.questionText.isNotBlank() &&
+                    question.optionA.isNotBlank() &&
+                    question.optionB.isNotBlank() &&
+                    question.optionC.isNotBlank() &&
+                    question.optionD.isNotBlank() &&
+                    question.correctAnswer.isNotBlank()
+            }
+            if (validQuestions.isEmpty() || validQuestions.size != questions.size) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        getApplication(),
+                        "Test was not saved: provide complete, validated real questions.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+                return@launch
+            }
+
+            val testId = test.id.ifBlank { "test_${System.currentTimeMillis()}" }
+            val normalizedQuestions = validQuestions.mapIndexed { index, question ->
+                question.copy(id = "${testId}_q${index + 1}", testId = testId)
+            }
+            val questionsJsonString = serializeQuestionsToJson(normalizedQuestions)
+            val testWithJson = test.copy(
+                id = testId,
+                questionsJson = questionsJsonString,
+                questionsCount = normalizedQuestions.size
+            )
             repository.insertTest(testWithJson)
-            repository.insertQuestions(questions)
+            repository.insertQuestions(normalizedQuestions)
             uploadTestToFirestore(testWithJson, questionsJsonString)
         }
     }
@@ -4662,9 +4662,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 "AI processing Pages $startPage-$endPage (Chunk ${chunkIndex + 1}/$totalPageChunks)..."
                             }
 
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
+                            val targetExamName = genTargetExam.value.trim()
+                            require(targetExamName.isNotBlank()) { "Select a supported exam before generating questions." }
                             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                                ?: throw IllegalArgumentException("Unsupported exam: $targetExamName. No NEET fallback is allowed.")
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
@@ -4737,9 +4738,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 val endIdx = if (chunkIndex == totalChunks - 1) fullSourceText.length else ((chunkIndex + 1) * sliceLen).coerceAtMost(fullSourceText.length)
                                 fullSourceText.substring(startIdx, endIdx)
                             }
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
+                            val targetExamName = genTargetExam.value.trim()
+                            require(targetExamName.isNotBlank()) { "Select a supported exam before generating questions." }
                             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                                ?: throw IllegalArgumentException("Unsupported exam: $targetExamName. No NEET fallback is allowed.")
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
