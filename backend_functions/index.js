@@ -246,55 +246,59 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const attemptDocRef = attemptsRef.doc(attemptDocId);
     const existingAttemptSnap = await transaction.get(attemptDocRef);
 
-    // Idempotency check: handle identical retries vs conflicting reuse
+    // Idempotency is valid ONLY for a previously server-verified attempt.
+    // Client-created unverified placeholders are untrusted and must never supply a score.
     if (existingAttemptSnap.exists) {
       const existing = existingAttemptSnap.data();
-      if (existing.userId !== userId || existing.testId !== cleanTestId) {
-        throw new functions.https.HttpsError(
-          "already-exists",
-          "Attempt ID belongs to a different test or user."
-        );
-      }
+      if (existing.verifiedServerSide === true) {
+        if (existing.userId !== userId || existing.testId !== cleanTestId) {
+          throw new functions.https.HttpsError(
+            "already-exists",
+            "Attempt ID belongs to a different test or user."
+          );
+        }
 
-      // Check whether payload matches previous submission
-      const currentAnswersStr = typeof answers === "string" ? answers : JSON.stringify(answers);
-      const storedAnswersStr = typeof existing.answersJson === "string" ? existing.answersJson : JSON.stringify(existing.answersJson);
+        const currentAnswersStr = typeof answers === "string" ? answers : JSON.stringify(answers);
+        const storedAnswersStr = typeof existing.answersJson === "string" ? existing.answersJson : JSON.stringify(existing.answersJson);
 
-      if (currentAnswersStr === storedAnswersStr) {
-        // Return existing canonical result without re-incrementing counters
-        return {
-          success: true,
-          verifiedServerSide: true,
-          attemptId: attemptDocId,
-          testId: cleanTestId,
-          targetExam: canonicalExam,
-          score: existing.score,
-          rawScore: existing.rawScore || existing.score,
-          maxScore: existing.maxScore,
-          percentile: existing.percentile || 0.0,
-          testRank: existing.testRank || 1,
-          testTotalCandidates: existing.testTotalCandidates || 1,
-          accuracy: existing.accuracy,
-          correctCount: existing.correctCount,
-          incorrectCount: existing.incorrectCount,
-          skippedCount: existing.skippedCount,
-          positiveMarksEarned: existing.positiveMarksEarned || 0,
-          negativeMarksPenalty: existing.negativeMarksPenalty || 0,
-          isFirstAttempt: existing.isFirstAttempt || false,
-          countsTowardRanking: existing.countsTowardRanking || false,
-          isRetry: true
-        };
-      } else {
+        if (currentAnswersStr === storedAnswersStr) {
+          return {
+            success: true,
+            verifiedServerSide: true,
+            attemptId: attemptDocId,
+            testId: cleanTestId,
+            targetExam: canonicalExam,
+            score: existing.score,
+            rawScore: existing.rawScore || existing.score,
+            maxScore: existing.maxScore,
+            percentile: existing.percentile || 0.0,
+            testRank: existing.testRank || 1,
+            testTotalCandidates: existing.testTotalCandidates || 1,
+            accuracy: existing.accuracy,
+            correctCount: existing.correctCount,
+            incorrectCount: existing.incorrectCount,
+            skippedCount: existing.skippedCount,
+            positiveMarksEarned: existing.positiveMarksEarned || 0,
+            negativeMarksPenalty: existing.negativeMarksPenalty || 0,
+            isFirstAttempt: existing.isFirstAttempt || false,
+            countsTowardRanking: existing.countsTowardRanking || false,
+            isRetry: true
+          };
+        }
         throw new functions.https.HttpsError(
           "already-exists",
           "Conflicting attempt submission with different answers for existing attempt ID."
         );
       }
+      // Unverified placeholder: continue through authoritative grading and replace it below.
     }
 
-    // Check if user has previously attempted this test
+    // Only prior server-verified attempts can consume first-attempt ranking eligibility.
     const existingAttemptsSnap = await transaction.get(
-      attemptsRef.where("testId", "==", cleanTestId).limit(1)
+      attemptsRef
+        .where("testId", "==", cleanTestId)
+        .where("verifiedServerSide", "==", true)
+        .limit(1)
     );
     const isFirstAttempt = existingAttemptsSnap.empty;
 
@@ -393,11 +397,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       submittedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    transaction.set(attemptDocRef, attemptRecord, { merge: true });
+    transaction.set(attemptDocRef, attemptRecord);
 
     // Mirror to legacy lowercase attempts subcollection for backwards compatibility
     const legacyAttemptRef = userRef.collection("attempts").doc(attemptDocId);
-    transaction.set(legacyAttemptRef, attemptRecord, { merge: true });
+    transaction.set(legacyAttemptRef, attemptRecord);
 
     // Atomically maintain per-test leaderboard entry for qualifying first attempts
     if (countsTowardRanking && isFirstAttempt) {
