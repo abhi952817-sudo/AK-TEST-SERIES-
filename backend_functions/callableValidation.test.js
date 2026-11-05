@@ -330,6 +330,38 @@ test("Callable idempotency: Identical retry returns canonical result without dup
   assert.strictEqual(retryResult.score, 4);
 });
 
+test("Callable idempotency: Unverified client placeholder cannot supply a canonical score", () => {
+  const context = { auth: { uid: "student_alice" } };
+  const testDoc = {
+    id: "test_real",
+    status: "Published",
+    isPublic: true,
+    targetExam: "NEET UG",
+    questionsJson: JSON.stringify([{ id: "q1", correctAnswer: "A" }])
+  };
+  const forgedUnverifiedAttempt = {
+    userId: "student_alice",
+    testId: "test_real",
+    score: 999999,
+    correctCount: 180,
+    verifiedServerSide: false,
+    answersJson: JSON.stringify({ q1: { ans: "A" } })
+  };
+
+  const result = validateCallableSubmission(
+    { testId: "test_real", attemptSessionToken: "att_forged_placeholder", answers: { q1: { ans: "A" } }, timeSpentSeconds: 10 },
+    context,
+    testDoc,
+    null,
+    forgedUnverifiedAttempt
+  );
+
+  assert.strictEqual(result.isRetry, false);
+  assert.strictEqual(result.verifiedServerSide, true);
+  assert.strictEqual(result.score, 4);
+  assert.notStrictEqual(result.score, forgedUnverifiedAttempt.score);
+});
+
 test("Callable idempotency: Conflicting reuse of attempt ID is rejected", () => {
   const context = { auth: { uid: "student_alice" } };
   const testDoc = {
