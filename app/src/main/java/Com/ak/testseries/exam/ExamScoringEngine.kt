@@ -62,9 +62,9 @@ object ExamScoringEngine {
             val acceptedKeys = c.split(",").map { it.trim() }
             val normalizedUserParts = u.split(",").map { it.trim() }.sorted()
             val normalizedCorrectParts = acceptedKeys.sorted()
+            // Multiple-correct questions require the complete answer set.
+            // Accept ordering differences, but never award full marks for a partial selection.
             if (normalizedUserParts == normalizedCorrectParts) return true
-
-            if (acceptedKeys.any { areOptionsEquivalent(u, it, isNumerical) }) return true
         }
         return false
     }
