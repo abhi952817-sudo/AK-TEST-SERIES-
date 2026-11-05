@@ -288,6 +288,33 @@ object UniversalPdfPipeline {
         return@withContext extractedQuestions
     }
 
+    /**
+     * Normalizes model-produced question type labels without conflating multiple-select
+     * MCQs with multi-statement questions or falling back to an unrelated first exam type.
+     */
+    internal fun resolveQuestionType(rawType: String, fallback: QuestionType): QuestionType {
+        val key = rawType.trim().uppercase().replace(Regex("[\\s-]+"), "_")
+        return when (key) {
+            "MCQ", "DIRECT_MCQ" -> QuestionType.DIRECT_MCQ
+            "MCQ_SINGLE", "SINGLE_CORRECT" -> QuestionType.MCQ_SINGLE
+            "MCQ_MULTIPLE", "MULTIPLE_CHOICE", "MULTI_SELECT", "MSQ" -> QuestionType.MCQ_MULTIPLE
+            "STATEMENT_I", "STATEMENT_1", "STATEMENT_I_II" -> QuestionType.STATEMENT_I_II
+            "ASSERTION_REASON" -> QuestionType.ASSERTION_REASON
+            "MATCH", "MATCHING", "MATCH_LIST_I_II" -> QuestionType.MATCH_LIST_I_II
+            "MULTI_STATEMENT" -> QuestionType.MULTI_STATEMENT
+            "NUMERICAL", "NUMERICAL_VALUE", "NAT", "NVQ" -> QuestionType.NUMERICAL_VALUE
+            "TITA" -> QuestionType.TITA
+            "DIAGRAM", "DIAGRAM_LABELING", "DIAGRAM_BASED", "IMAGE" -> QuestionType.DIAGRAM_LABELING
+            "GRAPH" -> QuestionType.GRAPH
+            "PASSAGE_BASED" -> QuestionType.PASSAGE_BASED
+            "CASE_BASED" -> QuestionType.CASE_BASED
+            "TABLE_BASED" -> QuestionType.TABLE_BASED
+            "STATEMENT_BASED" -> QuestionType.STATEMENT_BASED
+            "DESCRIPTIVE" -> QuestionType.DESCRIPTIVE
+            else -> fallback
+        }
+    }
+
     internal fun parseGeminiResponse(
         jsonString: String,
         examConfig: ExamConfig,
@@ -338,21 +365,10 @@ object UniversalPdfPipeline {
                     else -> DifficultyLevel.MEDIUM
                 }
 
-                val qTypeStr = item.optString("questionType").uppercase()
-                val parsedQType = when {
-                    qTypeStr.contains("STATEMENT_I") || qTypeStr.contains("STATEMENT_1") -> QuestionType.STATEMENT_I_II
-                    qTypeStr.contains("ASSERTION") -> QuestionType.ASSERTION_REASON
-                    qTypeStr.contains("MATCH") -> QuestionType.MATCH_LIST_I_II
-                    // Check the specific MCQ subtype before the broad MULTI_STATEMENT match.
-                    qTypeStr.contains("MCQ_MULTIPLE") || qTypeStr.contains("MULTIPLE_CHOICE") -> QuestionType.MCQ_MULTIPLE
-                    qTypeStr.contains("MULTI_STATEMENT") -> QuestionType.MULTI_STATEMENT
-                    qTypeStr.contains("MULTI") -> QuestionType.MULTI_STATEMENT
-                    qTypeStr.contains("NUMERICAL") || qTypeStr.contains("NAT") || qTypeStr.contains("NVQ") -> QuestionType.NUMERICAL_VALUE
-                    qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
-                    qTypeStr.contains("GRAPH") -> QuestionType.GRAPH
-                    qTypeStr.contains("DIRECT") || qTypeStr.contains("MCQ") -> QuestionType.DIRECT_MCQ
-                    else -> resolvedSection?.questionType ?: examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
-                }
+                val fallbackQuestionType = resolvedSection?.questionType
+                    ?: examConfig.supportedQuestionTypes.firstOrNull()
+                    ?: QuestionType.DIRECT_MCQ
+                val parsedQType = resolveQuestionType(item.optString("questionType"), fallbackQuestionType)
 
                 val isNumerical = (parsedQType == QuestionType.NUMERICAL_VALUE || parsedQType == QuestionType.NUMERICAL || parsedQType == QuestionType.TITA)
                 val finalOptions = if (isNumerical) emptyList() else options
