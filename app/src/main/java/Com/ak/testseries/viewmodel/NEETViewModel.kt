@@ -4441,8 +4441,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val answers = _userAnswers.value
                 // Use the configured paper duration, not an assumed 60 seconds per question.
                 // This keeps elapsed time correct for exams whose duration differs from question count.
-                val timeSpentTotal = (calculateExamDurationSeconds(test) - _examTimeRemaining.value)
-                    .coerceAtLeast(0L)
+                val timeSpentTotal = Com.ak.testseries.exam.calculateElapsedExamTimeSeconds(
+                    totalDurationSeconds = calculateExamDurationSeconds(test),
+                    remainingSeconds = _examTimeRemaining.value
+                )
 
                 // Dynamic scoring evaluation engine for local/offline preview
                 val breakdown = Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
