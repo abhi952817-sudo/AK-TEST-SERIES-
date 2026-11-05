@@ -343,6 +343,9 @@ object UniversalPdfPipeline {
                     qTypeStr.contains("STATEMENT_I") || qTypeStr.contains("STATEMENT_1") -> QuestionType.STATEMENT_I_II
                     qTypeStr.contains("ASSERTION") -> QuestionType.ASSERTION_REASON
                     qTypeStr.contains("MATCH") -> QuestionType.MATCH_LIST_I_II
+                    // Check the specific MCQ subtype before the broad MULTI_STATEMENT match.
+                    qTypeStr.contains("MCQ_MULTIPLE") || qTypeStr.contains("MULTIPLE_CHOICE") -> QuestionType.MCQ_MULTIPLE
+                    qTypeStr.contains("MULTI_STATEMENT") -> QuestionType.MULTI_STATEMENT
                     qTypeStr.contains("MULTI") -> QuestionType.MULTI_STATEMENT
                     qTypeStr.contains("NUMERICAL") || qTypeStr.contains("NAT") || qTypeStr.contains("NVQ") -> QuestionType.NUMERICAL_VALUE
                     qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
