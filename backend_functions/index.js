@@ -713,10 +713,9 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
     );
   }
 
-  const isCompleted = attemptData.verifiedServerSide === true ||
-                      attemptData.submissionStatus === "CONFIRMED" ||
-                      attemptData.submissionStatus === "COMPLETED" ||
-                      Boolean(attemptData.submittedAt);
+  // Only the server's explicit verification bit is authoritative.
+  // Client-controlled status strings or timestamps must never unlock private answer keys.
+  const isCompleted = attemptData.verifiedServerSide === true;
 
   if (!isCompleted) {
     throw new functions.https.HttpsError(
