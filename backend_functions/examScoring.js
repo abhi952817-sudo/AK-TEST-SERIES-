@@ -65,8 +65,9 @@ function isUserAnswerCorrect(userAns, correctAns, isNumerical = false) {
     const userParts = u.split(",").map(k => k.trim()).sort();
     const correctParts = acceptedKeys.slice().sort();
 
+    // Multiple-correct questions require the complete answer set.
+    // Accept ordering differences, but never award full marks for a partial selection.
     if (userParts.join(",") === correctParts.join(",")) return true;
-    if (acceptedKeys.some(k => areOptionsEquivalent(u, k, isNumerical))) return true;
   }
   return false;
 }
