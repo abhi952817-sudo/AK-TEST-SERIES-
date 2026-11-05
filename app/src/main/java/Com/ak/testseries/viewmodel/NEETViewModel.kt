@@ -6974,6 +6974,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val existingAttempts = repository.allAttempts.firstOrNull()?.map { "${it.testId}_${it.dateTaken}" }?.toSet() ?: emptySet()
                     
                     for (doc in attemptsSnapshot.documents) {
+                        // Cloud attempts are authoritative only when explicitly verified by the server.
+                        if (doc.getBoolean("verifiedServerSide") != true) continue
                         val testId = doc.getString("testId") ?: continue
                         val dateTaken = doc.getLong("dateTaken") ?: continue
                         val attemptId = "${testId}_${dateTaken}"
@@ -6994,7 +6996,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 dateTaken = dateTaken,
                                 answersJson = doc.getString("answersJson") ?: "{}",
                                 attemptSessionToken = doc.getString("attemptSessionToken") ?: "",
-                                verifiedServerSide = doc.getBoolean("verifiedServerSide") ?: true,
+                                verifiedServerSide = true,
                                 submissionStatus = "CONFIRMED"
                             )
                             repository.insertAttempt(attempt)
