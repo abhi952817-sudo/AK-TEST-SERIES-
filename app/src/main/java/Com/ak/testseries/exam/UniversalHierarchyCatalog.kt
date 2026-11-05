@@ -88,7 +88,9 @@ object UniversalHierarchyCatalog {
             upper.contains("SSC") || upper.contains("CGL") || upper.contains("CHSL") || upper.contains("MTS") -> getSscCglHierarchy()
             upper.contains("11") -> getClass11Hierarchy()
             upper.contains("12") -> getClass12Hierarchy()
-            else -> getNeetUgHierarchy()
+            else -> throw IllegalArgumentException(
+                "Unsupported exam hierarchy: '$examId'. Register an explicit hierarchy instead of defaulting to NEET."
+            )
         }
     }
 
