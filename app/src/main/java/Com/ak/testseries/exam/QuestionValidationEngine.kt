@@ -125,6 +125,7 @@ object QuestionValidationEngine {
         var completeness = 100
         var optionIntegrity = 100
         var answerConfidence = 100
+        var sourceConfidence = 0
         var explanationConsistency = 100
         var diagramIntegrity = 100
         var ocrIntegrity = 100
@@ -234,13 +235,20 @@ object QuestionValidationEngine {
         }
         
         // 4.1 Golden Answer / Reference Check
-        if (!sourceAnswer.isNullOrEmpty()) {
+        if (!sourceAnswer.isNullOrBlank() && !sourceAnswer.trim().equals("UNVERIFIED", ignoreCase = true)) {
             val normalizedSource = sourceAnswer.trim().uppercase()
-            if (normalizedAnswer != normalizedSource && normalizedSource != "UNVERIFIED") {
-                issues.add("⚠ Answer conflict detected: AI answer ($normalizedAnswer) != Source answer ($normalizedSource)")
+            if (normalizedAnswer == normalizedSource) {
+                sourceConfidence = 100
+            } else {
+                issues.add("⚠ Answer conflict detected: AI answer ($normalizedAnswer) != trusted source answer ($normalizedSource)")
                 answerConfidence = 0
                 hasHardFailure = true
             }
+        } else {
+            // A model-generated answer is not independent evidence of its own correctness.
+            issues.add("⚠ Independent source answer unavailable; factual correctness requires review")
+            sourceConfidence = 0
+            hasHardFailure = true
         }
 
         // 5. Diagram Requirement
@@ -263,7 +271,7 @@ object QuestionValidationEngine {
             questionCompleteness = completeness,
             optionIntegrity = optionIntegrity,
             answerConfidence = answerConfidence,
-            sourceConfidence = 100, // Conceptually we assume 100 unless told otherwise by AI
+            sourceConfidence = sourceConfidence,
             explanationConsistency = explanationConsistency,
             diagramIntegrity = diagramIntegrity,
             ocrIntegrity = ocrIntegrity,
@@ -272,7 +280,7 @@ object QuestionValidationEngine {
         )
 
         // Calculate blended Quality Score
-        val rawScore = (completeness + optionIntegrity + answerConfidence + explanationConsistency + diagramIntegrity + ocrIntegrity) / 6
+        val rawScore = (completeness + optionIntegrity + answerConfidence + sourceConfidence + explanationConsistency + diagramIntegrity + ocrIntegrity) / 7
         val finalScore = rawScore.coerceIn(0, 100)
 
         // Determine Status based on Hard Failures & Quality Score
