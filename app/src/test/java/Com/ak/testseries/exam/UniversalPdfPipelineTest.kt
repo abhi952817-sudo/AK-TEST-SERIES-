@@ -36,4 +36,18 @@ class UniversalPdfPipelineTest {
         assertEquals(1, parsed.size)
         assertEquals(QuestionType.MCQ_MULTIPLE, parsed.single().questionType)
     }
+
+    @Test
+    fun multipleCorrectQuestionKeysPassStructuralAnswerValidation() {
+        val result = QuestionValidationEngine.validateQuestion(
+            questionText = "Which of the following statements about the given physical system are correct?",
+            options = listOf("Statement A", "Statement B", "Statement C", "Statement D"),
+            correctAnswer = "A, B",
+            explanation = "Statements A and B satisfy the stated conditions and are therefore correct.",
+            questionType = QuestionType.MCQ_MULTIPLE,
+            expectedOptionCount = 4
+        )
+
+        assertEquals(ValidationStatus.APPROVED, result.status)
+    }
 }
