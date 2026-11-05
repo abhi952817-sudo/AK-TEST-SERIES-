@@ -87,9 +87,13 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if (isOwner(userId)
                           && !isUserBanned(userId)
+                          && request.resource.data.keys().hasOnly([
+                            'testId', 'testTitle', 'dateTaken', 'answersJson',
+                            'attemptSessionToken', 'timeSpentSeconds',
+                            'verifiedServerSide', 'countsTowardRanking', 'submissionStatus'
+                          ])
                           && request.resource.data.get('verifiedServerSide', false) == false
-                          && request.resource.data.get('countsTowardRanking', false) == false
-                          && !('authoritativeScore' in request.resource.data))
+                          && request.resource.data.get('countsTowardRanking', false) == false)
                       || isAdmin();
         allow update, delete: if isAdmin();
       }
@@ -98,9 +102,13 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if (isOwner(userId)
                           && !isUserBanned(userId)
+                          && request.resource.data.keys().hasOnly([
+                            'testId', 'testTitle', 'dateTaken', 'answersJson',
+                            'attemptSessionToken', 'timeSpentSeconds',
+                            'verifiedServerSide', 'countsTowardRanking', 'submissionStatus'
+                          ])
                           && request.resource.data.get('verifiedServerSide', false) == false
-                          && request.resource.data.get('countsTowardRanking', false) == false
-                          && !('authoritativeScore' in request.resource.data))
+                          && request.resource.data.get('countsTowardRanking', false) == false)
                       || isAdmin();
         allow update, delete: if isAdmin();
       }
