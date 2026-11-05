@@ -185,9 +185,9 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
                         pdfUri = pdfUri
                     )
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Live test successfully scheduled & uploaded!")
-                        title = ""
-                        chapterName = ""
+                        snackbarHostState.showSnackbar(
+                            "Scheduling request submitted. Verify the test appears in the Live Tests list before sharing it."
+                        )
                     }
                 } else {
                     coroutineScope.launch {
