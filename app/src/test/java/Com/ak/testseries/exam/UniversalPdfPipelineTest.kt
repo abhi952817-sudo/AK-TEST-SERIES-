@@ -50,4 +50,17 @@ class UniversalPdfPipelineTest {
 
         assertEquals(ValidationStatus.APPROVED, result.status)
     }
+
+    @Test
+    fun questionTypeAliasesRemainDistinctAcrossExamFormats() {
+        assertEquals(QuestionType.MCQ_MULTIPLE, UniversalPdfPipeline.resolveQuestionType("MSQ", QuestionType.DIRECT_MCQ))
+        assertEquals(QuestionType.MCQ_MULTIPLE, UniversalPdfPipeline.resolveQuestionType("MULTI_SELECT", QuestionType.DIRECT_MCQ))
+        assertEquals(QuestionType.MULTI_STATEMENT, UniversalPdfPipeline.resolveQuestionType("MULTI_STATEMENT", QuestionType.DIRECT_MCQ))
+        assertEquals(QuestionType.TABLE_BASED, UniversalPdfPipeline.resolveQuestionType("TABLE_BASED", QuestionType.DIRECT_MCQ))
+        assertEquals(QuestionType.PASSAGE_BASED, UniversalPdfPipeline.resolveQuestionType("PASSAGE_BASED", QuestionType.DIRECT_MCQ))
+        assertEquals(QuestionType.CASE_BASED, UniversalPdfPipeline.resolveQuestionType("CASE_BASED", QuestionType.DIRECT_MCQ))
+        assertEquals(QuestionType.TITA, UniversalPdfPipeline.resolveQuestionType("TITA", QuestionType.DIRECT_MCQ))
+        assertEquals(QuestionType.STATEMENT_BASED, UniversalPdfPipeline.resolveQuestionType("STATEMENT_BASED", QuestionType.DIRECT_MCQ))
+        assertEquals(QuestionType.DIRECT_MCQ, UniversalPdfPipeline.resolveQuestionType("MCQ", QuestionType.DIRECT_MCQ))
+    }
 }
