@@ -48,7 +48,7 @@ service cloud.firestore {
         'profileImageUri', 'targetExam', 'averageScore', 'totalTestsAttempted',
         'bookmarkedTests', 'bookmarkedQuestions', 'joinedAt',
         'lastBackupAt', 'createdAt', 'updatedAt', 'lastActive', 'batch', 'institute',
-        'fcmToken', 'language', 'theme', 'selectedLanguage', 'profileVisibility'
+        'fcmToken', 'language', 'theme', 'selectedLanguage', 'profileVisibility', 'classLevel'
       ]);
     }
 
