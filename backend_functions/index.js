@@ -899,6 +899,16 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   }
 
   const userData = userDoc.data();
+  const userClassLevel = normalizeClassLevel(userData.classLevel);
+  if (classLevel !== "All" && classLevel !== userClassLevel) {
+    return {
+      isEligible: false, status: "Not In Class Cohort", rank: 0,
+      rankString: "N/A", percentile: 0, competitiveScore: 0,
+      qualifyingTestsCount: 0, totalEligible: 0,
+      targetExam: canonicalExam, classLevel,
+      message: "Your profile class does not match the selected class leaderboard."
+    };
+  }
   try {
     assertActiveUserStatus(userData, userId);
   } catch (err) {
