@@ -227,6 +227,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "Students",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "xpTotal",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
