@@ -306,8 +306,11 @@ object OfflineMarkdownQuestionParser {
                 difficulty = DifficultyLevel.MEDIUM,
                 qualityScore = validation.qualityScore,
                 qualityMetrics = validation.qualityMetrics,
-                validationStatus = validation.status,
-                validationReasons = validation.issues,
+                // Even a parsed answer-key entry must pass an explicit admin review action.
+                validationStatus = if (validation.status == ValidationStatus.APPROVED) ValidationStatus.NEEDS_REVIEW else validation.status,
+                validationReasons = if (validation.status == ValidationStatus.APPROVED) {
+                    listOf("Source answer key extracted; awaiting explicit admin review.")
+                } else validation.issues,
                 duplicateHash = DuplicateDetectionEngine.generateNormalizedHash(pq.questionText, optionsList),
                 generationModel = "pdf-real-extractor-v1",
                 sourceName = "Extracted PDF Test Paper"
