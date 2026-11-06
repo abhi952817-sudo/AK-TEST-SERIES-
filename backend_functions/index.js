@@ -14,7 +14,7 @@ const {
 const {
   RANKING_CONFIG, resolveRankingWeight, calculateWeightedRankingScore,
   getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel,
-  getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus
+  getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
@@ -992,8 +992,8 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   const belowCount = Math.max(0, totalEligible - higherCount - equalCount);
   const percentile = calculatePercentileFromCounts(belowCount, equalCount, totalEligible);
 
-  const rankingStatus = getRankingStatus(totalEligible);
-  const isOfficialAir = rankingStatus.isOfficialAkAir; // AK platform AIR, never NTA national AIR
+  const rankingStatus = getCohortRankingStatus(totalEligible, classLevel);
+  const isOfficialAir = rankingStatus.isOfficialAkAir; // Only unfiltered exam cohort is labeled AK AIR
 
   // Next target motivation
   let nextTarget = null;
@@ -1026,6 +1026,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
     rankLabel: rankingStatus.rankLabel,
     isOfficialAir,
     isOfficialAkAir: rankingStatus.isOfficialAkAir,
+    isOfficialClassRank: rankingStatus.isOfficialClassRank,
     rankingScope: "AK_TEST_SERIES",
     rank,
     rankString: `#${rank}`,
@@ -1061,7 +1062,7 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
     .collection("Entries").where("isEligibleForRanking", "==", true)
     .where("isBanned", "==", false)).count().get();
   const totalEligible = totalSnap.data().count;
-  const airStatus = getRankingStatus(totalEligible);
+  const airStatus = getCohortRankingStatus(totalEligible, classLevel);
   const rows = snapshot.docs.map(doc => doc.data());
   let previousScore = null;
   let competitionRank = 0;
@@ -1081,7 +1082,8 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   });
   return { success: true, targetExam: examId, classLevel, rankingScope: "AK_TEST_SERIES",
     scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", totalEligible,
-    status: airStatus.status, isOfficialAkAir: airStatus.isOfficialAkAir, entries };
+    status: airStatus.status, isOfficialAkAir: airStatus.isOfficialAkAir,
+    isOfficialClassRank: airStatus.isOfficialClassRank, entries };
 });
 
 /**
