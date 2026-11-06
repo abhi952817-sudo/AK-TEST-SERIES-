@@ -348,7 +348,8 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   const rawScore = positiveMarksEarned - negativeMarksPenalty;
   const finalScore = Math.max(0.0, rawScore);
   const attemptedCount = correctCount + wrongCount + ungradedCount;
-  const accuracyPercent = attemptedCount > 0 ? Math.round((correctCount / attemptedCount) * 10000) / 100 : 0.0;
+  const accuracyDenominator = correctCount + wrongCount;
+  const accuracyPercent = accuracyDenominator > 0 ? Math.round((correctCount / accuracyDenominator) * 10000) / 100 : 0.0;
 
   return {
     totalQuestions: questions.length,
