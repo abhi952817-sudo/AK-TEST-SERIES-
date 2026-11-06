@@ -105,3 +105,29 @@ test("ranking rejects scoring results with ungraded or invalid marks", () => {
   assert.equal(isEligibleScoringResult({ finalScore: 3, maxScore: 10 }), false);
   assert.equal(isEligibleScoringResult({ finalScore: 3, maxScore: 10, ungradedCount: -1 }), false);
 });
+
+
+test("scoring result with any ungraded question cannot contribute to AIR", () => {
+  const { evaluateTestAttempt } = require("./examScoring");
+  const { isEligibleScoringResult } = require("./rankingEngine");
+  const result = evaluateTestAttempt(
+    "NEET UG",
+    [
+      { id: "q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" },
+      { id: "q2", correctAnswer: "", section: "SECTION_A", subject: "Physics" }
+    ],
+    { q1: { ans: "A" }, q2: { ans: "B" } },
+    60
+  );
+  assert.equal(result.ungradedCount, 1);
+  assert.equal(isEligibleScoringResult(result), false);
+
+  const fullyVerified = evaluateTestAttempt(
+    "NEET UG",
+    [{ id: "q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" }],
+    { q1: { ans: "A" } },
+    30
+  );
+  assert.equal(fullyVerified.ungradedCount, 0);
+  assert.equal(isEligibleScoringResult(fullyVerified), true);
+});
