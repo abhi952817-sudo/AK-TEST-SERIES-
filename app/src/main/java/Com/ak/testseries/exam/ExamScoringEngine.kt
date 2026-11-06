@@ -26,10 +26,10 @@ object ExamScoringEngine {
     fun isAnswerKeyVerified(key: String): Boolean {
         val clean = key.trim().uppercase()
         if (clean.isEmpty()) return false
-        if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull() != null) return true
+        if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull()?.isFinite() == true)
         if (clean.contains(",")) {
             val parts = clean.split(",").map { it.trim() }
-            if (parts.isNotEmpty() && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull() != null }) {
+            if (parts.isNotEmpty() && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull()?.isFinite() == true }) {
                 return true
             }
         }
@@ -39,14 +39,15 @@ object ExamScoringEngine {
     fun areOptionsEquivalent(ans1: String, ans2: String, isNumerical: Boolean = false): Boolean {
         val a = ans1.trim().uppercase()
         val b = ans2.trim().uppercase()
+        val num1 = a.toDoubleOrNull()
+        val num2 = b.toDoubleOrNull()
+        if ((num1 != null && !num1.isFinite()) || (num2 != null && !num2.isFinite())) return false
         if (a == b) return true
         if (!isNumerical) {
             val mapIndex = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
             if (mapIndex[a] == b || mapIndex[b] == a) return true
         }
-        val num1 = a.toDoubleOrNull()
-        val num2 = b.toDoubleOrNull()
-        if (num1 != null && num2 != null) {
+        if (num1 != null && num2 != null && num1.isFinite() && num2.isFinite()) {
             return Math.abs(num1 - num2) < 0.0001
         }
         return false
