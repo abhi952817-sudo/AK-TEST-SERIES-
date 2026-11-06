@@ -3105,6 +3105,7 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
     val history by viewModel.attemptHistory.collectAsStateWithLifecycle()
     val testsList by viewModel.testsList.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val isProfilePublic by viewModel.isProfilePublic.collectAsStateWithLifecycle()
 
     val folders by viewModel.folders.collectAsStateWithLifecycle()
     val mappings by viewModel.testFolderMappings.collectAsStateWithLifecycle()
@@ -3200,6 +3201,24 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Leaderboard Profile Visibility", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Text(
+                                if (isProfilePublic) "Public name visible on rankings" else "Your name is hidden as Private Student",
+                                fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isProfilePublic,
+                            onCheckedChange = { viewModel.updateProfileVisibility(it) }
+                        )
                     }
                 }
             }
