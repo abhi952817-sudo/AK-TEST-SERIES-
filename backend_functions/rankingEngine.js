@@ -51,8 +51,8 @@ function isEligibleScoringResult(result = {}) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return false;
   const score = finiteNumber(result.finalScore, NaN);
   const max = finiteNumber(result.maxScore, NaN);
-  const ungraded = Math.max(0, Math.floor(finiteNumber(result.ungradedCount, 0)));
-  return Number.isFinite(score) && Number.isFinite(max) &&
+  const ungraded = finiteNumber(result.ungradedCount, NaN);
+  return Number.isFinite(score) && Number.isFinite(max) && Number.isInteger(ungraded) &&
     score >= 0 && max > 0 && score <= max + 0.000001 && ungraded === 0;
 }
 
