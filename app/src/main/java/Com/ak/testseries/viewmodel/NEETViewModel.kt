@@ -295,6 +295,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val userRank: StateFlow<String> = _userRank.asStateFlow()
 
     val leaderboardExamFilter = MutableStateFlow("NEET")
+    val leaderboardClassFilter = MutableStateFlow("All")
 
     private val _rankingMigrationCursor = MutableStateFlow("")
     private val _rankingMigrationStatus = MutableStateFlow("Not started")
@@ -434,8 +435,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun fetchUserRank(selectedExam: String? = null) {
+    fun fetchUserRank(selectedExam: String? = null, selectedClassLevel: String? = null) {
         val rawExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
+        val classFilter = selectedClassLevel ?: leaderboardClassFilter.value
+        leaderboardClassFilter.value = classFilter
         val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
 
         if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || rawExam.equals("All", ignoreCase = true)) {
@@ -460,7 +463,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         val functions = com.google.firebase.functions.FirebaseFunctions.getInstance()
                         val callable = functions.getHttpsCallable("getUserRankingDetails")
-                        val result = callable.call(mapOf("targetExam" to canonicalExam)).await()
+                        val result = callable.call(mapOf("targetExam" to canonicalExam, "classLevel" to classFilter)).await()
                         val data = result.data as? Map<*, *>
                         if (data != null) {
                             val status = data["status"] as? String ?: "Rank Pending"
@@ -663,13 +666,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun fetchRankingPeriodLeaderboard(periodType: String = "HALF_MONTH") {
+    fun fetchRankingPeriodLeaderboard(periodType: String = "HALF_MONTH", selectedClassLevel: String? = null) {
         val cleanType = if (periodType.equals("MONTH", ignoreCase = true)) "MONTH" else "HALF_MONTH"
+        val classFilter = selectedClassLevel ?: leaderboardClassFilter.value
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
                     .getHttpsCallable("getRankingPeriodLeaderboard")
-                val result = callable.call(mapOf("periodType" to cleanType, "targetExam" to leaderboardExamFilter.value, "limit" to 100)).await()
+                val result = callable.call(mapOf("periodType" to cleanType, "targetExam" to leaderboardExamFilter.value, "classLevel" to classFilter, "limit" to 100)).await()
                 val payload = result.data as? Map<*, *> ?: emptyMap<Any, Any>()
                 val rows = payload["entries"] as? List<*> ?: emptyList<Any>()
                 val mapped = rows.mapNotNull { item ->
@@ -764,9 +768,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun fetchLeaderboard(selectedExam: String? = null) {
+    fun fetchLeaderboard(selectedExam: String? = null, selectedClassLevel: String? = null) {
         val rawExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
+        val classFilter = selectedClassLevel ?: leaderboardClassFilter.value
         leaderboardExamFilter.value = rawExam
+        leaderboardClassFilter.value = classFilter
         val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
         leaderboardListener?.remove()
 
@@ -778,15 +784,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val db = firestoreDb
             
-            leaderboardListener = db.collection("Exam_Leaderboards").document(canonicalExam)
+            val baseQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
                 .collection("Entries")
                 .whereEqualTo("isEligibleForRanking", true)
                 .whereEqualTo("isBanned", false)
+            val classQuery = if (classFilter == "All") baseQuery else baseQuery.whereEqualTo("classLevel", classFilter)
+            leaderboardListener = classQuery
                 .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(100)
                 .addSnapshotListener { snapshot, e ->
                     if (e != null || snapshot == null || snapshot.isEmpty) {
-                        fetchLeaderboardFallback(rawExam)
+                        fetchLeaderboardFallback(rawExam, classFilter)
                         return@addSnapshotListener
                     }
                     val list = mutableListOf<Com.ak.testseries.domain.auth.LeaderboardEntry>()
@@ -825,11 +833,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
         } catch (e: Exception) {
             e.printStackTrace()
-            fetchLeaderboardFallback(rawExam)
+            fetchLeaderboardFallback(rawExam, classFilter)
         }
     }
 
-    private fun fetchLeaderboardFallback(targetExam: String) {
+    private fun fetchLeaderboardFallback(targetExam: String, classFilter: String = leaderboardClassFilter.value) {
         try {
             val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(targetExam)
             if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || targetExam.equals("All", ignoreCase = true)) {
@@ -837,11 +845,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
             val db = firestoreDb
-            db.collection("Exam_Leaderboards").document(canonicalExam)
+            val baseQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
                 .collection("Entries")
                 .whereEqualTo("isEligibleForRanking", true)
                 .whereEqualTo("isBanned", false)
-                .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            val classQuery = if (classFilter == "All") baseQuery else baseQuery.whereEqualTo("classLevel", classFilter)
+            classQuery.orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(100)
                 .get()
                 .addOnSuccessListener { snapshot ->
