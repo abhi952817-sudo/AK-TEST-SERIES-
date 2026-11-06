@@ -147,6 +147,40 @@ Universal-branch-specific changes observed:
 **Phase 1 status:** IN PROGRESS. Remaining: inspect the exact divergent commit history and hunk-level shared-file behavior; produce the final keep/port/reconcile matrix before Phase 2 code edits.
 
 
+
+
+### 2.3 File-by-file port/reconciliation matrix — working audit
+
+| File | Ranking-side decision | Universal-side decision | Integration action |
+|---|---|---|---|
+| `.github/workflows/ranking-v2-validation.yml` | Keep existing Ranking checks | Keep added callable-validation test and Room-schema artifact upload | Reconcile triggers so the integration branch and its PR run all backend, Firestore, Android, and schema checks |
+| `backend_functions/rankingEngine.js` | KEEP | Blob identical to Ranking | Do not replace; preserve ranking calculation and policy code |
+| `backend_functions/index.js` | KEEP Ranking callables, eligibility, idempotency, XP and migration flow | PORT decimal persistence and ungradedCount fields from scoring result | Hunk-level merge; add tests proving Ranking Engine receives only server-evaluated score and retains first-attempt lock |
+| `backend_functions/examScoring.js` | Keep supported existing exam behavior | PORT strict finite-number validation, question-type-aware exact-set MSQ, ungraded result and fractional marks | Then refactor duplicated static exam-name rules toward one versioned canonical policy; unsupported/unverified policy must fail closed |
+| `backend_functions/examScoring.test.js` | Preserve existing tests | PORT regression cases for MSQ, decimal, ungraded, and optional caps | Remove duplicate test cases/names; add missing partial-credit, tolerance, dropped/bonus, year-policy and parity vectors |
+| `app/src/main/java/Com/ak/testseries/exam/ExamScoringEngine.kt` | Preserve Android scoring entry points | PORT MSQ, finite numeric validation, ungraded and optional maximum-mark corrections | Reconcile with canonical policy; no fallback to an unrelated first paper |
+| `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt` | Preserve Ranking V2 state, APIs and UI flows | PORT ungraded/fractional attempt propagation only after reviewing every publish/share path | Manually reconcile; fix answer-key leakage and automatic official status before any public publish route is considered safe |
+| `app/src/main/java/Com/ak/testseries/MainActivity.kt` | Preserve Ranking UI/navigation | PORT ungraded result notice and numerical input support where absent | Keep current design; verify timer, auto-submit, section caps, and exact selected stage/paper/year; do not copy whole file |
+| `app/src/main/java/Com/ak/testseries/data/Entities.kt` | Preserve current entity fields | PORT `ungradedCount` with default 0 and fractional Double score fields | Additive schema-only change; preserve old attempt rows |
+| `app/src/main/java/Com/ak/testseries/data/AppDatabase.kt` | Preserve migrations 15→16→17→18→19→20 | PORT migration 20→21 | Add migration to existing chain; do not retain destructive fallback as a substitute for migration coverage |
+| `app/schemas/Com.ak.testseries.data.AppDatabase/21.json` | No schema 21 in Ranking snapshot | PORT generated schema snapshot | Verify against KSP-generated schema from CI, not hand-edited JSON |
+| `app/src/test/java/Com/ak/testseries/data/AppDatabaseMigration20To21Test.kt` | Preserve existing migration tests | PORT real SQLite data-preservation test | Extend to supported upgrade paths and fractional-score preservation |
+| `app/src/test/java/Com/ak/testseries/exam/ExamScoringEngineTest.kt` | Preserve current test coverage | PORT MSQ/numeric/ungraded/optional-cap tests | Add cross-engine golden vectors and edge cases |
+| `app/src/main/java/Com/ak/testseries/data/backup/AccountDataBackupAdapter.kt` | Preserve backup format compatibility | PORT ungradedCount export/import with default 0 for old backups | Add round-trip tests; retain fractional score precision |
+| `app/src/main/java/Com/ak/testseries/data/repository/FirebaseUserRepositoryImpl.kt` | Preserve repository behavior | PORT ungradedCount restore | Verify old documents default safely and new attempts preserve decimals |
+| `app/MASTER_IMPLEMENTATION_TRACKER.md` | Preserve existing tracker history | Port Universal audit notes | Append integration status; do not overwrite historical work |
+
+**Additional code-level blockers confirmed in the integration baseline:**
+- `UniversalPdfPipeline.kt` still creates synthetic fallback question text, fabricated options, answer keys and explanations when neither Gemini nor real PDF/catalog questions are available. This is a P0 content-integrity blocker; the comment claiming “Zero dummy data” does not match the executable fallback code.
+- Community sharing serialization in `NEETViewModel.kt` includes `correctAnswer`, `explanation`, and Hindi explanation fields in the public question map. Every publishing path must be audited and changed to a fail-closed public/private split before any release.
+- `UniversalExamRegistry.kt` currently has NEET configuration marked `verified = true` while storing 200-minute / optional Section B pattern values; JEE Main stores an old MCQ/Numerical optional-section pattern. The configuration model has no adequate year-specific official-source metadata. Mark these unverified until the official year/paper source is recorded.
+- Android and Node currently contain parallel exam-name scoring rules. Android duration fallback uses the first registered stage/paper and heuristic seconds-per-question; it is not proof of a verified year/stage/paper timer. The UI does have a countdown and numerical keypad, but complete universal timer-policy parity is not established.
+- Current Room baseline is version 20 and still calls `fallbackToDestructiveMigration()`; Universal's version 21 migration is a required additive port, not a reason to erase the database.
+- Static backend marking rules include defaults for many exam names, but this is not a complete verified year/stage/paper configuration registry. JEE Advanced partial marking, question-specific numerical tolerance, and dropped/bonus policies are not yet proven implemented end-to-end.
+
+**Phase 1 exit gate:** the file matrix and high-risk overlap behavior are now documented. Exact divergent commit-level attribution is still being checked; Phase 1 remains IN PROGRESS until that last check is complete. No source-code files have been changed on the integration branch yet.
+
+
 ---
 
 ## 3. Known audit findings to verify and fix
