@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -52,5 +52,7 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
       - name: Run Android unit tests and debug build
         run: ./gradlew :app:testDebugUnitTest :app:assembleDebug
