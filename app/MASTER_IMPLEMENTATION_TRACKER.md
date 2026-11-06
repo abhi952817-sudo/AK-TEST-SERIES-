@@ -498,3 +498,12 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - **Deployment dependency:** the Firestore composite index for `Attempts(testId, verifiedServerSide)` still needs deployment before the updated callable is relied on in production.
 
 **Release status:** NOT READY FOR PRODUCTION until the open blockers are addressed and the relevant test suites pass. Keep all work on this branch; do not merge to `main` based only on static inspection.
+
+### Scoring & Validation Consistency — 2026-11-06
+
+- Numerical question validation now requires a finite parsed value; NaN, Infinity, and exponent overflow are rejected before approval as well as during scoring.
+- Multiple-correct answer comparison now normalizes option indices (1–5) to A–E on Android and Node, compares complete sets independent of order, and rejects duplicate semantic selections (for example `A,1`).
+- Source-answer validation uses the same normalized multiple-answer comparison, preventing false mismatch between `1,2` and `A,B`.
+- Added regression coverage for numeric non-finite values, index aliases, and duplicate answer keys in both scoring suites.
+- Static compare before this note: 108 commits ahead of main, 0 behind, 28 changed files. Main remains untouched.
+- No runtime test suite has been executed in this session.
