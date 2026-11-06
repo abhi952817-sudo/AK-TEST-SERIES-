@@ -432,3 +432,11 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Fallback: if page OCR yields no text, the existing embedded-stream parser remains a fallback.
 - Limitations: the configured ML Kit recognizer is Latin-only; Hindi and other scripts are not yet verified. Diagram/image regions are detected by separate components but their pixels are not yet submitted to Gemini Vision, so diagram-dependent questions must not be treated as factually verified. Existing source-answer review gate remains mandatory.
 - Verification: code committed only; Android compilation, OCR device tests, scanned/mixed PDF fixtures, and memory profiling have NOT been run.
+
+
+### Legacy Mock Question Generator Removal — 2026-11-06
+
+- Static call-graph inspection of `NEETViewModel.kt` found `generateMockAiTest()` was private with no caller; `buildDynamicQuestionsForExam()` was called only by that private mock function.
+- Removed both unreachable methods, including hard-coded sample questions and placeholder options, so the abandoned mock path cannot be reconnected accidentally.
+- Real generation remains through the validated PDF / AI pipeline. This deletion does not prove every exam generation path is complete; repository-wide generation entry points still require functional testing.
+- Verification: static source inspection only; Android compilation and tests NOT executed.
