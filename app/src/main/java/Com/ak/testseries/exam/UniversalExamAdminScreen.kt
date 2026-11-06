@@ -227,8 +227,12 @@ fun UniversalExamAdminScreen(
                             onOpenPdfCropper(pdfUri!!, maxOf(0, q.sourcePage - 1)) { croppedImageUrl ->
                                 val idx = extractedQuestions.indexOf(q)
                                 if (idx != -1) {
-                                    // Attaching an image is not answer verification; preserve review status.
-                                    extractedQuestions[idx] = q.copy(diagramUrl = croppedImageUrl)
+                                    // A changed diagram invalidates prior approval; require a fresh review.
+                                    extractedQuestions[idx] = q.copy(
+                                        diagramUrl = croppedImageUrl,
+                                        validationStatus = ValidationStatus.NEEDS_REVIEW,
+                                        validationReasons = (q.validationReasons + "Diagram attached or changed; review again before approval.").distinct()
+                                    )
                                     Toast.makeText(context, "Diagram linked to question!", Toast.LENGTH_SHORT).show()
                                 }
                             }
