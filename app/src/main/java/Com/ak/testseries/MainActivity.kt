@@ -3106,6 +3106,9 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
     val testsList by viewModel.testsList.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val isProfilePublic by viewModel.isProfilePublic.collectAsStateWithLifecycle()
+    val profileVisibilityLoaded by viewModel.profileVisibilityLoaded.collectAsStateWithLifecycle()
+    val currentProfileUid by viewModel.currentUserId.collectAsStateWithLifecycle()
+    LaunchedEffect(currentProfileUid) { viewModel.fetchMyRankingProgress(currentProfileUid) }
 
     val folders by viewModel.folders.collectAsStateWithLifecycle()
     val mappings by viewModel.testFolderMappings.collectAsStateWithLifecycle()
@@ -3217,6 +3220,7 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
                         }
                         Switch(
                             checked = isProfilePublic,
+                            enabled = profileVisibilityLoaded,
                             onCheckedChange = { viewModel.updateProfileVisibility(it) }
                         )
                     }
