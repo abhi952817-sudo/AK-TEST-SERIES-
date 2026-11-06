@@ -145,6 +145,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
