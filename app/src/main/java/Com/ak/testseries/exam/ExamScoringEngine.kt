@@ -39,6 +39,7 @@ object ExamScoringEngine {
     fun areOptionsEquivalent(ans1: String, ans2: String, isNumerical: Boolean = false): Boolean {
         val a = ans1.trim().uppercase()
         val b = ans2.trim().uppercase()
+        if (isNumerical && (!isFiniteNumericAnswer(a) || !isFiniteNumericAnswer(b))) return false
         if (a == b) return true
         if (!isNumerical) {
             val mapIndex = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
