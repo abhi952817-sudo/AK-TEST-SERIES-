@@ -231,6 +231,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const stableKeyHash = crypto.createHash("sha256").update(stableUserTestKey).digest("hex");
   const firstAttemptLockRef = db.collection("Ranking_Attempt_Locks").doc(stableKeyHash);
   const xpTransactionRef = db.collection("XP_Transactions").doc(stableKeyHash);
+  const examEntryRef = db.collection("Exam_Leaderboards").doc(canonicalExam)
+    .collection("Entries").doc(userId);
 
   // 5b. Compute population-based percentile on this test if it qualifies for competitive ranking
   let testTotalCandidates = 0;
@@ -320,6 +322,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       legacyExistingAttemptsSnap.empty && (!lockSnap || !lockSnap.exists);
 
     const userSnap = await transaction.get(userRef);
+    const existingV2RankSnap = await transaction.get(examEntryRef);
     if (!userSnap.exists) {
       throw new functions.https.HttpsError("not-found", "User record does not exist.");
     }
@@ -348,9 +351,12 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     // Award ranking points only on FIRST valid attempt on QUALIFYING OFFICIAL tests
     const examScoreKey = `cumulativeScore_${canonicalExam}`;
     const examQCountKey = `qualifyingTestsCount_${canonicalExam}`;
-    const currentExamScore = userData[examScoreKey] || 0;
-    const currentExamQCount = userData[examQCountKey] || 0;
-    const currentTotalScore = userData.totalCumulativeScore || 0;
+    // Never seed v2 ranking with legacy raw-mark aggregates. Only the v2 materialized
+    // entry is a valid base; the admin backfill rebuilds legacy attempts into this schema.
+    const v2RankData = existingV2RankSnap.exists ? existingV2RankSnap.data() : {};
+    const currentExamScore = Number(v2RankData.score || 0);
+    const currentExamQCount = Number(v2RankData.qualifyingTestsCount || 0);
+    const currentTotalScore = Number(userData.totalCumulativeScoreV2 || 0);
     let newExamScore = currentExamScore;
 
     // Normalize to a common 10,000-point full-test scale before applying test weight.
@@ -363,7 +369,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       updates[examQCountKey] = currentExamQCount + 1;
       updates.qualifyingTestsCount = (userData.qualifyingTestsCount || 0) + 1;
       updates[examScoreKey] = newExamScore;
-      updates.totalCumulativeScore = currentTotalScore + weightedScore;
+      updates.totalCumulativeScoreV2 = currentTotalScore + weightedScore;
     }
 
     // All transaction reads must happen before writes.
@@ -551,8 +557,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     if (countsTowardRanking && isFirstAttempt) {
       const publicProfile = profileIsPublic;
-      const examEntryRef = db.collection("Exam_Leaderboards").doc(canonicalExam)
-        .collection("Entries").doc(userId);
       transaction.set(examEntryRef, {
         userId,
         displayName: publicProfile ? (userData.displayName || userData.name || "Student") : "Private Student",
@@ -704,7 +708,7 @@ async function rebuildRankingV2ForUser(userId) {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
     }, { merge: true });
   }
-  userUpdates.totalCumulativeScore = totalCumulativeScore;
+  userUpdates.totalCumulativeScoreV2 = totalCumulativeScore;
 
   for (const period of periods.values()) {
     const eligible = period.count >= RANKING_CONFIG.minQualifyingTests;
