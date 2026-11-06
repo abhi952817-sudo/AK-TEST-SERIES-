@@ -507,3 +507,42 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Added regression coverage for numeric non-finite values, index aliases, and duplicate answer keys in both scoring suites.
 - Static compare before this note: 108 commits ahead of main, 0 behind, 28 changed files. Main remains untouched.
 - No runtime test suite has been executed in this session.
+
+
+## Full Product Flow Audit Checkpoint — 2026-11-06 (Student/Admin/Private-Public)
+
+**Branch:** `fix/phase1-real-questions-only`  
+**Audit mode:** Static source inspection through GitHub connector. No Android runtime, Gradle, Node, Firestore Emulator, Storage Emulator, or device tests were executed for this checkpoint.  
+**Main:** untouched.  
+**Branch relation at checkpoint:** 114 commits ahead of `main`, 0 behind.
+
+### Confirmed code-level observations and findings
+
+| Finding ID | Area / file | Observation | Severity | Evidence status | Required remediation |
+|---|---|---|---|---|---|
+| AUD-2026-11-06-13 | PDF UI placeholder — `app/src/main/java/Com/ak/testseries/MainActivity.kt` near line 2305 | A top-level `processPdfWithGemini(Uri)` implementation only waits for a fixed delay and performs no extraction, network request, or AI call. The inspected MainActivity file contains the declaration but no call-site. | MEDIUM (dead/misleading code) | STATIC REVIEW; repository-wide branch call graph not yet proven | Remove the dead placeholder after a branch-wide call-site check; keep the real PDF pipeline as the only generation path. |
+| AUD-2026-11-06-14 | Admin AI controls — `MainActivity.kt` near lines 7124–7198; `NEETViewModel.kt` near lines 694–756 | An Admin switch still advertises “Offline Mock Fallback” and persists `offlineMockFallbackEnabled`. In the inspected ViewModel, the value is loaded and written, but no question-generation consumer was found. This control is stale/misleading after removal of the old mock generator. | HIGH (misleading production control) | STATIC REVIEW of inspected files; full branch search pending | Remove the obsolete switch/state/config key only after checking all branch call-sites and backend/config dependencies; replace it with real AI pipeline health, quota, and failure controls. |
+| AUD-2026-11-06-15 | Diagram correction UI — `MainActivity.kt` near line 2450 | “Attach Clearer Diagram Reference” uses an empty simulated click handler; no picker or upload action is attached at this call-site. | MEDIUM | STATIC REVIEW | Connect a real image picker, owner-scoped upload, preview, cancellation, and error handling, or remove the non-functional control until implemented. |
+| AUD-2026-11-06-16 | Legacy live scheduler — `app/src/main/java/Com/ak/testseries/ui/AdminPanelScreen.kt` | `AdminLiveTestUploadSection` contains a stale default date (2026-07-20), accepts a PDF, but calls `scheduleLiveTest` without validated `customQuestions`. The ViewModel explicitly rejects empty question lists and says PDF publishing is not supported from this screen. The component was not found referenced from MainActivity in the inspected branch file. | HIGH if exposed; otherwise MEDIUM dead code | STATIC REVIEW; component reachability/runtime not verified | Do not expose this legacy form as a working scheduler. Either remove it or connect it to the validated PDF → review → publish flow; require a future date, valid duration/count, and non-empty approved questions. |
+| AUD-2026-11-06-17 | Room data safety — `app/src/main/java/Com/ak/testseries/data/AppDatabase.kt` | Current Room schema is version 20 with migrations 15→16→17→18→19→20. `fallbackToDestructiveMigration()` remains; versions 1–14 have no verified migration chain in the inspected source. | CRITICAL release blocker | STATIC REVIEW; migration runtime not executed in this checkpoint | Recover authentic v1–14 schemas or representative DBs, write/test safe migrations, and remove destructive fallback only when every supported upgrade path is covered. Never fabricate historical schemas. |
+| AUD-2026-11-06-18 | Tracker accuracy — `app/MASTER_IMPLEMENTATION_TRACKER.md` | Earlier tracker notes refer to Room v18 while current source is v20, creating a stale checkpoint description. | MEDIUM documentation drift | CONFIRMED by current source + tracker comparison | Keep the current schema/migration status synchronized with source and label historical v18 notes as historical. |
+
+### Flow audit status
+
+- **Student journey:** Dashboard and feature screens exist, but the full Login → exam catalog → test list → instructions → player → answer autosave → timer → idempotent submit → server result → authorized review → ranking path is not yet proven end-to-end. Continue mapping every visible destination/action and its backend call-site.
+- **Private tests:** a vault screen exists and filters owner/private records client-side. Server rules remain the actual security boundary; verify every read/write path and cross-account isolation with Emulator tests.
+- **Public/community:** Community feed uses Firestore listeners and user-scoped bookmark/like documents. Like state and counter writes are separate client operations; review atomicity, retries, and rules behavior under concurrent taps. Comment arrays stored on a post document also need concurrency/size review before scale.
+- **Admin:** the main Admin screen is large and contains many panels. Verify the exact Super Admin / Content Admin / Support Admin permission matrix at both UI and backend/rules layers; a boolean `isAdmin` UI gate is not sufficient evidence of role separation.
+- **PDF generation:** local page OCR and review gates exist in source, but diagram pixels are not yet sent through the universal Gemini Vision path; Latin-only OCR and source-answer verification remain limitations. Do not auto-publish unverified output.
+
+### Next implementation sequence
+
+1. Complete a route/action inventory for Student Dashboard and every Student feature; record PRESENT / PARTIAL / DEAD-END / NOT VERIFIED with source evidence.
+2. Complete the Admin role × eight-control-area permission matrix, including callable functions and Firestore/Storage rules.
+3. Remove stale mock-fallback controls and dead placeholder code after exact branch-wide call-site checks.
+4. Repair the diagram correction action with authenticated UID-scoped image upload and visible upload/error states.
+5. Replace or retire the legacy live scheduler; the supported path must publish only approved, validated questions.
+6. Resolve Room v1–14 migration evidence and remove destructive fallback only after migration tests cover every supported upgrade.
+7. Run Android, Node, Firestore Emulator, Storage Emulator, PDF fixture, and device/network suites; record actual command output and status.
+
+**Checkpoint rule:** Findings above are static-review findings, not runtime-confirmed defects. No app code was changed as part of this audit-note update. Production readiness remains **NOT VERIFIED / NOT READY** until release gates pass.
