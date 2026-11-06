@@ -7866,7 +7866,7 @@ fun MiniLeaderboardCard(
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = when (userRankStatus) {
-                        "Official AIR" -> Color(0xFFE8F5E9)
+                        "Official AK AIR" -> Color(0xFFE8F5E9)
                         "Provisional Rank" -> Color(0xFFFFF3E0)
                         else -> Color(0xFFEDE7F6)
                     }
@@ -7880,13 +7880,13 @@ fun MiniLeaderboardCard(
                 ) {
                     Icon(
                         imageVector = when (userRankStatus) {
-                            "Official AIR" -> Icons.Rounded.Verified
+                            "Official AK AIR" -> Icons.Rounded.Verified
                             "Provisional Rank" -> Icons.Rounded.Analytics
                             else -> Icons.Rounded.HourglassEmpty
                         },
                         contentDescription = "Status",
                         tint = when (userRankStatus) {
-                            "Official AIR" -> Color(0xFF2E7D32)
+                            "Official AK AIR" -> Color(0xFF2E7D32)
                             "Provisional Rank" -> Color(0xFFE65100)
                             else -> Color(0xFF512DA8)
                         },
@@ -7896,7 +7896,7 @@ fun MiniLeaderboardCard(
                     Column {
                         Text(
                             text = when (userRankStatus) {
-                                "Official AIR" -> "🟢 Official AK All India Rank Active"
+                                "Official AK AIR" -> "🟢 Official AK All India Rank Active"
                                 "Provisional Rank" -> "🟠 Provisional Rank ($eligibleCount / 1,000 candidates for AIR)"
                                 else -> "🟡 Rank Pending (Complete 2 qualifying tests)"
                             },
@@ -8188,15 +8188,109 @@ fun LeaderboardTabScreen(viewModel: NEETViewModel) {
                 onClick = { selectedTabIndex = 1 },
                 text = { Text("📊 My Progress", fontWeight = FontWeight.Bold) }
             )
+            Tab(
+                selected = selectedTabIndex == 2,
+                onClick = { selectedTabIndex = 2 },
+                text = { Text("⚡ XP League", fontWeight = FontWeight.Bold) }
+            )
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        if (selectedTabIndex == 0) {
-            val leaderboard by viewModel.leaderboard.collectAsStateWithLifecycle()
-            MiniLeaderboardCard(selectedLanguage, leaderboard, userProfile, viewModel)
+        when (selectedTabIndex) {
+            0 -> {
+                val leaderboard by viewModel.leaderboard.collectAsStateWithLifecycle()
+                MiniLeaderboardCard(selectedLanguage, leaderboard, userProfile, viewModel)
+            }
+            1 -> MyProgressContent(selectedLanguage, attempts, viewModel)
+            else -> XpLeaderboardContent(selectedLanguage, viewModel)
+        }
+    }
+}
+
+@Composable
+fun XpLeaderboardContent(selectedLanguage: AppLanguage, viewModel: NEETViewModel) {
+    var mode by remember { mutableStateOf("WEEKLY") }
+    val rows by viewModel.xpLeaderboard.collectAsStateWithLifecycle()
+    val xpTotal by viewModel.xpTotal.collectAsStateWithLifecycle()
+    val xpThisWeek by viewModel.xpThisWeek.collectAsStateWithLifecycle()
+    val league by viewModel.xpLeague.collectAsStateWithLifecycle()
+    val streak by viewModel.serverActivityStreak.collectAsStateWithLifecycle()
+    val longestStreak by viewModel.longestActivityStreak.collectAsStateWithLifecycle()
+
+    LaunchedEffect(mode) {
+        viewModel.fetchXpLeaderboard(mode)
+        viewModel.fetchMyRankingProgress()
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("XP Progress", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Lifetime XP", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(xpTotal.toString(), fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("This Week", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(xpThisWeek.toString(), fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AssistChip(onClick = {}, label = { Text("League: $league") })
+                    AssistChip(onClick = {}, label = { Text("Streak: $streak days") })
+                    AssistChip(onClick = {}, label = { Text("Best: $longestStreak") })
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = mode == "WEEKLY",
+                onClick = { mode = "WEEKLY" },
+                label = { Text("This Week") }
+            )
+            FilterChip(
+                selected = mode == "ALL_TIME",
+                onClick = { mode = "ALL_TIME" },
+                label = { Text("All Time") }
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(if (mode == "WEEKLY") "Weekly XP Top 100" else "Lifetime XP Top 100",
+            fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        if (rows.isEmpty()) {
+            Text("No XP leaderboard entries yet. Complete a test to earn your first XP.",
+                modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            MyProgressContent(selectedLanguage, attempts, viewModel)
+            rows.forEach { entry ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("#${entry.rank}", fontWeight = FontWeight.Bold, modifier = Modifier.width(42.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(entry.name, fontWeight = FontWeight.SemiBold)
+                            Text(entry.league.ifBlank { "Learner" }, fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text("${entry.score} XP", fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
         }
     }
 }
