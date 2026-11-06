@@ -424,3 +424,11 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Client parity: `FileUploaderUtil.uploadImage` now writes under the current authenticated UID. Without an authenticated UID, it falls back to the private local cache.
 - Regression suite: added `storage.rules.test.js` for unauthenticated access, UID isolation, official asset/PDF restrictions, admin publishing, MIME and empty-object rejection.
 - Verification: committed to the working branch only. Storage Emulator tests, Android compilation, and live upload flows have NOT been executed. MIME metadata checks do not replace server-side content-signature validation.
+
+
+### Mixed / Scanned PDF Text Extraction — 2026-11-06
+
+- Change: added `extractAllPagesWithLocalOcr` to render each page and run on-device ML Kit OCR with per-page labels and bitmap recycling. The universal generation pipeline now uses this path rather than only raw PDF stream extraction, so mixed documents no longer skip pages solely because some other page has selectable text.
+- Fallback: if page OCR yields no text, the existing embedded-stream parser remains a fallback.
+- Limitations: the configured ML Kit recognizer is Latin-only; Hindi and other scripts are not yet verified. Diagram/image regions are detected by separate components but their pixels are not yet submitted to Gemini Vision, so diagram-dependent questions must not be treated as factually verified. Existing source-answer review gate remains mandatory.
+- Verification: code committed only; Android compilation, OCR device tests, scanned/mixed PDF fixtures, and memory profiling have NOT been run.
