@@ -595,3 +595,21 @@ The attempt-security review was extended beyond the initial idempotency issue:
 ### Updated verification statement
 - Source changes in this checkpoint were made on `fix/phase1-real-questions-only` only.
 - No Android build, UI test, Node test, Firestore Emulator test, Storage Emulator test, or device test was executed after these two dashboard commits. Their runtime status is NOT RUN.
+
+
+## Universal Admin Authorization — Policy Foundation — 2026-11-06
+
+- **ADM-ROLE-002 | CRITICAL | POLICY ADDED; ENFORCEMENT OPEN**
+  - Added `backend_functions/adminRoles.js` with exactly three canonical roles: `super_admin`, `content_admin`, and `support_admin`.
+  - Added a least-privilege permission map covering student support, PDF upload/processing, question review, test publishing, daily limits, private/public controls, AI controls, storage, critical alerts, and role management.
+  - Content Admin is limited to content workflows; Support Admin is limited to student support/read and critical-alert visibility; Super Admin receives the complete permission set.
+  - Added `backend_functions/adminRoles.test.js` covering role recognition, positive permissions, denied permissions, and fail-closed behavior for unknown roles.
+  - Commits: `e6953fd8dbc74f8b899b3a8ee24ba23c01c8cb4c`, `dfa769e9a3d3b22dbd6938e337fed1e0a229909c`.
+  - **Important:** this is a policy foundation only. It is NOT yet enforced by Cloud Functions, Firestore Rules, Storage Rules, or Android UI. Existing boolean `admin` claims remain active in those layers until a coordinated migration is implemented and tested. Do not issue role claims or treat role separation as production-ready yet.
+  - Verification: test source added; Node test execution NOT RUN in this connector-only environment.
+
+### Next implementation batch
+1. Inventory every callable, Firestore collection rule, Storage path, and Android Admin action that currently relies on the legacy boolean `admin` claim.
+2. Design a backward-compatible, owner-controlled role migration that does not accidentally grant Support Admin answer-key, publishing, billing, storage, or role-management access.
+3. Enforce the shared policy at server callable boundaries first, then Firestore/Storage rules and UI visibility; add deny tests for each role.
+4. Verify existing admin accounts and owner bootstrap before disabling legacy broad access.
