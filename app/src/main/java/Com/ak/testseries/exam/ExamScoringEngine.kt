@@ -23,17 +23,17 @@ object ExamScoringEngine {
 
     val VALID_ANSWER_OPTIONS = setOf("A", "B", "C", "D", "E", "1", "2", "3", "4", "5")
 
+    private fun isFiniteNumericAnswer(value: String): Boolean {
+        val number = value.trim().toDoubleOrNull() ?: return false
+        return number.isFinite()
+    }
+
     fun isAnswerKeyVerified(key: String): Boolean {
         val clean = key.trim().uppercase()
         if (clean.isEmpty()) return false
-        if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull() != null) return true
-        if (clean.contains(",")) {
-            val parts = clean.split(",").map { it.trim() }
-            if (parts.isNotEmpty() && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull() != null }) {
-                return true
-            }
-        }
-        return false
+        val parts = if (clean.contains(",")) clean.split(",").map { it.trim() } else listOf(clean)
+        if (parts.any { it.isEmpty() } || parts.distinct().size != parts.size) return false
+        return parts.all { it in VALID_ANSWER_OPTIONS || isFiniteNumericAnswer(it) }
     }
 
     fun areOptionsEquivalent(ans1: String, ans2: String, isNumerical: Boolean = false): Boolean {
@@ -52,19 +52,39 @@ object ExamScoringEngine {
         return false
     }
 
-    fun isUserAnswerCorrect(userAns: String, correctAns: String, isNumerical: Boolean = false): Boolean {
+    private fun isMultiSelectQuestionType(questionType: String): Boolean {
+        return questionType.trim().uppercase() in setOf(
+            "MSQ", "MULTI_SELECT", "MULTIPLE_SELECT", "MULTIPLE_CORRECT", "MCQ_MULTIPLE"
+        )
+    }
+
+    fun isUserAnswerCorrect(
+        userAns: String,
+        correctAns: String,
+        isNumerical: Boolean = false,
+        questionType: String = ""
+    ): Boolean {
         val u = userAns.trim().uppercase()
         val c = correctAns.trim().uppercase()
         if (u.isEmpty() || c.isEmpty()) return false
-        if (areOptionsEquivalent(u, c, isNumerical)) return true
 
+        if (isMultiSelectQuestionType(questionType)) {
+            val indexToLetter = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
+            fun normalizeOption(value: String): String {
+                val token = value.trim().uppercase()
+                return if (isNumerical) token else (indexToLetter[token] ?: token)
+            }
+            val userParts = u.split(",").map(::normalizeOption)
+            val correctParts = c.split(",").map(::normalizeOption)
+            if (userParts.any { it.isEmpty() } || correctParts.any { it.isEmpty() }) return false
+            if (userParts.distinct().size != userParts.size || correctParts.distinct().size != correctParts.size) return false
+            return userParts.size == correctParts.size && userParts.toSet() == correctParts.toSet()
+        }
+
+        if (areOptionsEquivalent(u, c, isNumerical)) return true
         if (c.contains(",")) {
             val acceptedKeys = c.split(",").map { it.trim() }
-            val normalizedUserParts = u.split(",").map { it.trim() }.sorted()
-            val normalizedCorrectParts = acceptedKeys.sorted()
-            if (normalizedUserParts == normalizedCorrectParts) return true
-
-            if (acceptedKeys.any { areOptionsEquivalent(u, it, isNumerical) }) return true
+            return acceptedKeys.any { areOptionsEquivalent(u, it, isNumerical) }
         }
         return false
     }
@@ -154,7 +174,7 @@ object ExamScoringEngine {
                     }
                     if (!isKeyVerified) {
                         // Unknown/unverified answer key: student choice cannot be scored; no penalty or accuracy skew
-                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
+                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical, question.questionType)) {
                         correct++
                         positiveMarksEarned += qPosMark
                     } else {
@@ -322,7 +342,7 @@ object ExamScoringEngine {
                     }
                     if (!isKeyVerified) {
                         // Unverified key
-                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
+                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical, question.questionType)) {
                         stat.correct++
                         stat.score += qPosMark
                     } else {
