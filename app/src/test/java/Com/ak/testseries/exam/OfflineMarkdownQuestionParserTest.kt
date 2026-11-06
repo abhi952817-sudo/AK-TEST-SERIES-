@@ -131,7 +131,9 @@ class OfflineMarkdownQuestionParserTest {
         assertEquals("The Indian Constitution was adopted on:", models[0].questionText)
         assertEquals("B", models[0].correctAnswer)
         assertEquals("Indian Polity", models[0].subjectId)
-        assertEquals(ValidationStatus.APPROVED, models[0].validationStatus)
+        assertEquals(ValidationStatus.NEEDS_REVIEW, models[0].validationStatus)
+        assertEquals("B", models[0].sourceAnswer)
+        assertTrue(models[0].validationReasons.any { it.contains("awaiting explicit admin review") })
         assertEquals("Extracted PDF Test Paper", models[0].sourceName)
     }
 
