@@ -171,7 +171,7 @@ fun UniversalExamAdminScreen(
                                 extractedQuestions.clear()
                                 extractedQuestions.addAll(results)
                                 isProcessing = false
-                                selectedTab = 2 // Move to review
+                                if (results.isNotEmpty()) selectedTab = 2 // Move to review only when real questions exist
                                 val resultMessage = if (results.isEmpty()) {
                                     "No valid questions extracted. No placeholder questions were generated; check PDF/OCR quality."
                                 } else {
