@@ -503,11 +503,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             _userQualifyingTestsCount.value = qualifyingTests
                             _userCompetitiveScore.value = competitiveScore
 
-                            // Query eligible participants count for this canonicalExam from public Leaderboard
-                            val eligibleQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
+                            // Query the selected exam cohort, optionally narrowed to the student's class.
+                            val entriesRef = db.collection("Exam_Leaderboards").document(canonicalExam)
                                 .collection("Entries")
+                            fun applyClassFilter(query: com.google.firebase.firestore.Query): com.google.firebase.firestore.Query {
+                                return if (classFilter == "All") query else query.whereEqualTo("classLevel", classFilter)
+                            }
+                            val eligibleQuery = applyClassFilter(entriesRef
                                 .whereEqualTo("isEligibleForRanking", true)
-                                .whereEqualTo("isBanned", false)
+                                .whereEqualTo("isBanned", false))
                             val eligibleSnapshot = eligibleQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
                             val totalEligible = eligibleSnapshot.count.toInt()
                             _eligibleParticipantsCount.value = totalEligible
@@ -524,10 +528,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     "Establish an active competitive score to view your platform rank."
                                 }
                             } else {
-                                val countQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
-                                    .collection("Entries")
+                                val countQuery = applyClassFilter(entriesRef
                                     .whereEqualTo("isEligibleForRanking", true)
-                                    .whereEqualTo("isBanned", false)
+                                    .whereEqualTo("isBanned", false))
                                     .whereGreaterThan("score", competitiveScore)
                                 val countSnapshot = countQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
                                 val higherCount = countSnapshot.count.toInt()
@@ -546,10 +549,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     _userRank.value = "#$rank"
                                     _rankLastUpdatedTime.value = System.currentTimeMillis()
 
-                                    val equalQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
-                                        .collection("Entries")
+                                    val equalQuery = applyClassFilter(entriesRef
                                         .whereEqualTo("isEligibleForRanking", true)
-                                        .whereEqualTo("isBanned", false)
+                                        .whereEqualTo("isBanned", false))
                                         .whereEqualTo("score", competitiveScore)
                                     val equalSnapshot = equalQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
                                     val equalCount = equalSnapshot.count.toInt()
@@ -560,10 +562,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     _userPercentile.value = Math.round(rawPct.coerceIn(0.0, 100.0) * 100.0) / 100.0
 
                                     if (rank > 1) {
-                                        val higherUsersQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
-                                            .collection("Entries")
+                                        val higherUsersQuery = applyClassFilter(entriesRef
                                             .whereEqualTo("isEligibleForRanking", true)
-                                            .whereEqualTo("isBanned", false)
+                                            .whereEqualTo("isBanned", false))
                                             .whereGreaterThan("score", competitiveScore)
                                             .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
                                             .limit(1)
