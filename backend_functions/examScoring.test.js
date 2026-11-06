@@ -20,6 +20,10 @@ test("Answer verification: standard options, numbers, and multiple keys", () => 
   assert.strictEqual(isAnswerKeyVerified("A, C"), true);
   assert.strictEqual(isAnswerKeyVerified(""), false);
   assert.strictEqual(isAnswerKeyVerified("INVALID_KEY"), false);
+  assert.strictEqual(isAnswerKeyVerified("Infinity"), false);
+  assert.strictEqual(isAnswerKeyVerified("NaN"), false);
+  assert.strictEqual(isAnswerKeyVerified("1e999"), false);
+  assert.strictEqual(isAnswerKeyVerified("A, Infinity"), false);
 });
 
 test("Option equivalence: index to letter and numerical precision", () => {
@@ -48,6 +52,9 @@ test("NEET numerical answers reject malformed and non-finite values", () => {
   assert.strictEqual(areOptionsEquivalent("123abc", "123abc", true), false);
   assert.strictEqual(areOptionsEquivalent("Infinity", "Infinity", true), false);
   assert.strictEqual(areOptionsEquivalent("NaN", "NaN", true), false);
+  assert.strictEqual(areOptionsEquivalent("Infinity", "Infinity", false), false);
+  assert.strictEqual(areOptionsEquivalent("NaN", "NaN", false), false);
+  assert.strictEqual(areOptionsEquivalent("1e999", "1e999", false), false);
   assert.strictEqual(isUserAnswerCorrect("123abc", "123", true), false);
   // Even outside a numerical question, partial numeric strings must not match.
   assert.strictEqual(areOptionsEquivalent("123abc", "123", false), false);
