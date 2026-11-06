@@ -26,7 +26,7 @@ object ExamScoringEngine {
     fun isAnswerKeyVerified(key: String): Boolean {
         val clean = key.trim().uppercase()
         if (clean.isEmpty()) return false
-        if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull()?.isFinite() == true)
+        if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull()?.isFinite() == true) return true
         if (clean.contains(",")) {
             val parts = clean.split(",").map { it.trim() }
             if (parts.isNotEmpty() && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull()?.isFinite() == true }) {
