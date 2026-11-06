@@ -449,3 +449,11 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Publish defense-in-depth: `publishUniversalTest` blocks empty submissions, any question not explicitly APPROVED, missing source answers, and any question that fails a fresh validation pass.
 - Regression: parser tests now cover missing answer keys (no invented A, no approval) and extracted keys (source evidence captured but admin review still required).
 - Verification: code and test changes committed to the working branch only; Gradle/JUnit and Android UI tests NOT executed.
+
+
+### Question Diagram Upload Client Parity — 2026-11-06
+
+- Follow-up static call-site audit found `TestReviewScreen.compressAndUploadToFirebase` still uploaded to the legacy flat `question_images/{questionId}` path without an explicit UID scope.
+- Changed it to require an authenticated UID and upload to `question_images/{uid}/{questionId}`; matching Storage rules allow only that UID (or admin) to create/update the asset. Legacy flat paths remain admin-only.
+- Added Storage Emulator regression coverage for cross-user question-image path isolation.
+- Verification: source/test changes committed; emulator and Android upload flow NOT executed.
