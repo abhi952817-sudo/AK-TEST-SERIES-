@@ -46,6 +46,9 @@ object ExamScoringEngine {
         }
         val num1 = a.toDoubleOrNull()
         val num2 = b.toDoubleOrNull()
+        if (isNumerical && (num1 == null || num2 == null || !num1.isFinite() || !num2.isFinite())) {
+            return false
+        }
         if (num1 != null && num2 != null) {
             return Math.abs(num1 - num2) < 0.0001
         }
@@ -225,7 +228,8 @@ object ExamScoringEngine {
         userAnswers: Map<String, String>, // questionId -> selectedOption ("A", "B", "C", "D")
         correctAnswers: Map<String, String>, // questionId -> actualCorrectOption
         questionSections: Map<String, String>, // questionId -> sectionId
-        timeSpentSeconds: Long
+        timeSpentSeconds: Long,
+        questionTypes: Map<String, String> = emptyMap() // questionId -> question type, required for MSQ
     ): ScoreBreakdown {
         var correct = 0
         var wrong = 0
@@ -257,7 +261,7 @@ object ExamScoringEngine {
                 unanswered++
             } else if (!isKeyVerified) {
                 // Unknown/unverified answer key
-            } else if (isUserAnswerCorrect(userOpt, cleanCorrect, isNumerical)) {
+            } else if (isUserAnswerCorrect(userOpt, cleanCorrect, isNumerical, questionTypes[qid].orEmpty())) {
                 correct++
                 totalPositiveEarned += posMarks
             } else {
