@@ -77,3 +77,10 @@ jobs:
           name: room-schema-${{ github.run_number }}
           path: app/schemas/Com.ak.testseries.data.AppDatabase/*.json
           if-no-files-found: warn
+      - name: Upload generated Room schema
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schema-${{ github.run_number }}
+          path: app/schemas/Com.ak.testseries.data.AppDatabase/*.json
+          if-no-files-found: warn
