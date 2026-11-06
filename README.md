@@ -316,7 +316,19 @@ A real MP4 walkthrough is **not included yet**. The linked storyboard defines th
 
 ---
 
-## 13. Contribution and change-control rules
+## 13. First-launch interactive tutorial
+
+The first app visit should use a short, guided onboarding experience with floating coach marks anchored to important controls. The user must be able to skip, resume, and replay the tutorial from Help/Settings. Contextual tips should explain advanced panels when the user first reaches them, rather than forcing every option into one long tour.
+
+The planned experience includes a dimmed background, a spotlight around the real option, a floating explanation card, subtle motion, progress, and accessible Back/Next/Skip controls. It must respect reduced-motion settings, screen size, font scaling, and Student/Admin role permissions. Tutorial state should be versioned and persisted safely so completed users are not interrupted repeatedly.
+
+Implementation plan and acceptance tests: [First-launch interactive tutorial plan](docs/FIRST_LAUNCH_INTERACTIVE_TUTORIAL_PLAN.md).
+
+**Status: PLAN READY — existing tutorial audit and code implementation are pending.**
+
+---
+
+## 14. Contribution and change-control rules
 
 1. Work on a feature/fix branch; keep `main` safe.
 2. Inspect call sites and data flow before removing or replacing a function.
@@ -331,7 +343,7 @@ A real MP4 walkthrough is **not included yet**. The linked storyboard defines th
 
 ---
 
-## 13. Definition of done
+## 15. Definition of done
 
 The platform is ready only when:
 - Students can complete the full test journey reliably.
