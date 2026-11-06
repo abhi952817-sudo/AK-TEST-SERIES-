@@ -5,24 +5,28 @@
 
 const VALID_ANSWER_OPTIONS = new Set(["A", "B", "C", "D", "E", "1", "2", "3", "4", "5"]);
 
+function isFiniteNumericAnswer(value) {
+  if (typeof value !== "string" || value.trim().length === 0) return false;
+  const clean = value.trim();
+  // Reject partial parses (for example "12abc"), NaN, and Infinity.
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(clean)) return false;
+  return Number.isFinite(Number(clean));
+}
+
 function isAnswerKeyVerified(key) {
-  if (!key) return false;
+  if (key === null || key === undefined) return false;
   const clean = String(key).trim().toUpperCase();
   if (clean.length === 0) return false;
-  if (VALID_ANSWER_OPTIONS.has(clean) || !isNaN(Number(clean))) return true;
-  if (clean.includes(",")) {
-    const parts = clean.split(",").map(p => p.trim());
-    if (parts.length > 0 && parts.every(p => VALID_ANSWER_OPTIONS.has(p) || !isNaN(Number(p)))) {
-      return true;
-    }
-  }
-  return false;
+  const parts = clean.includes(",") ? clean.split(",").map(part => part.trim()) : [clean];
+  if (parts.some(part => part.length === 0) || new Set(parts).size !== parts.length) return false;
+  return parts.every(part => VALID_ANSWER_OPTIONS.has(part) || isFiniteNumericAnswer(part));
 }
 
 function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
   if (!ans1 || !ans2) return false;
   const a = String(ans1).trim().toUpperCase();
   const b = String(ans2).trim().toUpperCase();
+  if (isNumerical && (!isFiniteNumericAnswer(a) || !isFiniteNumericAnswer(b))) return false;
   if (a === b) return true;
 
   if (!isNumerical) {
@@ -30,28 +34,48 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
     if (mapIndex[a] === b || mapIndex[b] === a) return true;
   }
 
-  const num1 = parseFloat(a);
-  const num2 = parseFloat(b);
-  if (!isNaN(num1) && !isNaN(num2)) {
+  const num1 = Number(a);
+  const num2 = Number(b);
+  if (isFiniteNumericAnswer(a) && isFiniteNumericAnswer(b)) {
     return Math.abs(num1 - num2) < 0.0001;
   }
   return false;
 }
 
-function isUserAnswerCorrect(userAns, correctAns, isNumerical = false) {
-  if (!userAns || !correctAns) return false;
+function isMultiSelectQuestionType(questionType) {
+  return ["MSQ", "MULTI_SELECT", "MULTIPLE_SELECT", "MULTIPLE_CORRECT", "MCQ_MULTIPLE"]
+    .includes(String(questionType || "").trim().toUpperCase());
+}
+
+function isUserAnswerCorrect(userAns, correctAns, isNumerical = false, questionType = "") {
+  if (userAns === null || userAns === undefined || correctAns === null || correctAns === undefined) return false;
   const u = String(userAns).trim().toUpperCase();
   const c = String(correctAns).trim().toUpperCase();
   if (u.length === 0 || c.length === 0) return false;
-  if (areOptionsEquivalent(u, c, isNumerical)) return true;
 
+  if (isMultiSelectQuestionType(questionType)) {
+    const normalizeOption = value => {
+      const token = String(value).trim().toUpperCase();
+      if (isNumerical) return token;
+      const indexToLetter = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
+      return indexToLetter[token] || token;
+    };
+    const userParts = u.split(",").map(normalizeOption);
+    const correctParts = c.split(",").map(normalizeOption);
+    if (userParts.some(part => !part) || correctParts.some(part => !part)) return false;
+    if (new Set(userParts).size !== userParts.length || new Set(correctParts).size !== correctParts.length) return false;
+    if (userParts.length !== correctParts.length) return false;
+    const correctSet = new Set(correctParts);
+    return userParts.every(part => correctSet.has(part));
+  }
+
+  if (areOptionsEquivalent(u, c, isNumerical)) return true;
   if (c.includes(",")) {
     const acceptedKeys = c.split(",").map(k => k.trim());
     const userParts = u.split(",").map(k => k.trim()).sort();
     const correctParts = acceptedKeys.slice().sort();
-
-    if (userParts.join(",") === correctParts.join(",")) return true;
-    if (acceptedKeys.some(k => areOptionsEquivalent(u, k, isNumerical))) return true;
+    if (userParts.length === correctParts.length && userParts.join(",") === correctParts.join(",")) return true;
+    return acceptedKeys.some(k => areOptionsEquivalent(u, k, isNumerical));
   }
   return false;
 }
@@ -262,6 +286,7 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   let correctCount = 0;
   let wrongCount = 0;
   let unansweredCount = 0;
+  let ungradedCount = 0;
 
   let positiveMarksEarned = 0.0;
   let negativeMarksPenalty = 0.0;
@@ -310,8 +335,8 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
         }
 
         if (!isKeyVerified) {
-          // Unverified answer key: 0 marks and no penalty
-        } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
+          ungradedCount++;
+        } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical, q.questionType)) {
           correctCount++;
           positiveMarksEarned += scheme.pos;
         } else {
@@ -325,8 +350,9 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   // Round maxPossible and calculate final scores
   const rawScore = positiveMarksEarned - negativeMarksPenalty;
   const finalScore = Math.max(0.0, rawScore);
-  const attemptedCount = correctCount + wrongCount;
-  const accuracyPercent = attemptedCount > 0 ? Math.round((correctCount / attemptedCount) * 10000) / 100 : 0.0;
+  const attemptedCount = correctCount + wrongCount + ungradedCount;
+  const accuracyDenominator = correctCount + wrongCount;
+  const accuracyPercent = accuracyDenominator > 0 ? Math.round((correctCount / accuracyDenominator) * 10000) / 100 : 0.0;
 
   return {
     totalQuestions: questions.length,
@@ -334,6 +360,7 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     correctCount,
     wrongCount,
     unansweredCount,
+    ungradedCount,
     positiveMarksEarned: Math.round(positiveMarksEarned * 100) / 100,
     negativeMarksPenalty: Math.round(negativeMarksPenalty * 100) / 100,
     rawScore: Math.round(rawScore * 100) / 100,
