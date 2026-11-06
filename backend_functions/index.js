@@ -152,10 +152,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const countsTowardRanking = testData.countsTowardRanking === true && isPubliclyAvailable;
   const canonicalExam = normalizeExamKey(testData.targetExam || testData.subject || "NEET");
   const rankingWeight = resolveRankingWeight(testData);
-  const rankingNow = Date.now();
-  const rankingDateKey = getIndiaDateKey(rankingNow);
-  const rankingWeekId = getIndiaWeekId(rankingNow);
-  const rankingPeriodIds = getRankingPeriodIds(rankingNow);
 
   // 4. Load questions and trusted answer keys (Protected Separation)
   let questions = [];
@@ -259,6 +255,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
   // 6. Atomic, Idempotent Transaction for Competitive Ranking and Persistence
   return db.runTransaction(async (transaction) => {
+    // Recompute India-local period boundaries on every transaction retry.
+    const rankingNow = Date.now();
+    const rankingDateKey = getIndiaDateKey(rankingNow);
+    const rankingWeekId = getIndiaWeekId(rankingNow);
+    const rankingPeriodIds = getRankingPeriodIds(rankingNow);
     const attemptDocRef = attemptsRef.doc(attemptDocId);
     const existingAttemptSnap = await transaction.get(attemptDocRef);
 
