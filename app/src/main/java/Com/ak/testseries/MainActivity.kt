@@ -8148,6 +8148,7 @@ fun MiniLeaderboardCard(
 fun LeaderboardTabScreen(viewModel: NEETViewModel) {
     val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var rankingPeriodMode by remember { mutableStateOf("ALL_TIME") }
     val attempts by viewModel.attemptHistory.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val selectedExamFilter by viewModel.leaderboardExamFilter.collectAsStateWithLifecycle()
@@ -8156,6 +8157,11 @@ fun LeaderboardTabScreen(viewModel: NEETViewModel) {
         val exam = if (selectedExamFilter.isNotBlank()) selectedExamFilter else userProfile.targetExam.ifBlank { "NEET" }
         viewModel.fetchLeaderboard(exam)
         viewModel.fetchUserRank(exam)
+    }
+    LaunchedEffect(rankingPeriodMode, selectedExamFilter) {
+        if (rankingPeriodMode == "HALF_MONTH" || rankingPeriodMode == "MONTH") {
+            viewModel.fetchRankingPeriodLeaderboard(rankingPeriodMode)
+        }
     }
 
     Column(
@@ -8200,10 +8206,62 @@ fun LeaderboardTabScreen(viewModel: NEETViewModel) {
         when (selectedTabIndex) {
             0 -> {
                 val leaderboard by viewModel.leaderboard.collectAsStateWithLifecycle()
-                MiniLeaderboardCard(selectedLanguage, leaderboard, userProfile, viewModel)
+                Column {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = rankingPeriodMode == "ALL_TIME", onClick = { rankingPeriodMode = "ALL_TIME" }, label = { Text("Overall") })
+                        FilterChip(selected = rankingPeriodMode == "HALF_MONTH", onClick = { rankingPeriodMode = "HALF_MONTH" }, label = { Text("15 Days") })
+                        FilterChip(selected = rankingPeriodMode == "MONTH", onClick = { rankingPeriodMode = "MONTH" }, label = { Text("Monthly") })
+                    }
+                    if (rankingPeriodMode == "ALL_TIME") {
+                        MiniLeaderboardCard(selectedLanguage, leaderboard, userProfile, viewModel)
+                    } else {
+                        RankingPeriodLeaderboardCard(selectedLanguage, rankingPeriodMode, viewModel)
+                    }
+                }
             }
             1 -> MyProgressContent(selectedLanguage, attempts, viewModel)
             else -> XpLeaderboardContent(selectedLanguage, viewModel)
+        }
+    }
+}
+
+@Composable
+fun RankingPeriodLeaderboardCard(
+    selectedLanguage: AppLanguage,
+    periodMode: String,
+    viewModel: NEETViewModel
+) {
+    val rows by viewModel.rankingPeriodLeaderboard.collectAsStateWithLifecycle()
+    val title = if (periodMode == "MONTH") "Monthly Ranking" else "15-Day Ranking"
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Eligible students need at least 2 qualifying tests in this period.",
+                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(12.dp))
+            if (rows.isEmpty()) {
+                Text("No qualifying period results yet.", modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                rows.forEach { entry ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            when (entry.rank) { 1 -> "🥇 #1"; 2 -> "🥈 #2"; 3 -> "🥉 #3"; else -> "#${entry.rank}" },
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(entry.name, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
+                        Text("${entry.score} pts", fontWeight = FontWeight.SemiBold)
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
+                }
+            }
         }
     }
 }
@@ -8243,9 +8301,9 @@ fun XpLeaderboardContent(selectedLanguage: AppLanguage, viewModel: NEETViewModel
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    AssistChip(onClick = {}, label = { Text("League: $league") })
-                    AssistChip(onClick = {}, label = { Text("Streak: $streak days") })
-                    AssistChip(onClick = {}, label = { Text("Best: $longestStreak") })
+                    Text("League: $league", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Streak: $streak days", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Best: $longestStreak", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
