@@ -440,3 +440,12 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Removed both unreachable methods, including hard-coded sample questions and placeholder options, so the abandoned mock path cannot be reconnected accidentally.
 - Real generation remains through the validated PDF / AI pipeline. This deletion does not prove every exam generation path is complete; repository-wide generation entry points still require functional testing.
 - Verification: static source inspection only; Android compilation and tests NOT executed.
+
+### Source Answer & Publication Gate — 2026-11-06
+
+- Finding: the offline PDF parser previously defaulted a missing answer key to option A and marked parsed questions APPROVED. The diagram-attachment action also changed a question to APPROVED without checking its answer, and the public publish method did not independently revalidate approval/source evidence.
+- Parser fix: missing answer keys now remain blank; parsed questions run through `QuestionValidationEngine`; an extracted answer-key entry is retained as `sourceAnswer`, but every parsed question still begins in NEEDS_REVIEW until an explicit admin approval action.
+- Admin workflow: added a trusted-source-answer field to the review card. Approval reruns validation against the entered source answer. Attaching a diagram no longer auto-approves a question.
+- Publish defense-in-depth: `publishUniversalTest` blocks empty submissions, any question not explicitly APPROVED, missing source answers, and any question that fails a fresh validation pass.
+- Regression: parser tests now cover missing answer keys (no invented A, no approval) and extracted keys (source evidence captured but admin review still required).
+- Verification: code and test changes committed to the working branch only; Gradle/JUnit and Android UI tests NOT executed.
