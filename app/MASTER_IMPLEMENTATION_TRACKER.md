@@ -383,7 +383,7 @@
 - Added an idempotent admin-only migration that rebuilds v2 exam totals, User_Ranks, half-month boards, and monthly boards from server-verified first qualifying attempts. Its server-persisted cursor in `Config/Ranking_Migration_State` allows batches to resume after app restarts.
 - Updated Firestore security rules and indexes for v2 boards, period records, user rank privacy, XP ledgers, and server-only writes. Added safe `profileVisibility` validation and a Cloud Function trigger that synchronizes name/privacy/ban changes across public boards.
 - Updated Android ViewModel and Leaderboard UI with Overall / 15 Days / Monthly ranking views, Top 100, XP League (This Week / All Time), and server-backed XP/streak progress. Added an Admin Ranking System screen to run/resume controlled 10-user migration batches.
-- Private profiles remain in competitive calculations but display as `Private Student` in public boards. Banned users are excluded from AIR, period and XP boards; profile/ban changes propagate to materialized entries.
+- Private profiles remain in competitive calculations but display as `Private Student` in public boards. Students can switch public/private visibility in Profile; banned users are excluded from AIR, period and XP boards; profile/ban changes propagate to materialized entries.
 
 ### Important data-safety decisions
 
