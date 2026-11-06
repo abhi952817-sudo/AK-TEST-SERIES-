@@ -45,7 +45,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import Com.ak.testseries.data.QuestionEntity
 import Com.ak.testseries.viewmodel.NEETViewModel
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -680,23 +679,10 @@ suspend fun compressAndUploadToFirebase(
             val uploadTask = imageRef.putBytes(data)
             uploadTask.addOnSuccessListener {
                 imageRef.downloadUrl.addOnSuccessListener { uri ->
-                    val downloadUrl = uri.toString()
-                    
-                    // Update Firestore document with downloaded image URL
-                                        try {
-                        FirebaseFirestore.getInstance()
-                            .collection("questions")
-                            .document(questionId)
-                            .update("imageUrl", downloadUrl)
-                            .addOnSuccessListener {
-                                onSuccess(downloadUrl)
-                            }
-                            .addOnFailureListener { e ->
-                                onFailure(e)
-                            }
-                    } catch (e: Exception) {
-                        onFailure(e)
-                    }
+                    // The caller persists this URL through the test/question repository.
+                    // Do not write to the legacy top-level /questions collection: Firestore
+                    // rules intentionally deny that path.
+                    onSuccess(uri.toString())
                 }.addOnFailureListener { e ->
                     onFailure(e)
                 }
