@@ -186,24 +186,33 @@ fun UniversalExamAdminScreen(
                     onApprove = { q ->
                         val idx = extractedQuestions.indexOfFirst { it.questionId == q.questionId }
                         if (idx != -1) {
+                            val verifiedSourceAnswer = q.sourceAnswer?.trim().orEmpty()
+                            val aiAnswerWasCorrected = q.correctAnswer.trim() != verifiedSourceAnswer
+                            // The admin-entered source answer is authoritative after manual comparison with the source PDF.
+                            val reviewedQuestion = q.copy(correctAnswer = verifiedSourceAnswer)
                             val validation = QuestionValidationEngine.validateQuestion(
-                                questionText = q.questionText,
-                                options = q.options,
-                                correctAnswer = q.correctAnswer,
-                                explanation = q.explanation,
-                                hasDiagramAttached = !q.diagramUrl.isNullOrBlank(),
-                                sourceAnswer = q.sourceAnswer,
-                                questionType = q.questionType,
+                                questionText = reviewedQuestion.questionText,
+                                options = reviewedQuestion.options,
+                                correctAnswer = reviewedQuestion.correctAnswer,
+                                explanation = reviewedQuestion.explanation,
+                                hasDiagramAttached = !reviewedQuestion.diagramUrl.isNullOrBlank(),
+                                sourceAnswer = reviewedQuestion.sourceAnswer,
+                                questionType = reviewedQuestion.questionType,
                                 expectedOptionCount = selectedExam.defaultOptionCount
                             )
-                            extractedQuestions[idx] = q.copy(
+                            val reviewReasons = if (aiAnswerWasCorrected) {
+                                (validation.issues + "AI answer corrected to match the admin-verified source answer.").distinct()
+                            } else validation.issues
+                            extractedQuestions[idx] = reviewedQuestion.copy(
                                 validationStatus = validation.status,
                                 qualityScore = validation.qualityScore,
                                 qualityMetrics = validation.qualityMetrics,
-                                validationReasons = validation.issues
+                                validationReasons = reviewReasons
                             )
                             if (validation.status != ValidationStatus.APPROVED) {
-                                Toast.makeText(context, "Source answer mismatch or other validation issue. Question was not approved.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Source answer or structural validation failed. Question was not approved.", Toast.LENGTH_LONG).show()
+                            } else if (aiAnswerWasCorrected) {
+                                Toast.makeText(context, "Answer corrected from the trusted source key.", Toast.LENGTH_LONG).show()
                             }
                         }
                     },
