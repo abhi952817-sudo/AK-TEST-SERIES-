@@ -8,7 +8,8 @@ data class SubjectStatData(
     var correct: Int = 0,
     var incorrect: Int = 0,
     var score: Double = 0.0,
-    var maxScore: Double = 0.0
+    var maxScore: Double = 0.0,
+    var ungraded: Int = 0
 ) {
     val accuracy: Float get() = if (total > 0) (correct.toFloat() / (correct + incorrect).coerceAtLeast(1).toFloat()) * 100f else 0f
     val formattedScore: String get() = ExamScoringEngine.formatMark(score)
@@ -194,14 +195,20 @@ object ExamScoringEngine {
             }
         }
 
-        if (!isMultiScheme) {
+        // Per-section caps above are authoritative when present (for example NEET Section B).
+        // Apply an exam-wide cap only when this paper has no section-specific optional limits.
+        val hasSectionCaps = questions.any { question ->
+            UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+                examName = targetExam,
+                sectionNameOrId = question.section,
+                subjectName = question.subject
+            ) != null
+        }
+        if (!hasSectionCaps && !isMultiScheme) {
             val maxAllowedQs = UniversalExamRegistry.getMaximumAttemptQuestionsCountForExam(targetExam)
-            val effectiveCount = if (maxAllowedQs != null && questions.size > maxAllowedQs) {
-                maxAllowedQs
-            } else {
-                questions.size
+            if (maxAllowedQs != null && questions.size > maxAllowedQs) {
+                maxPossible = maxAllowedQs * posMark
             }
-            maxPossible = effectiveCount * posMark
         }
         val rawScore = positiveMarksEarned - negativeMarksPenalty
         val finalScore = rawScore.coerceAtLeast(0.0) // Non-negative final display boundary
