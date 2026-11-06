@@ -613,3 +613,12 @@ The attempt-security review was extended beyond the initial idempotency issue:
 2. Design a backward-compatible, owner-controlled role migration that does not accidentally grant Support Admin answer-key, publishing, billing, storage, or role-management access.
 3. Enforce the shared policy at server callable boundaries first, then Firestore/Storage rules and UI visibility; add deny tests for each role.
 4. Verify existing admin accounts and owner bootstrap before disabling legacy broad access.
+
+
+### Architecture correction — reuse existing authorization helper — 2026-11-06
+- Follow-up to user instruction: do not create parallel implementations where the repository already has a shared function.
+- Merged the canonical three-role permission policy into the existing `backend_functions/authHelper.js` instead of keeping a separate runtime module.
+- Updated the role-policy tests to import the existing shared helper.
+- Deleted the standalone `backend_functions/adminRoles.js` module to avoid duplicate authorization sources.
+- Commits: `3e7bf794b008f6369fa6e28d7187e0daf45abb98`, `6b97f51073a4aaef5c81576a861e75e209e16474`, `9dca871b93964b84d8c69157ee58b4e037823a32`.
+- Status remains **policy foundation only**. Existing callables and rules still need coordinated enforcement; no claim that the three roles are active end-to-end.
