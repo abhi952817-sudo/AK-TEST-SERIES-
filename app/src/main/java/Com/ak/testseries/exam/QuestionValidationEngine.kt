@@ -218,9 +218,11 @@ object QuestionValidationEngine {
             }
             if (questionType == QuestionType.MCQ_MULTIPLE) {
                 val answerParts = normalizedAnswer.split(",").map { it.trim() }
+                val optionAliases = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
+                val normalizedAnswerParts = answerParts.map { optionAliases[it] ?: it }
                 val validMultipleAnswer = answerParts.size >= 2 &&
                     answerParts.all { it in validAnswers } &&
-                    answerParts.distinct().size == answerParts.size
+                    normalizedAnswerParts.distinct().size == normalizedAnswerParts.size
                 if (!validMultipleAnswer) {
                     issues.add("⚠ Answer conflict detected: Multiple-correct questions require at least two distinct valid option keys")
                     answerConfidence = 0
