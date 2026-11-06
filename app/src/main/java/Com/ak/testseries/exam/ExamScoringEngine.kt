@@ -29,7 +29,7 @@ object ExamScoringEngine {
         if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull()?.isFinite() == true) return true
         if (clean.contains(",")) {
             val parts = clean.split(",").map { it.trim() }
-            if (parts.isNotEmpty() && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull()?.isFinite() == true }) {
+            if (parts.isNotEmpty() && parts.distinct().size == parts.size && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull()?.isFinite() == true }) {
                 return true
             }
         }
@@ -42,11 +42,19 @@ object ExamScoringEngine {
         val num1 = a.toDoubleOrNull()
         val num2 = b.toDoubleOrNull()
         if ((num1 != null && !num1.isFinite()) || (num2 != null && !num2.isFinite())) return false
-        if (a == b) return true
-        if (!isNumerical) {
-            val mapIndex = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
-            if (mapIndex[a] == b || mapIndex[b] == a) return true
+        val mapIndex = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
+        if (!isNumerical && (a.contains(",") || b.contains(","))) {
+            if (!a.contains(",") || !b.contains(",")) return false
+            fun normalizeParts(value: String): List<String> = value.split(",").map { part ->
+                val key = part.trim()
+                mapIndex[key] ?: key
+            }.sorted()
+            val left = normalizeParts(a)
+            val right = normalizeParts(b)
+            return left.size >= 2 && right.size >= 2 && left.distinct().size == left.size && right.distinct().size == right.size && left == right
         }
+        if (a == b) return true
+        if (!isNumerical && (mapIndex[a] == b || mapIndex[b] == a)) return true
         if (num1 != null && num2 != null && num1.isFinite() && num2.isFinite()) {
             return Math.abs(num1 - num2) < 0.0001
         }
