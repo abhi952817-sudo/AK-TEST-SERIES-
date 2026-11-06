@@ -400,7 +400,7 @@
 - Added Firestore rules tests for v2 public reads, private User_Ranks access, profile visibility validation, and server-only ranking/XP writes.
 - Added `.github/workflows/ranking-v2-validation.yml` to run backend syntax/unit tests, Firestore Emulator rules tests, Android unit tests, and Android debug build on PR/push.
 - Previous GitHub Actions validation (head `9036486644aff4ec256fa1a501a7b38a73f5b04f`): backend syntax checks and all 28 Node scoring/ranking tests passed; Firestore Emulator security rules suite passed all 28 tests; the existing Android CI debug build also passed.
-- Class-cohort support and its new indexes/tests were added after that run. A fresh full validation run is required for the latest head before merge.
+- Class-cohort support and its new indexes/tests were added after that run. A fresh full validation run is queued for head `e88e09501ee72723d9dbe5616f0980db54c26a0e` (backend, Firestore Emulator, Android unit tests/build). Results must be checked before merge.
 - Keep the PR in draft until backend, Firestore Emulator, Android unit tests, and Android debug build all pass on the latest head.
 - Deploy the updated Cloud Functions, Firestore rules, and indexes only after CI passes and the admin backfill has been reviewed in dry-run / controlled batches.
 - Admin UI for editing ranking policy values and a configurable XP award editor remain a follow-up; current policy defaults are code-versioned.
