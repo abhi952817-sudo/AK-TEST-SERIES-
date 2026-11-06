@@ -204,8 +204,7 @@ object QuestionValidationEngine {
             hasHardFailure = true
         } else if (isNumericalType) {
             // Numerical/NAT/TITA: Validate integer or decimal numerical value
-            val isNumeric = trimmedAnswer.toDoubleOrNull() != null ||
-                            trimmedAnswer.matches(Regex("""^[+-]?\d+(\.\d+)?$"""))
+            val isNumeric = trimmedAnswer.toDoubleOrNull()?.isFinite() == true
             if (!isNumeric) {
                 issues.add("⚠ Answer conflict detected: Numerical question expects a valid numeric value, found '$trimmedAnswer'")
                 answerConfidence = 0
@@ -239,8 +238,7 @@ object QuestionValidationEngine {
             val normalizedSource = sourceAnswer.trim().uppercase()
             val sourceMatches = when {
                 questionType == QuestionType.MCQ_MULTIPLE -> {
-                    normalizedAnswer.split(",").map { it.trim() }.sorted() ==
-                        normalizedSource.split(",").map { it.trim() }.sorted()
+                    ExamScoringEngine.areOptionsEquivalent(normalizedAnswer, normalizedSource)
                 }
                 isNumericalType -> ExamScoringEngine.areOptionsEquivalent(
                     normalizedAnswer, normalizedSource, isNumerical = true
