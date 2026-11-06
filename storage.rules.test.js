@@ -34,3 +34,8 @@ test("uploads reject unsupported MIME types and empty objects", async () => {
   await assertFails(alice.ref("chart_images/alice/bad.webp").put(Buffer.from("x"), { contentType: "application/octet-stream" }));
   await assertFails(alice.ref("chart_images/alice/empty.webp").put(Buffer.alloc(0), { contentType: "image/webp" }));
 });
+test("question diagram uploads are isolated by UID", async () => {
+  const alice = testEnv.authenticatedContext("alice").storage();
+  await assertSucceeds(alice.ref("question_images/alice/q1.webp").put(Buffer.from("img"), { contentType: "image/webp" }));
+  await assertFails(alice.ref("question_images/bob/q2.webp").put(Buffer.from("img"), { contentType: "image/webp" }));
+});
