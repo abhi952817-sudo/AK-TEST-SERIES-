@@ -7338,51 +7338,51 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!isAdmin) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Update in Room DB
-                val test = repository.getTestById(testId)
-                if (test != null) {
+                val test = repository.getTestById(testId) ?: return@launch
+                if (isPublic) {
                     val rawJson = test.questionsJson ?: ""
-                    val sanitizedJson = if (isPublic && rawJson.isNotBlank()) {
-                        try {
-                            sanitizeAndUploadQuestionImages(testId, rawJson)
-                        } catch (e: Exception) {
-                            android.util.Log.e("NEETViewModel", "Failed to upload images when making test public: ${e.message}")
-                            return@launch
-                        }
-                    } else {
-                        rawJson
+                    if (rawJson.isBlank()) {
+                        android.util.Log.e("NEETViewModel", "Cannot make test $testId public: question payload is empty.")
+                        return@launch
                     }
-                    val newStatus = if (isPublic && test.status == "Under Review") "Published" else test.status
-                    val updatedTest = test.copy(isPublic = isPublic, status = newStatus, questionsJson = sanitizedJson)
-                    repository.updateTest(updatedTest)
-                    
-                    // Update in Firestore
-                    val db = firestoreDb
-                    val updates = hashMapOf<String, Any>("isPublic" to isPublic)
-                    val testDocRef = db.collection("Tests_Data").document(testId)
-                    if (isPublic) {
-                        val (publicJson, answerKeys) = separatePublicAndSecretQuestions(sanitizedJson)
-                        updates["status"] = "Published"
-                        updates["questionsJson"] = publicJson
-                        if (answerKeys.isNotEmpty()) {
-                            val keysDoc = hashMapOf<String, Any>(
-                                "testId" to testId,
-                                "questions" to answerKeys,
-                                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                            )
-                            testDocRef.collection("private_keys").document("answerKey").set(keysDoc).await()
-                        }
-                    }
-                    testDocRef.update(updates).await()
-                    logAdminAudit(
-                        action = "UPDATE_TEST_VISIBILITY",
-                        targetId = testId,
-                        details = mapOf("isPublic" to isPublic)
+                    val sanitized = sanitizeAndUploadQuestionImages(testId, rawJson)
+                    val alreadyApproved = test.status.equals("Published", true) || test.status.equals("APPROVED", true)
+                    val updated = test.copy(
+                        isPublic = true,
+                        status = if (alreadyApproved) test.status else "Under Review",
+                        questionsJson = sanitized,
+                        countsTowardRanking = test.countsTowardRanking && test.isOfficial
                     )
+                    // Visibility toggle alone must not approve or rank an unreviewed test.
+                    if (!uploadTestToFirestore(updated, sanitized)) {
+                        android.util.Log.e("NEETViewModel", "Visibility change aborted because secure public/private upload failed.")
+                        return@launch
+                    }
+                    repository.updateTest(updated)
+                } else {
+                    val updated = test.copy(
+                        isPublic = false,
+                        status = "Private",
+                        countsTowardRanking = false
+                    )
+                    repository.updateTest(updated)
+                    firestoreDb.collection("Tests_Data").document(testId).set(
+                        mapOf(
+                            "isPublic" to false,
+                            "countsTowardRanking" to false,
+                            "status" to "Private"
+                        ),
+                        com.google.firebase.firestore.SetOptions.merge()
+                    ).await()
                 }
-                
+
+                logAdminAudit(
+                    action = "UPDATE_TEST_VISIBILITY",
+                    targetId = testId,
+                    details = mapOf("isPublic" to isPublic, "status" to if (isPublic) "Under Review or previously approved" else "Private")
+                )
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("NEETViewModel", "Test visibility update failed for $testId.", e)
             }
         }
     }
@@ -7394,66 +7394,54 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Update in Room DB
                 val test = repository.getTestById(testId)
-                if (test != null) {
-                    val rawJson = test.questionsJson ?: ""
-                    val sanitizedJson = if (rawJson.isNotBlank()) {
-                        sanitizeAndUploadQuestionImages(testId, rawJson)
-                    } else {
-                        rawJson
-                    }
-                    val updatedTest = test.copy(status = "Published", isPublic = true, isVerifiedCommunity = true, questionsJson = sanitizedJson)
-                    repository.updateTest(updatedTest)
-                    
-                    // Update in Firestore: Strip answer keys from public doc, store in private_keys
-                    val (publicJson, answerKeys) = separatePublicAndSecretQuestions(sanitizedJson)
-                    val db = firestoreDb
-                    val testDocRef = db.collection("Tests_Data").document(testId)
-                    val updates = hashMapOf<String, Any>(
+                    ?: throw IllegalArgumentException("Test not found.")
+                val rawJson = test.questionsJson ?: ""
+                require(rawJson.isNotBlank()) { "Cannot publish a test without questions." }
+                val sanitized = sanitizeAndUploadQuestionImages(testId, rawJson)
+                val updatedTest = test.copy(
+                    status = "Published",
+                    isPublic = true,
+                    isVerifiedCommunity = true,
+                    countsTowardRanking = test.countsTowardRanking && test.isOfficial,
+                    questionsJson = sanitized
+                )
+
+                // Atomic public document + private answer-key write. Never publish before keys are secured.
+                if (!uploadTestToFirestore(updatedTest, sanitized)) {
+                    throw IllegalStateException("Secure Firestore publication failed; test remains unpublished.")
+                }
+                repository.updateTest(updatedTest)
+
+                logAdminAudit(
+                    action = "PUBLISH_REVIEWED_TEST",
+                    targetId = testId,
+                    details = mapOf(
                         "status" to "Published",
                         "isPublic" to true,
-                        "isVerifiedCommunity" to true,
-                        "questionsJson" to publicJson
+                        "isOfficial" to updatedTest.isOfficial,
+                        "countsTowardRanking" to updatedTest.countsTowardRanking
                     )
-                    testDocRef.update(updates).await()
+                )
 
-                    if (answerKeys.isNotEmpty()) {
-                        val keysDoc = hashMapOf<String, Any>(
-                            "testId" to testId,
-                            "questions" to answerKeys,
-                            "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                        )
-                        testDocRef.collection("private_keys").document("answerKey").set(keysDoc).await()
-                    }
-
-                    logAdminAudit(
-                        action = "PUBLISH_REVIEWED_TEST",
-                        targetId = testId,
-                        details = mapOf("status" to "Published", "isPublic" to true)
+                try {
+                    val canonicalExam = updatedTest.targetExam.ifBlank { updatedTest.examId ?: "All" }
+                    val notifMap = hashMapOf<String, Any>(
+                        "title" to "📝 नया टेस्ट जारी: $canonicalExam",
+                        "message" to "${updatedTest.title} Admin verification के बाद प्रकाशित हुआ है।",
+                        "timestamp" to System.currentTimeMillis(),
+                        "targetGroup" to canonicalExam,
+                        "linkUrl" to "app://test/$testId",
+                        "isPinned" to false
                     )
+                    firestoreDb.collection("UserNotifications").add(notifMap).await()
+                } catch (ne: Exception) {
+                    android.util.Log.e("NEETViewModel", "Reviewed test notification failed.", ne)
+                }
 
-                    try {
-                        val canonicalExam = updatedTest.targetExam.ifBlank { updatedTest.examId ?: "All" }
-                        val notifMap = hashMapOf<String, Any>(
-                            "title" to "📝 नया टेस्ट जारी: $canonicalExam",
-                            "message" to "${updatedTest.title} अब सभी छात्रों के अभ्यास के लिए लाइव है। अभी अटेम्प्ट करें!",
-                            "timestamp" to System.currentTimeMillis(),
-                            "targetGroup" to canonicalExam,
-                            "linkUrl" to "app://test/$testId",
-                            "isPinned" to false
-                        )
-                        db.collection("UserNotifications").add(notifMap).await()
-                    } catch (ne: Exception) {
-                        android.util.Log.e("NEETViewModel", "Error broadcasting reviewed test notification: ${ne.message}")
-                    }
-                }
-                
-                withContext(Dispatchers.Main) {
-                    onResult?.invoke(true, null)
-                }
+                withContext(Dispatchers.Main) { onResult?.invoke(true, null) }
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("NEETViewModel", "Reviewed test publication failed for $testId.", e)
                 withContext(Dispatchers.Main) {
                     onResult?.invoke(false, e.localizedMessage ?: "Failed to publish test")
                 }
@@ -7485,43 +7473,36 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = firestoreDb
                 val allBundled = Com.ak.testseries.exam.BundledExamCatalog.getAllBundledTests()
-                for ((test, questions) in allBundled) {
-                    // 1. Ensure saved locally
-                    repository.saveTestWithQuestions(test, questions)
+                for ((sourceTest, questions) in allBundled) {
+                    val rawJson = sourceTest.questionsJson?.takeIf { it.isNotBlank() }
+                        ?: serializeQuestionsToJson(questions)
+                    require(rawJson.isNotBlank() && questions.isNotEmpty()) {
+                        "Bundled test ${sourceTest.id} has no usable questions; sync aborted."
+                    }
 
-                    // 2. Publish to Firestore Tests_Data
-                    val testData = hashMapOf<String, Any>(
-                        "title" to test.title,
-                        "description" to test.description,
-                        "institute" to test.institute,
-                        "batchName" to test.batchName,
-                        "facultyName" to test.facultyName,
-                        "language" to test.language,
-                        "subject" to test.subject,
-                        "difficulty" to test.difficulty,
-                        "testType" to test.testType,
-                        "questionsCount" to test.questionsCount,
-                        "isOfficial" to true,
-                        "isVerifiedCommunity" to true,
-                        "isPublic" to true,
-                        "countsTowardRanking" to true,
-                        "status" to "Published",
-                        "targetExam" to test.targetExam,
-                        "durationMinutes" to test.durationMinutes,
-                        "timestamp" to System.currentTimeMillis(),
-                        "questionsJson" to (test.questionsJson ?: "")
+                    // Bundled catalog provenance is not independently verified. Seed as practice/review only.
+                    val reviewTest = sourceTest.copy(
+                        isPublic = true,
+                        isOfficial = false,
+                        isVerifiedCommunity = false,
+                        countsTowardRanking = false,
+                        status = "Under Review",
+                        batchName = "Bundled Practice Review",
+                        description = "Bundled practice content. Source provenance and answer keys require Admin verification.",
+                        uploaderId = currentUserId.value,
+                        questionsJson = rawJson
                     )
-                    db.collection("Tests_Data").document(test.id).set(testData).await()
+                    repository.saveTestWithQuestions(reviewTest, questions)
+                    if (!uploadTestToFirestore(reviewTest, rawJson)) {
+                        throw IllegalStateException("Secure upload failed for bundled test ${sourceTest.id}.")
+                    }
                 }
-                withContext(Dispatchers.Main) {
-                    onComplete?.invoke(true, null)
-                }
+                withContext(Dispatchers.Main) { onComplete?.invoke(true, null) }
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("NEETViewModel", "Bundled practice catalog sync failed.", e)
                 withContext(Dispatchers.Main) {
-                    onComplete?.invoke(false, e.localizedMessage ?: "Failed to sync bundled tests to cloud")
+                    onComplete?.invoke(false, e.localizedMessage ?: "Failed to sync bundled tests")
                 }
             }
         }
