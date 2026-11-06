@@ -241,6 +241,42 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "Attempts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "testId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "countsTowardRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "verifiedServerSide",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "attempts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "testId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "countsTowardRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "verifiedServerSide",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
