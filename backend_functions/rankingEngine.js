@@ -160,6 +160,20 @@ function getRankingStatus(totalEligible) {
   };
 }
 
+function getCohortRankingStatus(totalEligible, classLevel) {
+  const base = getRankingStatus(totalEligible);
+  if (normalizeClassLevel(classLevel) === "All") {
+    return { ...base, isOfficialClassRank: false };
+  }
+  return {
+    ...base,
+    isOfficialAkAir: false,
+    isOfficialClassRank: base.isOfficialAkAir,
+    status: base.isOfficialAkAir ? "Official AK Class Rank" : "Provisional Class Rank",
+    rankLabel: "Class Rank"
+  };
+}
+
 module.exports = {
   RANKING_CONFIG,
   resolveRankingWeight,
@@ -173,5 +187,6 @@ module.exports = {
   calculateXpAward,
   calculateCompetitionRank,
   calculatePercentileFromCounts,
-  getRankingStatus
+  getRankingStatus,
+  getCohortRankingStatus
 };
