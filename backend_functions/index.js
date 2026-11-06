@@ -899,6 +899,14 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   }
 
   const userData = userDoc.data();
+  try {
+    assertActiveUserStatus(userData, userId);
+  } catch (err) {
+    throw new functions.https.HttpsError(
+      err.code || "permission-denied",
+      err.message
+    );
+  }
   const userClassLevel = normalizeClassLevel(userData.classLevel);
   if (classLevel !== "All" && classLevel !== userClassLevel) {
     return {
@@ -908,14 +916,6 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
       targetExam: canonicalExam, classLevel,
       message: "Your profile class does not match the selected class leaderboard."
     };
-  }
-  try {
-    assertActiveUserStatus(userData, userId);
-  } catch (err) {
-    throw new functions.https.HttpsError(
-      err.code || "permission-denied",
-      err.message
-    );
   }
 
   const eligibility = getExamEligibility(userData, canonicalExam);
