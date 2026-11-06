@@ -457,3 +457,11 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Changed it to require an authenticated UID and upload to `question_images/{uid}/{questionId}`; matching Storage rules allow only that UID (or admin) to create/update the asset. Legacy flat paths remain admin-only.
 - Added Storage Emulator regression coverage for cross-user question-image path isolation.
 - Verification: source/test changes committed; emulator and Android upload flow NOT executed.
+
+### Scoring F-004 — Finite Numerical Answer Validation — 2026-11-06
+
+- Kotlin and Node scoring now reject non-finite numeric answer keys (`NaN`, `Infinity`, and exponent overflow such as `1e999`) instead of treating a parsed Double/Number as valid.
+- Equality checks reject non-finite values even when both answer strings are identical; comma-separated answer-key entries also require finite numeric components.
+- Added Node and Kotlin regression cases for non-finite keys and equivalence.
+- Related client parity: cropped question diagrams now upload to UID-scoped Storage paths; the uploader no longer attempts a write to the legacy top-level Firestore `questions` collection, which is intentionally denied by the current rules. The caller persists the returned URL through the local question repository.
+- Verification: source/test updates committed; Node/JUnit and Storage Emulator tests NOT executed.
