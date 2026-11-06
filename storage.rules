@@ -34,6 +34,11 @@ service firebase.storage {
       allow create, update: if isAdmin() && isValidImageUpload();
       allow delete: if isAdmin();
     }
+    match /question_images/{userId}/{fileName} {
+      allow read: if true;
+      allow create, update: if isValidImageUpload() && (isAdmin() || (isAuthenticated() && request.auth.uid == userId));
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
     match /question_images/{fileName} {
       allow read: if true;
       allow create, update: if isAdmin() && isValidImageUpload();
