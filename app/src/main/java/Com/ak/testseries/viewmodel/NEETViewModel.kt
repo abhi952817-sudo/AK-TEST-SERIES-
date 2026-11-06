@@ -311,6 +311,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _xpLeaderboard = MutableStateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>>(emptyList())
     val xpLeaderboard: StateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>> = _xpLeaderboard.asStateFlow()
+    private val _isProfilePublic = MutableStateFlow(true)
+    val isProfilePublic: StateFlow<Boolean> = _isProfilePublic.asStateFlow()
+
     private val _xpTotal = MutableStateFlow(0L)
     val xpTotal: StateFlow<Long> = _xpTotal.asStateFlow()
     private val _xpThisWeek = MutableStateFlow(0L)
@@ -717,6 +720,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateProfileVisibility(isPublic: Boolean) {
+        val uid = currentUserId.value
+        if (uid.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                firestoreDb.collection("Users_Data").document(uid)
+                    .update("profileVisibility", if (isPublic) "PUBLIC" else "PRIVATE").await()
+                _isProfilePublic.value = isPublic
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "Profile visibility update failed", e)
+            }
+        }
+    }
+
     fun fetchMyRankingProgress(uid: String = currentUserId.value) {
         if (uid.isBlank()) {
             _xpTotal.value = 0L
@@ -729,6 +746,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val snapshot = firestoreDb.collection("Users_Data").document(uid).get().await()
+                _isProfilePublic.value = !snapshot.getString("profileVisibility").equals("PRIVATE", ignoreCase = true)
                 _xpTotal.value = snapshot.getLong("xpTotal") ?: 0L
                 _xpThisWeek.value = snapshot.getLong("xpThisWeek") ?: 0L
                 _xpLeague.value = snapshot.getString("xpLeague") ?: "ROOKIE"
