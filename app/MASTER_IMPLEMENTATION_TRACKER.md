@@ -405,3 +405,39 @@
 - Deploy the updated Cloud Functions, Firestore rules, and indexes only after CI passes and the admin backfill has been reviewed in dry-run / controlled batches.
 - Admin UI for editing ranking policy values and a configurable XP award editor remain a follow-up; current policy defaults are code-versioned.
 - Historical XP/streak backfill is not included; the ranking migration rebuilds exam AIR and period score history only.
+
+
+---
+
+## Universal Exam Scoring Audit — 2026-11-06
+
+**Implementation branch:** `feature/universal-exam-scoring-v1-2026-11-06`  
+**Parent development branch:** `feature/ranking-engine-v2-2026-11-06`  
+**Production/default branch:** `main` (untouched)
+
+### Implemented in this branch
+
+- Tightened server and Android numeric answer-key validation: malformed partial numeric strings, NaN, Infinity, empty tokens, and duplicate key tokens are rejected.
+- Corrected JavaScript numeric comparison so partial parses such as `12abc` cannot match a numerical answer.
+- Added question-type-aware MSQ grading. For MSQ / MCQ_MULTIPLE / MULTI_SELECT / MULTIPLE_CORRECT, all selected options must match the complete correct set; subsets, supersets, and duplicate selections do not receive full credit. Legacy single-select alternate-key handling remains unchanged.
+- Passed question type into both Android question-list scoring paths and the authoritative backend scorer.
+- Aligned Android maximum-mark calculation with server-side optional-section caps. Printed surplus questions no longer inflate the maximum score.
+- Added an explicit `ungradedCount` for answered questions whose answer key is invalid or unverified. Such answers are not silently classified as wrong or unanswered, and they do not distort accuracy.
+- Persisted and returned the ungraded count in authoritative backend attempt records/results.
+- Added Kotlin and Node regression tests for strict numerical validation, exact MSQ grading, ungraded responses, and optional-section maximum marks.
+- Expanded the validation workflow to run callable security tests and to execute on this isolated implementation branch and its development-base pull requests.
+
+### Remaining release blockers (not marked complete)
+
+1. Add a centrally versioned, year-specific official marking configuration for each supported exam, stage, paper, and section. Existing legacy exam-name rules remain a compatibility fallback and must not be represented as year-verified.
+2. Define and implement exam-specific partial-credit policies for JEE Advanced MSQ and any other question types that award partial marks. Exact-set full-credit grading is not a substitute for official partial-mark rules.
+3. Verify all supported question-type aliases and numerical tolerance rules against the Android question model, PDF upload pipeline, and backend answer-key schema.
+4. Run the full backend, Firestore Emulator, Android unit-test, and Android debug-build workflows on this branch. Do not mark the branch verified until the latest workflow run is green.
+5. Review ranking migration dry-run and Firestore indexes/rules before any production deployment.
+6. Keep production deployment and merge into `main` out of scope until explicit review and approval.
+
+### Required end-to-end flow
+
+`Exam ID + Exam Year + Config Version` → `Stage` → `Paper` → `Subject` → `Section` → `Question Type` → `Trusted Answer Key` → `Authoritative Scoring` → `Result + Ungraded Breakdown` → `Normalized Ranking Points` → `Exam Rank / Percentile` → `XP Ledger` → `Weekly / All-Time XP Leaderboard`.
+
+Scoring marks, normalized ranking points, percentile, and XP remain separate values. XP must never change exam marks or exam rank.
