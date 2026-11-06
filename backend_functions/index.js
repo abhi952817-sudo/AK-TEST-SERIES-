@@ -613,6 +613,41 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 });
 
 /**
+ * Keep public leaderboard labels synchronized when a student changes name/privacy.
+ * Ranking remains counted, but private identities are anonymized across every public board.
+ */
+exports.syncRankingProfileVisibility = functions.firestore
+  .document("Users_Data/{userId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    const beforeVisibility = String(before.profileVisibility || "PUBLIC").toUpperCase();
+    const afterVisibility = String(after.profileVisibility || "PUBLIC").toUpperCase();
+    const beforeName = before.displayName || before.name || "Student";
+    const afterName = after.displayName || after.name || "Student";
+    if (beforeVisibility === afterVisibility && beforeName === afterName) return null;
+
+    const isPublic = afterVisibility !== "PRIVATE";
+    const displayName = isPublic ? afterName : "Private Student";
+    const entrySnapshot = await db.collectionGroup("Entries")
+      .where("userId", "==", context.params.userId).get();
+    const allTimeSnapshot = await db.collection("XP_Leaderboard_AllTime")
+      .doc("Entries").collection("Students")
+      .where("userId", "==", context.params.userId).get();
+    const docs = [...entrySnapshot.docs, ...allTimeSnapshot.docs];
+    for (let offset = 0; offset < docs.length; offset += 450) {
+      const batch = db.batch();
+      docs.slice(offset, offset + 450).forEach(doc => batch.set(doc.ref, {
+        displayName,
+        profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true }));
+      await batch.commit();
+    }
+    return { updatedEntries: docs.length };
+  });
+
+/**
  * Rebuilds one user's v2 exam ranking materializations from immutable, server-verified
  * attempt records. This is an admin-only, idempotent migration path for pre-v2 users.
  */
