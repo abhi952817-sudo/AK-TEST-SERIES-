@@ -258,8 +258,11 @@ class ExamScoringEngineTest {
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("A, B", "A, B"))
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("B, A", "A, B"))
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("1, 2", "A, B"))
+        assertTrue(ExamScoringEngine.areOptionsEquivalent("1, 2", "A, B"))
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("A, 1", "A, A"))
         assertFalse(ExamScoringEngine.isUserAnswerCorrect("A, A", "A, B"))
         assertFalse(ExamScoringEngine.isAnswerKeyVerified("A, A"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("A, 1"))
     }
 
     @Test
