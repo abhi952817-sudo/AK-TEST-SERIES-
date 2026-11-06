@@ -307,6 +307,13 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun testNumericOptionEquivalenceRejectsNonFiniteAndPartialStrings() {
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("Infinity", "Infinity", isNumerical = true))
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("12abc", "12", isNumerical = true))
+        assertTrue(ExamScoringEngine.areOptionsEquivalent("10.0", "10.000", isNumerical = true))
+    }
+
+    @Test
     fun testAnswerKeyValidationRejectsNonFiniteAndMalformedValues() {
         assertTrue(ExamScoringEngine.isAnswerKeyVerified("42.5"))
         assertTrue(ExamScoringEngine.isAnswerKeyVerified("A, C"))
