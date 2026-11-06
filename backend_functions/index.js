@@ -1,5 +1,6 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 admin.initializeApp();
 
 const db = admin.firestore();
@@ -10,6 +11,11 @@ const {
   getExamEligibility,
   normalizeExamKey,
 } = require("./examScoring");
+const {
+  RANKING_CONFIG, resolveRankingWeight, calculateWeightedRankingScore,
+  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds,
+  getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus
+} = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
 exports.normalizeExamKey = normalizeExamKey;
@@ -145,6 +151,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
   const countsTowardRanking = testData.countsTowardRanking === true && (testData.isOfficial === true || testData.isPublic === true);
   const canonicalExam = normalizeExamKey(testData.targetExam || testData.subject || "NEET");
+  const rankingWeight = resolveRankingWeight(testData);
+  const rankingNow = Date.now();
+  const rankingDateKey = getIndiaDateKey(rankingNow);
+  const rankingWeekId = getIndiaWeekId(rankingNow);
+  const rankingPeriodIds = getRankingPeriodIds(rankingNow);
 
   // 4. Load questions and trusted answer keys (Protected Separation)
   let questions = [];
@@ -216,6 +227,10 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const attemptDocId = attemptSessionToken.trim();
   const userRef = db.collection("Users_Data").doc(userId);
   const attemptsRef = userRef.collection("Attempts");
+  const stableUserTestKey = userId + ":" + cleanTestId;
+  const stableKeyHash = crypto.createHash("sha256").update(stableUserTestKey).digest("hex");
+  const firstAttemptLockRef = db.collection("Ranking_Attempt_Locks").doc(stableKeyHash);
+  const xpTransactionRef = db.collection("XP_Transactions").doc(stableKeyHash);
 
   // 5b. Compute population-based percentile on this test if it qualifies for competitive ranking
   let testTotalCandidates = 0;
@@ -292,11 +307,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }
     }
 
-    // Check if user has previously attempted this test
+    // Read a deterministic lock plus legacy attempts. The lock prevents concurrent
+    // first submissions from both being counted as the first valid attempt.
+    const lockSnap = countsTowardRanking ? await transaction.get(firstAttemptLockRef) : null;
     const existingAttemptsSnap = await transaction.get(
       attemptsRef.where("testId", "==", cleanTestId).limit(1)
     );
-    const isFirstAttempt = existingAttemptsSnap.empty;
+    const isFirstAttempt = existingAttemptsSnap.empty && (!lockSnap || !lockSnap.exists);
 
     const userSnap = await transaction.get(userRef);
     if (!userSnap.exists) {
@@ -332,20 +349,10 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const currentTotalScore = userData.totalCumulativeScore || 0;
     let newExamScore = currentExamScore;
 
-    // Full Test vs Part Test weighting for cumulative ranking:
-    // Full Syllabus mock tests = 1.0x; Chapterwise / Topic / Part syllabus tests = 0.2x
-    const testCategory = String(testData.category || testData.testType || "").toLowerCase();
-    const isPartTest = testData.isPartTest === true ||
-      testCategory.includes("chapter") ||
-      testCategory.includes("topic") ||
-      testCategory.includes("subject") ||
-      testCategory.includes("part");
-    
-    const rankingWeight = typeof testData.rankingWeight === "number"
-      ? testData.rankingWeight
-      : (isPartTest ? 0.2 : 1.0);
-    
-    const weightedScore = Math.round(evalResult.finalScore * rankingWeight);
+    // Normalize to a common 10,000-point full-test scale before applying test weight.
+    const weightedScore = calculateWeightedRankingScore(
+      evalResult.finalScore, evalResult.maxScore, rankingWeight
+    );
 
     if (isFirstAttempt && countsTowardRanking) {
       newExamScore = currentExamScore + weightedScore;
@@ -355,7 +362,70 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       updates.totalCumulativeScore = currentTotalScore + weightedScore;
     }
 
+    // All transaction reads must happen before writes.
+    const xpTransactionSnap = await transaction.get(xpTransactionRef);
+    const shouldAwardXp = isFirstAttempt && !xpTransactionSnap.exists;
+    const xpAward = shouldAwardXp ? calculateXpAward(evalResult.correctCount) : 0;
+    const currentXpTotal = Number(userData.xpTotal || 0);
+    const currentWeekXp = userData.xpWeekId === rankingWeekId ? Number(userData.xpThisWeek || 0) : 0;
+    const previousActivityDate = String(userData.lastActivityDateIST || "");
+    const yesterdayDateKey = getIndiaDateKey(rankingNow - 86400000);
+    const currentStreak = previousActivityDate === rankingDateKey
+      ? Number(userData.currentStreak || 0)
+      : (previousActivityDate === yesterdayDateKey ? Number(userData.currentStreak || 0) + 1 : 1);
+    const newXpTotal = currentXpTotal + xpAward;
+    const newWeekXp = currentWeekXp + xpAward;
+
+    let halfPeriodRef = null;
+    let monthPeriodRef = null;
+    let halfPeriodSnap = null;
+    let monthPeriodSnap = null;
+    if (countsTowardRanking && isFirstAttempt) {
+      halfPeriodRef = db.collection("Ranking_Periods").doc(canonicalExam)
+        .collection("Periods").doc(rankingPeriodIds.halfMonthId)
+        .collection("Entries").doc(userId);
+      monthPeriodRef = db.collection("Ranking_Periods").doc(canonicalExam)
+        .collection("Periods").doc(rankingPeriodIds.monthId)
+        .collection("Entries").doc(userId);
+      halfPeriodSnap = await transaction.get(halfPeriodRef);
+      monthPeriodSnap = await transaction.get(monthPeriodRef);
+    }
+
+    if (shouldAwardXp) {
+      updates.xpTotal = newXpTotal;
+      updates.xpThisWeek = newWeekXp;
+      updates.xpWeekId = rankingWeekId;
+      updates.currentStreak = currentStreak;
+      updates.longestStreak = Math.max(Number(userData.longestStreak || 0), currentStreak);
+      updates.lastActivityDateIST = rankingDateKey;
+      updates.xpLeague = getLeagueForXp(newXpTotal);
+    }
+
     transaction.update(userRef, updates);
+
+    if (countsTowardRanking && isFirstAttempt) {
+      transaction.create(firstAttemptLockRef, {
+        userId, testId: cleanTestId, examId: canonicalExam,
+        attemptId: attemptDocId, lockedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    if (shouldAwardXp) {
+      transaction.create(xpTransactionRef, {
+        userId, testId: cleanTestId, attemptId: attemptDocId,
+        type: "FIRST_TEST_COMPLETION", xp: xpAward, correctCount: evalResult.correctCount,
+        weekId: rankingWeekId, activityDateIST: rankingDateKey,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      transaction.set(db.collection("XP_Leaderboard_AllTime").doc("Entries").collection("Students").doc(userId), {
+        userId, displayName: userData.name || "Student", xpTotal: newXpTotal,
+        xpLeague: getLeagueForXp(newXpTotal), updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      transaction.set(db.collection("XP_Leaderboard_Weekly").doc(rankingWeekId).collection("Entries").doc(userId), {
+        userId, displayName: userData.name || "Student", xp: newWeekXp,
+        weekId: rankingWeekId, updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
 
     const qualifyingTests = updates[examQCountKey] !== undefined
       ? updates[examQCountKey]
@@ -363,6 +433,32 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     const isEligible = qualifyingTests >= 2;
     const competitiveScore = updates[examScoreKey] !== undefined ? updates[examScoreKey] : currentExamScore;
+
+    if (countsTowardRanking && isFirstAttempt) {
+      const periodBase = {
+        userId, displayName: userData.name || "Student", targetExam: canonicalExam,
+        scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      const previousHalf = halfPeriodSnap && halfPeriodSnap.exists ? halfPeriodSnap.data() : {};
+      const previousMonth = monthPeriodSnap && monthPeriodSnap.exists ? monthPeriodSnap.data() : {};
+      const halfCount = Number(previousHalf.qualifyingTestsCount || 0) + 1;
+      const monthCount = Number(previousMonth.qualifyingTestsCount || 0) + 1;
+      transaction.set(halfPeriodRef, {
+        ...periodBase,
+        rankingScore: Number(previousHalf.rankingScore || 0) + weightedScore,
+        qualifyingTestsCount: halfCount,
+        isEligibleForRanking: halfCount >= RANKING_CONFIG.minQualifyingTests,
+        periodType: "HALF_MONTH", periodId: rankingPeriodIds.halfMonthId
+      }, { merge: true });
+      transaction.set(monthPeriodRef, {
+        ...periodBase,
+        rankingScore: Number(previousMonth.rankingScore || 0) + weightedScore,
+        qualifyingTestsCount: monthCount,
+        isEligibleForRanking: monthCount >= RANKING_CONFIG.minQualifyingTests,
+        periodType: "MONTH", periodId: rankingPeriodIds.monthId
+      }, { merge: true });
+    }
 
     // Persist detailed authoritative attempt record in Attempts collection
     const attemptRecord = {
@@ -388,6 +484,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       attemptSessionToken: attemptDocId,
       isFirstAttempt,
       countsTowardRanking,
+      rankingWeight: countsTowardRanking ? rankingWeight : 0,
+      normalizedRankingPoints: countsTowardRanking && isFirstAttempt ? weightedScore : 0,
+      xpAwarded: shouldAwardXp ? xpAward : 0,
       verifiedServerSide: true,
       authoritativeScore: evalResult.finalScore,
       submittedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -425,6 +524,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         totalTestsAttempted: updates.totalTestsAttempted || totalTests + 1,
         qualifyingTestsCount: qualifyingTests,
         isEligibleForRanking: isEligible,
+        scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
+        rankingWeightVersion: RANKING_CONFIG.version,
+        profileVisibility: userData.profileVisibility || "PUBLIC",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
     } else if (userData[examQCountKey] && userData[examQCountKey] >= 2) {
@@ -456,6 +558,14 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
       isFirstAttempt,
       countsTowardRanking,
+      rankingWeight: countsTowardRanking ? rankingWeight : 0,
+      normalizedRankingPoints: countsTowardRanking && isFirstAttempt ? weightedScore : 0,
+      xpAwarded: shouldAwardXp ? xpAward : 0,
+      xpTotal: newXpTotal,
+      xpThisWeek: newWeekXp,
+      xpLeague: getLeagueForXp(newXpTotal),
+      currentStreak: shouldAwardXp ? currentStreak : Number(userData.currentStreak || 0),
+      rankingPeriodIds: countsTowardRanking && isFirstAttempt ? rankingPeriodIds : null,
     };
   });
 });
@@ -546,10 +656,17 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   // Standard Competition Percentile Formula:
   // P = ((N - rank + 1) / N) * 100
-  const percentile = calculatePopulationPercentile(rank, totalEligible);
+  const equalSnap = await db.collection("Leaderboard")
+    .where("targetExam", "==", canonicalExam)
+    .where("isEligibleForRanking", "==", true)
+    .where("score", "==", competitiveScore)
+    .count().get();
+  const equalCount = equalSnap.data().count;
+  const belowCount = Math.max(0, totalEligible - higherCount - equalCount);
+  const percentile = calculatePercentileFromCounts(belowCount, equalCount, totalEligible);
 
-  const isOfficialAir = false; // Platform rankings are never disguised as official national AIR
-  const status = totalEligible >= 50 ? "Platform Rank" : "Provisional Rank";
+  const rankingStatus = getRankingStatus(totalEligible);
+  const isOfficialAir = rankingStatus.isOfficialAkAir; // AK platform AIR, never NTA national AIR
 
   // Next target motivation
   let nextTarget = null;
@@ -564,7 +681,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
     if (!higherDocsSnap.empty) {
       const targetDoc = higherDocsSnap.docs[0].data();
       const targetScore = targetDoc.score || 0;
-      const ptsAway = (targetScore - competitiveScore) + 1;
+      const ptsAway = Math.max(0, targetScore - competitiveScore);
       const name = targetDoc.displayName || "Student";
       nextTarget = { name, rank: rank - 1, ptsAway };
     }
@@ -578,8 +695,11 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   return {
     isEligible: true,
-    status,
+    status: rankingStatus.status,
+    rankLabel: rankingStatus.rankLabel,
     isOfficialAir,
+    isOfficialAkAir: rankingStatus.isOfficialAkAir,
+    rankingScope: "AK_TEST_SERIES",
     rank,
     rankString: `#${rank}`,
     percentile,
