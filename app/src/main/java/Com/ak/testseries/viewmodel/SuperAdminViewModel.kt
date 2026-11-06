@@ -17,28 +17,28 @@ data class AdminDashboardState(
     val totalUsersCount: String = "00",
     val totalUsersTrendPercent: String = "+0%",
     
-    val activeUsersCount: String = "00",
-    val activeUsersTrendPercent: String = "+0%",
+    val activeUsersCount: String = "—",
+    val activeUsersTrendPercent: String = "—",
     
     val totalTestsCount: String = "00",
     val totalTestsTrendPercent: String = "+0%",
     
-    val totalAttemptsCount: String = "00",
-    val totalAttemptsTrendPercent: String = "+0%",
+    val totalAttemptsCount: String = "—",
+    val totalAttemptsTrendPercent: String = "—",
     
-    val aiQueueCount: String = "0",
-    val pendingReviewCount: String = "0",
-    val serverStatus: String = "Online",
+    val aiQueueCount: String = "—",
+    val pendingReviewCount: String = "—",
+    val serverStatus: String = "Not verified",
     
     val analyticsTimeframe: String = "Monthly",
     
-    val usedStorageGB: String = "0.0",
-    val totalStorageGB: String = "10.0",
+    val usedStorageGB: String = "—",
+    val totalStorageGB: String = "—",
     val storagePercentage: Float = 0f,
-    val storagePercentageText: String = "0%",
+    val storagePercentageText: String = "Unavailable",
     
-    val adRevenueAmount: String = "$0.0",
-    val adRevenueTrend: String = "+0%",
+    val adRevenueAmount: String = "Not configured",
+    val adRevenueTrend: String = "—",
     
     val recentActivities: List<RecentActivity> = emptyList(),
     val errorMessage: String? = null,
@@ -107,13 +107,13 @@ class SuperAdminViewModel : ViewModel() {
                     addLog("Firestore", "Failed to connect to Tests_Data: ${e.message}", true)
                 }
                 
-                // Gemini API Health Check Simulation
-                addLog("Gemini API", "Status check: Gemini API connected.", false)
-                addLog("Gemini API", "Model generation engine active and healthy.", false)
+                // AI provider health is intentionally not reported as healthy here.
+                // A real authenticated provider health check is not wired into this dashboard yet.
+                addLog("Gemini API", "Health status not verified by a live provider check.", true)
 
                 _uiState.value = _uiState.value.copy(
                     totalUsersCount = usersCount.toString(),
-                    activeUsersCount = (usersCount / 2).toString(), 
+                    activeUsersCount = "—", 
                     totalTestsCount = testsCount.toString(),
                     errorMessage = if (logs.any { it.isError }) "System reported errors. Check logs." else null,
                     systemLogs = logs
