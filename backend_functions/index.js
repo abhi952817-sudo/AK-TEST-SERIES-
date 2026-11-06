@@ -675,11 +675,14 @@ async function rebuildRankingV2ForUser(userId) {
   ]);
   const byAttemptId = new Map();
   [...upperSnap.docs, ...lowerSnap.docs].forEach(doc => byAttemptId.set(doc.id, doc.data()));
-  const attempts = [...byAttemptId.values()].sort((a, b) => {
-    const time = value => value && typeof value.toMillis === "function"
-      ? value.toMillis() : Number(value && (value.dateTaken || value.submittedAt) || 0);
-    return time(a) - time(b);
-  });
+  const attemptTime = attempt => {
+    const value = attempt && (attempt.submittedAt || attempt.dateTaken);
+    if (value && typeof value.toMillis === "function") return value.toMillis();
+    if (typeof value === "number" && Number.isFinite(value)) return value < 100000000000 ? value * 1000 : value;
+    const parsed = Date.parse(String(value || ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const attempts = [...byAttemptId.values()].sort((a, b) => attemptTime(a) - attemptTime(b));
   const seenTests = new Set();
   const exams = new Map();
   const periods = new Map();
@@ -710,9 +713,7 @@ async function rebuildRankingV2ForUser(userId) {
     aggregate.maxSingleScore = Math.max(aggregate.maxSingleScore, rawScore);
     exams.set(examId, aggregate);
 
-    const timestamp = attempt.submittedAt && typeof attempt.submittedAt.toMillis === "function"
-      ? attempt.submittedAt.toMillis()
-      : Number(attempt.dateTaken || Date.now());
+    const timestamp = attemptTime(attempt) || Date.now();
     const periodIds = getRankingPeriodIds(timestamp);
     for (const item of [
       { type: "HALF_MONTH", id: periodIds.halfMonthId },
