@@ -296,6 +296,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     val leaderboardExamFilter = MutableStateFlow("NEET")
 
+    private val _rankingMigrationCursor = MutableStateFlow("")
+    private val _rankingMigrationStatus = MutableStateFlow("Not started")
+    val rankingMigrationStatus: StateFlow<String> = _rankingMigrationStatus.asStateFlow()
+    private val _rankingMigrationHasMore = MutableStateFlow(true)
+    val rankingMigrationHasMore: StateFlow<Boolean> = _rankingMigrationHasMore.asStateFlow()
+    private val _rankingMigrationRunning = MutableStateFlow(false)
+    val rankingMigrationRunning: StateFlow<Boolean> = _rankingMigrationRunning.asStateFlow()
+
     private val _rankingPeriodLeaderboard = MutableStateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>>(emptyList())
     val rankingPeriodLeaderboard: StateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>> = _rankingPeriodLeaderboard.asStateFlow()
     private val _rankingPeriodTopThree = MutableStateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>>(emptyList())
@@ -588,6 +596,37 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private var leaderboardListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+    fun runRankingV2MigrationBatch(limit: Int = 10) {
+        if (_rankingMigrationRunning.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _rankingMigrationRunning.value = true
+            _rankingMigrationStatus.value = "Running migration batch..."
+            try {
+                val args = mutableMapOf<String, Any>("limit" to limit.coerceIn(1, 10))
+                if (_rankingMigrationCursor.value.isNotBlank()) args["cursor"] = _rankingMigrationCursor.value
+                val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                    .getHttpsCallable("rebuildRankingV2Batch")
+                val result = callable.call(args).await()
+                val payload = result.data as? Map<*, *> ?: emptyMap<Any, Any>()
+                val processed = (payload["processed"] as? Number)?.toInt() ?: 0
+                val cursor = payload["nextCursor"] as? String ?: ""
+                val hasMore = payload["hasMore"] as? Boolean ?: false
+                _rankingMigrationCursor.value = cursor
+                _rankingMigrationHasMore.value = hasMore
+                _rankingMigrationStatus.value = if (hasMore) {
+                    "Processed $processed users. More batches remain. Continue to the next batch."
+                } else {
+                    "Migration complete. Processed final batch of $processed users."
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "Ranking v2 migration failed", e)
+                _rankingMigrationStatus.value = "Migration failed: ${e.message ?: "Unknown error"}"
+            } finally {
+                _rankingMigrationRunning.value = false
+            }
+        }
+    }
 
     fun fetchRankingPeriodLeaderboard(periodType: String = "HALF_MONTH") {
         val cleanType = if (periodType.equals("MONTH", ignoreCase = true)) "MONTH" else "HALF_MONTH"
