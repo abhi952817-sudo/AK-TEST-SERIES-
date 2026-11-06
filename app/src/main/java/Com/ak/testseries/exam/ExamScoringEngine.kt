@@ -69,8 +69,6 @@ object ExamScoringEngine {
         if (u.isEmpty() || c.isEmpty()) return false
         if (areOptionsEquivalent(u, c, isNumerical)) return true
 
-        // Multi-answer equivalence was fully checked above, including aliases and duplicate rejection.
-        if (c.contains(",")) return false
         return false
     }
 
