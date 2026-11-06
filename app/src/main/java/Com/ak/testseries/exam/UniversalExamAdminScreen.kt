@@ -172,7 +172,12 @@ fun UniversalExamAdminScreen(
                                 extractedQuestions.addAll(results)
                                 isProcessing = false
                                 selectedTab = 2 // Move to review
-                                Toast.makeText(context, "Extracted ${results.size} questions successfully!", Toast.LENGTH_SHORT).show()
+                                val resultMessage = if (results.isEmpty()) {
+                                    "No valid questions extracted. No placeholder questions were generated; check PDF/OCR quality."
+                                } else {
+                                    "Extracted ${results.size} questions. All require Admin verification before approval."
+                                }
+                                Toast.makeText(context, resultMessage, Toast.LENGTH_LONG).show()
                             } catch (e: Exception) {
                                 isProcessing = false
                                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
