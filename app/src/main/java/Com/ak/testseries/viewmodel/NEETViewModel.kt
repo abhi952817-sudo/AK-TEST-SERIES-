@@ -7365,7 +7365,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         status = "Private",
                         countsTowardRanking = false
                     )
-                    repository.updateTest(updated)
                     firestoreDb.collection("Tests_Data").document(testId).set(
                         mapOf(
                             "isPublic" to false,
@@ -7374,6 +7373,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         ),
                         com.google.firebase.firestore.SetOptions.merge()
                     ).await()
+                    repository.updateTest(updated)
                 }
 
                 logAdminAudit(
