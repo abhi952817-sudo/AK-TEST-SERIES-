@@ -155,7 +155,7 @@ object UniversalPdfPipeline {
 
                 // Call Gemini API if key is available
                 var batchModels: List<UniversalQuestionModel>? = null
-                if (!effectiveApiKey.isNullOrBlank()) {
+                if (!effectiveApiKey.isNullOrBlank() && compactMarkdown.isNotBlank()) {
                     val apiResult = callGeminiApi(effectiveApiKey, prompt, systemInstruction)
                     if (apiResult != null) {
                         val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Gemini API Generation"
@@ -172,7 +172,7 @@ object UniversalPdfPipeline {
                     }
                 }
 
-                // If API call succeeded, add parsed models; otherwise generate structured fallback
+                // Only call the model when actual PDF text was extracted; never invent a paper from an empty/unreadable PDF.
                 if (!batchModels.isNullOrEmpty()) {
                     var finalBatch = batchModels
                     val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
