@@ -634,12 +634,12 @@ async function rebuildRankingV2ForUser(userId) {
   for (const attempt of attempts) {
     const testId = String(attempt.testId || "");
     if (!testId || seenTests.has(testId)) continue;
-    seenTests.add(testId);
     if (attempt.verifiedServerSide !== true || attempt.countsTowardRanking !== true) continue;
 
     const rawScore = Number(attempt.authoritativeScore !== undefined ? attempt.authoritativeScore : attempt.score);
     const maxScore = Number(attempt.maxScore);
     if (!Number.isFinite(rawScore) || !Number.isFinite(maxScore) || maxScore <= 0) continue;
+    seenTests.add(testId);
 
     let testData = {};
     let testSnap = await db.collection("Tests_Data").doc(testId).get();
@@ -797,6 +797,23 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   const eligibility = getExamEligibility(userData, canonicalExam);
   const qualifyingCount = eligibility.qualifyingCount;
   const competitiveScore = eligibility.competitiveScore;
+
+  if (qualifyingCount >= RANKING_CONFIG.minQualifyingTests) {
+    const materializedEntry = await db.collection("Exam_Leaderboards").doc(canonicalExam)
+      .collection("Entries").doc(userId).get();
+    if (!materializedEntry.exists) {
+      return {
+        isEligible: false, status: "Ranking Migration Pending",
+        rank: 0, rankString: "Pending", percentile: 0.0,
+        competitiveScore, qualifyingTestsCount: qualifyingCount,
+        minQualifyingTests: RANKING_CONFIG.minQualifyingTests,
+        totalEligible: 0, isOfficialAir: false, isOfficialAkAir: false,
+        rankingScope: "AK_TEST_SERIES",
+        message: "Your previous qualifying attempts are waiting for the v2 ranking migration. Your scores have not been discarded.",
+        targetExam: canonicalExam
+      };
+    }
+  }
 
   // Query eligible participant population for this specific exam
   const eligibleQuery = db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
