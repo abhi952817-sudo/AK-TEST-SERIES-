@@ -184,9 +184,27 @@ fun UniversalExamAdminScreen(
                     questions = extractedQuestions,
                     examConfig = selectedExam,
                     onApprove = { q ->
-                        val idx = extractedQuestions.indexOf(q)
+                        val idx = extractedQuestions.indexOfFirst { it.questionId == q.questionId }
                         if (idx != -1) {
-                            extractedQuestions[idx] = q.copy(validationStatus = ValidationStatus.APPROVED)
+                            val validation = QuestionValidationEngine.validateQuestion(
+                                questionText = q.questionText,
+                                options = q.options,
+                                correctAnswer = q.correctAnswer,
+                                explanation = q.explanation,
+                                hasDiagramAttached = !q.diagramUrl.isNullOrBlank(),
+                                sourceAnswer = q.sourceAnswer,
+                                questionType = q.questionType,
+                                expectedOptionCount = selectedExam.defaultOptionCount
+                            )
+                            extractedQuestions[idx] = q.copy(
+                                validationStatus = validation.status,
+                                qualityScore = validation.qualityScore,
+                                qualityMetrics = validation.qualityMetrics,
+                                validationReasons = validation.issues
+                            )
+                            if (validation.status != ValidationStatus.APPROVED) {
+                                Toast.makeText(context, "Source answer mismatch or other validation issue. Question was not approved.", Toast.LENGTH_LONG).show()
+                            }
                         }
                     },
                     onReject = { q ->
@@ -200,10 +218,8 @@ fun UniversalExamAdminScreen(
                             onOpenPdfCropper(pdfUri!!, maxOf(0, q.sourcePage - 1)) { croppedImageUrl ->
                                 val idx = extractedQuestions.indexOf(q)
                                 if (idx != -1) {
-                                    extractedQuestions[idx] = q.copy(
-                                        diagramUrl = croppedImageUrl,
-                                        validationStatus = ValidationStatus.APPROVED
-                                    )
+                                    // Attaching an image is not answer verification; preserve review status.
+                                    extractedQuestions[idx] = q.copy(diagramUrl = croppedImageUrl)
                                     Toast.makeText(context, "Diagram linked to question!", Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -462,7 +478,7 @@ fun QuestionReviewTab(
                 items(questions) { q ->
                     QuestionReviewCard(
                         question = q,
-                        onApprove = { onApprove(q) },
+                        onApprove = { reviewedQuestion -> onApprove(reviewedQuestion) },
                         onReject = { onReject(q) },
                         onAttachDiagram = { onAttachDiagram(q) }
                     )
@@ -475,7 +491,7 @@ fun QuestionReviewTab(
 @Composable
 fun QuestionReviewCard(
     question: UniversalQuestionModel,
-    onApprove: () -> Unit,
+    onApprove: (UniversalQuestionModel) -> Unit,
     onReject: () -> Unit,
     onAttachDiagram: () -> Unit,
     onEdit: () -> Unit = {},
@@ -483,6 +499,7 @@ fun QuestionReviewCard(
     onRegenerateExplanation: () -> Unit = {},
     onRemoveDiagram: () -> Unit = {}
 ) {
+    var sourceAnswerDraft by remember(question.questionId) { mutableStateOf(question.sourceAnswer.orEmpty()) }
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -648,6 +665,15 @@ fun QuestionReviewCard(
 
             Spacer(modifier = Modifier.height(6.dp))
             Text("Explanation: ${question.explanation}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = sourceAnswerDraft,
+                onValueChange = { sourceAnswerDraft = it },
+                label = { Text("Trusted source answer (from answer key)") },
+                supportingText = { Text("Enter the answer from the PDF answer key / verified source before approval.") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             if (question.diagramUrl != null) {
                 Spacer(modifier = Modifier.height(6.dp))
@@ -666,7 +692,8 @@ fun QuestionReviewCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = onApprove,
+                    onClick = { onApprove(question.copy(sourceAnswer = sourceAnswerDraft.trim())) },
+                    enabled = sourceAnswerDraft.isNotBlank(),
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                     shape = RoundedCornerShape(8.dp)
