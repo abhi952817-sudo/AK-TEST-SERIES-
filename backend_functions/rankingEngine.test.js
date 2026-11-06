@@ -102,4 +102,6 @@ test("ranking rejects scoring results with ungraded or invalid marks", () => {
   assert.equal(isEligibleScoringResult({ finalScore: 11, maxScore: 10, ungradedCount: 0 }), false);
   assert.equal(isEligibleScoringResult({ finalScore: 0, maxScore: 0, ungradedCount: 0 }), false);
   assert.equal(isEligibleScoringResult({ finalScore: NaN, maxScore: 10, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 3, maxScore: 10 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 3, maxScore: 10, ungradedCount: -1 }), false);
 });
