@@ -499,6 +499,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             val eligibleQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
                                 .collection("Entries")
                                 .whereEqualTo("isEligibleForRanking", true)
+                                .whereEqualTo("isBanned", false)
                             val eligibleSnapshot = eligibleQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
                             val totalEligible = eligibleSnapshot.count.toInt()
                             _eligibleParticipantsCount.value = totalEligible
@@ -554,6 +555,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                         val higherUsersQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
                                             .collection("Entries")
                                             .whereEqualTo("isEligibleForRanking", true)
+                                            .whereEqualTo("isBanned", false)
                                             .whereGreaterThan("score", competitiveScore)
                                             .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
                                             .limit(1)
