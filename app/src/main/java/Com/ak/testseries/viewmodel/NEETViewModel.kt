@@ -6737,12 +6737,37 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!isAdmin) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                if (questions.isEmpty()) {
+                    android.util.Log.w("NEETViewModel", "Universal publish blocked: no questions supplied.")
+                    return@launch
+                }
+                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examName)
+                val invalidQuestions = questions.filter { question ->
+                    if (question.validationStatus != Com.ak.testseries.exam.ValidationStatus.APPROVED || question.sourceAnswer.isNullOrBlank()) {
+                        true
+                    } else {
+                        val verification = Com.ak.testseries.exam.QuestionValidationEngine.validateQuestion(
+                            questionText = question.questionText,
+                            options = question.options,
+                            correctAnswer = question.correctAnswer,
+                            explanation = question.explanation,
+                            hasDiagramAttached = !question.diagramUrl.isNullOrBlank(),
+                            sourceAnswer = question.sourceAnswer,
+                            questionType = question.questionType,
+                            expectedOptionCount = examConfig?.defaultOptionCount ?: question.options.size.coerceIn(4, 5)
+                        )
+                        verification.status != Com.ak.testseries.exam.ValidationStatus.APPROVED
+                    }
+                }
+                if (invalidQuestions.isNotEmpty()) {
+                    android.util.Log.e("NEETViewModel", "Universal publish blocked: ${invalidQuestions.size} question(s) are not independently verified.")
+                    return@launch
+                }
                 val testId = "universal_${System.currentTimeMillis()}"
                 
                 val subjectStr = questions.firstOrNull()?.subjectId?.replaceFirstChar { it.uppercase() } ?: "General"
                 val diffStr = questions.firstOrNull()?.difficulty?.name ?: "Medium"
                 
-                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examName)
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
                     title = "$examName - Universal Mock Test",
