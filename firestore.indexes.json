@@ -97,6 +97,40 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "xp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Students",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "xpTotal",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
