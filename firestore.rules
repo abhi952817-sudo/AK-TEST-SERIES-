@@ -36,13 +36,28 @@ service cloud.firestore {
     }
 
     // Helper: verifies that only safe, non-privileged student profile fields can be modified
+    function isValidProfileVisibility(data) {
+      return !data.keys().hasAny(['profileVisibility'])
+        || data.get('profileVisibility', 'PUBLIC') == null
+        || data.get('profileVisibility', 'PUBLIC') in ['PUBLIC', 'PRIVATE'];
+    }
+
+    function isValidClassLevel(data) {
+      return !data.keys().hasAny(['classLevel'])
+        || data.get('classLevel', 'All') == null
+        || data.get('classLevel', 'All') in [
+          '', 'All', '11', '11th', 'Class 11', 'Class 11th', 'CLASS_11',
+          '12', '12th', 'Class 12', 'Class 12th', 'CLASS_12', 'Dropper', 'Repeater'
+        ];
+    }
+
     function isAllowedStudentProfileKeys(keysList) {
       return keysList.hasOnly([
         'uid', 'name', 'displayName', 'email', 'phoneNumber', 'stateName', 'cityName',
         'profileImageUri', 'targetExam', 'averageScore', 'totalTestsAttempted',
         'bookmarkedTests', 'bookmarkedQuestions', 'joinedAt',
         'lastBackupAt', 'createdAt', 'updatedAt', 'lastActive', 'batch', 'institute',
-        'fcmToken', 'language', 'theme', 'selectedLanguage'
+        'fcmToken', 'language', 'theme', 'selectedLanguage', 'profileVisibility', 'classLevel'
       ]);
     }
 
@@ -72,10 +87,15 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin();
 
       // Students can create their own profile with permitted non-authoritative fields only
-      allow create: if (isOwner(userId) && isAllowedStudentProfileKeys(request.resource.data.keys())) || isAdmin();
+      allow create: if (isOwner(userId) && isAllowedStudentProfileKeys(request.resource.data.keys())
+                      && isValidProfileVisibility(request.resource.data)
+                      && isValidClassLevel(request.resource.data)) || isAdmin();
 
       // Students can update only whitelisted non-authoritative fields, blocking any spoofing of scores, ranks, bans or roles
-      allow update: if (isOwner(userId) && isAllowedStudentProfileKeys(request.resource.data.diff(resource.data).affectedKeys()))
+      allow update: if (isOwner(userId)
+                      && isAllowedStudentProfileKeys(request.resource.data.diff(resource.data).affectedKeys())
+                      && isValidProfileVisibility(request.resource.data)
+                      && isValidClassLevel(request.resource.data))
                     || isAdmin();
 
       allow delete: if isAdmin();
@@ -356,6 +376,45 @@ service cloud.firestore {
     // =========================================================================
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // =========================================================================
+    // AK RANKING ENGINE V2: isolated exam boards, periods, user ranks and XP.
+    // Clients may read public leaderboards; all writes remain Admin SDK only.
+    // =========================================================================
+    match /Exam_Leaderboards/{examId}/Entries/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /User_Ranks/{userId}/Exams/{examId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /Ranking_Periods/{examId}/Periods/{periodId}/Entries/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /Ranking_Attempt_Locks/{lockId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /XP_Transactions/{transactionId} {
+      allow read: if isAuthenticated()
+        && (resource.data.get('userId', '') == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /XP_Leaderboard_AllTime/{entryDoc}/Students/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /XP_Leaderboard_Weekly/{weekId}/Entries/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
   }
 }

@@ -268,6 +268,7 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   let maxPossible = 0.0;
 
   const sectionAttemptCounts = {};
+  const sectionQuestionCounts = {};
 
   for (const q of questions) {
     const qId = q.id;
@@ -280,7 +281,14 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
       ? getMarkingSchemeForQuestion(exam, q.section, q.subject, q.questionType)
       : baseScheme;
 
-    maxPossible += scheme.pos;
+    const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
+    const secLimit = getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
+    const seenSectionQuestions = sectionQuestionCounts[secKey] || 0;
+    // Maximum marks must respect optional-section attempt caps, not every printed question.
+    if (secLimit === null || seenSectionQuestions < secLimit) {
+      maxPossible += scheme.pos;
+    }
+    sectionQuestionCounts[secKey] = seenSectionQuestions + 1;
 
     const isTitaOrNumerical = (q.questionType || "").toUpperCase() === "TITA" ||
       (q.questionType || "").toUpperCase() === "NUMERICAL" ||
@@ -291,8 +299,6 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     if (!userOpt || userOpt === "SKIPPED") {
       unansweredCount++;
     } else {
-      const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
-      const secLimit = getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
       const currentAttempts = sectionAttemptCounts[secKey] || 0;
 
       if (secLimit !== null && currentAttempts >= secLimit) {

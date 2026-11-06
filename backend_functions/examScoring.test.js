@@ -96,6 +96,7 @@ test("Section B optional limit: surplus questions are ignored", () => {
   assert.strictEqual(result.correctCount, 10);
   assert.strictEqual(result.unansweredCount, 2);
   assert.strictEqual(result.finalScore, 40.0);
+  assert.strictEqual(result.maxScore, 40.0, "NEET Section B maximum must cap at 10 questions");
 });
 
 test("CAT TITA questions have zero negative penalty", () => {

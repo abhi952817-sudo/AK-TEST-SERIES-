@@ -348,3 +348,60 @@
 - **Phase 7.6 Status**: **PASS — BAN ENFORCEMENT VERIFIED**.
 
 
+
+
+---
+
+## Phase RANKING V2 — Exam AIR, Period Rankings, XP League & Migration
+
+**Implementation branch:** `feature/ranking-engine-v2-2026-11-06`  
+**Base branch:** `main`  
+**Scope:** AK Test Series ranking only. This work is isolated from the production/default branch.
+
+### Implemented in the development branch
+
+- Added `backend_functions/rankingEngine.js` with deterministic ranking helpers and unit tests in `rankingEngine.test.js`.
+- Normalized each qualifying test against its own maximum marks before applying weight:
+  - Full Test: 1.0x.
+  - Part / Chapter / Topic Test: 0.2x.
+  - Normalized base: 10,000 points per full-test-equivalent.
+- Fixed the backend maximum-mark calculation for optional NEET/JEE Section B questions so unattempted surplus questions do not inflate the denominator.
+- Preserved exam isolation using `Exam_Leaderboards/{examId}/Entries/{uid}`; legacy raw-mark `Leaderboard` records are not mixed into the v2 rank calculation.
+- Added deterministic first-attempt lock documents to prevent concurrent duplicate first-attempt scoring.
+- Added `User_Ranks/{uid}/Exams/{examId}`, `Ranking_Periods`, and ranking history materializations.
+- Added 15-day half-month and monthly ranking cohorts. A period participant needs at least two qualifying tests within that period.
+- Added tie-aware competition rank and percentile calculations.
+- The 1,000-participant threshold now means **Official AK AIR within AK Test Series**, never an NTA-issued national AIR.
+- Added XP as a separate engine. Default award policy: 10 XP for first test completion plus 2 XP per correct answer, capped at 370 XP per test; one award per user/test.
+- Added IST-based weekly XP periods, activity streaks, lifetime XP, and five non-overlapping leagues:
+  - Rookie: 0–500
+  - Scholar: 501–2,000
+  - Elite: 2,001–5,000
+  - Master: 5,001–10,000
+  - Conqueror: 10,001+
+- Added callable APIs: `getExamLeaderboard`, `getRankingPeriodLeaderboard`, `getXpLeaderboard`, and admin-only `rebuildRankingV2Batch`.
+- Added an idempotent admin-only migration that rebuilds v2 exam totals, User_Ranks, half-month boards, and monthly boards from server-verified first qualifying attempts. Its server-persisted cursor in `Config/Ranking_Migration_State` allows batches to resume after app restarts.
+- Updated Firestore security rules and indexes for v2 boards, period records, user rank privacy, XP ledgers, and server-only writes. Added safe `profileVisibility` validation and a Cloud Function trigger that synchronizes name/privacy/ban changes across public boards.
+- Updated Android ViewModel and Leaderboard UI with Overall / 15 Days / Monthly ranking views, Top 100, class cohort filters (All / 11th / 12th / Dropper), XP League (This Week / All Time), and server-backed XP/streak progress. Added an Admin Ranking System screen to run/resume controlled 10-user migration batches.
+- Private profiles remain in competitive calculations but display as `Private Student` in public boards. Students can switch public/private visibility in Profile; banned users are excluded from AIR, period and XP boards; profile/ban changes propagate to materialized entries.
+
+### Important data-safety decisions
+
+- Existing legacy raw-mark totals are never used as the starting score for v2. New v2 totals are read from the v2 `Exam_Leaderboards` materialized entry only.
+- Legacy attempts are not silently discarded. The admin migration endpoint rebuilds normalized scores from verified attempt records before users receive a v2 rank.
+- If a user has legacy qualifying counts but no v2 materialized entry, the rank endpoint returns `Ranking Migration Pending` rather than inventing a rank.
+- XP does not change exam AIR. VIP or membership status does not alter AIR or XP calculations.
+- No production Firebase deployment, production data migration, or merge into `main` is performed by this branch-only implementation.
+
+### Verification status and remaining release gates
+
+- Added automated ranking-engine tests for normalization, invalid weights, IST periods, XP tiers, ties, percentile, and the 1,000-participant threshold.
+- Added a regression assertion for optional Section B maximum marks.
+- Added Firestore rules tests for v2 public reads, private User_Ranks access, profile visibility validation, and server-only ranking/XP writes.
+- Added `.github/workflows/ranking-v2-validation.yml` to run backend syntax/unit tests, Firestore Emulator rules tests, Android unit tests, and Android debug build on PR/push.
+- Previous GitHub Actions validation (head `9036486644aff4ec256fa1a501a7b38a73f5b04f`): backend syntax checks and all 28 Node scoring/ranking tests passed; Firestore Emulator security rules suite passed all 28 tests; the existing Android CI debug build also passed.
+- Class-cohort support and its new indexes/tests were added after that run. A fresh full validation run is queued for head `e88e09501ee72723d9dbe5616f0980db54c26a0e` (backend, Firestore Emulator, Android unit tests/build). Results must be checked before merge.
+- Keep the PR in draft until backend, Firestore Emulator, Android unit tests, and Android debug build all pass on the latest head.
+- Deploy the updated Cloud Functions, Firestore rules, and indexes only after CI passes and the admin backfill has been reviewed in dry-run / controlled batches.
+- Admin UI for editing ranking policy values and a configurable XP award editor remain a follow-up; current policy defaults are code-versioned.
+- Historical XP/streak backfill is not included; the ranking migration rebuilds exam AIR and period score history only.

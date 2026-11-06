@@ -3105,6 +3105,10 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
     val history by viewModel.attemptHistory.collectAsStateWithLifecycle()
     val testsList by viewModel.testsList.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val isProfilePublic by viewModel.isProfilePublic.collectAsStateWithLifecycle()
+    val profileVisibilityLoaded by viewModel.profileVisibilityLoaded.collectAsStateWithLifecycle()
+    val currentProfileUid by viewModel.currentUserId.collectAsStateWithLifecycle()
+    LaunchedEffect(currentProfileUid) { viewModel.fetchMyRankingProgress(currentProfileUid) }
 
     val folders by viewModel.folders.collectAsStateWithLifecycle()
     val mappings by viewModel.testFolderMappings.collectAsStateWithLifecycle()
@@ -3200,6 +3204,25 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Leaderboard Profile Visibility", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Text(
+                                if (isProfilePublic) "Public name visible on rankings" else "Your name is hidden as Private Student",
+                                fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isProfilePublic,
+                            enabled = profileVisibilityLoaded,
+                            onCheckedChange = { viewModel.updateProfileVisibility(it) }
+                        )
                     }
                 }
             }
@@ -6393,6 +6416,7 @@ fun AdminPanelScreen(viewModel: NEETViewModel) {
                                 Triple(AdminMenu.AI_MANAGER, "AI Manager", Icons.Rounded.AutoAwesome),
                                 Triple(AdminMenu.MONETIZATION, "Monetization", Icons.Rounded.MonetizationOn),
                                 Triple(AdminMenu.DATABASE_CONFIGS, "DB Configs", Icons.Rounded.Storage),
+                                Triple(AdminMenu.RANKING_SYSTEM, "Ranking System", Icons.Rounded.Analytics),
                                 Triple(AdminMenu.NOTIFICATIONS, "Announce", Icons.Rounded.Campaign)
                             )
 
@@ -6496,6 +6520,7 @@ fun AdminPanelScreen(viewModel: NEETViewModel) {
                                 AdminMenu.AI_MANAGER -> AdminAiManagerContent(viewModel)
                                 AdminMenu.MONETIZATION -> AdminMonetizationContent()
                                 AdminMenu.DATABASE_CONFIGS -> AdminDbConfigsContent(viewModel)
+                                AdminMenu.RANKING_SYSTEM -> AdminRankingToolsContent(viewModel)
                                 AdminMenu.USERS_ANALYTICS -> AdminUsersAnalyticsContent(viewModel)
                                 AdminMenu.COMMUNITY_CONTROLS -> Com.ak.testseries.ui.CommunityAdminScreen(viewModel)
                                 AdminMenu.NOTIFICATIONS -> AdminNotificationsContent(viewModel)
@@ -6514,9 +6539,72 @@ enum class AdminMenu {
     AI_MANAGER,
     MONETIZATION,
     DATABASE_CONFIGS,
+    RANKING_SYSTEM,
     USERS_ANALYTICS,
     COMMUNITY_CONTROLS,
     NOTIFICATIONS
+}
+
+@Composable
+fun AdminRankingToolsContent(viewModel: NEETViewModel) {
+    LaunchedEffect(Unit) { viewModel.loadRankingV2MigrationStatus() }
+    val status by viewModel.rankingMigrationStatus.collectAsStateWithLifecycle()
+    val hasMore by viewModel.rankingMigrationHasMore.collectAsStateWithLifecycle()
+    val running by viewModel.rankingMigrationRunning.collectAsStateWithLifecycle()
+    var showMigrationConfirm by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f))
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Text("Ranking Engine V2", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Exam AIR uses normalized weighted scores. XP, streaks and leagues remain separate.",
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(14.dp))
+                Text("Full Test weight: 1.0×", fontWeight = FontWeight.SemiBold)
+                Text("Part / Chapter Test weight: 0.2×", fontWeight = FontWeight.SemiBold)
+                Text("Minimum qualifying tests: 2", fontWeight = FontWeight.SemiBold)
+                Text("Official AK AIR threshold: 1,000 eligible students", fontWeight = FontWeight.SemiBold)
+                Text("Score basis: normalized 10,000-point full-test scale", fontSize = 11.sp)
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Legacy Ranking Migration", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Rebuilds v2 exam totals and period boards from server-verified first qualifying attempts. Run batches in order; this does not deploy Functions or change the main branch.",
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(status, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = { showMigrationConfirm = true },
+                    enabled = !running && hasMore,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (running) "Migration running..." else if (hasMore) "Run next 10-user batch" else "Migration complete")
+                }
+            }
+        }
+    }
+
+    if (showMigrationConfirm) {
+        AlertDialog(
+            onDismissRequest = { showMigrationConfirm = false },
+            title = { Text("Run ranking migration batch?") },
+            text = { Text("This writes normalized ranking records for the next batch of up to 10 users. Run it only after the v2 Cloud Functions and Firestore indexes are deployed and reviewed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMigrationConfirm = false
+                    viewModel.runRankingV2MigrationBatch(10)
+                }) { Text("Run batch") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMigrationConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -7778,6 +7866,7 @@ fun MiniLeaderboardCard(
     val qCount = viewModel?.userQualifyingTestsCount?.collectAsStateWithLifecycle()?.value ?: 0
     val compScore = viewModel?.userCompetitiveScore?.collectAsStateWithLifecycle()?.value ?: 0
     val userPercentile = viewModel?.userPercentile?.collectAsStateWithLifecycle()?.value ?: 0.0
+    val currentUid = viewModel?.currentUserId?.collectAsStateWithLifecycle()?.value ?: ""
 
     val examsList = remember {
         (listOf("All") + Com.ak.testseries.exam.UniversalExamRegistry.getAllExams().map { it.shortName }).distinct()
@@ -7866,8 +7955,8 @@ fun MiniLeaderboardCard(
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = when (userRankStatus) {
-                        "Official AIR" -> Color(0xFFE8F5E9)
-                        "Provisional Rank" -> Color(0xFFFFF3E0)
+                        "Official AK AIR", "Official AK Class Rank" -> Color(0xFFE8F5E9)
+                        "Provisional Rank", "Provisional Class Rank" -> Color(0xFFFFF3E0)
                         else -> Color(0xFFEDE7F6)
                     }
                 ),
@@ -7880,14 +7969,14 @@ fun MiniLeaderboardCard(
                 ) {
                     Icon(
                         imageVector = when (userRankStatus) {
-                            "Official AIR" -> Icons.Rounded.Verified
-                            "Provisional Rank" -> Icons.Rounded.Analytics
+                            "Official AK AIR", "Official AK Class Rank" -> Icons.Rounded.Verified
+                            "Provisional Rank", "Provisional Class Rank" -> Icons.Rounded.Analytics
                             else -> Icons.Rounded.HourglassEmpty
                         },
                         contentDescription = "Status",
                         tint = when (userRankStatus) {
-                            "Official AIR" -> Color(0xFF2E7D32)
-                            "Provisional Rank" -> Color(0xFFE65100)
+                            "Official AK AIR", "Official AK Class Rank" -> Color(0xFF2E7D32)
+                            "Provisional Rank", "Provisional Class Rank" -> Color(0xFFE65100)
                             else -> Color(0xFF512DA8)
                         },
                         modifier = Modifier.size(22.dp)
@@ -7896,20 +7985,22 @@ fun MiniLeaderboardCard(
                     Column {
                         Text(
                             text = when (userRankStatus) {
-                                "Official AIR" -> "🟢 Official AK All India Rank Active"
-                                "Provisional Rank" -> "🟠 Provisional Rank ($eligibleCount / 1,000 candidates for AIR)"
+                                "Official AK AIR" -> "🟢 Official AK AIR Active"
+                                "Official AK Class Rank" -> "🟢 Official AK Class Rank Active"
+                                "Provisional Rank" -> "🟠 Provisional AK AIR ($eligibleCount / 1,000 candidates)"
+                                "Provisional Class Rank" -> "🟠 Provisional Class Rank ($eligibleCount / 1,000 candidates)"
                                 else -> "🟡 Rank Pending (Complete 2 qualifying tests)"
                             },
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             color = when (userRankStatus) {
-                                "Platform Rank" -> Color(0xFF1B5E20)
+                                "Official AK AIR", "Official AK Class Rank" -> Color(0xFF1B5E20)
                                 "Provisional Rank" -> Color(0xFFBF360C)
                                 else -> Color(0xFF311B92)
                             }
                         )
                         Text(
-                            text = "Platform rank across verified test series candidates.",
+                            text = if (userRankStatus.contains("Class")) "Rank within your selected class cohort." else "Rank across eligible candidates in this exam.",
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -8040,7 +8131,7 @@ fun MiniLeaderboardCard(
                 }
             } else {
                 leaderboard.forEach { entry ->
-                    val isCurrentUser = entry.name == userProfile.name
+                    val isCurrentUser = (currentUid.isNotBlank() && entry.uid == currentUid) || entry.name == userProfile.name
                     val badgeColor = when (entry.rank) {
                         1 -> Color(0xFFFFD700)
                         2 -> Color(0xFFC0C0C0)
@@ -8148,14 +8239,21 @@ fun MiniLeaderboardCard(
 fun LeaderboardTabScreen(viewModel: NEETViewModel) {
     val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var rankingPeriodMode by remember { mutableStateOf("ALL_TIME") }
     val attempts by viewModel.attemptHistory.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val selectedExamFilter by viewModel.leaderboardExamFilter.collectAsStateWithLifecycle()
+    val selectedClassFilter by viewModel.leaderboardClassFilter.collectAsStateWithLifecycle()
 
-    LaunchedEffect(selectedExamFilter, userProfile.targetExam) {
+    LaunchedEffect(selectedExamFilter, userProfile.targetExam, selectedClassFilter) {
         val exam = if (selectedExamFilter.isNotBlank()) selectedExamFilter else userProfile.targetExam.ifBlank { "NEET" }
-        viewModel.fetchLeaderboard(exam)
-        viewModel.fetchUserRank(exam)
+        viewModel.fetchLeaderboard(exam, selectedClassFilter)
+        viewModel.fetchUserRank(exam, selectedClassFilter)
+    }
+    LaunchedEffect(rankingPeriodMode, selectedExamFilter, selectedClassFilter) {
+        if (rankingPeriodMode == "HALF_MONTH" || rankingPeriodMode == "MONTH") {
+            viewModel.fetchRankingPeriodLeaderboard(rankingPeriodMode, selectedClassFilter)
+        }
     }
 
     Column(
@@ -8188,15 +8286,173 @@ fun LeaderboardTabScreen(viewModel: NEETViewModel) {
                 onClick = { selectedTabIndex = 1 },
                 text = { Text("📊 My Progress", fontWeight = FontWeight.Bold) }
             )
+            Tab(
+                selected = selectedTabIndex == 2,
+                onClick = { selectedTabIndex = 2 },
+                text = { Text("⚡ XP League", fontWeight = FontWeight.Bold) }
+            )
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        if (selectedTabIndex == 0) {
-            val leaderboard by viewModel.leaderboard.collectAsStateWithLifecycle()
-            MiniLeaderboardCard(selectedLanguage, leaderboard, userProfile, viewModel)
+        when (selectedTabIndex) {
+            0 -> {
+                val leaderboard by viewModel.leaderboard.collectAsStateWithLifecycle()
+                Column {
+                    Text("Class Cohort", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("All", "11th", "12th", "Dropper").forEach { level ->
+                            FilterChip(
+                                selected = selectedClassFilter == level,
+                                onClick = { viewModel.leaderboardClassFilter.value = level },
+                                label = { Text(level) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = rankingPeriodMode == "ALL_TIME", onClick = { rankingPeriodMode = "ALL_TIME" }, label = { Text("Overall") })
+                        FilterChip(selected = rankingPeriodMode == "HALF_MONTH", onClick = { rankingPeriodMode = "HALF_MONTH" }, label = { Text("15 Days") })
+                        FilterChip(selected = rankingPeriodMode == "MONTH", onClick = { rankingPeriodMode = "MONTH" }, label = { Text("Monthly") })
+                    }
+                    if (rankingPeriodMode == "ALL_TIME") {
+                        MiniLeaderboardCard(selectedLanguage, leaderboard, userProfile, viewModel)
+                    } else {
+                        RankingPeriodLeaderboardCard(selectedLanguage, rankingPeriodMode, viewModel)
+                    }
+                }
+            }
+            1 -> MyProgressContent(selectedLanguage, attempts, viewModel)
+            else -> XpLeaderboardContent(selectedLanguage, viewModel)
+        }
+    }
+}
+
+@Composable
+fun RankingPeriodLeaderboardCard(
+    selectedLanguage: AppLanguage,
+    periodMode: String,
+    viewModel: NEETViewModel
+) {
+    val rows by viewModel.rankingPeriodLeaderboard.collectAsStateWithLifecycle()
+    val title = if (periodMode == "MONTH") "Monthly Ranking" else "15-Day Ranking"
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Eligible students need at least 2 qualifying tests in this period.",
+                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(12.dp))
+            if (rows.isEmpty()) {
+                Text("No qualifying period results yet.", modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                rows.forEach { entry ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            when (entry.rank) { 1 -> "🥇 #1"; 2 -> "🥈 #2"; 3 -> "🥉 #3"; else -> "#${entry.rank}" },
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(entry.name, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
+                        Text("${entry.score} pts", fontWeight = FontWeight.SemiBold)
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun XpLeaderboardContent(selectedLanguage: AppLanguage, viewModel: NEETViewModel) {
+    var mode by remember { mutableStateOf("WEEKLY") }
+    val rows by viewModel.xpLeaderboard.collectAsStateWithLifecycle()
+    val xpTotal by viewModel.xpTotal.collectAsStateWithLifecycle()
+    val xpThisWeek by viewModel.xpThisWeek.collectAsStateWithLifecycle()
+    val league by viewModel.xpLeague.collectAsStateWithLifecycle()
+    val streak by viewModel.serverActivityStreak.collectAsStateWithLifecycle()
+    val longestStreak by viewModel.longestActivityStreak.collectAsStateWithLifecycle()
+
+    LaunchedEffect(mode) {
+        viewModel.fetchXpLeaderboard(mode)
+        viewModel.fetchMyRankingProgress()
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("XP Progress", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Lifetime XP", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(xpTotal.toString(), fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("This Week", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(xpThisWeek.toString(), fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("League: $league", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Streak: $streak days", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Best: $longestStreak", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = mode == "WEEKLY",
+                onClick = { mode = "WEEKLY" },
+                label = { Text("This Week") }
+            )
+            FilterChip(
+                selected = mode == "ALL_TIME",
+                onClick = { mode = "ALL_TIME" },
+                label = { Text("All Time") }
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(if (mode == "WEEKLY") "Weekly XP Top 100" else "Lifetime XP Top 100",
+            fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        if (rows.isEmpty()) {
+            Text("No XP leaderboard entries yet. Complete a test to earn your first XP.",
+                modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            MyProgressContent(selectedLanguage, attempts, viewModel)
+            rows.forEach { entry ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("#${entry.rank}", fontWeight = FontWeight.Bold, modifier = Modifier.width(42.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(entry.name, fontWeight = FontWeight.SemiBold)
+                            Text(entry.league.ifBlank { "Learner" }, fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text("${entry.score} XP", fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
         }
     }
 }

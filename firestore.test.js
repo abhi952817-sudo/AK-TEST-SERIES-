@@ -825,3 +825,60 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
 });
 
 
+
+test("Ranking v2: public exam/XP boards are readable but client writes are denied", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await db.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).set({
+      userId: ALICE_UID, targetExam: "NEET", score: 8500, isEligibleForRanking: true
+    });
+    await db.collection("User_Ranks").doc(ALICE_UID).collection("Exams").doc("NEET").set({
+      userId: ALICE_UID, targetExam: "NEET", score: 8500
+    });
+    await db.collection("XP_Leaderboard_Weekly").doc("2026-W45").collection("Entries").doc(ALICE_UID).set({
+      userId: ALICE_UID, xp: 100
+    });
+    await db.collection("XP_Transactions").doc("xp_alice").set({
+      userId: ALICE_UID, xp: 100
+    });
+  });
+
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).set({
+      uid: ALICE_UID, name: "Alice", profileVisibility: "PRIVATE"
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).update({ profileVisibility: "HIDDEN" })
+  );
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).update({ classLevel: "Class 11" })
+  );
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).update({ classLevel: "University" })
+  );
+  await assertSucceeds(
+    aliceDb.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).get()
+  );
+  await assertFails(
+    aliceDb.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).update({ score: 999999 })
+  );
+  await assertSucceeds(
+    aliceDb.collection("User_Ranks").doc(ALICE_UID).collection("Exams").doc("NEET").get()
+  );
+  await assertFails(
+    bobDb.collection("User_Ranks").doc(ALICE_UID).collection("Exams").doc("NEET").get()
+  );
+  await assertSucceeds(
+    aliceDb.collection("XP_Leaderboard_Weekly").doc("2026-W45").collection("Entries").doc(ALICE_UID).get()
+  );
+  await assertFails(
+    aliceDb.collection("XP_Leaderboard_Weekly").doc("2026-W45").collection("Entries").doc(ALICE_UID).update({ xp: 999999 })
+  );
+  await assertSucceeds(aliceDb.collection("XP_Transactions").doc("xp_alice").get());
+  await assertFails(bobDb.collection("XP_Transactions").doc("xp_alice").get());
+  await assertFails(aliceDb.collection("XP_Transactions").doc("xp_forged").set({ userId: ALICE_UID, xp: 999999 }));
+});

@@ -97,6 +97,252 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "xp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Students",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "xpTotal",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rankingScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rankingScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "xp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Students",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "xpTotal",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Attempts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "testId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "countsTowardRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "verifiedServerSide",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "attempts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "testId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "countsTowardRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "verifiedServerSide",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "classLevel",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "classLevel",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isEligibleForRanking",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isBanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "classLevel",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rankingScore",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
