@@ -3,9 +3,9 @@ name: Ranking V2 Validation
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main, feature/ranking-engine-v2-2026-11-06]
+    branches: [main, feature/ranking-engine-v2-2026-11-06, feature/ranking-universal-integration-v1]
   push:
-    branches: [feature/ranking-engine-v2-2026-11-06, feature/universal-exam-scoring-v1-2026-11-06]
+    branches: [feature/ranking-engine-v2-2026-11-06, feature/universal-exam-scoring-v1-2026-11-06, feature/ranking-universal-integration-v1]
 
 jobs:
   backend-unit-tests:
