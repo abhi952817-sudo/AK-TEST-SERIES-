@@ -2360,8 +2360,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qType = qObj.optString("questionType", "MCQ")
                     qClean.put("questionType", qType)
 
-                    val correctAns = qObj.optString("correctAnswer", "").trim()
-                    qClean.put("correctAnswer", correctAns)
 
                     val secId = qObj.optString("section", "SECTION_A")
                     val secName = qObj.optString("sectionName", "Section A")
@@ -2391,8 +2389,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qClean.put("positiveMarks", finalPos)
                     qClean.put("negativeMarks", finalNeg)
 
-                    val exp = qObj.optString("explanation", qObj.optString("explanationEn", "")).trim()
-                    qClean.put("explanation", exp)
 
                     qClean.put("subject", qObj.optString("subject", test.subject))
                     qClean.put("chapter", qObj.optString("chapter", test.chapter))
@@ -2406,7 +2402,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     qObj.optString("questionTextHi").takeIf { it.isNotBlank() }?.let { qClean.put("questionTextHi", it) }
-                    qObj.optString("explanationHi").takeIf { it.isNotBlank() }?.let { qClean.put("explanationHi", it) }
                     qObj.optString("optionAHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionAHi", it) }
                     qObj.optString("optionBHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionBHi", it) }
                     qObj.optString("optionCHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionCHi", it) }
@@ -2448,12 +2443,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         "optionC" to q.optString("optionC", ""),
                         "optionD" to q.optString("optionD", ""),
                         "questionType" to q.optString("questionType", "MCQ"),
-                        "correctAnswer" to q.optString("correctAnswer", ""),
                         "positiveMarks" to q.optDouble("positiveMarks", defaultPosMark),
                         "negativeMarks" to q.optDouble("negativeMarks", defaultNegMark),
                         "section" to q.optString("section", "SECTION_A"),
                         "sectionName" to q.optString("sectionName", "Section A"),
-                        "explanation" to q.optString("explanation", ""),
                         "subject" to q.optString("subject", test.subject),
                         "chapter" to q.optString("chapter", test.chapter),
                         "topic" to q.optString("topic", test.topic),
@@ -2482,9 +2475,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     if (q.has("questionTextHi") && q.getString("questionTextHi").isNotBlank()) {
                         qMap["questionTextHi"] = q.getString("questionTextHi")
                     }
-                    if (q.has("explanationHi") && q.getString("explanationHi").isNotBlank()) {
-                        qMap["explanationHi"] = q.getString("explanationHi")
-                    }
                     if (q.has("optionAHi") && q.getString("optionAHi").isNotBlank()) {
                         qMap["optionAHi"] = q.getString("optionAHi")
                     }
@@ -2500,27 +2490,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     questionsList.add(qMap)
                 }
 
+                // Shared community copies are preview-only until an Admin verifies scoring and answer keys.
                 val calculatedTotalMarks = if (questionsList.isNotEmpty()) {
-                    questionsList.sumOf { (it["positiveMarks"] as? Double) ?: (it["positiveMarks"] as? Number)?.toDouble() ?: defaultPosMark }
+                    questionsList.sumOf { (it["positiveMarks"] as? Number)?.toDouble() ?: 0.0 }
                 } else {
-                    try {
-                        val examConf = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
-                        examConf?.stages?.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 720.0
-                    } catch (e: Exception) {
-                        720.0
-                    }
+                    0.0
                 }
-
-                val durationMinutes = if (test.durationMinutes > 0) {
-                    test.durationMinutes
-                } else {
-                    try {
-                        val examConf = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
-                        examConf?.stages?.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: 180
-                    } catch (e: Exception) {
-                        180
-                    }
-                }
+                val durationMinutes = test.durationMinutes.coerceAtLeast(0)
 
                 val testSource = test.institute.takeIf { it.isNotBlank() } ?: "Private Upload"
 
@@ -2553,6 +2529,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "sharedAt" to System.currentTimeMillis(),
                     "version" to 1,
                     "sharingState" to "COMMUNITY_SHARED",
+                    "gradingAvailable" to false,
+                    "rankingEligible" to false,
+                    "countsTowardRanking" to false,
                     "questions" to questionsList,
                     "questionsJson" to sanitizedQuestionsJson
                 )
