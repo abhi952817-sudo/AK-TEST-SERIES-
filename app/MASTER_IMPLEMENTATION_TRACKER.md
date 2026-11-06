@@ -426,6 +426,7 @@
 - Persisted and returned the ungraded count in authoritative backend attempt records/results.
 - Preserved decimal marks at all authoritative Firestore and callable-result persistence boundaries; fractional values are no longer rounded in attempt records, Test_Leaderboards, max-score summaries, or response payloads.
 - Added Room schema version 21 with a safe 20→21 migration that adds `ungradedCount` using a default of zero, preserving existing attempt rows and fractional score columns.
+- Committed the generated KSP schema snapshot at `app/schemas/Com.ak.testseries.data.AppDatabase/21.json`; its Room identity hash and `attempts` table definition were taken from the CI-generated schema artifact.
 - Carried `ungradedCount` through Android online/offline attempt models, Firestore restore, backup export/import, and the result-screen warning.
 - Added Kotlin and Node regression tests for strict numerical validation, exact MSQ grading, ungraded responses, and optional-section maximum marks.
 - Expanded the validation workflow to run callable security tests and to execute on this isolated implementation branch and its development-base pull requests.
