@@ -5801,78 +5801,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun separatePublicAndSecretQuestions(questionsJsonString: String): Pair<String, List<Map<String, Any>>> {
-        require(questionsJsonString.isNotBlank()) { "Question payload is empty; refusing to publish." }
-        val jsonArray = try {
-            org.json.JSONArray(questionsJsonString)
-        } catch (e: Exception) {
-            throw IllegalArgumentException("Malformed question JSON; refusing to publish.", e)
-        }
-        require(jsonArray.length() > 0) { "No questions found; refusing to publish." }
-
-        val publicArray = org.json.JSONArray()
-        val answerKeys = mutableListOf<Map<String, Any>>()
-        val seenIds = mutableSetOf<String>()
-        val secretFields = listOf(
-            "correctAnswer", "correctAnswers", "correct_answer", "correctOption", "correct_option",
-            "answer", "answers", "answerKey", "answer_key",
-            "explanation", "explanationEn", "explanationHi", "explanation_en", "explanation_hi",
-            "solution", "solutionEn", "solutionHi", "reasoning", "detailedSolution",
-            "answerExplanation", "answerExplanationEn", "answerExplanationHi", "rationale"
-        )
-
-        for (i in 0 until jsonArray.length()) {
-            val qObj = jsonArray.optJSONObject(i)
-                ?: throw IllegalArgumentException("Question at index $i is not a valid object.")
-            val qId = qObj.optString("id", "").trim()
-            require(qId.isNotBlank() && seenIds.add(qId)) {
-                "Question IDs must be non-empty and unique before publishing."
-            }
-
-            fun readSecretValue(vararg names: String): String {
-                for (name in names) {
-                    val value = qObj.opt(name) ?: continue
-                    val normalized = when (value) {
-                        is org.json.JSONArray -> (0 until value.length())
-                            .mapNotNull { index -> value.optString(index).trim().takeIf { it.isNotBlank() } }
-                            .joinToString(",")
-                        is String -> value.trim()
-                        is Number -> value.toString()
-                        else -> ""
-                    }
-                    if (normalized.isNotBlank()) return normalized
-                }
-                return ""
-            }
-
-            val correctAnswer = readSecretValue(
-                "correctAnswer", "correctAnswers", "correct_answer", "correctOption", "correct_option",
-                "answerKey", "answer_key", "answer", "answers"
-            )
-            val explanation = readSecretValue(
-                "explanation", "explanationEn", "reasoning", "solution", "solutionEn",
-                "detailedSolution", "answerExplanation", "answerExplanationEn", "rationale"
-            )
-            val explanationHi = readSecretValue("explanationHi", "explanation_hi", "solutionHi", "answerExplanationHi")
-
-            answerKeys.add(
-                mapOf(
-                    "id" to qId,
-                    "correctAnswer" to correctAnswer,
-                    "explanation" to explanation,
-                    "explanationEn" to explanation,
-                    "explanationHi" to explanationHi
-                )
-            )
-
-            val publicObj = org.json.JSONObject(qObj.toString())
-            secretFields.forEach { field -> publicObj.remove(field) }
-            publicArray.put(publicObj)
-        }
-
-        require(answerKeys.size == jsonArray.length()) {
-            "Private answer-key extraction was incomplete; refusing to publish."
-        }
-        return Pair(publicArray.toString(), answerKeys)
+        val separated = Com.ak.testseries.exam.SecureQuestionPayloadSanitizer.separate(questionsJsonString)
+        return Pair(separated.publicJson, separated.answerKeys)
     }
 
     private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String): Boolean {
