@@ -415,3 +415,12 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - When a trusted source answer is supplied, comparison handles numerical tolerance and order-independent multiple-correct keys.
 - The current PDF response parser still supplies `sourceAnswer = null`; therefore generated questions will require human/source review until a trusted answer-key extraction or independently verified reference is connected.
 - Added regression coverage for the no-source review gate. Test execution remains pending.
+
+
+### Storage Ownership Hardening — 2026-11-06
+
+- Finding: authenticated accounts could create public assets under shared `tests/{testId}/questions`, `chart_images`, and `question_images` paths. This allowed public asset injection at paths consumed by other users.
+- Change: official diagrams and question images are admin-publish only; chart uploads are UID-scoped at `chart_images/{uid}/{fileName}`; legacy flat chart paths are read-only to non-admins; PDF upload and deletion are explicitly admin-gated. Image/PDF writes reject empty objects and enforce size/MIME metadata.
+- Client parity: `FileUploaderUtil.uploadImage` now writes under the current authenticated UID. Without an authenticated UID, it falls back to the private local cache.
+- Regression suite: added `storage.rules.test.js` for unauthenticated access, UID isolation, official asset/PDF restrictions, admin publishing, MIME and empty-object rejection.
+- Verification: committed to the working branch only. Storage Emulator tests, Android compilation, and live upload flows have NOT been executed. MIME metadata checks do not replace server-side content-signature validation.
