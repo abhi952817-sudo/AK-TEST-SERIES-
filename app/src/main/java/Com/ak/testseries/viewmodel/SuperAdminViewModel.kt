@@ -15,13 +15,13 @@ data class AdminDashboardState(
     val selectedDateRange: String = "All Time",
     
     val totalUsersCount: String = "00",
-    val totalUsersTrendPercent: String = "+0%",
+    val totalUsersTrendPercent: String = "—",
     
     val activeUsersCount: String = "—",
     val activeUsersTrendPercent: String = "—",
     
     val totalTestsCount: String = "00",
-    val totalTestsTrendPercent: String = "+0%",
+    val totalTestsTrendPercent: String = "—",
     
     val totalAttemptsCount: String = "—",
     val totalAttemptsTrendPercent: String = "—",
@@ -109,7 +109,7 @@ class SuperAdminViewModel : ViewModel() {
                 
                 // AI provider health is intentionally not reported as healthy here.
                 // A real authenticated provider health check is not wired into this dashboard yet.
-                addLog("Gemini API", "Health status not verified by a live provider check.", true)
+                addLog("Gemini API", "Health status not verified by a live provider check.", false)
 
                 _uiState.value = _uiState.value.copy(
                     totalUsersCount = usersCount.toString(),
