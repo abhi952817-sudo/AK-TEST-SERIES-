@@ -639,10 +639,11 @@ fun QuestionReviewCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Options
-            val optionLabels = listOf("A", "B", "C", "D")
+            val optionLabels = listOf("A", "B", "C", "D", "E")
+            val correctKeys = question.correctAnswer.split(",").map { it.trim().uppercase() }.filter { it.isNotBlank() }.toSet()
             question.options.forEachIndexed { index, opt ->
                 val label = optionLabels.getOrElse(index) { "$index" }
-                val isCorrect = label == question.correctAnswer
+                val isCorrect = label in correctKeys
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
