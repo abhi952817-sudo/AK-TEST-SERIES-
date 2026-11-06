@@ -472,3 +472,29 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - The review card now displays option E and highlights every key in comma-separated multiple-correct answers.
 - Local OCR now rejects PDFs exceeding the configured 50-page processing limit rather than silently generating questions from a truncated prefix.
 - Verification: static inspection only; Android compilation, UI interaction, PDF fixture tests, and OCR memory profiling NOT run.
+
+## Audit Continuation Checkpoint — 2026-11-06 (continued)
+
+**Working branch:** `fix/phase1-real-questions-only`  
+**Main branch:** untouched  
+**Latest compare before this tracker update:** `main...fix/phase1-real-questions-only` = 93 commits ahead, 0 behind; 28 changed files.
+
+### Changes in this continuation
+
+1. **Firebase Storage ownership:** shared public test diagrams are admin-published only; chart and cropped question-image uploads use UID-scoped paths; non-admins cannot write legacy flat paths. Added Storage Emulator test coverage. Updated both image upload clients.
+2. **Legacy Firestore upload path:** removed the cropped-diagram uploader's direct write to top-level `/questions/{questionId}`, which is denied by current Firestore rules; the screen persists the returned URL through its local repository callback.
+3. **Scanned/mixed PDF text:** universal PDF generation now uses page-by-page local OCR, recycles page bitmaps, preserves page labels, and refuses to continue when a PDF exceeds the configured 50-page OCR limit.
+4. **Mock question path:** removed the unused hard-coded `generateMockAiTest()` and its only caller's sample-question builder.
+5. **Answer-key correctness:** offline parser no longer invents option A when no key exists. Parsed answer-key evidence remains NEEDS_REVIEW until an explicit admin action. Admin review accepts a source-key answer, corrects the model answer to that reviewer-verified value, reruns validation, and only then allows publication. Diagram attachment alone never approves a question.
+6. **Review UI:** added source-answer input and support for option E / multiple-correct answer highlighting.
+7. **Scoring:** Kotlin and Node answer-key validation reject NaN, Infinity, and exponent overflow. Added regression tests.
+
+### Remaining blockers / not completed
+
+- **Room versions 1–14:** no historical schemas were found; `fallbackToDestructiveMigration()` remains and can erase legacy databases. Do not invent migrations without the real old schema snapshots or representative database files.
+- **Vision/image understanding:** diagram candidates are not yet sent as image payloads to Gemini Vision in the universal generation path. OCR-only extraction cannot guarantee diagram comprehension.
+- **Hindi and other scripts:** configured ML Kit recognizer is Latin-only; Hindi OCR has not been implemented or verified.
+- **Runtime verification:** Android Gradle/JUnit, Node backend tests, Firestore Emulator, Storage Emulator, and physical-device PDF/upload flows have NOT been executed in this continuation.
+- **Deployment dependency:** the Firestore composite index for `Attempts(testId, verifiedServerSide)` still needs deployment before the updated callable is relied on in production.
+
+**Release status:** NOT READY FOR PRODUCTION until the open blockers are addressed and the relevant test suites pass. Keep all work on this branch; do not merge to `main` based only on static inspection.
