@@ -380,10 +380,10 @@
   - Master: 5,001–10,000
   - Conqueror: 10,001+
 - Added callable APIs: `getExamLeaderboard`, `getRankingPeriodLeaderboard`, `getXpLeaderboard`, and admin-only `rebuildRankingV2Batch`.
-- Added an idempotent admin-only migration that rebuilds v2 exam totals, User_Ranks, half-month boards, and monthly boards from server-verified first qualifying attempts.
-- Updated Firestore security rules and indexes for v2 boards, period records, user rank privacy, XP ledgers, and server-only writes.
-- Updated Android ViewModel and Leaderboard UI with Overall / 15 Days / Monthly ranking views, Top 100, XP League (This Week / All Time), and server-backed XP/streak progress.
-- Private profiles remain in competitive calculations but display as `Private Student` in public boards.
+- Added an idempotent admin-only migration that rebuilds v2 exam totals, User_Ranks, half-month boards, and monthly boards from server-verified first qualifying attempts. Its server-persisted cursor in `Config/Ranking_Migration_State` allows batches to resume after app restarts.
+- Updated Firestore security rules and indexes for v2 boards, period records, user rank privacy, XP ledgers, and server-only writes. Added safe `profileVisibility` validation and a Cloud Function trigger that synchronizes name/privacy/ban changes across public boards.
+- Updated Android ViewModel and Leaderboard UI with Overall / 15 Days / Monthly ranking views, Top 100, XP League (This Week / All Time), and server-backed XP/streak progress. Added an Admin Ranking System screen to run/resume controlled 10-user migration batches.
+- Private profiles remain in competitive calculations but display as `Private Student` in public boards. Banned users are excluded from AIR, period and XP boards; profile/ban changes propagate to materialized entries.
 
 ### Important data-safety decisions
 
@@ -397,7 +397,8 @@
 
 - Added automated ranking-engine tests for normalization, invalid weights, IST periods, XP tiers, ties, percentile, and the 1,000-participant threshold.
 - Added a regression assertion for optional Section B maximum marks.
-- Added Firestore rules tests for v2 public reads, private User_Ranks access, and server-only ranking/XP writes.
+- Added Firestore rules tests for v2 public reads, private User_Ranks access, profile visibility validation, and server-only ranking/XP writes.
+- Added `.github/workflows/ranking-v2-validation.yml` to run backend syntax/unit tests, Firestore Emulator rules tests, and Android unit/build validation on PR/push.
 - **Tests have been authored but have not yet been executed in this environment.** Android compilation, Node tests, Firestore Emulator rules tests, and CI results must pass before merge.
 - Deploy the updated Cloud Functions, Firestore rules, and indexes only after CI passes and the admin backfill has been reviewed in dry-run / controlled batches.
 - Admin UI for editing ranking policy values and a configurable XP award editor remain a follow-up; current policy defaults are code-versioned.
