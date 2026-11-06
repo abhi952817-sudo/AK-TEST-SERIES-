@@ -7955,8 +7955,8 @@ fun MiniLeaderboardCard(
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = when (userRankStatus) {
-                        "Official AK AIR" -> Color(0xFFE8F5E9)
-                        "Provisional Rank" -> Color(0xFFFFF3E0)
+                        "Official AK AIR", "Official AK Class Rank" -> Color(0xFFE8F5E9)
+                        "Provisional Rank", "Provisional Class Rank" -> Color(0xFFFFF3E0)
                         else -> Color(0xFFEDE7F6)
                     }
                 ),
@@ -7969,14 +7969,14 @@ fun MiniLeaderboardCard(
                 ) {
                     Icon(
                         imageVector = when (userRankStatus) {
-                            "Official AK AIR" -> Icons.Rounded.Verified
-                            "Provisional Rank" -> Icons.Rounded.Analytics
+                            "Official AK AIR", "Official AK Class Rank" -> Icons.Rounded.Verified
+                            "Provisional Rank", "Provisional Class Rank" -> Icons.Rounded.Analytics
                             else -> Icons.Rounded.HourglassEmpty
                         },
                         contentDescription = "Status",
                         tint = when (userRankStatus) {
-                            "Official AK AIR" -> Color(0xFF2E7D32)
-                            "Provisional Rank" -> Color(0xFFE65100)
+                            "Official AK AIR", "Official AK Class Rank" -> Color(0xFF2E7D32)
+                            "Provisional Rank", "Provisional Class Rank" -> Color(0xFFE65100)
                             else -> Color(0xFF512DA8)
                         },
                         modifier = Modifier.size(22.dp)
@@ -7985,20 +7985,22 @@ fun MiniLeaderboardCard(
                     Column {
                         Text(
                             text = when (userRankStatus) {
-                                "Official AK AIR" -> "🟢 Official AK All India Rank Active"
-                                "Provisional Rank" -> "🟠 Provisional Rank ($eligibleCount / 1,000 candidates for AIR)"
+                                "Official AK AIR" -> "🟢 Official AK AIR Active"
+                                "Official AK Class Rank" -> "🟢 Official AK Class Rank Active"
+                                "Provisional Rank" -> "🟠 Provisional AK AIR ($eligibleCount / 1,000 candidates)"
+                                "Provisional Class Rank" -> "🟠 Provisional Class Rank ($eligibleCount / 1,000 candidates)"
                                 else -> "🟡 Rank Pending (Complete 2 qualifying tests)"
                             },
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             color = when (userRankStatus) {
-                                "Platform Rank" -> Color(0xFF1B5E20)
+                                "Official AK AIR", "Official AK Class Rank" -> Color(0xFF1B5E20)
                                 "Provisional Rank" -> Color(0xFFBF360C)
                                 else -> Color(0xFF311B92)
                             }
                         )
                         Text(
-                            text = "Platform rank across verified test series candidates.",
+                            text = if (userRankStatus.contains("Class")) "Rank within your selected class cohort." else "Rank across eligible candidates in this exam.",
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
