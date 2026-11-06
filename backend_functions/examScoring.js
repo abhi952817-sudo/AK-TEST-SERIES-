@@ -72,6 +72,9 @@ function isUserAnswerCorrect(userAns, correctAns, isNumerical = false, questionT
   if (areOptionsEquivalent(u, c, isNumerical)) return true;
   if (c.includes(",")) {
     const acceptedKeys = c.split(",").map(k => k.trim());
+    const userParts = u.split(",").map(k => k.trim()).sort();
+    const correctParts = acceptedKeys.slice().sort();
+    if (userParts.length === correctParts.length && userParts.join(",") === correctParts.join(",")) return true;
     return acceptedKeys.some(k => areOptionsEquivalent(u, k, isNumerical));
   }
   return false;
