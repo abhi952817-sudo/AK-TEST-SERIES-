@@ -1300,13 +1300,17 @@ class AdvancedPdfSmartExtractor(private val context: Context) {
      */
     suspend fun extractAllPagesWithLocalOcr(pdfFile: File, maxPages: Int = 50): String = withContext(Dispatchers.IO) {
         val output = StringBuilder()
+        var exceedsPageLimit = false
         try {
             val descriptor = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
             descriptor.use { pfd ->
                 val renderer = PdfRenderer(pfd)
                 try {
-                    val pageLimit = minOf(renderer.pageCount, maxPages.coerceAtLeast(1))
+                    val allowedPages = maxPages.coerceAtLeast(1)
+                    if (renderer.pageCount > allowedPages) exceedsPageLimit = true
+                    val pageLimit = minOf(renderer.pageCount, allowedPages)
                     for (pageIndex in 0 until pageLimit) {
+                        if (exceedsPageLimit) break
                         val page = renderer.openPage(pageIndex)
                         try {
                             val maxSide = maxOf(page.width, page.height).toFloat()
@@ -1337,8 +1341,13 @@ class AdvancedPdfSmartExtractor(private val context: Context) {
         } catch (error: Throwable) {
             Log.w("AdvancedPdfExtractor", "Page OCR failed: ${error.message}")
         }
-        val ocrText = output.toString().trim()
-        if (ocrText.isNotBlank()) ocrText else extractAllStreamText(pdfFile)
+        if (exceedsPageLimit) {
+            Log.w("AdvancedPdfExtractor", "PDF exceeds the local OCR page limit of $maxPages; generation must not use partial extraction.")
+            ""
+        } else {
+            val ocrText = output.toString().trim()
+            if (ocrText.isNotBlank()) ocrText else extractAllStreamText(pdfFile)
+        }
     }
 
     /**
