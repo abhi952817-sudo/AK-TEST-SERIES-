@@ -307,6 +307,28 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun testAnswerKeyValidationRejectsNonFiniteAndMalformedValues() {
+        assertTrue(ExamScoringEngine.isAnswerKeyVerified("42.5"))
+        assertTrue(ExamScoringEngine.isAnswerKeyVerified("A, C"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("NaN"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("Infinity"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("12abc"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("A,,B"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("A,A"))
+    }
+
+    @Test
+    fun testMultiSelectRequiresExactAnswerSet() {
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("A, B", "B, A", questionType = "MSQ"))
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("1, 2", "A, B", questionType = "MSQ"))
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("A", "A, B", questionType = "MSQ"))
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("A, B, C", "A, B", questionType = "MSQ"))
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("A, A", "A, B", questionType = "MSQ"))
+        // Preserve legacy alternate-key behavior for ordinary single-select questions.
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("A", "A, B", questionType = "MCQ"))
+    }
+
+    @Test
     fun testFormatMarkHelper() {
         assertEquals("4", ExamScoringEngine.formatMark(4.0))
         assertEquals("0", ExamScoringEngine.formatMark(0.0))
