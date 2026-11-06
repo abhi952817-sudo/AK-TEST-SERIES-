@@ -70,3 +70,10 @@ jobs:
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       - name: Run Android unit tests and build
         run: gradle :app:testDebugUnitTest :app:assembleDebug
+      - name: Upload generated Room schema
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schema-${{ github.run_number }}
+          path: app/schemas/Com.ak.testseries.data.AppDatabase/*.json
+          if-no-files-found: warn
