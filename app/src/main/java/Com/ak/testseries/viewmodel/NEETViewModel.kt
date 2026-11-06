@@ -5822,57 +5822,103 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun separatePublicAndSecretQuestions(questionsJsonString: String): Pair<String, List<Map<String, Any>>> {
-        if (questionsJsonString.isBlank()) return Pair(questionsJsonString, emptyList())
-        return try {
-            val jsonArray = org.json.JSONArray(questionsJsonString)
-            val publicArray = org.json.JSONArray()
-            val answerKeys = mutableListOf<Map<String, Any>>()
-            
-            for (i in 0 until jsonArray.length()) {
-                val qObj = jsonArray.getJSONObject(i)
-                val qId = qObj.optString("id", "q$i")
-                val correctAns = qObj.optString("correctAnswer", "")
-                val exp = qObj.optString("explanation", "")
-                
-                answerKeys.add(mapOf(
-                    "id" to qId,
-                    "correctAnswer" to correctAns,
-                    "explanation" to exp
-                ))
-
-                // Public copy without answer keys
-                val publicObj = org.json.JSONObject(qObj.toString())
-                publicObj.remove("correctAnswer")
-                publicObj.remove("explanation")
-                publicArray.put(publicObj)
-            }
-            Pair(publicArray.toString(), answerKeys)
+        require(questionsJsonString.isNotBlank()) { "Question payload is empty; refusing to publish." }
+        val jsonArray = try {
+            org.json.JSONArray(questionsJsonString)
         } catch (e: Exception) {
-            Pair(questionsJsonString, emptyList())
+            throw IllegalArgumentException("Malformed question JSON; refusing to publish.", e)
         }
+        require(jsonArray.length() > 0) { "No questions found; refusing to publish." }
+
+        val publicArray = org.json.JSONArray()
+        val answerKeys = mutableListOf<Map<String, Any>>()
+        val seenIds = mutableSetOf<String>()
+        val secretFields = listOf(
+            "correctAnswer", "correctAnswers", "correct_answer", "correctOption", "correct_option",
+            "answer", "answers", "answerKey", "answer_key",
+            "explanation", "explanationEn", "explanationHi", "explanation_en", "explanation_hi",
+            "solution", "solutionEn", "solutionHi", "reasoning", "detailedSolution",
+            "answerExplanation", "answerExplanationEn", "answerExplanationHi", "rationale"
+        )
+
+        for (i in 0 until jsonArray.length()) {
+            val qObj = jsonArray.optJSONObject(i)
+                ?: throw IllegalArgumentException("Question at index $i is not a valid object.")
+            val qId = qObj.optString("id", "").trim()
+            require(qId.isNotBlank() && seenIds.add(qId)) {
+                "Question IDs must be non-empty and unique before publishing."
+            }
+
+            fun readSecretValue(vararg names: String): String {
+                for (name in names) {
+                    val value = qObj.opt(name) ?: continue
+                    val normalized = when (value) {
+                        is org.json.JSONArray -> (0 until value.length())
+                            .mapNotNull { index -> value.optString(index).trim().takeIf { it.isNotBlank() } }
+                            .joinToString(",")
+                        is String -> value.trim()
+                        is Number -> value.toString()
+                        else -> ""
+                    }
+                    if (normalized.isNotBlank()) return normalized
+                }
+                return ""
+            }
+
+            val correctAnswer = readSecretValue(
+                "correctAnswer", "correctAnswers", "correct_answer", "correctOption", "correct_option",
+                "answerKey", "answer_key", "answer", "answers"
+            )
+            val explanation = readSecretValue(
+                "explanation", "explanationEn", "reasoning", "solution", "solutionEn",
+                "detailedSolution", "answerExplanation", "answerExplanationEn", "rationale"
+            )
+            val explanationHi = readSecretValue("explanationHi", "explanation_hi", "solutionHi", "answerExplanationHi")
+
+            answerKeys.add(
+                mapOf(
+                    "id" to qId,
+                    "correctAnswer" to correctAnswer,
+                    "explanation" to explanation,
+                    "explanationEn" to explanation,
+                    "explanationHi" to explanationHi
+                )
+            )
+
+            val publicObj = org.json.JSONObject(qObj.toString())
+            secretFields.forEach { field -> publicObj.remove(field) }
+            publicArray.put(publicObj)
+        }
+
+        require(answerKeys.size == jsonArray.length()) {
+            "Private answer-key extraction was incomplete; refusing to publish."
+        }
+        return Pair(publicArray.toString(), answerKeys)
     }
 
-    private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String) {
+    private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String): Boolean {
         if (!newTest.isPublic) {
-            android.util.Log.d("NEETViewModel", "Test ${newTest.id} is PRIVATE. Scoped exclusively to local sandbox and skipped Firestore upload.")
-            return
+            android.util.Log.d("NEETViewModel", "Test ${newTest.id} is private; Firestore upload skipped.")
+            return false
         }
-        try {
-            val sanitizedQuestionsJson = try {
-                sanitizeAndUploadQuestionImages(newTest.id, questionsJsonString)
-            } catch (e: Exception) {
-                android.util.Log.e("NEETViewModel", "Aborting Firestore upload due to image upload failure in test ${newTest.id}: ${e.message}")
-                return
-            }
 
+        return try {
+            val sanitizedQuestionsJson = sanitizeAndUploadQuestionImages(newTest.id, questionsJsonString)
+            if (sanitizedQuestionsJson.isBlank()) {
+                throw IllegalStateException("Question sanitization returned an empty payload.")
+            }
             if (sanitizedQuestionsJson != questionsJsonString) {
                 repository.updateTest(newTest.copy(questionsJson = sanitizedQuestionsJson))
             }
 
             val (publicQuestionsJson, answerKeys) = separatePublicAndSecretQuestions(sanitizedQuestionsJson)
+            val sourceQuestionCount = org.json.JSONArray(sanitizedQuestionsJson).length()
+            require(sourceQuestionCount > 0 && answerKeys.size == sourceQuestionCount) {
+                "Public/private question payload counts do not match."
+            }
 
             val db = firestoreDb
-            val testData = hashMapOf(
+            val testData = hashMapOf<String, Any>(
                 "id" to newTest.id,
                 "title" to newTest.title,
                 "description" to newTest.description,
@@ -5883,37 +5929,42 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "subject" to newTest.subject,
                 "difficulty" to newTest.difficulty,
                 "testType" to newTest.testType,
-                "questionsCount" to newTest.questionsCount,
+                "questionsCount" to sourceQuestionCount,
                 "isOfficial" to newTest.isOfficial,
                 "isVerifiedCommunity" to newTest.isVerifiedCommunity,
                 "isPublic" to newTest.isPublic,
-                "countsTowardRanking" to (newTest.countsTowardRanking && (newTest.isOfficial || newTest.isPublic)),
+                "countsTowardRanking" to (newTest.countsTowardRanking && newTest.isOfficial && newTest.isPublic),
                 "status" to newTest.status,
                 "uploaderId" to newTest.uploaderId,
                 "targetExam" to newTest.targetExam,
                 "examId" to (newTest.examId ?: newTest.targetExam),
-                "stageId" to newTest.stageId,
-                "paperId" to newTest.paperId,
+                "stageId" to (newTest.stageId ?: ""),
+                "paperId" to (newTest.paperId ?: ""),
                 "scoringVersion" to (newTest.scoringVersion ?: 1),
                 "chapter" to newTest.chapter,
                 "topic" to newTest.topic,
                 "timestamp" to newTest.timestamp,
+                "durationMinutes" to newTest.durationMinutes,
                 "questionsJson" to publicQuestionsJson
             )
-            val testDocRef = db.collection("Tests_Data").document(newTest.id)
-            testDocRef.set(testData).await()
 
-            // Securely store answer keys under private_keys/answerKey (accessible only by server Admin SDK)
-            if (answerKeys.isNotEmpty()) {
-                val keysDoc = hashMapOf<String, Any>(
-                    "testId" to newTest.id,
-                    "questions" to answerKeys,
-                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                )
-                testDocRef.collection("private_keys").document("answerKey").set(keysDoc).await()
-            }
+            val testDocRef = db.collection("Tests_Data").document(newTest.id)
+            val answerKeyDocRef = testDocRef.collection("private_keys").document("answerKey")
+            val answerKeyData = hashMapOf<String, Any>(
+                "testId" to newTest.id,
+                "questions" to answerKeys,
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+
+            // Publish the public paper and private key atomically. Rules keep private_keys admin-only.
+            val batch = db.batch()
+            batch.set(testDocRef, testData)
+            batch.set(answerKeyDocRef, answerKeyData)
+            batch.commit().await()
+            true
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("NEETViewModel", "Secure Firestore publish failed for test ${newTest.id}; no public success reported.", e)
+            false
         }
     }
 
@@ -7536,42 +7587,46 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         questions: List<UniversalQuestionModel>,
         durationMinutes: Int = 0
     ) {
-        if (!isAdmin) return
+        if (!isAdmin || questions.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val testId = "universal_${System.currentTimeMillis()}"
-                
                 val subjectStr = questions.firstOrNull()?.subjectId?.replaceFirstChar { it.uppercase() } ?: "General"
                 val diffStr = questions.firstOrNull()?.difficulty?.name ?: "Medium"
-                
                 val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examName)
+
+                // Do not silently choose the first stage or paper when an exam has multiple paths.
+                val selectedStage = examConfig?.stages?.singleOrNull()
+                val selectedPaper = selectedStage?.papers?.singleOrNull()
+                val resolvedDuration = durationMinutes.takeIf { it > 0 } ?: selectedPaper?.durationMinutes ?: 0
+
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
-                    title = "$examName - Universal Mock Test",
-                    description = "High-accuracy AI extracted test conforming to $examName pattern.",
+                    title = "$examName - Universal Practice Test",
+                    description = "AI-generated practice questions. Pending source and answer-key verification by an Admin.",
                     institute = "AK Exam Portal",
-                    batchName = "2026 Official Pattern",
+                    batchName = "Admin Review",
                     facultyName = "Exam Panel",
                     language = "Hindi / English",
                     subject = subjectStr,
                     difficulty = diffStr,
                     testType = "Mock Test",
                     questionsCount = questions.size,
-                    isOfficial = true,
-                    isVerifiedCommunity = true,
+                    isOfficial = false,
+                    isVerifiedCommunity = false,
+                    countsTowardRanking = false,
                     targetExam = examConfig?.examId ?: examName,
                     examId = examConfig?.examId ?: examName,
-                    stageId = examConfig?.stages?.firstOrNull()?.stageId,
-                    paperId = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
+                    stageId = selectedStage?.stageId,
+                    paperId = selectedPaper?.paperId,
                     scoringVersion = 1,
-                    status = "Published",
-                    durationMinutes = durationMinutes
+                    status = "Under Review",
+                    durationMinutes = resolvedDuration
                 )
 
                 val qJsonArray = org.json.JSONArray()
                 val questionEntities = questions.mapIndexed { index: Int, uq: UniversalQuestionModel ->
                     val qId = "${testId}_q_${index + 1}"
-                    
                     val qObj = org.json.JSONObject()
                     qObj.put("id", qId)
                     qObj.put("questionTextEn", uq.questionText)
@@ -7598,7 +7653,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("negativeMarks", uq.negativeMarks)
                     if (!uq.diagramUrl.isNullOrEmpty()) qObj.put("imageUrl", uq.diagramUrl)
                     qJsonArray.put(qObj)
-                    
+
                     Com.ak.testseries.data.QuestionEntity(
                         id = qId,
                         testId = testId,
@@ -7627,53 +7682,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
-                // 1. Save Locally strictly in local Room DB
                 val isPublicTest = genIsPublic.value
-                val finalTestEntity = testEntity.copy(isPublic = isPublicTest, questionsJson = qJsonArray.toString())
+                val finalTestEntity = testEntity.copy(
+                    isPublic = isPublicTest,
+                    questionsJson = qJsonArray.toString(),
+                    uploaderId = currentUserId.value
+                )
                 repository.insertTest(finalTestEntity)
                 repository.insertQuestions(questionEntities)
                 saveQuestionsJsonToInternalStorage(testId, qJsonArray.toString())
-                
-                // 2. Sync to Firebase Firestore ONLY if test is approved public test!
+
                 if (isPublicTest) {
-                    val sanitizedQuestionsJson = try {
-                        sanitizeAndUploadQuestionImages(testId, qJsonArray.toString())
-                    } catch (e: Exception) {
-                        android.util.Log.e("NEETViewModel", "Diagram upload failed for universal test $testId: ${e.message}")
-                        null
-                    }
-                    if (sanitizedQuestionsJson != null) {
-                        if (sanitizedQuestionsJson != qJsonArray.toString()) {
-                            repository.updateTest(finalTestEntity.copy(questionsJson = sanitizedQuestionsJson))
-                        }
-                        val db = firestoreDb
-                        val firestoreMap = hashMapOf(
-                            "id" to testId,
-                            "title" to finalTestEntity.title,
-                            "description" to finalTestEntity.description,
-                            "institute" to finalTestEntity.institute,
-                            "batchName" to finalTestEntity.batchName,
-                            "facultyName" to finalTestEntity.facultyName,
-                            "language" to finalTestEntity.language,
-                            "subject" to finalTestEntity.subject,
-                            "difficulty" to finalTestEntity.difficulty,
-                            "testType" to finalTestEntity.testType,
-                            "questionsCount" to finalTestEntity.questionsCount,
-                            "isOfficial" to finalTestEntity.isOfficial,
-                            "isVerifiedCommunity" to finalTestEntity.isVerifiedCommunity,
-                            "isPublic" to true,
-                            "classLevel" to finalTestEntity.classLevel,
-                            "targetExam" to finalTestEntity.targetExam,
-                            "durationMinutes" to finalTestEntity.durationMinutes,
-                            "timestamp" to finalTestEntity.timestamp,
-                            "questionsJson" to sanitizedQuestionsJson
-                        )
-                        db.collection("Tests_Data").document(testId).set(firestoreMap).await()
+                    val uploaded = uploadTestToFirestore(finalTestEntity, qJsonArray.toString())
+                    if (uploaded) {
                         try {
+                            val db = firestoreDb
                             val canonicalExamName = examConfig?.examName ?: examName
                             val notifMap = hashMapOf<String, Any>(
-                                "title" to "📝 नया टेस्ट जारी: $canonicalExamName",
-                                "message" to "${finalTestEntity.title} अभ्यास के लिए लाइव हो चुका है (${finalTestEntity.questionsCount} प्रश्न • ${finalTestEntity.durationMinutes} मिनट)। अपनी ऑल-इंडिया रैंक के लिए अभी हल करें!",
+                                "title" to "📝 नया अभ्यास टेस्ट समीक्षा के लिए जमा",
+                                "message" to "${finalTestEntity.title} Admin verification के लिए जमा है (${finalTestEntity.questionsCount} प्रश्न • ${finalTestEntity.durationMinutes} मिनट)। सत्यापन के बाद ही इसे प्रकाशित या Ranking-eligible किया जाएगा।",
                                 "timestamp" to System.currentTimeMillis(),
                                 "targetGroup" to canonicalExamName,
                                 "linkUrl" to "app://test/$testId",
@@ -7681,15 +7708,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             )
                             db.collection("UserNotifications").add(notifMap).await()
                         } catch (ne: Exception) {
-                            android.util.Log.e("NEETViewModel", "Error broadcasting universal test notification: ${ne.message}")
+                            android.util.Log.e("NEETViewModel", "Universal test review notification failed: ${ne.message}")
                         }
+                    } else {
+                        android.util.Log.e("NEETViewModel", "Universal test $testId was saved locally but secure public upload failed.")
                     }
                 } else {
-                    android.util.Log.d("NEETViewModel", "Private test $testId stored strictly inside local Room DB without network calls.")
+                    android.util.Log.d("NEETViewModel", "Private universal test $testId stored locally without network upload.")
                 }
-                
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("NEETViewModel", "Universal test creation failed.", e)
             }
         }
     }
