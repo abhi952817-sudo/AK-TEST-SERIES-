@@ -113,6 +113,22 @@ test("Marking schemes for distinct exams", () => {
   assert.strictEqual(ctet.neg, 0.0);
 });
 
+test("Authoritative evaluation preserves fractional marks for UPSC-style negative marking", () => {
+  const result = evaluateTestAttempt("UPSC CSE", [
+    { id: "upsc_correct", correctAnswer: "A", section: "GENERAL", subject: "General Studies" },
+    { id: "upsc_wrong", correctAnswer: "B", section: "GENERAL", subject: "General Studies" },
+    { id: "upsc_skip", correctAnswer: "C", section: "GENERAL", subject: "General Studies" }
+  ], {
+    upsc_correct: { ans: "A" },
+    upsc_wrong: { ans: "D" }
+  }, 90);
+  assert.equal(result.positiveMarksEarned, 2);
+  assert.equal(result.negativeMarksPenalty, 0.66);
+  assert.equal(result.rawScore, 1.34);
+  assert.equal(result.finalScore, 1.34);
+  assert.equal(result.maxScore, 6);
+});
+
 test("Authoritative evaluation: NEET standard attempt", () => {
   const questions = [
     { id: "q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" },
