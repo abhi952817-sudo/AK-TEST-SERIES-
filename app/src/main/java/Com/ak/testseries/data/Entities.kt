@@ -106,7 +106,8 @@ data class AttemptEntity(
     val answersJson: String, // String-encoded state of user answers
     val attemptSessionToken: String = "", // Stable idempotency key for deduplication
     val verifiedServerSide: Boolean = false, // Server verification guarantee
-    val submissionStatus: String = "CONFIRMED" // CONFIRMED, PENDING, OFFLINE
+    val submissionStatus: String = "CONFIRMED", // CONFIRMED, PENDING, OFFLINE
+    val ungradedCount: Int = 0 // Submitted answers without a verified key
 )
 
 data class QuestionReport(
