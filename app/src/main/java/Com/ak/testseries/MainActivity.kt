@@ -7778,6 +7778,7 @@ fun MiniLeaderboardCard(
     val qCount = viewModel?.userQualifyingTestsCount?.collectAsStateWithLifecycle()?.value ?: 0
     val compScore = viewModel?.userCompetitiveScore?.collectAsStateWithLifecycle()?.value ?: 0
     val userPercentile = viewModel?.userPercentile?.collectAsStateWithLifecycle()?.value ?: 0.0
+    val currentUid = viewModel?.currentUserId?.collectAsStateWithLifecycle()?.value ?: ""
 
     val examsList = remember {
         (listOf("All") + Com.ak.testseries.exam.UniversalExamRegistry.getAllExams().map { it.shortName }).distinct()
@@ -8040,7 +8041,7 @@ fun MiniLeaderboardCard(
                 }
             } else {
                 leaderboard.forEach { entry ->
-                    val isCurrentUser = entry.name == userProfile.name
+                    val isCurrentUser = (currentUid.isNotBlank() && entry.uid == currentUid) || entry.name == userProfile.name
                     val badgeColor = when (entry.rank) {
                         1 -> Color(0xFFFFD700)
                         2 -> Color(0xFFC0C0C0)
