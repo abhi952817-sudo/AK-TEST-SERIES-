@@ -14,7 +14,9 @@ function isAnswerKeyVerified(key) {
   if (VALID_ANSWER_OPTIONS.has(clean) || isFiniteNumericAnswer(clean)) return true;
   if (clean.includes(",")) {
     const parts = clean.split(",").map(p => p.trim());
-    if (parts.length > 0 && new Set(parts).size === parts.length && parts.every(p => VALID_ANSWER_OPTIONS.has(p) || isFiniteNumericAnswer(p))) {
+    const optionAliases = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
+    const normalizedParts = parts.map(part => optionAliases[part] || part);
+    if (parts.length > 0 && new Set(normalizedParts).size === parts.length && parts.every(p => VALID_ANSWER_OPTIONS.has(p) || isFiniteNumericAnswer(p))) {
       return true;
     }
   }
@@ -75,15 +77,8 @@ function isUserAnswerCorrect(userAns, correctAns, isNumerical = false) {
   if (u.length === 0 || c.length === 0) return false;
   if (areOptionsEquivalent(u, c, isNumerical)) return true;
 
-  if (c.includes(",")) {
-    const acceptedKeys = c.split(",").map(k => k.trim());
-    const userParts = u.split(",").map(k => k.trim()).sort();
-    const correctParts = acceptedKeys.slice().sort();
-
-    // Multiple-correct questions require the complete answer set.
-    // Accept ordering differences, but never award full marks for a partial selection.
-    if (userParts.join(",") === correctParts.join(",")) return true;
-  }
+  // Multi-answer equivalence was fully checked above, including aliases and duplicate rejection.
+  if (c.includes(",")) return false;
   return false;
 }
 
