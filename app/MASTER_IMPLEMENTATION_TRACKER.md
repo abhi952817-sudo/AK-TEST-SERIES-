@@ -546,3 +546,29 @@ The attempt-security review was extended beyond the initial idempotency issue:
 7. Run Android, Node, Firestore Emulator, Storage Emulator, PDF fixture, and device/network suites; record actual command output and status.
 
 **Checkpoint rule:** Findings above are static-review findings, not runtime-confirmed defects. No app code was changed as part of this audit-note update. Production readiness remains **NOT VERIFIED / NOT READY** until release gates pass.
+
+
+---
+
+## Checkpoint 2026-11-06 — Admin Dashboard Truthfulness Audit
+
+### Confirmed finding
+- **ADM-DATA-001 | HIGH | Fixed in source; runtime verification NOT RUN**
+  - File: `app/src/main/java/Com/ak/testseries/viewmodel/SuperAdminViewModel.kt`
+  - Problem: The Admin dashboard reported `activeUsersCount = usersCount / 2` without querying active sessions. It also emitted success logs claiming Gemini was connected and healthy without making a provider health request. Several other metrics were initialized as plausible zero/default values despite having no data source wired in this ViewModel (attempt count, AI queue, pending review, storage capacity/usage, and ad revenue).
+  - Change: Removed the inferred active-user count and replaced it with an unavailable marker; removed the simulated Gemini-success messages and now explicitly marks provider health as not verified. Unwired metrics now display unavailable/not configured rather than fabricated zero/healthy values.
+  - Commit: `d30e552a4785d9827b3a5530da17aa4790c03cca`
+  - Verification: STATIC REVIEW of the source change only. Android compilation/UI rendering and Admin dashboard runtime tests are NOT RUN in this connector-only session.
+  - Follow-up: Implement real server-authorized metrics and provider health checks with defined time windows, pagination/aggregation limits, and explicit failure states. Do not infer active users from registered-user counts.
+
+### Student/Admin flow audit — initial observations
+- Student navigation and all screen destinations still require a complete route-by-route inventory from `MainActivity.kt` and the ViewModel.
+- Private Test Vault contains a prefilled JSON example for its manual import feature. This is an example/template, not proof that the vault itself uses dummy records; audit its save/share path and answer-key separation before changing it.
+- Admin dashboard is not fully live: only total user and total test counts are queried in the inspected ViewModel; remaining metrics need actual data sources.
+- Security rules and backend callable behavior require test execution against the current branch, not reliance on historical tracker results.
+
+### Next checkpoint
+1. Map Student navigation routes to actual Composables and ViewModel actions.
+2. Map all three Admin roles to server-side permissions and eight control areas.
+3. Trace Private/Public test creation, ownership, publication, download, and answer-key access.
+4. Re-run backend, Firestore Emulator, Storage Emulator, Room, and Android test suites where a real execution environment is available.
