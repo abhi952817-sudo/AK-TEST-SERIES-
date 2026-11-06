@@ -430,6 +430,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       transaction.set(db.collection("XP_Leaderboard_Weekly").doc(rankingWeekId).collection("Entries").doc(userId), {
         userId, displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
         profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE", xp: newWeekXp,
+        xpLeague: getLeagueForXp(newXpTotal),
         weekId: rankingWeekId, updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
     }
