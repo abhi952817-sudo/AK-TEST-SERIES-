@@ -131,7 +131,16 @@ class OfflineMarkdownQuestionParserTest {
         assertEquals("The Indian Constitution was adopted on:", models[0].questionText)
         assertEquals("B", models[0].correctAnswer)
         assertEquals("Indian Polity", models[0].subjectId)
-        assertEquals(ValidationStatus.APPROVED, models[0].validationStatus)
-        assertEquals("Extracted PDF Test Paper", models[0].sourceName)
+        assertEquals(ValidationStatus.NEEDS_REVIEW, models[0].validationStatus)
+        assertEquals("Uploaded PDF (unverified provenance)", models[0].sourceName)
+        assertFalse(models[0].isOfficialPYQ)
+        assertEquals(0.0, models[0].positiveMarks, 0.0)
     }
 }
+
+
+    @Test
+    fun emptyOrUnstructuredPdfDoesNotCreateSyntheticQuestions() {
+        assertTrue(OfflineMarkdownQuestionParser.parseStructuredQuestions("").isEmpty())
+        assertTrue(OfflineMarkdownQuestionParser.parseStructuredQuestions("random OCR noise without a question").isEmpty())
+    }
