@@ -257,6 +257,9 @@ class ExamScoringEngineTest {
         // Full multi-correct answer matches
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("A, B", "A, B"))
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("B, A", "A, B"))
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("1, 2", "A, B"))
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("A, A", "A, B"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("A, A"))
     }
 
     @Test
