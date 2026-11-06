@@ -58,7 +58,7 @@ class AppDatabaseMigration20To21Test {
         }
 
         val config = SupportSQLiteOpenHelper.Configuration.builder(context)
-            .name("attempt_ungraded_migration_20_21")
+            .name("attempt_ungraded_migration_20_21_${System.nanoTime()}")
             .callback(callback)
             .build()
         val helper = FrameworkSQLiteOpenHelperFactory().create(config)
