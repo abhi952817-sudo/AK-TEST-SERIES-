@@ -8241,15 +8241,16 @@ fun LeaderboardTabScreen(viewModel: NEETViewModel) {
     val attempts by viewModel.attemptHistory.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val selectedExamFilter by viewModel.leaderboardExamFilter.collectAsStateWithLifecycle()
+    val selectedClassFilter by viewModel.leaderboardClassFilter.collectAsStateWithLifecycle()
 
-    LaunchedEffect(selectedExamFilter, userProfile.targetExam) {
+    LaunchedEffect(selectedExamFilter, userProfile.targetExam, selectedClassFilter) {
         val exam = if (selectedExamFilter.isNotBlank()) selectedExamFilter else userProfile.targetExam.ifBlank { "NEET" }
-        viewModel.fetchLeaderboard(exam)
-        viewModel.fetchUserRank(exam)
+        viewModel.fetchLeaderboard(exam, selectedClassFilter)
+        viewModel.fetchUserRank(exam, selectedClassFilter)
     }
-    LaunchedEffect(rankingPeriodMode, selectedExamFilter) {
+    LaunchedEffect(rankingPeriodMode, selectedExamFilter, selectedClassFilter) {
         if (rankingPeriodMode == "HALF_MONTH" || rankingPeriodMode == "MONTH") {
-            viewModel.fetchRankingPeriodLeaderboard(rankingPeriodMode)
+            viewModel.fetchRankingPeriodLeaderboard(rankingPeriodMode, selectedClassFilter)
         }
     }
 
@@ -8296,6 +8297,18 @@ fun LeaderboardTabScreen(viewModel: NEETViewModel) {
             0 -> {
                 val leaderboard by viewModel.leaderboard.collectAsStateWithLifecycle()
                 Column {
+                    Text("Class Cohort", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("All", "11th", "12th", "Dropper").forEach { level ->
+                            FilterChip(
+                                selected = selectedClassFilter == level,
+                                onClick = { viewModel.leaderboardClassFilter.value = level },
+                                label = { Text(level) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = rankingPeriodMode == "ALL_TIME", onClick = { rankingPeriodMode = "ALL_TIME" }, label = { Text("Overall") })
                         FilterChip(selected = rankingPeriodMode == "HALF_MONTH", onClick = { rankingPeriodMode = "HALF_MONTH" }, label = { Text("15 Days") })
