@@ -357,5 +357,44 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if false;
     }
+
+    // =========================================================================
+    // AK RANKING ENGINE V2: isolated exam boards, periods, user ranks and XP.
+    // Clients may read public leaderboards; all writes remain Admin SDK only.
+    // =========================================================================
+    match /Exam_Leaderboards/{examId}/Entries/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /User_Ranks/{userId}/Exams/{examId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /Ranking_Periods/{examId}/Periods/{periodId}/Entries/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /Ranking_Attempt_Locks/{lockId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /XP_Transactions/{transactionId} {
+      allow read: if isAuthenticated()
+        && (resource.data.get('userId', '') == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /XP_Leaderboard_AllTime/{entryDoc}/Students/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /XP_Leaderboard_Weekly/{weekId}/Entries/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
   }
 }
