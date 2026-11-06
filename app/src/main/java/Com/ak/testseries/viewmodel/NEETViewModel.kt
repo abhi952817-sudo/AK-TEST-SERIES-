@@ -997,6 +997,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     _examTimeRemaining.value = 0L
                     activeAttemptSessionToken = ""
                     loadUserBookmarks(uid)
+                    fetchMyRankingProgress(uid)
+                    fetchXpLeaderboard("WEEKLY")
                     loadLastBackupMetadata(getApplication(), uid)
                 }
             }
@@ -1012,7 +1014,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         loadDailyGenerations()
         listenToUserNotifications()
         
-        syncUserAttemptsFromFirebase() 
+        syncUserAttemptsFromFirebase()
+        fetchMyRankingProgress(currentUserId.value)
+        fetchXpLeaderboard("WEEKLY")
 
         // Start real-time test and questions synchronization with Firestore
         viewModelScope.launch(Dispatchers.IO) {
