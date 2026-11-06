@@ -1036,9 +1036,11 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
       qualifyingTestsCount: Number(row.qualifyingTestsCount || 0)
     };
   });
+  const thirdPlaceRank = entries.length >= 3 ? entries[2].rank : (entries.length ? entries[entries.length - 1].rank : 0);
   return {
     success: true, targetExam: examId, periodType, periodId,
-    rankingScope: "AK_TEST_SERIES", entries, topThree: entries.slice(0, 3)
+    rankingScope: "AK_TEST_SERIES", entries,
+    topThree: entries.filter(entry => thirdPlaceRank > 0 && entry.rank <= thirdPlaceRank)
   };
 });
 
