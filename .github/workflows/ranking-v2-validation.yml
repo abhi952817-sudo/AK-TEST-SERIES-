@@ -1,0 +1,56 @@
+name: Ranking V2 Validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/ranking-engine-v2-2026-11-06]
+
+jobs:
+  backend-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: backend_functions/package-lock.json
+      - run: npm ci --prefix backend_functions
+      - name: Syntax-check ranking backend
+        run: |
+          node --check backend_functions/index.js
+          node --check backend_functions/examScoring.js
+          node --check backend_functions/rankingEngine.js
+      - name: Run scoring and ranking unit tests
+        run: node --test backend_functions/examScoring.test.js backend_functions/rankingEngine.test.js
+
+  firestore-rules-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install emulator test dependencies
+        run: npm install --no-save firebase-tools @firebase/rules-unit-testing firebase
+      - name: Run Firestore security rules tests
+        env:
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8085
+        run: npx firebase emulators:exec --only firestore --project demo-no-project "node --test firestore.test.js"
+
+  android-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Run Android unit tests and debug build
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug
