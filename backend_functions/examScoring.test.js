@@ -49,6 +49,18 @@ test("Authoritative evaluator reports selected answers with unverified keys as u
   assert.equal(result.accuracyPercent, 100);
 });
 
+test("Authoritative evaluator reports selected answers with unverified keys as ungraded", () => {
+  const result = evaluateTestAttempt("NEET UG", [
+    { id: "q1", correctAnswer: "NOT_SET", section: "SECTION_A", subject: "Physics" },
+    { id: "q2", correctAnswer: "A", section: "SECTION_A", subject: "Physics" }
+  ], { q1: { ans: "B" }, q2: { ans: "A" } }, 30);
+  assert.equal(result.correctCount, 1);
+  assert.equal(result.wrongCount, 0);
+  assert.equal(result.ungradedCount, 1);
+  assert.equal(result.attemptedCount, 2);
+  assert.equal(result.accuracyPercent, 100);
+});
+
 test("Authoritative evaluator grades MSQ only when the exact set is selected", () => {
   const questions = [
     { id: "msq_subset", correctAnswer: "A,B", section: "SECTION_A", subject: "Physics", questionType: "MCQ_MULTIPLE" },
@@ -125,7 +137,7 @@ test("Authoritative evaluation: NEET standard attempt", () => {
   assert.strictEqual(result.negativeMarksPenalty, 1.0);
   assert.strictEqual(result.finalScore, 3.0);
   assert.strictEqual(result.rawScore, 3.0);
-  assert.strictEqual(result.maxScore, 8.0);
+  assert.strictEqual(result.maxScore, 16.0);
   assert.strictEqual(result.accuracyPercent, 50.0);
 });
 
@@ -142,6 +154,7 @@ test("Section B optional limit: surplus questions are ignored", () => {
   assert.strictEqual(result.correctCount, 10);
   assert.strictEqual(result.unansweredCount, 2);
   assert.strictEqual(result.finalScore, 40.0);
+  assert.strictEqual(result.maxScore, 40.0);
   assert.strictEqual(result.maxScore, 40.0, "NEET Section B maximum must cap at 10 questions");
 });
 
