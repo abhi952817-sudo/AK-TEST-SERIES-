@@ -313,6 +313,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val xpLeaderboard: StateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>> = _xpLeaderboard.asStateFlow()
     private val _isProfilePublic = MutableStateFlow(true)
     val isProfilePublic: StateFlow<Boolean> = _isProfilePublic.asStateFlow()
+    private val _profileVisibilityLoaded = MutableStateFlow(false)
+    val profileVisibilityLoaded: StateFlow<Boolean> = _profileVisibilityLoaded.asStateFlow()
 
     private val _xpTotal = MutableStateFlow(0L)
     val xpTotal: StateFlow<Long> = _xpTotal.asStateFlow()
@@ -728,6 +730,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 firestoreDb.collection("Users_Data").document(uid)
                     .update("profileVisibility", if (isPublic) "PUBLIC" else "PRIVATE").await()
                 _isProfilePublic.value = isPublic
+                _profileVisibilityLoaded.value = true
             } catch (e: Exception) {
                 android.util.Log.e("NEETViewModel", "Profile visibility update failed", e)
             }
@@ -736,6 +739,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     fun fetchMyRankingProgress(uid: String = currentUserId.value) {
         if (uid.isBlank()) {
+            _isProfilePublic.value = true
+            _profileVisibilityLoaded.value = false
             _xpTotal.value = 0L
             _xpThisWeek.value = 0L
             _xpLeague.value = "ROOKIE"
@@ -747,6 +752,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val snapshot = firestoreDb.collection("Users_Data").document(uid).get().await()
                 _isProfilePublic.value = !snapshot.getString("profileVisibility").equals("PRIVATE", ignoreCase = true)
+                _profileVisibilityLoaded.value = true
                 _xpTotal.value = snapshot.getLong("xpTotal") ?: 0L
                 _xpThisWeek.value = snapshot.getLong("xpThisWeek") ?: 0L
                 _xpLeague.value = snapshot.getString("xpLeague") ?: "ROOKIE"
