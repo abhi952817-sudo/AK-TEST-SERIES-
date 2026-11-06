@@ -283,6 +283,7 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   let correctCount = 0;
   let wrongCount = 0;
   let unansweredCount = 0;
+  let ungradedCount = 0;
 
   let positiveMarksEarned = 0.0;
   let negativeMarksPenalty = 0.0;
@@ -331,7 +332,7 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
         }
 
         if (!isKeyVerified) {
-          // Unverified answer key: 0 marks and no penalty
+          ungradedCount++;
         } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical, q.questionType)) {
           correctCount++;
           positiveMarksEarned += scheme.pos;
@@ -346,7 +347,7 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   // Round maxPossible and calculate final scores
   const rawScore = positiveMarksEarned - negativeMarksPenalty;
   const finalScore = Math.max(0.0, rawScore);
-  const attemptedCount = correctCount + wrongCount;
+  const attemptedCount = correctCount + wrongCount + ungradedCount;
   const accuracyPercent = attemptedCount > 0 ? Math.round((correctCount / attemptedCount) * 10000) / 100 : 0.0;
 
   return {
@@ -355,6 +356,7 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     correctCount,
     wrongCount,
     unansweredCount,
+    ungradedCount,
     positiveMarksEarned: Math.round(positiveMarksEarned * 100) / 100,
     negativeMarksPenalty: Math.round(negativeMarksPenalty * 100) / 100,
     rawScore: Math.round(rawScore * 100) / 100,
