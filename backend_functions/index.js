@@ -13,7 +13,7 @@ const {
 } = require("./examScoring");
 const {
   RANKING_CONFIG, resolveRankingWeight, calculateWeightedRankingScore,
-  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds,
+  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel,
   getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus
 } = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
@@ -468,6 +468,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
         profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE",
         isBanned: userIsBanned,
+        classLevel: normalizeClassLevel(userData.classLevel),
         targetExam: canonicalExam,
         scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -578,6 +579,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         displayName: publicProfile ? (userData.displayName || userData.name || "Student") : "Private Student",
         profileVisibility: publicProfile ? "PUBLIC" : "PRIVATE",
         isBanned: userIsBanned,
+        classLevel: normalizeClassLevel(userData.classLevel),
         targetExam: canonicalExam,
         score: competitiveScore,
         maxSingleScore: Math.round(evalResult.finalScore),
@@ -591,6 +593,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       transaction.set(db.collection("User_Ranks").doc(userId)
         .collection("Exams").doc(canonicalExam), {
           userId, targetExam: canonicalExam, score: competitiveScore,
+          classLevel: normalizeClassLevel(userData.classLevel),
           qualifyingTestsCount: qualifyingTests, isEligibleForRanking: isEligible, isBanned: userIsBanned,
           scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -644,7 +647,10 @@ exports.syncRankingProfileVisibility = functions.firestore
     const afterName = after.displayName || after.name || "Student";
     const beforeBanned = before.isBanned === true;
     const afterBanned = after.isBanned === true;
-    if (beforeVisibility === afterVisibility && beforeName === afterName && beforeBanned === afterBanned) return null;
+    const beforeClassLevel = normalizeClassLevel(before.classLevel);
+    const afterClassLevel = normalizeClassLevel(after.classLevel);
+    if (beforeVisibility === afterVisibility && beforeName === afterName &&
+        beforeBanned === afterBanned && beforeClassLevel === afterClassLevel) return null;
 
     const isPublic = afterVisibility !== "PRIVATE";
     const displayName = isPublic ? afterName : "Private Student";
@@ -662,6 +668,7 @@ exports.syncRankingProfileVisibility = functions.firestore
           displayName,
           profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
           isBanned: afterBanned,
+          classLevel: afterClassLevel,
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         };
         if (row.qualifyingTestsCount !== undefined) {
@@ -746,6 +753,7 @@ async function rebuildRankingV2ForUser(userId) {
   const userData = userSnap.data();
   const isPublic = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
   const displayName = isPublic ? (userData.displayName || userData.name || "Student") : "Private Student";
+  const classLevel = normalizeClassLevel(userData.classLevel);
   const userIsBanned = userData.isBanned === true;
   const userUpdates = { rankingBackfillVersion: RANKING_CONFIG.version,
     rankingBackfilledAt: admin.firestore.FieldValue.serverTimestamp() };
@@ -760,7 +768,7 @@ async function rebuildRankingV2ForUser(userId) {
 
     batch.set(db.collection("Exam_Leaderboards").doc(examId).collection("Entries").doc(userId), {
       userId, displayName, profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
-      isBanned: userIsBanned,
+      isBanned: userIsBanned, classLevel,
       targetExam: examId, score: aggregate.score, maxSingleScore: aggregate.maxSingleScore,
       qualifyingTestsCount: aggregate.count, isEligibleForRanking: eligible && !userIsBanned,
       scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", rankingWeightVersion: RANKING_CONFIG.version,
@@ -768,7 +776,7 @@ async function rebuildRankingV2ForUser(userId) {
     }, { merge: true });
 
     batch.set(db.collection("User_Ranks").doc(userId).collection("Exams").doc(examId), {
-      userId, targetExam: examId, score: aggregate.score,
+      userId, targetExam: examId, score: aggregate.score, classLevel,
       qualifyingTestsCount: aggregate.count, isEligibleForRanking: eligible && !userIsBanned,
       isBanned: userIsBanned,
       scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
@@ -782,7 +790,7 @@ async function rebuildRankingV2ForUser(userId) {
     batch.set(db.collection("Ranking_Periods").doc(period.examId)
       .collection("Periods").doc(period.periodId).collection("Entries").doc(userId), {
         userId, displayName, profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
-        isBanned: userIsBanned,
+        isBanned: userIsBanned, classLevel,
         targetExam: period.examId, rankingScore: period.score,
         qualifyingTestsCount: period.count, isEligibleForRanking: eligible && !userIsBanned,
         periodType: period.periodType, periodId: period.periodId,
@@ -869,6 +877,8 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   const userId = context.auth.uid;
   const { targetExam } = data || {};
   const canonicalExam = normalizeExamKey(targetExam || "NEET");
+  const classLevel = normalizeClassLevel((data || {}).classLevel || "All");
+  const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
 
   const userDoc = await db.collection("Users_Data").doc(userId).get();
   if (!userDoc.exists) {
@@ -920,9 +930,11 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   }
 
   // Query eligible participant population for this specific exam
-  const eligibleQuery = db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
-    .where("isEligibleForRanking", "==", true)
-    .where("isBanned", "==", false);
+  const eligibleQuery = applyClassFilter(
+    db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
+      .where("isEligibleForRanking", "==", true)
+      .where("isBanned", "==", false)
+  );
 
   const eligibleSnap = await eligibleQuery.count().get();
   const totalEligible = eligibleSnap.data().count;
@@ -945,10 +957,12 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   }
 
   // Count candidates strictly above this candidate's score
-  const higherQuery = db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
-    .where("isEligibleForRanking", "==", true)
-    .where("isBanned", "==", false)
-    .where("score", ">", competitiveScore);
+  const higherQuery = applyClassFilter(
+    db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
+      .where("isEligibleForRanking", "==", true)
+      .where("isBanned", "==", false)
+      .where("score", ">", competitiveScore)
+  );
 
   const higherSnap = await higherQuery.count().get();
   const higherCount = higherSnap.data().count;
@@ -956,11 +970,12 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   // Standard Competition Percentile Formula:
   // P = ((N - rank + 1) / N) * 100
-  const equalSnap = await db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
-    .where("isEligibleForRanking", "==", true)
-    .where("isBanned", "==", false)
-    .where("score", "==", competitiveScore)
-    .count().get();
+  const equalSnap = await applyClassFilter(
+    db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
+      .where("isEligibleForRanking", "==", true)
+      .where("isBanned", "==", false)
+      .where("score", "==", competitiveScore)
+  ).count().get();
   const equalCount = equalSnap.data().count;
   const belowCount = Math.max(0, totalEligible - higherCount - equalCount);
   const percentile = calculatePercentileFromCounts(belowCount, equalCount, totalEligible);
@@ -971,13 +986,13 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   // Next target motivation
   let nextTarget = null;
   if (rank > 1) {
-    const higherDocsSnap = await db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
+    const higherDocsSnap = await applyClassFilter(
+      db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
         .where("isEligibleForRanking", "==", true)
-    .where("isBanned", "==", false)
-      .where("score", ">", competitiveScore)
-      .orderBy("score", "asc")
-      .limit(1)
-      .get();
+        .where("isBanned", "==", false)
+        .where("score", ">", competitiveScore)
+        .orderBy("score", "asc")
+    ).limit(1).get();
     if (!higherDocsSnap.empty) {
       const targetDoc = higherDocsSnap.docs[0].data();
       const targetScore = targetDoc.score || 0;
@@ -1008,7 +1023,8 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
     totalEligible,
     nextTarget,
     message,
-    targetExam: canonicalExam
+    targetExam: canonicalExam,
+    classLevel
   };
 });
 
