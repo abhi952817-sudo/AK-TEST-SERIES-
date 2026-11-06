@@ -6524,6 +6524,7 @@ enum class AdminMenu {
 
 @Composable
 fun AdminRankingToolsContent(viewModel: NEETViewModel) {
+    LaunchedEffect(Unit) { viewModel.loadRankingV2MigrationStatus() }
     val status by viewModel.rankingMigrationStatus.collectAsStateWithLifecycle()
     val hasMore by viewModel.rankingMigrationHasMore.collectAsStateWithLifecycle()
     val running by viewModel.rankingMigrationRunning.collectAsStateWithLifecycle()
