@@ -263,8 +263,14 @@ object OfflineMarkdownQuestionParser {
         stageId: String = ""
     ): List<UniversalQuestionModel> {
         val parsedList = parseStructuredQuestions(markdown)
-        val defaultMarks = 4.0
-        val defaultNegMarks = 1.0
+        val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId }
+            ?: examConfig.stages.singleOrNull()
+        val selectedPaper = selectedStage?.papers?.singleOrNull()
+        val selectedSubject = selectedPaper?.subjects?.firstOrNull {
+            it.subjectId.equals(subjectId, ignoreCase = true) ||
+                it.subjectName.equals(subjectId, ignoreCase = true)
+        }
+        val sections = selectedSubject?.sections.orEmpty()
 
         return parsedList.map { pq ->
             val optionsList = listOfNotNull(
@@ -273,30 +279,41 @@ object OfflineMarkdownQuestionParser {
                 pq.optionC.takeIf { it.isNotBlank() },
                 pq.optionD.takeIf { it.isNotBlank() }
             )
-
-            val qType = if (optionsList.isEmpty()) QuestionType.NUMERICAL else QuestionType.DIRECT_MCQ
+            var cumulativeQuestions = 0
+            val resolvedSection = sections.firstOrNull { section ->
+                cumulativeQuestions += section.totalQuestions
+                pq.questionNumber <= cumulativeQuestions
+            }
+            val inferredType = if (optionsList.isEmpty()) QuestionType.NUMERICAL else QuestionType.DIRECT_MCQ
+            val questionType = resolvedSection?.questionType ?: inferredType
+            val configuredMarksVerified = examConfig.verified && resolvedSection != null
 
             UniversalQuestionModel(
                 questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${pq.questionNumber}",
                 examId = examConfig.examId,
-                stageId = stageId,
-                paperId = "paper_1",
+                stageId = selectedStage?.stageId ?: "",
+                paperId = selectedPaper?.paperId ?: "",
                 subjectId = subjectId,
-                sectionId = "SECTION_A",
-                sectionName = "Section A",
-                questionType = qType,
+                sectionId = resolvedSection?.sectionId ?: "UNASSIGNED",
+                sectionName = resolvedSection?.sectionName ?: "Unassigned section",
+                questionType = questionType,
                 questionText = pq.questionText,
                 options = optionsList,
                 correctAnswer = pq.correctAnswer,
+                sourceAnswer = null,
                 explanation = pq.explanation,
-                positiveMarks = defaultMarks,
-                negativeMarks = defaultNegMarks,
+                positiveMarks = if (configuredMarksVerified) resolvedSection!!.positiveMarks else 0.0,
+                negativeMarks = if (configuredMarksVerified) resolvedSection!!.negativeMarks else 0.0,
                 difficulty = DifficultyLevel.MEDIUM,
-                qualityScore = 95,
-                validationStatus = ValidationStatus.APPROVED,
+                qualityScore = 70,
+                validationStatus = ValidationStatus.NEEDS_REVIEW,
+                validationReasons = listOf(
+                    "Extracted from an uploaded PDF; verify source provenance, question text, answer key, section and marking scheme before approval."
+                ),
                 duplicateHash = DuplicateDetectionEngine.generateNormalizedHash(pq.questionText, optionsList),
                 generationModel = "pdf-real-extractor-v1",
-                sourceName = "Extracted PDF Test Paper"
+                sourceName = "Uploaded PDF (unverified provenance)",
+                isOfficialPYQ = false
             )
         }
     }
