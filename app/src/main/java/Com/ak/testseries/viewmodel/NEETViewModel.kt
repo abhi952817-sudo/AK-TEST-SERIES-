@@ -1299,7 +1299,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         "stateName" to stateName,
                         "cityName" to cityName,
                         "profileImageUri" to profileImageUri,
-                        "targetExam" to targetExam
+                        "targetExam" to targetExam,
+                        "classLevel" to classLevel
                     )
                     userRef.set(userData, com.google.firebase.firestore.SetOptions.merge()).await()
                 }
