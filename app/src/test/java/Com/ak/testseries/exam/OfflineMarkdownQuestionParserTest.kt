@@ -134,4 +134,26 @@ class OfflineMarkdownQuestionParserTest {
         assertEquals(ValidationStatus.APPROVED, models[0].validationStatus)
         assertEquals("Extracted PDF Test Paper", models[0].sourceName)
     }
+
+    @Test
+    fun missingAnswerKeyDoesNotInventOptionAOrApproveQuestion() {
+        val text = """
+            1. Which element has atomic number 8?
+            (A) Oxygen
+            (B) Nitrogen
+            (C) Carbon
+            (D) Hydrogen
+        """.trimIndent()
+        val examConfig = UniversalExamRegistry.findExamByNameOrShortName("UPSC CSE")!!
+        val models = OfflineMarkdownQuestionParser.parseMarkdownToQuestions(
+            markdown = text,
+            examConfig = examConfig,
+            subjectId = "General Science"
+        )
+        assertEquals(1, models.size)
+        assertEquals("", models[0].correctAnswer)
+        assertNull(models[0].sourceAnswer)
+        assertEquals(ValidationStatus.NEEDS_REVIEW, models[0].validationStatus)
+        assertTrue(models[0].validationReasons.any { it.contains("Independent source answer unavailable") })
+    }
 }
