@@ -313,7 +313,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const existingAttemptsSnap = await transaction.get(
       attemptsRef.where("testId", "==", cleanTestId).limit(1)
     );
-    const isFirstAttempt = existingAttemptsSnap.empty && (!lockSnap || !lockSnap.exists);
+    const legacyExistingAttemptsSnap = await transaction.get(
+      userRef.collection("attempts").where("testId", "==", cleanTestId).limit(1)
+    );
+    const isFirstAttempt = existingAttemptsSnap.empty &&
+      legacyExistingAttemptsSnap.empty && (!lockSnap || !lockSnap.exists);
 
     const userSnap = await transaction.get(userRef);
     if (!userSnap.exists) {
@@ -771,6 +775,54 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   });
   return { success: true, targetExam: examId, rankingScope: "AK_TEST_SERIES",
     scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", entries };
+});
+
+/**
+ * 15-day and monthly exam leaderboard. The period itself is an isolated score cohort.
+ * Top three are returned separately for award/recognition workflows.
+ */
+exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
+  }
+  const input = data || {};
+  const examId = normalizeExamKey(input.targetExam || "NEET");
+  const periodType = String(input.periodType || "HALF_MONTH").toUpperCase();
+  if (!["HALF_MONTH", "MONTH"].includes(periodType)) {
+    throw new functions.https.HttpsError("invalid-argument", "periodType must be HALF_MONTH or MONTH.");
+  }
+  const currentPeriods = getRankingPeriodIds(Date.now());
+  const periodId = String(input.periodId || (periodType === "MONTH" ? currentPeriods.monthId : currentPeriods.halfMonthId));
+  if (!/^\d{4}-\d{2}(-H[12])?$/.test(periodId) ||
+      (periodType === "HALF_MONTH" && !/-H[12]$/.test(periodId)) ||
+      (periodType === "MONTH" && /-H[12]$/.test(periodId))) {
+    throw new functions.https.HttpsError("invalid-argument", "Invalid ranking period identifier.");
+  }
+  const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
+  const snapshot = await db.collection("Ranking_Periods").doc(examId)
+    .collection("Periods").doc(periodId).collection("Entries")
+    .where("isEligibleForRanking", "==", true)
+    .orderBy("rankingScore", "desc").limit(limit).get();
+  let previousScore = null;
+  let competitionRank = 0;
+  const entries = snapshot.docs.map((doc, index) => {
+    const row = doc.data();
+    const score = Number(row.rankingScore || 0);
+    if (previousScore === null || score !== previousScore) competitionRank = index + 1;
+    previousScore = score;
+    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
+    return {
+      rank: competitionRank,
+      userId: row.userId || doc.id,
+      displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
+      score,
+      qualifyingTestsCount: Number(row.qualifyingTestsCount || 0)
+    };
+  });
+  return {
+    success: true, targetExam: examId, periodType, periodId,
+    rankingScope: "AK_TEST_SERIES", entries, topThree: entries.slice(0, 3)
+  };
 });
 
 /**
