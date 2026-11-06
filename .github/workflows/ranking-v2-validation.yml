@@ -44,3 +44,23 @@ jobs:
           FIRESTORE_EMULATOR_HOST: 127.0.0.1:8085
         run: npx firebase emulators:exec --only firestore --project demo-no-project "node --test firestore.test.js"
 
+  android-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+      - name: Setup Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
+      - name: Setup Environment File
+        run: cp .env.example .env
+      - name: Generate Debug Keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      - name: Run Android unit tests and build
+        run: gradle :app:testDebugUnitTest :app:assembleDebug
