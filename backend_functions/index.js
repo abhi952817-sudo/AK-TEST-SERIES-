@@ -134,9 +134,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const isCreator = (testData.creatorId && testData.creatorId === userId) ||
                     (testData.uploaderId && testData.uploaderId === userId);
 
-  const testStatus = String(testData.status || "").trim();
-  const isApprovedOrPublished = testStatus === "APPROVED" || testStatus === "Published";
-  const isExplicitlyRestricted = testStatus === "Under Review" || testStatus === "REJECTED" || testStatus === "DRAFT";
+  const testStatus = String(testData.status || "").trim().toUpperCase();
+  const isApprovedOrPublished = testStatus === "APPROVED" || testStatus === "PUBLISHED";
+  const isExplicitlyRestricted = testStatus === "UNDER REVIEW" || testStatus === "REJECTED" || testStatus === "DRAFT";
   const hasPublicFlag = testData.isPublic === true || testData.isOfficial === true;
 
   // A public flag alone MUST NOT allow a pending or rejected test to be treated as approved
