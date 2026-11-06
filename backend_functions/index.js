@@ -1012,7 +1012,8 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
     .where("isBanned", "==", false)
     .orderBy("score", "desc").limit(limit).get();
   const totalSnap = await db.collection("Exam_Leaderboards").doc(examId)
-    .collection("Entries").where("isEligibleForRanking", "==", true).count().get();
+    .collection("Entries").where("isEligibleForRanking", "==", true)
+    .where("isBanned", "==", false).count().get();
   const totalEligible = totalSnap.data().count;
   const airStatus = getRankingStatus(totalEligible);
   const rows = snapshot.docs.map(doc => doc.data());
