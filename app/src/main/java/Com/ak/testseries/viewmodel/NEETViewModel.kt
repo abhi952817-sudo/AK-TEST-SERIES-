@@ -528,10 +528,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     _userRank.value = "#$rank"
                                     _rankLastUpdatedTime.value = System.currentTimeMillis()
 
+                                    val equalQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
+                                        .collection("Entries")
+                                        .whereEqualTo("isEligibleForRanking", true)
+                                        .whereEqualTo("score", competitiveScore)
+                                    val equalSnapshot = equalQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
+                                    val equalCount = equalSnapshot.count.toInt()
+                                    val belowCount = (totalEligible - higherCount - equalCount).coerceAtLeast(0)
                                     val rawPct = if (totalEligible > 0) {
-                                        if (rank == 1) 100.0 else (((totalEligible - rank + 1).toDouble() / totalEligible.toDouble()) * 100.0).coerceIn(0.01, 99.99)
+                                        ((belowCount + equalCount).toDouble() / totalEligible.toDouble()) * 100.0
                                     } else 0.0
-                                    _userPercentile.value = Math.round(rawPct * 100.0) / 100.0
+                                    _userPercentile.value = Math.round(rawPct.coerceIn(0.0, 100.0) * 100.0) / 100.0
 
                                     if (rank > 1) {
                                         val higherUsersQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
@@ -692,7 +699,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     var prevScore: Int? = null
                     var prevRank = 1
                     for ((index, doc) in snapshot.documents.withIndex()) {
-                        val name = doc.getString("displayName") ?: doc.getString("name") ?: "Student"
+                        val name = if ((doc.getString("profileVisibility") ?: "PUBLIC").equals("PRIVATE", ignoreCase = true)) "Private Student" else (doc.getString("displayName") ?: "Student")
                         val score = (doc.getLong("score") ?: 0L).toInt()
                         val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
                         val qCount = (doc.getLong("totalTestsAttempted") ?: doc.getLong("qualifyingTestsCount") ?: 0L).toInt()
