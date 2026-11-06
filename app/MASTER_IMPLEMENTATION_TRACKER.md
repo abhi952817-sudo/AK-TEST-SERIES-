@@ -441,3 +441,6 @@
 `Exam ID + Exam Year + Config Version` → `Stage` → `Paper` → `Subject` → `Section` → `Question Type` → `Trusted Answer Key` → `Authoritative Scoring` → `Result + Ungraded Breakdown` → `Normalized Ranking Points` → `Exam Rank / Percentile` → `XP Ledger` → `Weekly / All-Time XP Leaderboard`.
 
 Scoring marks, normalized ranking points, percentile, and XP remain separate values. XP must never change exam marks or exam rank.
+
+
+- CI trigger wiring: parent development branch workflow was extended to validate pushes to this child branch and pull requests targeting the parent branch. Main remains unchanged.
