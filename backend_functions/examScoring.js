@@ -4,15 +4,17 @@
  */
 
 const VALID_ANSWER_OPTIONS = new Set(["A", "B", "C", "D", "E", "1", "2", "3", "4", "5"]);
+const NUMERIC_ANSWER_PATTERN = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+const isFiniteNumericAnswer = value => NUMERIC_ANSWER_PATTERN.test(value) && Number.isFinite(Number(value));
 
 function isAnswerKeyVerified(key) {
   if (!key) return false;
   const clean = String(key).trim().toUpperCase();
   if (clean.length === 0) return false;
-  if (VALID_ANSWER_OPTIONS.has(clean) || !isNaN(Number(clean))) return true;
+  if (VALID_ANSWER_OPTIONS.has(clean) || isFiniteNumericAnswer(clean)) return true;
   if (clean.includes(",")) {
     const parts = clean.split(",").map(p => p.trim());
-    if (parts.length > 0 && parts.every(p => VALID_ANSWER_OPTIONS.has(p) || !isNaN(Number(p)))) {
+    if (parts.length > 0 && parts.every(p => VALID_ANSWER_OPTIONS.has(p) || isFiniteNumericAnswer(p))) {
       return true;
     }
   }
@@ -25,11 +27,15 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
   const b = String(ans2).trim().toUpperCase();
   if (a.length === 0 || b.length === 0) return false;
 
-  // Numerical questions must contain a complete finite number. parseFloat alone
-  // accepts malformed values such as "123abc" as 123, which can award false marks.
+  // Reject NaN, Infinity, and exponent overflow even when both strings are identical.
+  if ((NUMERIC_ANSWER_PATTERN.test(a) && !Number.isFinite(Number(a))) ||
+      (NUMERIC_ANSWER_PATTERN.test(b) && !Number.isFinite(Number(b))) ||
+      ["NAN", "INFINITY", "+INFINITY", "-INFINITY"].includes(a) ||
+      ["NAN", "INFINITY", "+INFINITY", "-INFINITY"].includes(b)) return false;
+
+  // Numerical questions must contain a complete finite number.
   if (isNumerical) {
-    const numericPattern = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
-    if (!numericPattern.test(a) || !numericPattern.test(b)) return false;
+    if (!isFiniteNumericAnswer(a) || !isFiniteNumericAnswer(b)) return false;
     const num1 = Number(a);
     const num2 = Number(b);
     return Number.isFinite(num1) && Number.isFinite(num2) &&
@@ -43,8 +49,7 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
 
   // For non-numerical questions, only allow complete numeric aliases
   // (for example "1" <-> "1.0"); never let parseFloat accept "123abc".
-  const numericPattern = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
-  if (numericPattern.test(a) && numericPattern.test(b)) {
+  if (isFiniteNumericAnswer(a) && isFiniteNumericAnswer(b)) {
     const num1 = Number(a);
     const num2 = Number(b);
     return Number.isFinite(num1) && Number.isFinite(num2) &&
