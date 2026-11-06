@@ -597,6 +597,32 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private var leaderboardListener: com.google.firebase.firestore.ListenerRegistration? = null
 
+    fun loadRankingV2MigrationStatus() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                    .getHttpsCallable("getRankingMigrationStatus")
+                val result = callable.call(emptyMap<String, Any>()).await()
+                val payload = result.data as? Map<*, *> ?: emptyMap<Any, Any>()
+                val cursor = payload["lastProcessedUid"] as? String ?: ""
+                val hasMore = payload["hasMore"] as? Boolean ?: true
+                val completed = payload["completed"] as? Boolean ?: false
+                val processed = (payload["lastBatchProcessed"] as? Number)?.toInt() ?: 0
+                _rankingMigrationCursor.value = cursor
+                _rankingMigrationHasMore.value = hasMore
+                _rankingMigrationStatus.value = if (completed) {
+                    "Migration complete. Last batch processed $processed users."
+                } else if (cursor.isNotBlank()) {
+                    "Migration checkpoint loaded. Last batch processed $processed users. Continue with the next batch."
+                } else {
+                    "Migration has not started."
+                }
+            } catch (e: Exception) {
+                _rankingMigrationStatus.value = "Could not load migration status: ${e.message ?: "Unknown error"}"
+            }
+        }
+    }
+
     fun runRankingV2MigrationBatch(limit: Int = 10) {
         if (_rankingMigrationRunning.value) return
         viewModelScope.launch(Dispatchers.IO) {
