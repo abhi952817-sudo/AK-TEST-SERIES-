@@ -398,7 +398,7 @@
 - Added automated ranking-engine tests for normalization, invalid weights, IST periods, XP tiers, ties, percentile, and the 1,000-participant threshold.
 - Added a regression assertion for optional Section B maximum marks.
 - Added Firestore rules tests for v2 public reads, private User_Ranks access, profile visibility validation, and server-only ranking/XP writes.
-- Added `.github/workflows/ranking-v2-validation.yml` to run backend syntax/unit tests, Firestore Emulator rules tests, and Android unit/build validation on PR/push.
+- Added `.github/workflows/ranking-v2-validation.yml` to run backend syntax/unit tests and Firestore Emulator rules tests on PR/push. The repository's existing Android CI remains responsible for Android build validation.
 - **Tests have been authored but have not yet been executed in this environment.** Android compilation, Node tests, Firestore Emulator rules tests, and CI results must pass before merge.
 - Deploy the updated Cloud Functions, Firestore rules, and indexes only after CI passes and the admin backfill has been reviewed in dry-run / controlled batches.
 - Admin UI for editing ranking policy values and a configurable XP award editor remain a follow-up; current policy defaults are code-versioned.
