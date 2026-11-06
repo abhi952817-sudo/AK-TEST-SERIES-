@@ -29,7 +29,9 @@ object ExamScoringEngine {
         if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull()?.isFinite() == true) return true
         if (clean.contains(",")) {
             val parts = clean.split(",").map { it.trim() }
-            if (parts.isNotEmpty() && parts.distinct().size == parts.size && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull()?.isFinite() == true }) {
+            val optionAliases = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
+            val normalizedParts = parts.map { optionAliases[it] ?: it }
+            if (parts.isNotEmpty() && normalizedParts.distinct().size == normalizedParts.size && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull()?.isFinite() == true }) {
                 return true
             }
         }
@@ -67,14 +69,8 @@ object ExamScoringEngine {
         if (u.isEmpty() || c.isEmpty()) return false
         if (areOptionsEquivalent(u, c, isNumerical)) return true
 
-        if (c.contains(",")) {
-            val acceptedKeys = c.split(",").map { it.trim() }
-            val normalizedUserParts = u.split(",").map { it.trim() }.sorted()
-            val normalizedCorrectParts = acceptedKeys.sorted()
-            // Multiple-correct questions require the complete answer set.
-            // Accept ordering differences, but never award full marks for a partial selection.
-            if (normalizedUserParts == normalizedCorrectParts) return true
-        }
+        // Multi-answer equivalence was fully checked above, including aliases and duplicate rejection.
+        if (c.contains(",")) return false
         return false
     }
 
