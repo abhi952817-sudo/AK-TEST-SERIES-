@@ -129,7 +129,7 @@ interface RecentSearchDao {
 
 @Database(
     entities = [TestEntity::class, QuestionEntity::class, AttemptEntity::class, SyllabusEntity::class, RecentSearchEntity::class, PdfSessionEntity::class],
-    version = 20,
+    version = 21,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -243,6 +243,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_20_21 = object : androidx.room.migration.Migration(20, 21) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Preserve existing attempts; legacy rows default to zero ungraded answers.
+                db.execSQL("ALTER TABLE attempts ADD COLUMN ungradedCount INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: android.content.Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -250,7 +257,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "neet_test_series_db"
                 )
-                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

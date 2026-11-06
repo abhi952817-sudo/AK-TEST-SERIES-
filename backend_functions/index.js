@@ -358,7 +358,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     };
 
     if (evalResult.finalScore > currentMaxScore) {
-      updates.maxScore = Math.round(evalResult.finalScore);
+      updates.maxScore = evalResult.finalScore;
     }
 
     // Award ranking points only on FIRST valid attempt on QUALIFYING OFFICIAL tests
@@ -499,9 +499,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       testId: cleanTestId,
       testTitle: testData.title || "",
       targetExam: canonicalExam,
-      score: Math.round(evalResult.finalScore),
+      score: evalResult.finalScore,
       rawScore: evalResult.rawScore,
-      maxScore: Math.round(evalResult.maxScore),
+      maxScore: evalResult.maxScore,
       percentile: attemptPercentile, // Real population-based percentile calculated against candidate cohort
       testRank: testRank,
       testTotalCandidates: testTotalCandidates,
@@ -509,6 +509,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
       skippedCount: evalResult.unansweredCount,
+      ungradedCount: evalResult.ungradedCount || 0,
       positiveMarksEarned: evalResult.positiveMarksEarned,
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
       timeSpentSeconds: cleanTimeSpent,
@@ -538,7 +539,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       transaction.set(testEntryRef, {
         userId,
         displayName: userData.name || "Student",
-        score: Math.round(evalResult.finalScore),
+        score: evalResult.finalScore,
         rawScore: evalResult.rawScore,
         accuracy: evalResult.accuracyPercent,
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -582,7 +583,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         classLevel: normalizeClassLevel(userData.classLevel),
         targetExam: canonicalExam,
         score: competitiveScore,
-        maxSingleScore: Math.round(evalResult.finalScore),
+        maxSingleScore: evalResult.finalScore,
         qualifyingTestsCount: qualifyingTests,
         isEligibleForRanking: isEligible,
         scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
@@ -606,9 +607,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       attemptId: attemptDocId,
       testId: cleanTestId,
       targetExam: canonicalExam,
-      score: Math.round(evalResult.finalScore),
+      score: evalResult.finalScore,
       rawScore: evalResult.rawScore,
-      maxScore: Math.round(evalResult.maxScore),
+      maxScore: evalResult.maxScore,
       percentile: attemptPercentile,
       testRank,
       testTotalCandidates,
@@ -616,6 +617,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
       skippedCount: evalResult.unansweredCount,
+      ungradedCount: evalResult.ungradedCount || 0,
       positiveMarksEarned: evalResult.positiveMarksEarned,
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
       isFirstAttempt,

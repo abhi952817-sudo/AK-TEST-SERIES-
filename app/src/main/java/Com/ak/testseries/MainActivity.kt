@@ -4746,6 +4746,17 @@ fun ResultScreen(viewModel: NEETViewModel) {
                         StatMetricColumn(if (selectedLanguage == AppLanguage.HINDI) "छोड़े" else "Skipped", "${result.skippedCount}", MaterialTheme.colorScheme.onSurfaceVariant)
                         StatMetricColumn(if (selectedLanguage == AppLanguage.HINDI) "समय" else "Time", "${result.timeSpentSeconds / 60}m", MaterialTheme.colorScheme.primary)
                     }
+                    if (result.ungradedCount > 0) {
+                        Text(
+                            if (selectedLanguage == AppLanguage.HINDI)
+                                "सत्यापित उत्तर-कुंजी उपलब्ध नहीं: ${result.ungradedCount} प्रश्न बिना अंक दिए गए हैं।"
+                            else
+                                "Answer key not verified: ${result.ungradedCount} responses were left ungraded.",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                     val solutionsText = if (showSolutions) {
                         if (selectedLanguage == AppLanguage.HINDI) "विस्तृत समाधान छुपाएं" else "Hide Solutions"

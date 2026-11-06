@@ -20,6 +20,11 @@ test("Answer verification: standard options, numbers, and multiple keys", () => 
   assert.strictEqual(isAnswerKeyVerified("A, C"), true);
   assert.strictEqual(isAnswerKeyVerified(""), false);
   assert.strictEqual(isAnswerKeyVerified("INVALID_KEY"), false);
+  assert.strictEqual(isAnswerKeyVerified("NaN"), false);
+  assert.strictEqual(isAnswerKeyVerified("Infinity"), false);
+  assert.strictEqual(isAnswerKeyVerified("12abc"), false);
+  assert.strictEqual(isAnswerKeyVerified("A,,B"), false);
+  assert.strictEqual(isAnswerKeyVerified("A,A"), false);
 });
 
 test("Option equivalence: index to letter and numerical precision", () => {
@@ -28,14 +33,66 @@ test("Option equivalence: index to letter and numerical precision", () => {
   assert.strictEqual(areOptionsEquivalent("3.14", "3.15", true), false);
   assert.strictEqual(areOptionsEquivalent("10.0", "10.000", true), true);
   assert.strictEqual(areOptionsEquivalent("A", "C"), false);
+  assert.strictEqual(areOptionsEquivalent("12abc", "12", true), false);
+  assert.strictEqual(areOptionsEquivalent("Infinity", "Infinity", true), false);
+});
+
+test("Authoritative evaluator reports selected answers with unverified keys as ungraded", () => {
+  const result = evaluateTestAttempt("NEET UG", [
+    { id: "q1", correctAnswer: "NOT_SET", section: "SECTION_A", subject: "Physics" },
+    { id: "q2", correctAnswer: "A", section: "SECTION_A", subject: "Physics" }
+  ], { q1: { ans: "B" }, q2: { ans: "A" } }, 30);
+  assert.equal(result.correctCount, 1);
+  assert.equal(result.wrongCount, 0);
+  assert.equal(result.ungradedCount, 1);
+  assert.equal(result.attemptedCount, 2);
+  assert.equal(result.accuracyPercent, 100);
+});
+
+test("Authoritative evaluator reports selected answers with unverified keys as ungraded", () => {
+  const result = evaluateTestAttempt("NEET UG", [
+    { id: "q1", correctAnswer: "NOT_SET", section: "SECTION_A", subject: "Physics" },
+    { id: "q2", correctAnswer: "A", section: "SECTION_A", subject: "Physics" }
+  ], { q1: { ans: "B" }, q2: { ans: "A" } }, 30);
+  assert.equal(result.correctCount, 1);
+  assert.equal(result.wrongCount, 0);
+  assert.equal(result.ungradedCount, 1);
+  assert.equal(result.attemptedCount, 2);
+  assert.equal(result.accuracyPercent, 100);
+});
+
+test("Authoritative evaluator grades MSQ only when the exact set is selected", () => {
+  const questions = [
+    { id: "msq_subset", correctAnswer: "A,B", section: "SECTION_A", subject: "Physics", questionType: "MCQ_MULTIPLE" },
+    { id: "msq_exact", correctAnswer: "A,B", section: "SECTION_A", subject: "Physics", questionType: "MSQ" }
+  ];
+  const result = evaluateTestAttempt("NEET UG", questions, {
+    msq_subset: { ans: "A" },
+    msq_exact: { ans: "B,A" }
+  }, 60);
+  assert.equal(result.correctCount, 1);
+  assert.equal(result.wrongCount, 1);
+  assert.equal(result.positiveMarksEarned, 4);
+  assert.equal(result.negativeMarksPenalty, 1);
+  assert.equal(result.finalScore, 3);
 });
 
 test("User answer correctness: single, index, multiple correct", () => {
   assert.strictEqual(isUserAnswerCorrect("A", "A"), true);
   assert.strictEqual(isUserAnswerCorrect("1", "A"), true);
   assert.strictEqual(isUserAnswerCorrect("A, B", "B, A"), true);
+  // Legacy single-select keys may represent accepted alternatives.
   assert.strictEqual(isUserAnswerCorrect("A", "A, B"), true);
   assert.strictEqual(isUserAnswerCorrect("C", "A, B"), false);
+
+  // MSQ requires the exact selected set; subsets and supersets are not full-credit answers.
+  assert.strictEqual(isUserAnswerCorrect("A, B", "B, A", false, "MSQ"), true);
+  assert.strictEqual(isUserAnswerCorrect("1, 2", "A, B", false, "MSQ"), true);
+  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MSQ"), false);
+  assert.strictEqual(isUserAnswerCorrect("A, B, C", "A, B", false, "MSQ"), false);
+  assert.strictEqual(isUserAnswerCorrect("A, A", "A, B", false, "MSQ"), false);
+  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MCQ_MULTIPLE"), false);
+  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MCQ"), true);
 });
 
 test("Marking schemes for distinct exams", () => {
@@ -54,6 +111,22 @@ test("Marking schemes for distinct exams", () => {
   const ctet = getMarkingSchemeForExam("CTET");
   assert.strictEqual(ctet.pos, 1.0);
   assert.strictEqual(ctet.neg, 0.0);
+});
+
+test("Authoritative evaluation preserves fractional marks for UPSC-style negative marking", () => {
+  const result = evaluateTestAttempt("UPSC CSE", [
+    { id: "upsc_correct", correctAnswer: "A", section: "GENERAL", subject: "General Studies" },
+    { id: "upsc_wrong", correctAnswer: "B", section: "GENERAL", subject: "General Studies" },
+    { id: "upsc_skip", correctAnswer: "C", section: "GENERAL", subject: "General Studies" }
+  ], {
+    upsc_correct: { ans: "A" },
+    upsc_wrong: { ans: "D" }
+  }, 90);
+  assert.equal(result.positiveMarksEarned, 2);
+  assert.equal(result.negativeMarksPenalty, 0.66);
+  assert.equal(result.rawScore, 1.34);
+  assert.equal(result.finalScore, 1.34);
+  assert.equal(result.maxScore, 6);
 });
 
 test("Authoritative evaluation: NEET standard attempt", () => {
@@ -80,6 +153,7 @@ test("Authoritative evaluation: NEET standard attempt", () => {
   assert.strictEqual(result.negativeMarksPenalty, 1.0);
   assert.strictEqual(result.finalScore, 3.0);
   assert.strictEqual(result.rawScore, 3.0);
+  assert.strictEqual(result.maxScore, 16.0);
   assert.strictEqual(result.accuracyPercent, 50.0);
 });
 
@@ -96,6 +170,7 @@ test("Section B optional limit: surplus questions are ignored", () => {
   assert.strictEqual(result.correctCount, 10);
   assert.strictEqual(result.unansweredCount, 2);
   assert.strictEqual(result.finalScore, 40.0);
+  assert.strictEqual(result.maxScore, 40.0);
   assert.strictEqual(result.maxScore, 40.0, "NEET Section B maximum must cap at 10 questions");
 });
 

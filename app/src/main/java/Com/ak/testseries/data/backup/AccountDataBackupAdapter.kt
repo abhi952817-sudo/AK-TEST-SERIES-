@@ -422,6 +422,7 @@ object AccountDataBackupAdapter {
             put("correctCount", entity.correctCount)
             put("incorrectCount", entity.incorrectCount)
             put("skippedCount", entity.skippedCount)
+            put("ungradedCount", entity.ungradedCount)
             put("timeSpentSeconds", entity.timeSpentSeconds)
             put("dateTaken", entity.dateTaken)
             put("answersJson", entity.answersJson)
@@ -444,6 +445,7 @@ object AccountDataBackupAdapter {
             correctCount = json.optInt("correctCount", 0),
             incorrectCount = json.optInt("incorrectCount", 0),
             skippedCount = json.optInt("skippedCount", 0),
+            ungradedCount = json.optInt("ungradedCount", 0),
             timeSpentSeconds = json.optLong("timeSpentSeconds", 0L),
             dateTaken = json.optLong("dateTaken", System.currentTimeMillis()),
             answersJson = json.optString("answersJson", "{}"),

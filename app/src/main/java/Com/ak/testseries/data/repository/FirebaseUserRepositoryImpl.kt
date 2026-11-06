@@ -99,6 +99,7 @@ class FirebaseUserRepositoryImpl : UserRepository {
                     val correctCount = doc.getLong("correctCount")?.toInt() ?: 0
                     val incorrectCount = doc.getLong("incorrectCount")?.toInt() ?: 0
                     val skippedCount = doc.getLong("skippedCount")?.toInt() ?: 0
+                    val ungradedCount = doc.getLong("ungradedCount")?.toInt() ?: 0
                     val timeSpentSeconds = doc.getLong("timeSpentSeconds") ?: 0L
                     val dateTaken = doc.getLong("dateTaken") ?: 0L
                     val answersJson = doc.getString("answersJson") ?: ""
@@ -115,6 +116,7 @@ class FirebaseUserRepositoryImpl : UserRepository {
                         correctCount = correctCount,
                         incorrectCount = incorrectCount,
                         skippedCount = skippedCount,
+                        ungradedCount = ungradedCount,
                         timeSpentSeconds = timeSpentSeconds,
                         dateTaken = dateTaken,
                         answersJson = answersJson

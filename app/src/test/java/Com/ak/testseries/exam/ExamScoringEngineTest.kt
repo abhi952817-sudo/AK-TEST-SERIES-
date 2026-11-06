@@ -304,6 +304,70 @@ class ExamScoringEngineTest {
         assertEquals("Surplus attempts 11 & 12 should not count as wrong", 0, breakdown.wrongCount)
         assertEquals(40.0, breakdown.positiveMarksEarned, 0.001)
         assertEquals(0.0, breakdown.negativeMarksPenalty, 0.001)
+        assertEquals(40.0, breakdown.maxScore, 0.001) // Surplus Section B questions do not inflate maximum marks
+    }
+
+    @Test
+    fun testNumericOptionEquivalenceRejectsNonFiniteAndPartialStrings() {
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("Infinity", "Infinity", isNumerical = true))
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("12abc", "12", isNumerical = true))
+        assertTrue(ExamScoringEngine.areOptionsEquivalent("10.0", "10.000", isNumerical = true))
+    }
+
+    @Test
+    fun testAnswerKeyValidationRejectsNonFiniteAndMalformedValues() {
+        assertTrue(ExamScoringEngine.isAnswerKeyVerified("42.5"))
+        assertTrue(ExamScoringEngine.isAnswerKeyVerified("A, C"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("NaN"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("Infinity"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("12abc"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("A,,B"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("A,A"))
+    }
+
+    @Test
+    fun testSelectedAnswerWithUnverifiedKeyIsReportedAsUngraded() {
+        val invalidKey = createQuestion("invalid_key", "NOT_SET")
+        val validKey = createQuestion("valid_key", "A")
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            targetExam = "NEET UG",
+            questions = listOf(invalidKey, validKey),
+            userAnswers = mapOf("invalid_key" to "B", "valid_key" to "A"),
+            timeSpentSeconds = 30
+        )
+        assertEquals(1, result.correctCount)
+        assertEquals(0, result.wrongCount)
+        assertEquals(1, result.ungradedCount)
+        assertEquals(2, result.attemptedCount)
+        assertEquals(100.0, result.accuracyPercent, 0.001)
+    }
+
+    @Test
+    fun testMultiSelectAttemptScoringUsesQuestionType() {
+        val subset = createQuestion("msq_subset", "A,B", questionType = "MCQ_MULTIPLE")
+        val exact = createQuestion("msq_exact", "A,B", questionType = "MSQ")
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            targetExam = "NEET UG",
+            questions = listOf(subset, exact),
+            userAnswers = mapOf("msq_subset" to "A", "msq_exact" to "B,A"),
+            timeSpentSeconds = 60
+        )
+        assertEquals(1, result.correctCount)
+        assertEquals(1, result.wrongCount)
+        assertEquals(4.0, result.positiveMarksEarned, 0.001)
+        assertEquals(1.0, result.negativeMarksPenalty, 0.001)
+        assertEquals(3.0, result.finalScore, 0.001)
+    }
+
+    @Test
+    fun testMultiSelectRequiresExactAnswerSet() {
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("A, B", "B, A", questionType = "MSQ"))
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("1, 2", "A, B", questionType = "MSQ"))
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("A", "A, B", questionType = "MSQ"))
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("A, B, C", "A, B", questionType = "MSQ"))
+        assertFalse(ExamScoringEngine.isUserAnswerCorrect("A, A", "A, B", questionType = "MSQ"))
+        // Preserve legacy alternate-key behavior for ordinary single-select questions.
+        assertTrue(ExamScoringEngine.isUserAnswerCorrect("A", "A, B", questionType = "MCQ"))
     }
 
     @Test

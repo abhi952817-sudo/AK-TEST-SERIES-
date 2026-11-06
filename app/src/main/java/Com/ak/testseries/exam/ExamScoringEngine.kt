@@ -8,7 +8,8 @@ data class SubjectStatData(
     var correct: Int = 0,
     var incorrect: Int = 0,
     var score: Double = 0.0,
-    var maxScore: Double = 0.0
+    var maxScore: Double = 0.0,
+    var ungraded: Int = 0
 ) {
     val accuracy: Float get() = if (total > 0) (correct.toFloat() / (correct + incorrect).coerceAtLeast(1).toFloat()) * 100f else 0f
     val formattedScore: String get() = ExamScoringEngine.formatMark(score)
@@ -23,22 +24,23 @@ object ExamScoringEngine {
 
     val VALID_ANSWER_OPTIONS = setOf("A", "B", "C", "D", "E", "1", "2", "3", "4", "5")
 
+    private fun isFiniteNumericAnswer(value: String): Boolean {
+        val number = value.trim().toDoubleOrNull() ?: return false
+        return number.isFinite()
+    }
+
     fun isAnswerKeyVerified(key: String): Boolean {
         val clean = key.trim().uppercase()
         if (clean.isEmpty()) return false
-        if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull() != null) return true
-        if (clean.contains(",")) {
-            val parts = clean.split(",").map { it.trim() }
-            if (parts.isNotEmpty() && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull() != null }) {
-                return true
-            }
-        }
-        return false
+        val parts = if (clean.contains(",")) clean.split(",").map { it.trim() } else listOf(clean)
+        if (parts.any { it.isEmpty() } || parts.distinct().size != parts.size) return false
+        return parts.all { it in VALID_ANSWER_OPTIONS || isFiniteNumericAnswer(it) }
     }
 
     fun areOptionsEquivalent(ans1: String, ans2: String, isNumerical: Boolean = false): Boolean {
         val a = ans1.trim().uppercase()
         val b = ans2.trim().uppercase()
+        if (isNumerical && (!isFiniteNumericAnswer(a) || !isFiniteNumericAnswer(b))) return false
         if (a == b) return true
         if (!isNumerical) {
             val mapIndex = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
@@ -46,25 +48,50 @@ object ExamScoringEngine {
         }
         val num1 = a.toDoubleOrNull()
         val num2 = b.toDoubleOrNull()
+        if (isNumerical && (num1 == null || num2 == null || !num1.isFinite() || !num2.isFinite())) {
+            return false
+        }
         if (num1 != null && num2 != null) {
             return Math.abs(num1 - num2) < 0.0001
         }
         return false
     }
 
-    fun isUserAnswerCorrect(userAns: String, correctAns: String, isNumerical: Boolean = false): Boolean {
+    private fun isMultiSelectQuestionType(questionType: String): Boolean {
+        return questionType.trim().uppercase() in setOf(
+            "MSQ", "MULTI_SELECT", "MULTIPLE_SELECT", "MULTIPLE_CORRECT", "MCQ_MULTIPLE"
+        )
+    }
+
+    fun isUserAnswerCorrect(
+        userAns: String,
+        correctAns: String,
+        isNumerical: Boolean = false,
+        questionType: String = ""
+    ): Boolean {
         val u = userAns.trim().uppercase()
         val c = correctAns.trim().uppercase()
         if (u.isEmpty() || c.isEmpty()) return false
-        if (areOptionsEquivalent(u, c, isNumerical)) return true
 
+        if (isMultiSelectQuestionType(questionType)) {
+            val indexToLetter = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
+            fun normalizeOption(value: String): String {
+                val token = value.trim().uppercase()
+                return if (isNumerical) token else (indexToLetter[token] ?: token)
+            }
+            val userParts = u.split(",").map(::normalizeOption)
+            val correctParts = c.split(",").map(::normalizeOption)
+            if (userParts.any { it.isEmpty() } || correctParts.any { it.isEmpty() }) return false
+            if (userParts.distinct().size != userParts.size || correctParts.distinct().size != correctParts.size) return false
+            return userParts.size == correctParts.size && userParts.toSet() == correctParts.toSet()
+        }
+
+        if (areOptionsEquivalent(u, c, isNumerical)) return true
         if (c.contains(",")) {
             val acceptedKeys = c.split(",").map { it.trim() }
-            val normalizedUserParts = u.split(",").map { it.trim() }.sorted()
-            val normalizedCorrectParts = acceptedKeys.sorted()
-            if (normalizedUserParts == normalizedCorrectParts) return true
-
-            if (acceptedKeys.any { areOptionsEquivalent(u, it, isNumerical) }) return true
+            val userParts = u.split(",").map { it.trim() }.sorted()
+            if (userParts.size == acceptedKeys.size && userParts == acceptedKeys.sorted()) return true
+            return acceptedKeys.any { areOptionsEquivalent(u, it, isNumerical) }
         }
         return false
     }
@@ -83,7 +110,8 @@ object ExamScoringEngine {
         val timeSpentSeconds: Long,
         val correctMarksPerQuestion: Double,
         val negativeMarksPerQuestion: Double,
-        val rawScore: Double = positiveMarksEarned - negativeMarksPenalty
+        val rawScore: Double = positiveMarksEarned - negativeMarksPenalty,
+        val ungradedCount: Int = 0
     )
 
     fun getMarkingScheme(examName: String): Pair<Double, Double> {
@@ -108,6 +136,7 @@ object ExamScoringEngine {
         var correct = 0
         var wrong = 0
         var unanswered = 0
+        var ungraded = 0
 
         var positiveMarksEarned = 0.0
         var negativeMarksPenalty = 0.0
@@ -117,6 +146,7 @@ object ExamScoringEngine {
         var maxPossible = 0.0
 
         val sectionAttemptCounts = mutableMapOf<String, Int>()
+        val sectionQuestionCounts = mutableMapOf<String, Int>()
 
         questions.forEach { question ->
             val userOpt = userAnswers[question.id]?.trim()?.uppercase()
@@ -128,7 +158,15 @@ object ExamScoringEngine {
             } else {
                 Pair(posMark, negMark)
             }
-            maxPossible += qPosMark
+            val secKey = "${question.subject.lowercase().trim()}_${question.section.lowercase().trim()}"
+            val secLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+                examName = targetExam,
+                sectionNameOrId = question.section,
+                subjectName = question.subject
+            )
+            val printedInSection = sectionQuestionCounts.getOrDefault(secKey, 0)
+            if (secLimit == null || printedInSection < secLimit) maxPossible += qPosMark
+            sectionQuestionCounts[secKey] = printedInSection + 1
 
             val isTitaOrNumerical = question.questionType.equals("TITA", ignoreCase = true) ||
                     question.questionType.equals("NUMERICAL", ignoreCase = true) ||
@@ -138,12 +176,6 @@ object ExamScoringEngine {
             if (userOpt.isNullOrEmpty()) {
                 unanswered++
             } else {
-                val secKey = "${question.subject.lowercase().trim()}_${question.section.lowercase().trim()}"
-                val secLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                    examName = targetExam,
-                    sectionNameOrId = question.section,
-                    subjectName = question.subject
-                )
                 val currentAttempts = sectionAttemptCounts.getOrDefault(secKey, 0)
                 if (secLimit != null && currentAttempts >= secLimit) {
                     // Surplus question in optional section - ignored per official exam rules
@@ -153,8 +185,8 @@ object ExamScoringEngine {
                         sectionAttemptCounts[secKey] = currentAttempts + 1
                     }
                     if (!isKeyVerified) {
-                        // Unknown/unverified answer key: student choice cannot be scored; no penalty or accuracy skew
-                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
+                        ungraded++
+                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical, question.questionType)) {
                         correct++
                         positiveMarksEarned += qPosMark
                     } else {
@@ -165,19 +197,26 @@ object ExamScoringEngine {
             }
         }
 
-        if (!isMultiScheme) {
+        // Per-section caps above are authoritative when present (for example NEET Section B).
+        // Apply an exam-wide cap only when this paper has no section-specific optional limits.
+        val hasSectionCaps = questions.any { question ->
+            UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+                examName = targetExam,
+                sectionNameOrId = question.section,
+                subjectName = question.subject
+            ) != null
+        }
+        if (!hasSectionCaps && !isMultiScheme) {
             val maxAllowedQs = UniversalExamRegistry.getMaximumAttemptQuestionsCountForExam(targetExam)
-            val effectiveCount = if (maxAllowedQs != null && questions.size > maxAllowedQs) {
-                maxAllowedQs
-            } else {
-                questions.size
+            if (maxAllowedQs != null && questions.size > maxAllowedQs) {
+                maxPossible = maxAllowedQs * posMark
             }
-            maxPossible = effectiveCount * posMark
         }
         val rawScore = positiveMarksEarned - negativeMarksPenalty
         val finalScore = rawScore.coerceAtLeast(0.0) // Non-negative final display boundary
-        val attempted = correct + wrong
-        val accuracy = if (attempted > 0) (correct.toDouble() / attempted.toDouble()) * 100.0 else 0.0
+        val attempted = correct + wrong + ungraded
+        val accuracyDenominator = correct + wrong
+        val accuracy = if (accuracyDenominator > 0) (correct.toDouble() / accuracyDenominator.toDouble()) * 100.0 else 0.0
 
         return ScoreBreakdown(
             totalQuestions = questions.size,
@@ -193,7 +232,8 @@ object ExamScoringEngine {
             timeSpentSeconds = timeSpentSeconds,
             correctMarksPerQuestion = posMark,
             negativeMarksPerQuestion = negMark,
-            rawScore = rawScore
+            rawScore = rawScore,
+            ungradedCount = ungraded
         )
     }
 
@@ -205,7 +245,8 @@ object ExamScoringEngine {
         userAnswers: Map<String, String>, // questionId -> selectedOption ("A", "B", "C", "D")
         correctAnswers: Map<String, String>, // questionId -> actualCorrectOption
         questionSections: Map<String, String>, // questionId -> sectionId
-        timeSpentSeconds: Long
+        timeSpentSeconds: Long,
+        questionTypes: Map<String, String> = emptyMap() // questionId -> question type, required for MSQ
     ): ScoreBreakdown {
         var correct = 0
         var wrong = 0
@@ -214,6 +255,7 @@ object ExamScoringEngine {
         var totalPositiveEarned = 0.0
         var totalNegativePenalty = 0.0
         var totalMaxPossible = 0.0
+        var configUngraded = 0
 
         val paperConfig = examConfig.stages.find { it.stageId == stageId }?.papers?.find { it.paperId == paperId }
         val sectionConfigMap = paperConfig?.subjects?.flatMap { it.sections }?.associateBy { it.sectionId } ?: emptyMap()
@@ -236,8 +278,8 @@ object ExamScoringEngine {
             if (userOpt.isNullOrEmpty()) {
                 unanswered++
             } else if (!isKeyVerified) {
-                // Unknown/unverified answer key
-            } else if (isUserAnswerCorrect(userOpt, cleanCorrect, isNumerical)) {
+                configUngraded++
+            } else if (isUserAnswerCorrect(userOpt, cleanCorrect, isNumerical, questionTypes[qid].orEmpty())) {
                 correct++
                 totalPositiveEarned += posMarks
             } else {
@@ -248,8 +290,9 @@ object ExamScoringEngine {
 
         val rawScore = totalPositiveEarned - totalNegativePenalty
         val finalScore = rawScore.coerceAtLeast(0.0)
-        val attempted = correct + wrong
-        val accuracy = if (attempted > 0) (correct.toDouble() / attempted.toDouble()) * 100.0 else 0.0
+        val attempted = correct + wrong + configUngraded
+        val accuracyDenominator = correct + wrong
+        val accuracy = if (accuracyDenominator > 0) (correct.toDouble() / accuracyDenominator.toDouble()) * 100.0 else 0.0
 
         return ScoreBreakdown(
             totalQuestions = totalQuestions,
@@ -265,7 +308,8 @@ object ExamScoringEngine {
             timeSpentSeconds = timeSpentSeconds,
             correctMarksPerQuestion = defaultPos,
             negativeMarksPerQuestion = defaultNeg,
-            rawScore = rawScore
+            rawScore = rawScore,
+            ungradedCount = configUngraded
         )
     }
 
@@ -280,6 +324,7 @@ object ExamScoringEngine {
 
         val statsMap = linkedMapOf<String, SubjectStatData>()
         val sectionAttemptCounts = mutableMapOf<String, Int>()
+        val sectionQuestionCounts = mutableMapOf<String, Int>()
 
         questions.forEach { question ->
             val subjectKey = question.subject.ifBlank { "General" }
@@ -293,7 +338,15 @@ object ExamScoringEngine {
             } else {
                 Pair(posMark, negMark)
             }
-            stat.maxScore += qPosMark
+            val secKey = "${question.subject.lowercase().trim()}_${question.section.lowercase().trim()}"
+            val secLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+                examName = targetExam,
+                sectionNameOrId = question.section,
+                subjectName = question.subject
+            )
+            val printedInSection = sectionQuestionCounts.getOrDefault(secKey, 0)
+            if (secLimit == null || printedInSection < secLimit) stat.maxScore += qPosMark
+            sectionQuestionCounts[secKey] = printedInSection + 1
 
             val isTitaOrNumerical = question.questionType.equals("TITA", ignoreCase = true) ||
                     question.questionType.equals("NUMERICAL", ignoreCase = true) ||
@@ -307,12 +360,6 @@ object ExamScoringEngine {
             if (userOpt.isNullOrEmpty()) {
                 // Unanswered / skipped
             } else {
-                val secKey = "${question.subject.lowercase().trim()}_${question.section.lowercase().trim()}"
-                val secLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                    examName = targetExam,
-                    sectionNameOrId = question.section,
-                    subjectName = question.subject
-                )
                 val currentAttempts = sectionAttemptCounts.getOrDefault(secKey, 0)
                 if (secLimit != null && currentAttempts >= secLimit) {
                     // Surplus optional question beyond limit - ignored
@@ -321,8 +368,8 @@ object ExamScoringEngine {
                         sectionAttemptCounts[secKey] = currentAttempts + 1
                     }
                     if (!isKeyVerified) {
-                        // Unverified key
-                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
+                        stat.ungraded++
+                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical, question.questionType)) {
                         stat.correct++
                         stat.score += qPosMark
                     } else {

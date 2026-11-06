@@ -4448,6 +4448,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val correct = breakdown.correctCount
             val incorrect = breakdown.wrongCount
             val skipped = breakdown.unansweredCount
+            val ungraded = breakdown.ungradedCount
             val maxScore = breakdown.maxScore
             val score = breakdown.finalScore
             val accuracy = breakdown.accuracyPercent
@@ -4465,6 +4466,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 correctCount = correct,
                 incorrectCount = incorrect,
                 skippedCount = skipped,
+                ungradedCount = ungraded,
                 timeSpentSeconds = timeSpentTotal,
                 answersJson = ansObj.toString()
             )
@@ -4672,6 +4674,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val localCorrect = breakdown.correctCount
                 val localIncorrect = breakdown.wrongCount
                 val localSkipped = breakdown.unansweredCount
+                val localUngraded = breakdown.ungradedCount
                 val localMaxScore = breakdown.maxScore
                 val localScore = breakdown.finalScore
                 val localAccuracy = breakdown.accuracyPercent
@@ -4710,6 +4713,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     correctCount = localCorrect,
                     incorrectCount = localIncorrect,
                     skippedCount = localSkipped,
+                    ungradedCount = localUngraded,
                     timeSpentSeconds = timeSpentTotal,
                     answersJson = ansObj.toString(),
                     attemptSessionToken = sessionToken,
@@ -4745,6 +4749,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             val serverCorrect = (resultMap["correctCount"] as? Number)?.toInt() ?: attempt.correctCount
                             val serverIncorrect = (resultMap["incorrectCount"] as? Number)?.toInt() ?: attempt.incorrectCount
                             val serverSkipped = (resultMap["skippedCount"] as? Number)?.toInt() ?: attempt.skippedCount
+                            val serverUngraded = (resultMap["ungradedCount"] as? Number)?.toInt() ?: attempt.ungradedCount
 
                             attempt = attempt.copy(
                                 score = serverScore,
@@ -4754,6 +4759,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 correctCount = serverCorrect,
                                 incorrectCount = serverIncorrect,
                                 skippedCount = serverSkipped,
+                                ungradedCount = serverUngraded,
                                 verifiedServerSide = true,
                                 submissionStatus = "CONFIRMED"
                             )
@@ -7179,6 +7185,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 correctCount = doc.getLong("correctCount")?.toInt() ?: 0,
                                 incorrectCount = doc.getLong("incorrectCount")?.toInt() ?: 0,
                                 skippedCount = doc.getLong("skippedCount")?.toInt() ?: 0,
+                                ungradedCount = doc.getLong("ungradedCount")?.toInt() ?: 0,
                                 timeSpentSeconds = doc.getLong("timeSpentSeconds") ?: 0L,
                                 dateTaken = dateTaken,
                                 answersJson = doc.getString("answersJson") ?: "{}",
