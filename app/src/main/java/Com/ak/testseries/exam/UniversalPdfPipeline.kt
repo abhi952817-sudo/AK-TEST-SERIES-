@@ -83,9 +83,11 @@ object UniversalPdfPipeline {
             require(copied && tempFile.length() > 0L) { "Could not read the selected PDF." }
 
             val smartExtractor = com.ak.pdfextractor.AdvancedPdfSmartExtractor(context)
-            val extractedText = smartExtractor.extractAllStreamText(tempFile)
+            // OCR page-by-page so scanned pages are included even in mixed PDFs.
+            // Diagram pixels are not yet sent to the vision model; such questions remain review-only.
+            val extractedText = smartExtractor.extractAllPagesWithLocalOcr(tempFile, maxPages = 50)
             require(extractedText.isNotBlank()) {
-                "No readable PDF text was extracted. Scanned/image-only PDFs need the local OCR and diagram extraction stage before question generation."
+                "No readable text was extracted by local OCR or the PDF text fallback. Question generation was stopped."
             }
             CompactMarkdownFormatter.formatToCompactMarkdown(extractedText).also {
                 require(it.isNotBlank()) { "PDF text formatting produced no usable content." }
