@@ -1,64 +1,54 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
+    function isAuthenticated() { return request.auth != null; }
     function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.admin == true
-        || (request.auth.token.email == "abhi952817@gmail.com" && request.auth.token.email_verified == true)
-      );
+      return isAuthenticated() && (request.auth.token.admin == true
+        || (request.auth.token.email == 'abhi952817@gmail.com' && request.auth.token.email_verified == true));
     }
-
-    // Question diagram images and charts
-    // Read: Public for exam rendering
-    // Create: Authenticated users (< 5MB, strict image content types)
-    // Update/Delete: Admins only (prevents unauthorized overwrites)
+    function isValidImageUpload() {
+      return request.resource != null && request.resource.size > 0
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+    }
+    function isValidPdfUpload() {
+      return request.resource != null && request.resource.size > 0
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+    // Official exam diagrams are public to read but admin-published only.
     match /tests/{testId}/questions/{fileName} {
       allow read: if true;
-      allow create: if isAuthenticated() 
-                    && request.resource.size < 5 * 1024 * 1024
-                    && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+      allow create, update: if isAdmin() && isValidImageUpload();
+      allow delete: if isAdmin();
+    }
+    // User-contributed charts are isolated by authenticated UID.
+    match /chart_images/{userId}/{fileName} {
+      allow read: if true;
+      allow create: if isValidImageUpload() && (isAdmin() || (isAuthenticated() && request.auth.uid == userId));
       allow update, delete: if isAdmin();
     }
-
+    // Legacy flat paths are read-only for non-admins.
     match /chart_images/{fileName} {
       allow read: if true;
-      allow create: if isAuthenticated() 
-                    && request.resource.size < 5 * 1024 * 1024
-                    && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
-      allow update, delete: if isAdmin();
+      allow create, update: if isAdmin() && isValidImageUpload();
+      allow delete: if isAdmin();
     }
-
     match /question_images/{fileName} {
       allow read: if true;
-      allow create: if isAuthenticated() 
-                    && request.resource.size < 5 * 1024 * 1024
-                    && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
-      allow update, delete: if isAdmin();
+      allow create, update: if isAdmin() && isValidImageUpload();
+      allow delete: if isAdmin();
     }
-
-    // Live Test PDFs: Only verified Admins can upload or overwrite test PDFs
     match /LiveTests/{fileName} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() 
-                    && request.resource.size < 50 * 1024 * 1024
-                    && request.resource.contentType == 'application/pdf';
+      allow create, update: if isAdmin() && isValidPdfUpload();
+      allow delete: if isAdmin();
     }
-
     match /pdfs/{fileName} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() 
-                    && request.resource.size < 50 * 1024 * 1024
-                    && request.resource.contentType == 'application/pdf';
+      allow create, update: if isAdmin() && isValidPdfUpload();
+      allow delete: if isAdmin();
     }
-
-    // Default deny for unclassified paths
-    match /{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
+    match /{allPaths=**} { allow read, write: if isAdmin(); }
   }
 }
