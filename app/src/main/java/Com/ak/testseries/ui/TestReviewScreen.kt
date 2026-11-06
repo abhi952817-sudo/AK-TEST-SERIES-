@@ -44,6 +44,7 @@ import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import Com.ak.testseries.data.QuestionEntity
 import Com.ak.testseries.viewmodel.NEETViewModel
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
@@ -669,7 +670,12 @@ suspend fun compressAndUploadToFirebase(
                 onFailure(Exception("Firebase Storage not initialized"))
                 return@withContext
             }
-            val imageRef = storageRef.child("question_images/$questionId.webp")
+            val uploaderUid = try { FirebaseAuth.getInstance().currentUser?.uid } catch (_: Exception) { null }
+            if (uploaderUid.isNullOrBlank()) {
+                onFailure(Exception("Sign in is required to upload a question diagram."))
+                return@withContext
+            }
+            val imageRef = storageRef.child("question_images/$uploaderUid/$questionId.webp")
 
             val uploadTask = imageRef.putBytes(data)
             uploadTask.addOnSuccessListener {
