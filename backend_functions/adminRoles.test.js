@@ -6,7 +6,7 @@ const {
   isKnownAdminRole,
   hasAdminPermission,
   getAdminPermissions,
-} = require("./adminRoles");
+} = require("./authHelper");
 
 test("only the three canonical Admin roles are recognized", () => {
   assert.equal(isKnownAdminRole(ADMIN_ROLES.SUPER_ADMIN), true);
