@@ -238,6 +238,16 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun testNonFiniteAnswerKeysAreRejected() {
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("Infinity"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("NaN"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("1e999"))
+        assertFalse(ExamScoringEngine.isAnswerKeyVerified("A, Infinity"))
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("Infinity", "Infinity", true))
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("NaN", "NaN", false))
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("1e999", "1e999", false))
+    }
+    @Test
     fun testMultipleCorrectAndCommaSeparatedKeys() {
         // Partial selections must not receive full credit for a multiple-correct key.
         assertFalse(ExamScoringEngine.isUserAnswerCorrect("A", "A, B"))
