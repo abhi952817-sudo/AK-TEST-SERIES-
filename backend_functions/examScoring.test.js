@@ -20,6 +20,11 @@ test("Answer verification: standard options, numbers, and multiple keys", () => 
   assert.strictEqual(isAnswerKeyVerified("A, C"), true);
   assert.strictEqual(isAnswerKeyVerified(""), false);
   assert.strictEqual(isAnswerKeyVerified("INVALID_KEY"), false);
+  assert.strictEqual(isAnswerKeyVerified("NaN"), false);
+  assert.strictEqual(isAnswerKeyVerified("Infinity"), false);
+  assert.strictEqual(isAnswerKeyVerified("12abc"), false);
+  assert.strictEqual(isAnswerKeyVerified("A,,B"), false);
+  assert.strictEqual(isAnswerKeyVerified("A,A"), false);
 });
 
 test("Option equivalence: index to letter and numerical precision", () => {
@@ -28,14 +33,26 @@ test("Option equivalence: index to letter and numerical precision", () => {
   assert.strictEqual(areOptionsEquivalent("3.14", "3.15", true), false);
   assert.strictEqual(areOptionsEquivalent("10.0", "10.000", true), true);
   assert.strictEqual(areOptionsEquivalent("A", "C"), false);
+  assert.strictEqual(areOptionsEquivalent("12abc", "12", true), false);
+  assert.strictEqual(areOptionsEquivalent("Infinity", "Infinity", true), false);
 });
 
 test("User answer correctness: single, index, multiple correct", () => {
   assert.strictEqual(isUserAnswerCorrect("A", "A"), true);
   assert.strictEqual(isUserAnswerCorrect("1", "A"), true);
   assert.strictEqual(isUserAnswerCorrect("A, B", "B, A"), true);
+  // Legacy single-select keys may represent accepted alternatives.
   assert.strictEqual(isUserAnswerCorrect("A", "A, B"), true);
   assert.strictEqual(isUserAnswerCorrect("C", "A, B"), false);
+
+  // MSQ requires the exact selected set; subsets and supersets are not full-credit answers.
+  assert.strictEqual(isUserAnswerCorrect("A, B", "B, A", false, "MSQ"), true);
+  assert.strictEqual(isUserAnswerCorrect("1, 2", "A, B", false, "MSQ"), true);
+  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MSQ"), false);
+  assert.strictEqual(isUserAnswerCorrect("A, B, C", "A, B", false, "MSQ"), false);
+  assert.strictEqual(isUserAnswerCorrect("A, A", "A, B", false, "MSQ"), false);
+  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MCQ_MULTIPLE"), false);
+  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MCQ"), true);
 });
 
 test("Marking schemes for distinct exams", () => {
