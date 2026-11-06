@@ -318,6 +318,23 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun testMultiSelectAttemptScoringUsesQuestionType() {
+        val subset = createQuestion("msq_subset", "A,B", questionType = "MCQ_MULTIPLE")
+        val exact = createQuestion("msq_exact", "A,B", questionType = "MSQ")
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            targetExam = "NEET UG",
+            questions = listOf(subset, exact),
+            userAnswers = mapOf("msq_subset" to "A", "msq_exact" to "B,A"),
+            timeSpentSeconds = 60
+        )
+        assertEquals(1, result.correctCount)
+        assertEquals(1, result.wrongCount)
+        assertEquals(4.0, result.positiveMarksEarned, 0.001)
+        assertEquals(1.0, result.negativeMarksPenalty, 0.001)
+        assertEquals(3.0, result.finalScore, 0.001)
+    }
+
+    @Test
     fun testMultiSelectRequiresExactAnswerSet() {
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("A, B", "B, A", questionType = "MSQ"))
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("1, 2", "A, B", questionType = "MSQ"))
