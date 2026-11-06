@@ -246,7 +246,7 @@ fun UniversalExamAdminScreen(
                             Toast.makeText(context, "No approved questions to publish!", Toast.LENGTH_SHORT).show()
                         } else {
                             onPublishTest(selectedExam.examName, approved, duration)
-                            Toast.makeText(context, "Published test with ${approved.size} approved questions!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Publish request submitted for ${approved.size} questions. Final verification runs before publication.", Toast.LENGTH_LONG).show()
                             onBack()
                         }
                     }
