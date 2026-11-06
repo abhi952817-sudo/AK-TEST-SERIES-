@@ -89,6 +89,8 @@ object ExamScoringEngine {
         if (areOptionsEquivalent(u, c, isNumerical)) return true
         if (c.contains(",")) {
             val acceptedKeys = c.split(",").map { it.trim() }
+            val userParts = u.split(",").map { it.trim() }.sorted()
+            if (userParts.size == acceptedKeys.size && userParts == acceptedKeys.sorted()) return true
             return acceptedKeys.any { areOptionsEquivalent(u, it, isNumerical) }
         }
         return false
