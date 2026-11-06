@@ -9,7 +9,7 @@ function isFiniteNumericAnswer(value) {
   if (typeof value !== "string" || value.trim().length === 0) return false;
   const clean = value.trim();
   // Reject partial parses (for example "12abc"), NaN, and Infinity.
-  if (!/^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[+-]?\\d+)?$/i.test(clean)) return false;
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(clean)) return false;
   return Number.isFinite(Number(clean));
 }
 
@@ -26,6 +26,7 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
   if (!ans1 || !ans2) return false;
   const a = String(ans1).trim().toUpperCase();
   const b = String(ans2).trim().toUpperCase();
+  if (isNumerical && (!isFiniteNumericAnswer(a) || !isFiniteNumericAnswer(b))) return false;
   if (a === b) return true;
 
   if (!isNumerical) {
