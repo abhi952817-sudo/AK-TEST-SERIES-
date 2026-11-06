@@ -1320,8 +1320,8 @@ class AdvancedPdfSmartExtractor(private val context: Context) {
                                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                                 val recognized = MlKitLocalOcrEngine.recognizeTextFromBitmap(bitmap, pageIndex + 1).fullText.trim()
                                 if (recognized.isNotBlank()) {
-                                    output.append("--- PAGE ").append(pageIndex + 1).append(" ---\\n")
-                                        .append(recognized).append("\\n\\n")
+                                    output.append("--- PAGE ").append(pageIndex + 1).append(" ---\n")
+                                        .append(recognized).append("\n\n")
                                 }
                             } finally {
                                 if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
