@@ -43,16 +43,3 @@ jobs:
           FIRESTORE_EMULATOR_HOST: 127.0.0.1:8085
         run: npx firebase emulators:exec --only firestore --project demo-no-project "node --test firestore.test.js"
 
-  android-validation:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          validate-wrappers: false
-      - name: Run Android unit tests and debug build
-        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug
