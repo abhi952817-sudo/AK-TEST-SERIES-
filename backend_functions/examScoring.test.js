@@ -18,6 +18,7 @@ test("Answer verification: standard options, numbers, and multiple keys", () => 
   assert.strictEqual(isAnswerKeyVerified("1"), true);
   assert.strictEqual(isAnswerKeyVerified("42.5"), true);
   assert.strictEqual(isAnswerKeyVerified("A, C"), true);
+  assert.strictEqual(isAnswerKeyVerified("A, A"), false);
   assert.strictEqual(isAnswerKeyVerified(""), false);
   assert.strictEqual(isAnswerKeyVerified("INVALID_KEY"), false);
   assert.strictEqual(isAnswerKeyVerified("Infinity"), false);
@@ -39,6 +40,8 @@ test("User answer correctness: single, index, multiple correct", () => {
   assert.strictEqual(isUserAnswerCorrect("1", "A"), true);
   assert.strictEqual(isUserAnswerCorrect("A, B", "B, A"), true);
   assert.strictEqual(isUserAnswerCorrect("B, A", "A, B"), true);
+  assert.strictEqual(isUserAnswerCorrect("1, 2", "A, B"), true);
+  assert.strictEqual(isUserAnswerCorrect("A, A", "A, B"), false);
   assert.strictEqual(isUserAnswerCorrect("A", "A, B"), false);
   assert.strictEqual(isUserAnswerCorrect("B", "A, B"), false);
   assert.strictEqual(isUserAnswerCorrect("C", "A, B"), false);
