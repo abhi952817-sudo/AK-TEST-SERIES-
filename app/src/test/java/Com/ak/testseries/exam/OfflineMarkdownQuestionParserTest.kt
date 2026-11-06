@@ -136,11 +136,10 @@ class OfflineMarkdownQuestionParserTest {
         assertFalse(models[0].isOfficialPYQ)
         assertEquals(0.0, models[0].positiveMarks, 0.0)
     }
-}
-
 
     @Test
     fun emptyOrUnstructuredPdfDoesNotCreateSyntheticQuestions() {
         assertTrue(OfflineMarkdownQuestionParser.parseStructuredQuestions("").isEmpty())
         assertTrue(OfflineMarkdownQuestionParser.parseStructuredQuestions("random OCR noise without a question").isEmpty())
     }
+}
