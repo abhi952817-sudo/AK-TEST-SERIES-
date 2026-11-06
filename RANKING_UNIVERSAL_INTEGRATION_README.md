@@ -108,6 +108,45 @@ Universal-branch-specific changes observed:
 
 **Important:** Universal branch is not a clean fast-forward child of Ranking branch. Do not merge PR #2 wholesale into PR #1 or overwrite shared files. Port and reconcile behavior in the integration branch.
 
+
+
+### 2.1 Live baseline refresh — 2026-11-06 (verified)
+
+**Integration branch head at this refresh:** commit `f6fc002aeb70644f7a436ad475dbe98cf7b13122` (the integration branch is exactly 1 commit ahead of Ranking and 0 behind; the additional commit is this README integration plan). The README blob SHA before this update was `d6878711b02e28ce1b380da5329b87e6ec93e97c`.
+
+| Ref | Current comparison | Verified detail |
+|---|---:|---|
+| `main` → Ranking branch | 92 ahead / 0 behind | Ranking PR #1 head `a250f54a54035c21363a190df39dcd041d7aa55e` |
+| `main` → Universal branch | 133 ahead / 0 behind | Universal PR #2 head `9b105e9e7c614d615becb99a72b3dc5e50799e05` |
+| Ranking → Universal | 45 ahead / 4 behind | Diverged; merge base `2b7b1e81f915c45aff6ccbcd63bde709642df3d7` |
+| Ranking → Integration | 1 ahead / 0 behind | Integration is a safe child of Ranking; no source-code port has been made yet |
+| `main` → Integration | 93 ahead / 0 behind | `main` remains untouched |
+
+**PR status:** PR #1 remains OPEN and DRAFT, base `main`, head Ranking. PR #2 remains OPEN and NOT DRAFT, base Ranking, head Universal; GitHub reports it mergeable. Neither PR is merged.
+
+**CI evidence (latest runs discoverable for the two PR heads):**
+- Ranking head run `42176761965` (workflow run 138): backend unit/syntax PASS; Firestore Emulator rules PASS; Android validation FAIL.
+- Universal head run `42176925903` (workflow run 143): backend unit/syntax PASS; Firestore Emulator rules PASS; Android validation FAIL.
+- Both Android jobs successfully compiled and assembled the debug APK, then failed in ` :app:testDebugUnitTest `: `CrashResilienceTest > classMethod FAILED`, `UnsupportedOperationException at DefaultSdkProvider.java:170`. Ranking run reports 293 tests, 1 failed; Universal run reports 299 tests, 1 failed. This is a real CI blocker and must be root-caused, not waived. The available job log does not establish the cause yet.
+- Ranking head also has a separate Android CI run `42176761901` with conclusion SUCCESS, but it does not replace the failing full Ranking V2 Validation job.
+- No workflow run was returned for the integration README commit itself.
+
+**Phase 0 exit gate:** PASS for branch/PR/CI baseline capture. CI is not green; the Android test failure is carried forward as a blocking issue. No application source files, Firebase data, rules deployment, or production configuration were changed during this refresh.
+
+### 2.2 Phase 1 overlap audit — initial verified findings (not yet complete)
+
+- PR #2 changes 15 files: validation workflow, implementation tracker, Room schema 21, MainActivity, AppDatabase, Entities, backup adapter, Firebase repository adapter, Android scoring engine, NEETViewModel, Room migration test, Android scoring tests, backend scoring engine/tests, and backend index.
+- The reverse branch comparison (Universal → Ranking) confirms 4 commits by which Universal is behind; the reported file-level difference is only `.github/workflows/ranking-v2-validation.yml`. The 45 Universal-ahead commits touch the 15 files listed by PR #2. Do not treat commit counts as proof that the code changes are safe; shared-file behavior still requires semantic review.
+- `backend_functions/rankingEngine.js` is byte-identical on Ranking and Universal (blob SHA `d7a1101b0c5532726f7cd305d46edc97933c04f0`). Preserve this Ranking Engine implementation.
+- Shared files with different blobs include `backend_functions/index.js` (Ranking `f75c514688abe8fd61905e543d1cdbf932438618`; Universal `b85cef941351700ea6d630eee9598a12dba2a073`) and `NEETViewModel.kt` (Ranking `06913e4c928eefd8e405f85bf407fea0f0ef330f`; Universal `ecb43bab67c69a40046068f96e3cb1b62f09ef28`). These require hunk-level reconciliation, not wholesale replacement.
+- Universal adds exact-set MSQ grading, stricter numeric validation, explicit ungraded counts, fractional score persistence, and Room 20→21 migration. The migration adds `ungradedCount` with default 0 and preserves existing attempt rows in its dedicated test.
+- Universal still retains `fallbackToDestructiveMigration()` in `AppDatabase.kt`; migration safety is therefore not complete.
+- Registry inspection found year-sensitive configuration values that cannot be treated as verified current patterns. Examples include NEET entries showing 200 minutes and optional Section B, and JEE Main entries showing 20 MCQ + 10 numerical with 5 attempted. These must be marked unverified until exact exam-year official sources are attached and validated. Do not silently overwrite them based on memory.
+- The Universal branch contains an Admin/UI timer field and test-duration data, but this audit has not yet proved that every exam's timer, section timing, and auto-submit behavior are driven by the selected year/stage/paper configuration. Timer parity remains an explicit audit item.
+
+**Phase 1 status:** IN PROGRESS. Remaining: inspect the exact divergent commit history and hunk-level shared-file behavior; produce the final keep/port/reconcile matrix before Phase 2 code edits.
+
+
 ---
 
 ## 3. Known audit findings to verify and fix
@@ -392,8 +431,8 @@ Development is not complete until all of these are true:
 
 | Phase | Status | Commit SHA | Tests/evidence | Notes |
 |---|---|---|---|---|
-| 0 Baseline refresh | NOT STARTED | — | — | Refresh all branch heads and CI |
-| 1 Overlap map | NOT STARTED | — | — | Inspect divergent commits and shared files |
+| 0 Baseline refresh | COMPLETE | `f6fc002aeb70644f7a436ad475dbe98cf7b13122` | Branch/PR comparisons; PR #1/#2 CI jobs and Android logs inspected | Android unit-test failure remains a release blocker |
+| 1 Overlap map | IN PROGRESS | — | PR #2 15-file patch; reverse compare; shared blob SHAs | Complete commit/hunk matrix before Phase 2 |
 | 2 Backend contract | NOT STARTED | — | — | Scoring → ranking → XP |
 | 3 Secure publishing | NOT STARTED | — | — | P0 answer leak |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
