@@ -1036,15 +1036,18 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   if (!context.auth || !context.auth.uid) {
     throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
   }
-  const examId = normalizeExamKey((data || {}).targetExam || "NEET");
-  const limit = Math.min(100, Math.max(1, Number((data || {}).limit) || 100));
-  const snapshot = await db.collection("Exam_Leaderboards").doc(examId)
+  const input = data || {};
+  const examId = normalizeExamKey(input.targetExam || "NEET");
+  const classLevel = normalizeClassLevel(input.classLevel || "All");
+  const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
+  const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
+  const snapshot = await applyClassFilter(db.collection("Exam_Leaderboards").doc(examId)
     .collection("Entries").where("isEligibleForRanking", "==", true)
-    .where("isBanned", "==", false)
+    .where("isBanned", "==", false))
     .orderBy("score", "desc").limit(limit).get();
-  const totalSnap = await db.collection("Exam_Leaderboards").doc(examId)
+  const totalSnap = await applyClassFilter(db.collection("Exam_Leaderboards").doc(examId)
     .collection("Entries").where("isEligibleForRanking", "==", true)
-    .where("isBanned", "==", false).count().get();
+    .where("isBanned", "==", false)).count().get();
   const totalEligible = totalSnap.data().count;
   const airStatus = getRankingStatus(totalEligible);
   const rows = snapshot.docs.map(doc => doc.data());
@@ -1064,7 +1067,7 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
       profileVisibility: isPrivate ? "PRIVATE" : "PUBLIC"
     };
   });
-  return { success: true, targetExam: examId, rankingScope: "AK_TEST_SERIES",
+  return { success: true, targetExam: examId, classLevel, rankingScope: "AK_TEST_SERIES",
     scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", totalEligible,
     status: airStatus.status, isOfficialAkAir: airStatus.isOfficialAkAir, entries };
 });
@@ -1079,6 +1082,8 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
   }
   const input = data || {};
   const examId = normalizeExamKey(input.targetExam || "NEET");
+  const classLevel = normalizeClassLevel(input.classLevel || "All");
+  const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const periodType = String(input.periodType || "HALF_MONTH").toUpperCase();
   if (!["HALF_MONTH", "MONTH"].includes(periodType)) {
     throw new functions.https.HttpsError("invalid-argument", "periodType must be HALF_MONTH or MONTH.");
@@ -1091,10 +1096,10 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
     throw new functions.https.HttpsError("invalid-argument", "Invalid ranking period identifier.");
   }
   const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
-  const snapshot = await db.collection("Ranking_Periods").doc(examId)
+  const snapshot = await applyClassFilter(db.collection("Ranking_Periods").doc(examId)
     .collection("Periods").doc(periodId).collection("Entries")
     .where("isEligibleForRanking", "==", true)
-    .where("isBanned", "==", false)
+    .where("isBanned", "==", false))
     .orderBy("rankingScore", "desc").limit(limit).get();
   let previousScore = null;
   let competitionRank = 0;
@@ -1114,7 +1119,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
   });
   const thirdPlaceRank = entries.length >= 3 ? entries[2].rank : (entries.length ? entries[entries.length - 1].rank : 0);
   return {
-    success: true, targetExam: examId, periodType, periodId,
+    success: true, targetExam: examId, classLevel, periodType, periodId,
     rankingScope: "AK_TEST_SERIES", entries,
     topThree: entries.filter(entry => thirdPlaceRank > 0 && entry.rank <= thirdPlaceRank)
   };
