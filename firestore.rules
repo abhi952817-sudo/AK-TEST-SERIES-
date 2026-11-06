@@ -42,6 +42,15 @@ service cloud.firestore {
         || data.get('profileVisibility', 'PUBLIC') in ['PUBLIC', 'PRIVATE'];
     }
 
+    function isValidClassLevel(data) {
+      return !data.keys().hasAny(['classLevel'])
+        || data.get('classLevel', 'All') == null
+        || data.get('classLevel', 'All') in [
+          '', 'All', '11', '11th', 'Class 11', 'Class 11th', 'CLASS_11',
+          '12', '12th', 'Class 12', 'Class 12th', 'CLASS_12', 'Dropper', 'Repeater'
+        ];
+    }
+
     function isAllowedStudentProfileKeys(keysList) {
       return keysList.hasOnly([
         'uid', 'name', 'displayName', 'email', 'phoneNumber', 'stateName', 'cityName',
@@ -79,12 +88,14 @@ service cloud.firestore {
 
       // Students can create their own profile with permitted non-authoritative fields only
       allow create: if (isOwner(userId) && isAllowedStudentProfileKeys(request.resource.data.keys())
-                      && isValidProfileVisibility(request.resource.data)) || isAdmin();
+                      && isValidProfileVisibility(request.resource.data)
+                      && isValidClassLevel(request.resource.data)) || isAdmin();
 
       // Students can update only whitelisted non-authoritative fields, blocking any spoofing of scores, ranks, bans or roles
       allow update: if (isOwner(userId)
                       && isAllowedStudentProfileKeys(request.resource.data.diff(resource.data).affectedKeys())
-                      && isValidProfileVisibility(request.resource.data))
+                      && isValidProfileVisibility(request.resource.data)
+                      && isValidClassLevel(request.resource.data))
                     || isAdmin();
 
       allow delete: if isAdmin();
