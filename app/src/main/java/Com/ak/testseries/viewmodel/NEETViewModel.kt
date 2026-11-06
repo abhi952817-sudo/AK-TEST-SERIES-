@@ -7185,6 +7185,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 correctCount = doc.getLong("correctCount")?.toInt() ?: 0,
                                 incorrectCount = doc.getLong("incorrectCount")?.toInt() ?: 0,
                                 skippedCount = doc.getLong("skippedCount")?.toInt() ?: 0,
+                                ungradedCount = doc.getLong("ungradedCount")?.toInt() ?: 0,
                                 timeSpentSeconds = doc.getLong("timeSpentSeconds") ?: 0L,
                                 dateTaken = dateTaken,
                                 answersJson = doc.getString("answersJson") ?: "{}",
