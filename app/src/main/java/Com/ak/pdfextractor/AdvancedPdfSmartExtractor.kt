@@ -1292,6 +1292,56 @@ class AdvancedPdfSmartExtractor(private val context: Context) {
     }
 
     /**
+     * OCR every rendered page locally so scanned pages and mixed text/scanned PDFs are not
+     * silently skipped when only some pages contain extractable PDF text streams.
+     *
+     * ML Kit's configured recognizer is Latin-script only; callers must keep Hindi/other
+     * script extraction in review until a matching recognizer is installed and verified.
+     */
+    suspend fun extractAllPagesWithLocalOcr(pdfFile: File, maxPages: Int = 50): String = withContext(Dispatchers.IO) {
+        val output = StringBuilder()
+        try {
+            val descriptor = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
+            descriptor.use { pfd ->
+                val renderer = PdfRenderer(pfd)
+                try {
+                    val pageLimit = minOf(renderer.pageCount, maxPages.coerceAtLeast(1))
+                    for (pageIndex in 0 until pageLimit) {
+                        val page = renderer.openPage(pageIndex)
+                        try {
+                            val maxSide = maxOf(page.width, page.height).toFloat()
+                            val scale = minOf(1.5f, 2048f / maxSide.coerceAtLeast(1f))
+                            val width = (page.width * scale).toInt().coerceIn(100, 2048)
+                            val height = (page.height * scale).toInt().coerceIn(100, 2048)
+                            var bitmap: Bitmap? = null
+                            try {
+                                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                                bitmap.eraseColor(android.graphics.Color.WHITE)
+                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                val recognized = MlKitLocalOcrEngine.recognizeTextFromBitmap(bitmap, pageIndex + 1).fullText.trim()
+                                if (recognized.isNotBlank()) {
+                                    output.append("--- PAGE ").append(pageIndex + 1).append(" ---\\n")
+                                        .append(recognized).append("\\n\\n")
+                                }
+                            } finally {
+                                if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
+                            }
+                        } finally {
+                            page.close()
+                        }
+                    }
+                } finally {
+                    renderer.close()
+                }
+            }
+        } catch (error: Throwable) {
+            Log.w("AdvancedPdfExtractor", "Page OCR failed: ${error.message}")
+        }
+        val ocrText = output.toString().trim()
+        if (ocrText.isNotBlank()) ocrText else extractAllStreamText(pdfFile)
+    }
+
+    /**
      * Parses embedded text streams from PDF file locally without third-party dependencies or external API calls.
      */
     fun extractAllStreamText(file: File): String {
