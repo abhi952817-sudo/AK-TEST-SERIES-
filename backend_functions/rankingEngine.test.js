@@ -86,3 +86,10 @@ test("class level normalization supports class 11, class 12 and dropper cohorts"
   assert.equal(normalizeClassLevel("Dropper"), "Dropper");
   assert.equal(normalizeClassLevel("All"), "All");
 });
+test("class cohort ranking status is not mislabeled as AIR", () => {
+  const { getCohortRankingStatus } = require("./rankingEngine");
+  assert.equal(getCohortRankingStatus(1000, "All").status, "Official AK AIR");
+  assert.equal(getCohortRankingStatus(1000, "11th").status, "Official AK Class Rank");
+  assert.equal(getCohortRankingStatus(999, "12th").status, "Provisional Class Rank");
+  assert.equal(getCohortRankingStatus(1000, "11th").isOfficialAkAir, false);
+});
