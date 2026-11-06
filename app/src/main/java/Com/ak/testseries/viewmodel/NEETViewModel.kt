@@ -469,8 +469,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             _userCompetitiveScore.value = competitiveScore
 
                             // Query eligible participants count for this canonicalExam from public Leaderboard
-                            val eligibleQuery = db.collection("Leaderboard")
-                                .whereEqualTo("targetExam", canonicalExam)
+                            val eligibleQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
+                                .collection("Entries")
                                 .whereEqualTo("isEligibleForRanking", true)
                             val eligibleSnapshot = eligibleQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
                             val totalEligible = eligibleSnapshot.count.toInt()
@@ -488,8 +488,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     "Establish an active competitive score to view your platform rank."
                                 }
                             } else {
-                                val countQuery = db.collection("Leaderboard")
-                                    .whereEqualTo("targetExam", canonicalExam)
+                                val countQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
+                                    .collection("Entries")
                                     .whereEqualTo("isEligibleForRanking", true)
                                     .whereGreaterThan("score", competitiveScore)
                                 val countSnapshot = countQuery.count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
@@ -503,9 +503,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     _rankLastUpdatedTime.value = 0L
                                     _nextTargetMessage.value = "Ranking is being calculated against current cohort."
                                 } else {
-                                    val hasSufficientCohort = totalEligible >= 50
-                                    _userRankStatus.value = if (hasSufficientCohort) "Platform Rank" else "Provisional Rank"
-                                    _isOfficialAirUnlocked.value = false
+                                    val hasSufficientCohort = totalEligible >= airThreshold
+                                    _userRankStatus.value = if (hasSufficientCohort) "Official AK AIR" else "Provisional Rank"
+                                    _isOfficialAirUnlocked.value = hasSufficientCohort
                                     _userRank.value = "#$rank"
                                     _rankLastUpdatedTime.value = System.currentTimeMillis()
 
@@ -515,8 +515,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     _userPercentile.value = Math.round(rawPct * 100.0) / 100.0
 
                                     if (rank > 1) {
-                                        val higherUsersQuery = db.collection("Leaderboard")
-                                            .whereEqualTo("targetExam", canonicalExam)
+                                        val higherUsersQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
+                                            .collection("Entries")
                                             .whereEqualTo("isEligibleForRanking", true)
                                             .whereGreaterThan("score", competitiveScore)
                                             .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
@@ -525,8 +525,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                         val higherDoc = higherUsersQuery.documents.firstOrNull()
                                         if (higherDoc != null) {
                                             val higherScore = (higherDoc.getLong("score") ?: 0L).toInt()
-                                            val ptsAway = (higherScore - competitiveScore) + 1
-                                            val targetName = higherDoc.getString("displayName") ?: higherDoc.getString("name") ?: "Student"
+                                            val ptsAway = (higherScore - competitiveScore).coerceAtLeast(0)
+                                            val targetName = if ((higherDoc.getString("profileVisibility") ?: "PUBLIC").equals("PRIVATE", ignoreCase = true)) "Private Student" else (higherDoc.getString("displayName") ?: "Student")
                                             _nextTargetMessage.value = "Next target: $targetName (#${rank - 1}) — You are $ptsAway pts away! Take 1 test to overtake."
                                         } else {
                                             _nextTargetMessage.value = "Keep practicing to climb higher on the $rawExam leaderboard!"
