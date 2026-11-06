@@ -399,7 +399,9 @@
 - Added a regression assertion for optional Section B maximum marks.
 - Added Firestore rules tests for v2 public reads, private User_Ranks access, profile visibility validation, and server-only ranking/XP writes.
 - Added `.github/workflows/ranking-v2-validation.yml` to run backend syntax/unit tests and Firestore Emulator rules tests on PR/push. The repository's existing Android CI remains responsible for Android build validation.
-- **Tests have been authored but have not yet been executed in this environment.** Android compilation, Node tests, Firestore Emulator rules tests, and CI results must pass before merge.
+- Latest GitHub Actions validation (head `9036486644aff4ec256fa1a501a7b38a73f5b04f`): backend syntax checks and all 28 Node scoring/ranking tests passed; Firestore Emulator security rules suite passed all 28 tests.
+- Existing Android CI is still running for the same app-code revision; Android compilation/unit-test success is not yet confirmed.
+- Keep the PR in draft until the Android CI completes successfully.
 - Deploy the updated Cloud Functions, Firestore rules, and indexes only after CI passes and the admin backfill has been reviewed in dry-run / controlled batches.
 - Admin UI for editing ranking policy values and a configurable XP award editor remain a follow-up; current policy defaults are code-versioned.
 - Historical XP/streak backfill is not included; the ranking migration rebuilds exam AIR and period score history only.
