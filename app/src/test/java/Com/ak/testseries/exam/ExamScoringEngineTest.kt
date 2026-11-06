@@ -304,6 +304,7 @@ class ExamScoringEngineTest {
         assertEquals("Surplus attempts 11 & 12 should not count as wrong", 0, breakdown.wrongCount)
         assertEquals(40.0, breakdown.positiveMarksEarned, 0.001)
         assertEquals(0.0, breakdown.negativeMarksPenalty, 0.001)
+        assertEquals(40.0, breakdown.maxScore, 0.001) // Surplus Section B questions do not inflate maximum marks
     }
 
     @Test
@@ -322,6 +323,23 @@ class ExamScoringEngineTest {
         assertFalse(ExamScoringEngine.isAnswerKeyVerified("12abc"))
         assertFalse(ExamScoringEngine.isAnswerKeyVerified("A,,B"))
         assertFalse(ExamScoringEngine.isAnswerKeyVerified("A,A"))
+    }
+
+    @Test
+    fun testSelectedAnswerWithUnverifiedKeyIsReportedAsUngraded() {
+        val invalidKey = createQuestion("invalid_key", "NOT_SET")
+        val validKey = createQuestion("valid_key", "A")
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            targetExam = "NEET UG",
+            questions = listOf(invalidKey, validKey),
+            userAnswers = mapOf("invalid_key" to "B", "valid_key" to "A"),
+            timeSpentSeconds = 30
+        )
+        assertEquals(1, result.correctCount)
+        assertEquals(0, result.wrongCount)
+        assertEquals(1, result.ungradedCount)
+        assertEquals(2, result.attemptedCount)
+        assertEquals(100.0, result.accuracyPercent, 0.001)
     }
 
     @Test
