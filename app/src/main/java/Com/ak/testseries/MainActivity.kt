@@ -6393,6 +6393,7 @@ fun AdminPanelScreen(viewModel: NEETViewModel) {
                                 Triple(AdminMenu.AI_MANAGER, "AI Manager", Icons.Rounded.AutoAwesome),
                                 Triple(AdminMenu.MONETIZATION, "Monetization", Icons.Rounded.MonetizationOn),
                                 Triple(AdminMenu.DATABASE_CONFIGS, "DB Configs", Icons.Rounded.Storage),
+                                Triple(AdminMenu.RANKING_SYSTEM, "Ranking System", Icons.Rounded.Analytics),
                                 Triple(AdminMenu.NOTIFICATIONS, "Announce", Icons.Rounded.Campaign)
                             )
 
@@ -6496,6 +6497,7 @@ fun AdminPanelScreen(viewModel: NEETViewModel) {
                                 AdminMenu.AI_MANAGER -> AdminAiManagerContent(viewModel)
                                 AdminMenu.MONETIZATION -> AdminMonetizationContent()
                                 AdminMenu.DATABASE_CONFIGS -> AdminDbConfigsContent(viewModel)
+                                AdminMenu.RANKING_SYSTEM -> AdminRankingToolsContent(viewModel)
                                 AdminMenu.USERS_ANALYTICS -> AdminUsersAnalyticsContent(viewModel)
                                 AdminMenu.COMMUNITY_CONTROLS -> Com.ak.testseries.ui.CommunityAdminScreen(viewModel)
                                 AdminMenu.NOTIFICATIONS -> AdminNotificationsContent(viewModel)
@@ -6514,9 +6516,71 @@ enum class AdminMenu {
     AI_MANAGER,
     MONETIZATION,
     DATABASE_CONFIGS,
+    RANKING_SYSTEM,
     USERS_ANALYTICS,
     COMMUNITY_CONTROLS,
     NOTIFICATIONS
+}
+
+@Composable
+fun AdminRankingToolsContent(viewModel: NEETViewModel) {
+    val status by viewModel.rankingMigrationStatus.collectAsStateWithLifecycle()
+    val hasMore by viewModel.rankingMigrationHasMore.collectAsStateWithLifecycle()
+    val running by viewModel.rankingMigrationRunning.collectAsStateWithLifecycle()
+    var showMigrationConfirm by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f))
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Text("Ranking Engine V2", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Exam AIR uses normalized weighted scores. XP, streaks and leagues remain separate.",
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(14.dp))
+                Text("Full Test weight: 1.0×", fontWeight = FontWeight.SemiBold)
+                Text("Part / Chapter Test weight: 0.2×", fontWeight = FontWeight.SemiBold)
+                Text("Minimum qualifying tests: 2", fontWeight = FontWeight.SemiBold)
+                Text("Official AK AIR threshold: 1,000 eligible students", fontWeight = FontWeight.SemiBold)
+                Text("Score basis: normalized 10,000-point full-test scale", fontSize = 11.sp)
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Legacy Ranking Migration", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Rebuilds v2 exam totals and period boards from server-verified first qualifying attempts. Run batches in order; this does not deploy Functions or change the main branch.",
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(status, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = { showMigrationConfirm = true },
+                    enabled = !running && hasMore,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (running) "Migration running..." else if (hasMore) "Run next 10-user batch" else "Migration complete")
+                }
+            }
+        }
+    }
+
+    if (showMigrationConfirm) {
+        AlertDialog(
+            onDismissRequest = { showMigrationConfirm = false },
+            title = { Text("Run ranking migration batch?") },
+            text = { Text("This writes normalized ranking records for the next batch of up to 10 users. Run it only after the v2 Cloud Functions and Firestore indexes are deployed and reviewed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMigrationConfirm = false
+                    viewModel.runRankingV2MigrationBatch(10)
+                }) { Text("Run batch") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMigrationConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 @Composable
