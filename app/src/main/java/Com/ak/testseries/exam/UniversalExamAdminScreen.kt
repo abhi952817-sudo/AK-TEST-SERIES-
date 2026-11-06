@@ -710,7 +710,7 @@ fun QuestionReviewCard(
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Approve", fontSize = 11.sp)
+                    Text("Verify & Approve", fontSize = 11.sp)
                 }
                 
                 OutlinedButton(
