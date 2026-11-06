@@ -855,6 +855,12 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
     aliceDb.collection("Users_Data").doc(ALICE_UID).update({ profileVisibility: "HIDDEN" })
   );
   await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).update({ classLevel: "Class 11" })
+  );
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).update({ classLevel: "University" })
+  );
+  await assertSucceeds(
     aliceDb.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).get()
   );
   await assertFails(
