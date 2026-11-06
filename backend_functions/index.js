@@ -371,6 +371,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const shouldAwardXp = isFirstAttempt && !xpTransactionSnap.exists;
     const xpAward = shouldAwardXp ? calculateXpAward(evalResult.correctCount) : 0;
     const currentXpTotal = Number(userData.xpTotal || 0);
+    const profileIsPublic = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
     const currentWeekXp = userData.xpWeekId === rankingWeekId ? Number(userData.xpThisWeek || 0) : 0;
     const previousActivityDate = String(userData.lastActivityDateIST || "");
     const yesterdayDateKey = getIndiaDateKey(rankingNow - 86400000);
@@ -422,11 +423,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
       transaction.set(db.collection("XP_Leaderboard_AllTime").doc("Entries").collection("Students").doc(userId), {
-        userId, displayName: userData.name || "Student", xpTotal: newXpTotal,
+        userId, displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
+        profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE", xpTotal: newXpTotal,
         xpLeague: getLeagueForXp(newXpTotal), updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
       transaction.set(db.collection("XP_Leaderboard_Weekly").doc(rankingWeekId).collection("Entries").doc(userId), {
-        userId, displayName: userData.name || "Student", xp: newWeekXp,
+        userId, displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
+        profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE", xp: newWeekXp,
         weekId: rankingWeekId, updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
     }
@@ -440,7 +443,10 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     if (countsTowardRanking && isFirstAttempt) {
       const periodBase = {
-        userId, displayName: userData.name || "Student", targetExam: canonicalExam,
+        userId,
+        displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
+        profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE",
+        targetExam: canonicalExam,
         scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       };
@@ -543,7 +549,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     }
 
     if (countsTowardRanking && isFirstAttempt) {
-      const publicProfile = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
+      const publicProfile = profileIsPublic;
       const examEntryRef = db.collection("Exam_Leaderboards").doc(canonicalExam)
         .collection("Entries").doc(userId);
       transaction.set(examEntryRef, {
@@ -652,7 +658,6 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   // Query eligible participant population for this specific exam
   const eligibleQuery = db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
-    .where("targetExam", "==", canonicalExam)
     .where("isEligibleForRanking", "==", true);
 
   const eligibleSnap = await eligibleQuery.count().get();
@@ -677,7 +682,6 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   // Count candidates strictly above this candidate's score
   const higherQuery = db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
-    .where("targetExam", "==", canonicalExam)
     .where("isEligibleForRanking", "==", true)
     .where("score", ">", competitiveScore);
 
@@ -688,7 +692,6 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   // Standard Competition Percentile Formula:
   // P = ((N - rank + 1) / N) * 100
   const equalSnap = await db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
-    .where("targetExam", "==", canonicalExam)
     .where("isEligibleForRanking", "==", true)
     .where("score", "==", competitiveScore)
     .count().get();
@@ -703,8 +706,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   let nextTarget = null;
   if (rank > 1) {
     const higherDocsSnap = await db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
-      .where("targetExam", "==", canonicalExam)
-      .where("isEligibleForRanking", "==", true)
+        .where("isEligibleForRanking", "==", true)
       .where("score", ">", competitiveScore)
       .orderBy("score", "asc")
       .limit(1)
@@ -756,6 +758,10 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   const snapshot = await db.collection("Exam_Leaderboards").doc(examId)
     .collection("Entries").where("isEligibleForRanking", "==", true)
     .orderBy("score", "desc").limit(limit).get();
+  const totalSnap = await db.collection("Exam_Leaderboards").doc(examId)
+    .collection("Entries").where("isEligibleForRanking", "==", true).count().get();
+  const totalEligible = totalSnap.data().count;
+  const airStatus = getRankingStatus(totalEligible);
   const rows = snapshot.docs.map(doc => doc.data());
   let previousScore = null;
   let competitionRank = 0;
@@ -766,7 +772,7 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
     const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
     return {
       rank: competitionRank,
-      userId: row.userId,
+      userId: isPrivate ? null : row.userId,
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
       score,
       qualifyingTestsCount: Number(row.qualifyingTestsCount || 0),
@@ -774,7 +780,8 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
     };
   });
   return { success: true, targetExam: examId, rankingScope: "AK_TEST_SERIES",
-    scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", entries };
+    scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", totalEligible,
+    status: airStatus.status, isOfficialAkAir: airStatus.isOfficialAkAir, entries };
 });
 
 /**
@@ -813,7 +820,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
     const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
     return {
       rank: competitionRank,
-      userId: row.userId || doc.id,
+      userId: isPrivate ? null : (row.userId || doc.id),
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
       score,
       qualifyingTestsCount: Number(row.qualifyingTestsCount || 0)
@@ -853,10 +860,11 @@ exports.getXpLeaderboard = functions.https.onCall(async (data, context) => {
     const score = Number(mode === "ALL_TIME" ? row.xpTotal || 0 : row.xp || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
+    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
     return {
-      rank: competitionRank, userId: row.userId || doc.id,
-      displayName: row.displayName || "Student", xp: score,
-      league: row.xpLeague || null
+      rank: competitionRank, userId: isPrivate ? null : (row.userId || doc.id),
+      displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
+      xp: score, league: row.xpLeague || null
     };
   });
   return { success: true, mode, entries };
