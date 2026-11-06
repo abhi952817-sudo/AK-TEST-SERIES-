@@ -208,7 +208,7 @@ object OfflineMarkdownQuestionParser {
         val optD = optionsMap["D"] ?: ""
 
         // Final answer resolution
-        val finalAnswer = inlineDetectedAnswer ?: "A"
+        val finalAnswer = inlineDetectedAnswer.orEmpty()
 
         return ParsedQuestion(
             questionNumber = qNum,
@@ -219,7 +219,8 @@ object OfflineMarkdownQuestionParser {
             optionD = optD,
             correctAnswer = finalAnswer,
             explanation = explanationText.ifBlank {
-                "Correct Answer is Option $finalAnswer based on official exam test paper answer key."
+                if (finalAnswer.isBlank()) "No answer key found in the source; manual verification required."
+                else "Answer key entry extracted from the source document: $finalAnswer."
             }
         )
     }
@@ -275,6 +276,16 @@ object OfflineMarkdownQuestionParser {
             )
 
             val qType = if (optionsList.isEmpty()) QuestionType.NUMERICAL else QuestionType.DIRECT_MCQ
+            val independentSourceAnswer = pq.correctAnswer.takeIf { it.isNotBlank() }
+            val validation = QuestionValidationEngine.validateQuestion(
+                questionText = pq.questionText,
+                options = optionsList,
+                correctAnswer = pq.correctAnswer,
+                explanation = pq.explanation,
+                sourceAnswer = independentSourceAnswer,
+                questionType = qType,
+                expectedOptionCount = examConfig.defaultOptionCount
+            )
 
             UniversalQuestionModel(
                 questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${pq.questionNumber}",
@@ -288,12 +299,15 @@ object OfflineMarkdownQuestionParser {
                 questionText = pq.questionText,
                 options = optionsList,
                 correctAnswer = pq.correctAnswer,
+                sourceAnswer = independentSourceAnswer,
                 explanation = pq.explanation,
                 positiveMarks = defaultMarks,
                 negativeMarks = defaultNegMarks,
                 difficulty = DifficultyLevel.MEDIUM,
-                qualityScore = 95,
-                validationStatus = ValidationStatus.APPROVED,
+                qualityScore = validation.qualityScore,
+                qualityMetrics = validation.qualityMetrics,
+                validationStatus = validation.status,
+                validationReasons = validation.issues,
                 duplicateHash = DuplicateDetectionEngine.generateNormalizedHash(pq.questionText, optionsList),
                 generationModel = "pdf-real-extractor-v1",
                 sourceName = "Extracted PDF Test Paper"
