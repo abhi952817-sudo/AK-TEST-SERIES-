@@ -609,6 +609,147 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 });
 
 /**
+ * Rebuilds one user's v2 exam ranking materializations from immutable, server-verified
+ * attempt records. This is an admin-only, idempotent migration path for pre-v2 users.
+ */
+async function rebuildRankingV2ForUser(userId) {
+  const userRef = db.collection("Users_Data").doc(userId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) return { userId, migrated: false, reason: "USER_NOT_FOUND" };
+  const [upperSnap, lowerSnap] = await Promise.all([
+    userRef.collection("Attempts").get(),
+    userRef.collection("attempts").get()
+  ]);
+  const byAttemptId = new Map();
+  [...upperSnap.docs, ...lowerSnap.docs].forEach(doc => byAttemptId.set(doc.id, doc.data()));
+  const attempts = [...byAttemptId.values()].sort((a, b) => {
+    const time = value => value && typeof value.toMillis === "function"
+      ? value.toMillis() : Number(value && (value.dateTaken || value.submittedAt) || 0);
+    return time(a) - time(b);
+  });
+  const seenTests = new Set();
+  const exams = new Map();
+  const periods = new Map();
+
+  for (const attempt of attempts) {
+    const testId = String(attempt.testId || "");
+    if (!testId || seenTests.has(testId)) continue;
+    seenTests.add(testId);
+    if (attempt.verifiedServerSide !== true || attempt.countsTowardRanking !== true) continue;
+
+    const rawScore = Number(attempt.authoritativeScore !== undefined ? attempt.authoritativeScore : attempt.score);
+    const maxScore = Number(attempt.maxScore);
+    if (!Number.isFinite(rawScore) || !Number.isFinite(maxScore) || maxScore <= 0) continue;
+
+    let testData = {};
+    let testSnap = await db.collection("Tests_Data").doc(testId).get();
+    if (!testSnap.exists) testSnap = await db.collection("Tests").doc(testId).get();
+    if (testSnap.exists) testData = testSnap.data() || {};
+
+    const examId = normalizeExamKey(attempt.targetExam || testData.targetExam || testData.subject || "UNKNOWN");
+    if (examId === "UNKNOWN" || examId === "ALL") continue;
+    const storedWeight = Number(attempt.rankingWeight);
+    const weight = storedWeight === 1 || storedWeight === 0.2 ? storedWeight : resolveRankingWeight(testData);
+    const points = calculateWeightedRankingScore(rawScore, maxScore, weight);
+    const aggregate = exams.get(examId) || { score: 0, count: 0, maxSingleScore: 0 };
+    aggregate.score += points;
+    aggregate.count += 1;
+    aggregate.maxSingleScore = Math.max(aggregate.maxSingleScore, rawScore);
+    exams.set(examId, aggregate);
+
+    const timestamp = attempt.submittedAt && typeof attempt.submittedAt.toMillis === "function"
+      ? attempt.submittedAt.toMillis()
+      : Number(attempt.dateTaken || Date.now());
+    const periodIds = getRankingPeriodIds(timestamp);
+    for (const item of [
+      { type: "HALF_MONTH", id: periodIds.halfMonthId },
+      { type: "MONTH", id: periodIds.monthId }
+    ]) {
+      const key = examId + ":" + item.type + ":" + item.id;
+      const period = periods.get(key) || {
+        examId, periodType: item.type, periodId: item.id, score: 0, count: 0
+      };
+      period.score += points;
+      period.count += 1;
+      periods.set(key, period);
+    }
+  }
+
+  const userData = userSnap.data();
+  const isPublic = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
+  const displayName = isPublic ? (userData.displayName || userData.name || "Student") : "Private Student";
+  const userUpdates = { rankingBackfillVersion: RANKING_CONFIG.version,
+    rankingBackfilledAt: admin.firestore.FieldValue.serverTimestamp() };
+  let totalCumulativeScore = 0;
+  const batch = db.batch();
+
+  for (const [examId, aggregate] of exams.entries()) {
+    const eligible = aggregate.count >= RANKING_CONFIG.minQualifyingTests;
+    userUpdates["cumulativeScore_" + examId] = aggregate.score;
+    userUpdates["qualifyingTestsCount_" + examId] = aggregate.count;
+    totalCumulativeScore += aggregate.score;
+
+    batch.set(db.collection("Exam_Leaderboards").doc(examId).collection("Entries").doc(userId), {
+      userId, displayName, profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
+      targetExam: examId, score: aggregate.score, maxSingleScore: aggregate.maxSingleScore,
+      qualifyingTestsCount: aggregate.count, isEligibleForRanking: eligible,
+      scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", rankingWeightVersion: RANKING_CONFIG.version,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
+    }, { merge: true });
+
+    batch.set(db.collection("User_Ranks").doc(userId).collection("Exams").doc(examId), {
+      userId, targetExam: examId, score: aggregate.score,
+      qualifyingTestsCount: aggregate.count, isEligibleForRanking: eligible,
+      scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
+    }, { merge: true });
+  }
+  userUpdates.totalCumulativeScore = totalCumulativeScore;
+
+  for (const period of periods.values()) {
+    const eligible = period.count >= RANKING_CONFIG.minQualifyingTests;
+    batch.set(db.collection("Ranking_Periods").doc(period.examId)
+      .collection("Periods").doc(period.periodId).collection("Entries").doc(userId), {
+        userId, displayName, profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
+        targetExam: period.examId, rankingScore: period.score,
+        qualifyingTestsCount: period.count, isEligibleForRanking: eligible,
+        periodType: period.periodType, periodId: period.periodId,
+        scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
+      }, { merge: true });
+  }
+
+  batch.update(userRef, userUpdates);
+  await batch.commit();
+  return {
+    userId, migrated: true, examsMigrated: exams.size,
+    qualifyingAttempts: [...exams.values()].reduce((sum, item) => sum + item.count, 0),
+    periodsMigrated: periods.size, totalCumulativeScore
+  };
+}
+
+exports.rebuildRankingV2Batch = functions.https.onCall(async (data, context) => {
+  try { validateSetAdminRoleAuth(context); }
+  catch (err) {
+    throw new functions.https.HttpsError(err.code || "permission-denied", err.message);
+  }
+  const input = data || {};
+  const limit = Math.min(100, Math.max(1, Number(input.limit) || 25));
+  let query = db.collection("Users_Data").orderBy(admin.firestore.FieldPath.documentId()).limit(limit);
+  if (input.cursor) query = query.startAfter(String(input.cursor));
+  const snapshot = await query.get();
+  const results = [];
+  for (const doc of snapshot.docs) {
+    results.push(await rebuildRankingV2ForUser(doc.id));
+  }
+  return {
+    success: true, processed: snapshot.size,
+    nextCursor: snapshot.size === limit ? snapshot.docs[snapshot.docs.length - 1].id : null,
+    hasMore: snapshot.size === limit, results
+  };
+});
+
+/**
  * Cloud Function: getUserRankingDetails
  * Returns authoritative, population-based competition rank, exact percentile,
  * eligibility status, and comparative target information for the authenticated student.
