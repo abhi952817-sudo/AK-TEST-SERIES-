@@ -767,6 +767,26 @@ async function rebuildRankingV2ForUser(userId) {
   };
 }
 
+exports.getRankingMigrationStatus = functions.https.onCall(async (data, context) => {
+  try { validateSetAdminRoleAuth(context); }
+  catch (err) {
+    throw new functions.https.HttpsError(err.code || "permission-denied", err.message);
+  }
+  const snapshot = await db.collection("Config").doc("Ranking_Migration_State").get();
+  if (!snapshot.exists) {
+    return { success: true, completed: false, hasMore: true, lastProcessedUid: null, lastBatchProcessed: 0 };
+  }
+  const state = snapshot.data();
+  return {
+    success: true,
+    completed: state.completed === true,
+    hasMore: state.hasMore !== false,
+    lastProcessedUid: state.lastProcessedUid || null,
+    lastBatchProcessed: Number(state.lastBatchProcessed || 0),
+    updatedAt: state.updatedAt || null
+  };
+});
+
 exports.rebuildRankingV2Batch = functions.https.onCall(async (data, context) => {
   try { validateSetAdminRoleAuth(context); }
   catch (err) {
