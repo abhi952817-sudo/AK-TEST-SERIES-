@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -64,10 +65,11 @@ object FileUploaderUtil {
             }
             val compressedBytes = baos.toByteArray()
 
-            val fileName = "chart_images/${UUID.randomUUID()}.webp"
+            val uploaderUid = try { FirebaseAuth.getInstance().currentUser?.uid } catch (_: Exception) { null }
+            val fileName = uploaderUid?.let { "chart_images/$it/${UUID.randomUUID()}.webp" }
             
             // Try uploading to Firebase Storage if available
-            val firebaseRef = storage?.reference?.child(fileName)
+            val firebaseRef = fileName?.let { storage?.reference?.child(it) }
             if (firebaseRef != null) {
                 try {
                     firebaseRef.putBytes(compressedBytes).await()
