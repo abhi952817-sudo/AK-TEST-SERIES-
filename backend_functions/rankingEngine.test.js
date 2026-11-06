@@ -78,3 +78,11 @@ test("official AK AIR threshold is 1000 eligible participants", () => {
   assert.equal(getRankingStatus(1000).isOfficialAkAir, true);
   assert.equal(getRankingStatus(1000).status, "Official AK AIR");
 });
+test("class level normalization supports class 11, class 12 and dropper cohorts", () => {
+  const { normalizeClassLevel } = require("./rankingEngine");
+  assert.equal(normalizeClassLevel("Class 11"), "11th");
+  assert.equal(normalizeClassLevel("11th"), "11th");
+  assert.equal(normalizeClassLevel("CLASS_12"), "12th");
+  assert.equal(normalizeClassLevel("Dropper"), "Dropper");
+  assert.equal(normalizeClassLevel("All"), "All");
+});
