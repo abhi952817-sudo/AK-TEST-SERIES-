@@ -297,6 +297,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
           positiveMarksEarned: existing.positiveMarksEarned || 0,
           negativeMarksPenalty: existing.negativeMarksPenalty || 0,
           isFirstAttempt: existing.isFirstAttempt || false,
+          isFirstQualifyingAttempt: existing.isFirstQualifyingAttempt || false,
           countsTowardRanking: existing.countsTowardRanking || false,
           isRetry: true
         };
@@ -317,8 +318,20 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const legacyExistingAttemptsSnap = await transaction.get(
       userRef.collection("attempts").where("testId", "==", cleanTestId).limit(1)
     );
-    const isFirstAttempt = existingAttemptsSnap.empty &&
-      legacyExistingAttemptsSnap.empty && (!lockSnap || !lockSnap.exists);
+    const isFirstAttempt = existingAttemptsSnap.empty && legacyExistingAttemptsSnap.empty;
+    const priorQualifyingAttemptsSnap = countsTowardRanking ? await transaction.get(
+      attemptsRef.where("testId", "==", cleanTestId)
+        .where("countsTowardRanking", "==", true)
+        .where("verifiedServerSide", "==", true).limit(1)
+    ) : null;
+    const legacyPriorQualifyingAttemptsSnap = countsTowardRanking ? await transaction.get(
+      userRef.collection("attempts").where("testId", "==", cleanTestId)
+        .where("countsTowardRanking", "==", true)
+        .where("verifiedServerSide", "==", true).limit(1)
+    ) : null;
+    const isFirstQualifyingAttempt = countsTowardRanking &&
+      priorQualifyingAttemptsSnap.empty && legacyPriorQualifyingAttemptsSnap.empty &&
+      (!lockSnap || !lockSnap.exists);
 
     const userSnap = await transaction.get(userRef);
     const existingV2RankSnap = await transaction.get(examEntryRef);
@@ -363,7 +376,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       evalResult.finalScore, evalResult.maxScore, rankingWeight
     );
 
-    if (isFirstAttempt && countsTowardRanking) {
+    if (isFirstQualifyingAttempt) {
       newExamScore = currentExamScore + weightedScore;
       updates[examQCountKey] = currentExamQCount + 1;
       updates.qualifyingTestsCount = (userData.qualifyingTestsCount || 0) + 1;
@@ -391,7 +404,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     let monthPeriodRef = null;
     let halfPeriodSnap = null;
     let monthPeriodSnap = null;
-    if (countsTowardRanking && isFirstAttempt) {
+    if (isFirstQualifyingAttempt) {
       halfPeriodRef = db.collection("Ranking_Periods").doc(canonicalExam)
         .collection("Periods").doc(rankingPeriodIds.halfMonthId)
         .collection("Entries").doc(userId);
@@ -414,7 +427,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     transaction.update(userRef, updates);
 
-    if (countsTowardRanking && isFirstAttempt) {
+    if (isFirstQualifyingAttempt) {
       transaction.create(firstAttemptLockRef, {
         userId, testId: cleanTestId, examId: canonicalExam,
         attemptId: attemptDocId, lockedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -448,7 +461,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const isEligible = qualifyingTests >= RANKING_CONFIG.minQualifyingTests && !userIsBanned;
     const competitiveScore = updates[examScoreKey] !== undefined ? updates[examScoreKey] : currentExamScore;
 
-    if (countsTowardRanking && isFirstAttempt) {
+    if (isFirstQualifyingAttempt) {
       const periodBase = {
         userId,
         displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
@@ -503,7 +516,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       isFirstAttempt,
       countsTowardRanking,
       rankingWeight: countsTowardRanking ? rankingWeight : 0,
-      normalizedRankingPoints: countsTowardRanking && isFirstAttempt ? weightedScore : 0,
+      normalizedRankingPoints: isFirstQualifyingAttempt ? weightedScore : 0,
+      isFirstQualifyingAttempt,
       xpAwarded: shouldAwardXp ? xpAward : 0,
       verifiedServerSide: true,
       authoritativeScore: evalResult.finalScore,
@@ -517,7 +531,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     transaction.set(legacyAttemptRef, attemptRecord, { merge: true });
 
     // Atomically maintain per-test leaderboard entry for qualifying first attempts
-    if (countsTowardRanking && isFirstAttempt) {
+    if (isFirstQualifyingAttempt) {
       const testEntryRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries").doc(userId);
       transaction.set(testEntryRef, {
         userId,
@@ -531,7 +545,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     // Atomically maintain public Leaderboard using the consistent competitive score
     // Only write to competitive Leaderboard if the attempt counts toward ranking or user is already ranked
-    if (countsTowardRanking && isFirstAttempt) {
+    if (isFirstQualifyingAttempt) {
       const leaderboardRef = db.collection("Leaderboard").doc(`${canonicalExam}_${userId}`);
       transaction.set(leaderboardRef, {
         userId,
@@ -556,7 +570,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }, { merge: true });
     }
 
-    if (countsTowardRanking && isFirstAttempt) {
+    if (isFirstQualifyingAttempt) {
       const publicProfile = profileIsPublic;
       transaction.set(examEntryRef, {
         userId,
@@ -603,13 +617,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       isFirstAttempt,
       countsTowardRanking,
       rankingWeight: countsTowardRanking ? rankingWeight : 0,
-      normalizedRankingPoints: countsTowardRanking && isFirstAttempt ? weightedScore : 0,
+      normalizedRankingPoints: isFirstQualifyingAttempt ? weightedScore : 0,
       xpAwarded: shouldAwardXp ? xpAward : 0,
       xpTotal: newXpTotal,
       xpThisWeek: newWeekXp,
       xpLeague: getLeagueForXp(newXpTotal),
       currentStreak: shouldAwardXp ? currentStreak : Number(userData.currentStreak || 0),
-      rankingPeriodIds: countsTowardRanking && isFirstAttempt ? rankingPeriodIds : null,
+      rankingPeriodIds: isFirstQualifyingAttempt ? rankingPeriodIds : null,
     };
   });
 });
