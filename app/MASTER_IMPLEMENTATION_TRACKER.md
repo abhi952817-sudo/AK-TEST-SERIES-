@@ -557,7 +557,7 @@ The attempt-security review was extended beyond the initial idempotency issue:
   - File: `app/src/main/java/Com/ak/testseries/viewmodel/SuperAdminViewModel.kt`
   - Problem: The Admin dashboard reported `activeUsersCount = usersCount / 2` without querying active sessions. It also emitted success logs claiming Gemini was connected and healthy without making a provider health request. Several other metrics were initialized as plausible zero/default values despite having no data source wired in this ViewModel (attempt count, AI queue, pending review, storage capacity/usage, and ad revenue).
   - Change: Removed the inferred active-user count and replaced it with an unavailable marker; removed the simulated Gemini-success messages and now explicitly marks provider health as not verified. Unwired metrics now display unavailable/not configured rather than fabricated zero/healthy values.
-  - Commit: `d30e552a4785d9827b3a5530da17aa4790c03cca`
+  - Commits: `d30e552a4785d9827b3a5530da17aa4790c03cca`, `e812df24899e2d80f152ba44632ec78f6b9ee122`
   - Verification: STATIC REVIEW of the source change only. Android compilation/UI rendering and Admin dashboard runtime tests are NOT RUN in this connector-only session.
   - Follow-up: Implement real server-authorized metrics and provider health checks with defined time windows, pagination/aggregation limits, and explicit failure states. Do not infer active users from registered-user counts.
 
@@ -572,3 +572,26 @@ The attempt-security review was extended beyond the initial idempotency issue:
 2. Map all three Admin roles to server-side permissions and eight control areas.
 3. Trace Private/Public test creation, ownership, publication, download, and answer-key access.
 4. Re-run backend, Firestore Emulator, Storage Emulator, Room, and Android test suites where a real execution environment is available.
+
+
+### Additional confirmed architecture gaps from the same checkpoint
+- **ADM-ROLE-001 | CRITICAL | OPEN — static source audit**
+  - Files: `backend_functions/authHelper.js`, `backend_functions/index.js`, `firestore.rules`, `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt`.
+  - Evidence: authorization currently recognizes a single boolean custom claim `admin: true` (plus verified primary-owner email). `setAdminRole` writes only `{ admin: ... }`. No `super_admin`, `content_admin`, or `support_admin` permission model was found in the inspected branch files.
+  - Risk: the agreed three-role separation and least-privilege permission matrix are not implemented by this authorization model. A single admin claim may grant more access than a Support or Content Admin should have.
+  - Required remediation: define canonical role claims and server-side permission helpers; migrate/bootstrap existing Super Admin safely; update every callable, Firestore rule, Storage rule, and UI route to enforce the same permission matrix; add positive and negative tests for each role. Do not simply add role labels to the UI.
+  - Status: OPEN; no role model changed in this checkpoint.
+
+- **STU-ROUTE-001 | MEDIUM | STATIC REVIEW**
+  - Files: `NEETViewModel.kt`, `MainActivity.kt`.
+  - Evidence: the declared `AppScreen` enum contains 17 routes, and the inspected `MainActivity.kt` contains 17 corresponding route branches. Dashboard tabs (including Community) are separate from the top-level route enum.
+  - Status: route names are mapped at source level; each destination's real data source, back behavior, loading/error states, and end-to-end journey are NOT YET VERIFIED.
+
+- **ADM-DATA-002 | HIGH | OPEN — static source audit**
+  - File: `app/src/main/java/Com/ak/testseries/viewmodel/SuperAdminViewModel.kt`.
+  - Evidence: the ViewModel fetches server counts for `Users_Data` and `Tests_Data`; active sessions, attempts, AI queue, pending review, storage usage/capacity, provider health, and revenue have no live source wired in this file. Date-range selection re-triggers the same count queries and does not currently apply a date filter.
+  - Status: partial truthfulness remediation committed; live metric implementation remains OPEN.
+
+### Updated verification statement
+- Source changes in this checkpoint were made on `fix/phase1-real-questions-only` only.
+- No Android build, UI test, Node test, Firestore Emulator test, Storage Emulator test, or device test was executed after these two dashboard commits. Their runtime status is NOT RUN.
