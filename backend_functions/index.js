@@ -12,7 +12,7 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const {
-  RANKING_CONFIG, resolveRankingWeight, calculateWeightedRankingScore,
+  RANKING_CONFIG, resolveRankingWeight, calculateWeightedRankingScore, isEligibleScoringResult,
   getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel,
   getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
@@ -149,7 +149,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     );
   }
 
-  const countsTowardRanking = testData.countsTowardRanking === true && isPubliclyAvailable;
+  const testCountsTowardRanking = testData.countsTowardRanking === true && isPubliclyAvailable;
   const canonicalExam = normalizeExamKey(testData.targetExam || testData.subject || "NEET");
   const rankingWeight = resolveRankingWeight(testData);
 
@@ -219,6 +219,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
   // 5. Authoritatively evaluate score on the server
   const evalResult = evaluateTestAttempt(canonicalExam, questions, answers, cleanTimeSpent);
+  // A result with any ungraded response or invalid score bounds must never affect AIR.
+  const countsTowardRanking = testCountsTowardRanking && isEligibleScoringResult(evalResult);
 
   const attemptDocId = attemptSessionToken.trim();
   const attemptsRef = userRef.collection("Attempts");
@@ -295,6 +297,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
           correctCount: existing.correctCount,
           incorrectCount: existing.incorrectCount,
           skippedCount: existing.skippedCount,
+          ungradedCount: existing.ungradedCount || 0,
           positiveMarksEarned: existing.positiveMarksEarned || 0,
           negativeMarksPenalty: existing.negativeMarksPenalty || 0,
           isFirstAttempt: existing.isFirstAttempt || false,
