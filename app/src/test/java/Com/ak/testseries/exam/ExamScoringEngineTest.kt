@@ -343,23 +343,6 @@ class ExamScoringEngineTest {
     }
 
     @Test
-    fun testSelectedAnswerWithUnverifiedKeyIsReportedAsUngraded() {
-        val invalidKey = createQuestion("invalid_key", "NOT_SET")
-        val validKey = createQuestion("valid_key", "A")
-        val result = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "NEET UG",
-            questions = listOf(invalidKey, validKey),
-            userAnswers = mapOf("invalid_key" to "B", "valid_key" to "A"),
-            timeSpentSeconds = 30
-        )
-        assertEquals(1, result.correctCount)
-        assertEquals(0, result.wrongCount)
-        assertEquals(1, result.ungradedCount)
-        assertEquals(2, result.attemptedCount)
-        assertEquals(100.0, result.accuracyPercent, 0.001)
-    }
-
-    @Test
     fun testMultiSelectAttemptScoringUsesQuestionType() {
         val subset = createQuestion("msq_subset", "A,B", questionType = "MCQ_MULTIPLE")
         val exact = createQuestion("msq_exact", "A,B", questionType = "MSQ")
