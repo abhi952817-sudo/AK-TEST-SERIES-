@@ -77,8 +77,6 @@ function isUserAnswerCorrect(userAns, correctAns, isNumerical = false) {
   if (u.length === 0 || c.length === 0) return false;
   if (areOptionsEquivalent(u, c, isNumerical)) return true;
 
-  // Multi-answer equivalence was fully checked above, including aliases and duplicate rejection.
-  if (c.includes(",")) return false;
   return false;
 }
 
