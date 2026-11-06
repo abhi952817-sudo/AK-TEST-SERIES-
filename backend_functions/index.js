@@ -538,6 +538,33 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }, { merge: true });
     }
 
+    if (countsTowardRanking && isFirstAttempt) {
+      const publicProfile = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
+      const examEntryRef = db.collection("Exam_Leaderboards").doc(canonicalExam)
+        .collection("Entries").doc(userId);
+      transaction.set(examEntryRef, {
+        userId,
+        displayName: publicProfile ? (userData.displayName || userData.name || "Student") : "Private Student",
+        profileVisibility: publicProfile ? "PUBLIC" : "PRIVATE",
+        targetExam: canonicalExam,
+        score: competitiveScore,
+        maxSingleScore: Math.round(evalResult.finalScore),
+        qualifyingTestsCount: qualifyingTests,
+        isEligibleForRanking: isEligible,
+        scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
+        rankingWeightVersion: RANKING_CONFIG.version,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      transaction.set(db.collection("User_Ranks").doc(userId)
+        .collection("Exams").doc(canonicalExam), {
+          userId, targetExam: canonicalExam, score: competitiveScore,
+          qualifyingTestsCount: qualifyingTests, isEligibleForRanking: isEligible,
+          scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    }
+
     return {
       success: true,
       verifiedServerSide: true,
@@ -620,7 +647,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   const competitiveScore = eligibility.competitiveScore;
 
   // Query eligible participant population for this specific exam
-  const eligibleQuery = db.collection("Leaderboard")
+  const eligibleQuery = db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
     .where("targetExam", "==", canonicalExam)
     .where("isEligibleForRanking", "==", true);
 
@@ -645,7 +672,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   }
 
   // Count candidates strictly above this candidate's score
-  const higherQuery = db.collection("Leaderboard")
+  const higherQuery = db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
     .where("targetExam", "==", canonicalExam)
     .where("isEligibleForRanking", "==", true)
     .where("score", ">", competitiveScore);
@@ -656,7 +683,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   // Standard Competition Percentile Formula:
   // P = ((N - rank + 1) / N) * 100
-  const equalSnap = await db.collection("Leaderboard")
+  const equalSnap = await db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
     .where("targetExam", "==", canonicalExam)
     .where("isEligibleForRanking", "==", true)
     .where("score", "==", competitiveScore)
@@ -671,7 +698,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   // Next target motivation
   let nextTarget = null;
   if (rank > 1) {
-    const higherDocsSnap = await db.collection("Leaderboard")
+    const higherDocsSnap = await db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
       .where("targetExam", "==", canonicalExam)
       .where("isEligibleForRanking", "==", true)
       .where("score", ">", competitiveScore)
@@ -710,6 +737,77 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
     message,
     targetExam: canonicalExam
   };
+});
+
+/**
+ * Public exam leaderboard. Private students retain their competitive position but
+ * their identity is replaced with a neutral label; no email or private profile data is returned.
+ */
+exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
+  }
+  const examId = normalizeExamKey((data || {}).targetExam || "NEET");
+  const limit = Math.min(100, Math.max(1, Number((data || {}).limit) || 100));
+  const snapshot = await db.collection("Exam_Leaderboards").doc(examId)
+    .collection("Entries").where("isEligibleForRanking", "==", true)
+    .orderBy("score", "desc").limit(limit).get();
+  const rows = snapshot.docs.map(doc => doc.data());
+  let previousScore = null;
+  let competitionRank = 0;
+  const entries = rows.map((row, index) => {
+    const score = Number(row.score || 0);
+    if (previousScore === null || score !== previousScore) competitionRank = index + 1;
+    previousScore = score;
+    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
+    return {
+      rank: competitionRank,
+      userId: row.userId,
+      displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
+      score,
+      qualifyingTestsCount: Number(row.qualifyingTestsCount || 0),
+      profileVisibility: isPrivate ? "PRIVATE" : "PUBLIC"
+    };
+  });
+  return { success: true, targetExam: examId, rankingScope: "AK_TEST_SERIES",
+    scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", entries };
+});
+
+/**
+ * Weekly and lifetime XP leaderboard. XP never contributes to exam AIR.
+ */
+exports.getXpLeaderboard = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
+  }
+  const mode = String((data || {}).mode || "WEEKLY").toUpperCase();
+  const limit = Math.min(100, Math.max(1, Number((data || {}).limit) || 100));
+  let query;
+  if (mode === "ALL_TIME") {
+    query = db.collection("XP_Leaderboard_AllTime").doc("Entries")
+      .collection("Students").orderBy("xpTotal", "desc").limit(limit);
+  } else if (mode === "WEEKLY") {
+    const weekId = String((data || {}).weekId || getIndiaWeekId(Date.now()));
+    query = db.collection("XP_Leaderboard_Weekly").doc(weekId)
+      .collection("Entries").orderBy("xp", "desc").limit(limit);
+  } else {
+    throw new functions.https.HttpsError("invalid-argument", "mode must be WEEKLY or ALL_TIME.");
+  }
+  const snapshot = await query.get();
+  let previousScore = null;
+  let competitionRank = 0;
+  const entries = snapshot.docs.map((doc, index) => {
+    const row = doc.data();
+    const score = Number(mode === "ALL_TIME" ? row.xpTotal || 0 : row.xp || 0);
+    if (previousScore === null || score !== previousScore) competitionRank = index + 1;
+    previousScore = score;
+    return {
+      rank: competitionRank, userId: row.userId || doc.id,
+      displayName: row.displayName || "Student", xp: score,
+      league: row.xpLeague || null
+    };
+  });
+  return { success: true, mode, entries };
 });
 
 /**
