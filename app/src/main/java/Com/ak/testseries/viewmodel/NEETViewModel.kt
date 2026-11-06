@@ -296,6 +296,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     val leaderboardExamFilter = MutableStateFlow("NEET")
 
+    private val _rankingPeriodLeaderboard = MutableStateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>>(emptyList())
+    val rankingPeriodLeaderboard: StateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>> = _rankingPeriodLeaderboard.asStateFlow()
+    private val _rankingPeriodTopThree = MutableStateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>>(emptyList())
+    val rankingPeriodTopThree: StateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>> = _rankingPeriodTopThree.asStateFlow()
+
     private val _xpLeaderboard = MutableStateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>>(emptyList())
     val xpLeaderboard: StateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>> = _xpLeaderboard.asStateFlow()
     private val _xpTotal = MutableStateFlow(0L)
@@ -576,6 +581,36 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private var leaderboardListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+    fun fetchRankingPeriodLeaderboard(periodType: String = "HALF_MONTH") {
+        val cleanType = if (periodType.equals("MONTH", ignoreCase = true)) "MONTH" else "HALF_MONTH"
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                    .getHttpsCallable("getRankingPeriodLeaderboard")
+                val result = callable.call(mapOf("periodType" to cleanType, "targetExam" to leaderboardExamFilter.value, "limit" to 100)).await()
+                val payload = result.data as? Map<*, *> ?: emptyMap<Any, Any>()
+                val rows = payload["entries"] as? List<*> ?: emptyList<Any>()
+                val mapped = rows.mapNotNull { item ->
+                    val row = item as? Map<*, *> ?: return@mapNotNull null
+                    val rank = (row["rank"] as? Number)?.toInt() ?: 0
+                    val name = row["displayName"] as? String ?: "Student"
+                    val score = (row["score"] as? Number)?.toInt() ?: 0
+                    val uid = row["userId"] as? String ?: ""
+                    Com.ak.testseries.domain.auth.LeaderboardEntry(
+                        rank = rank, name = name, score = score, uid = uid,
+                        targetExam = "${cleanType}_${leaderboardExamFilter.value}"
+                    )
+                }
+                _rankingPeriodLeaderboard.value = mapped
+                _rankingPeriodTopThree.value = mapped.filter { it.rank <= 3 }
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "Ranking period fetch failed", e)
+                _rankingPeriodLeaderboard.value = emptyList()
+                _rankingPeriodTopThree.value = emptyList()
+            }
+        }
+    }
 
     fun fetchXpLeaderboard(mode: String = "WEEKLY") {
         val cleanMode = if (mode.equals("ALL_TIME", ignoreCase = true)) "ALL_TIME" else "WEEKLY"
