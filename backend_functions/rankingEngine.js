@@ -98,7 +98,7 @@ function getRankingPeriodIds(timestamp = Date.now()) {
 }
 
 function normalizeClassLevel(value) {
-  const normalized = String(value || "").trim().toLowerCase().replace(/[\\s_-]/g, "");
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]/g, "");
   if (["11", "11th", "class11", "class11th"].includes(normalized)) return "11th";
   if (["12", "12th", "class12", "class12th"].includes(normalized)) return "12th";
   if (["dropper", "repeater", "dropyear"].includes(normalized)) return "Dropper";
