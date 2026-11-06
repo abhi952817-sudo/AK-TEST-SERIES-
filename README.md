@@ -248,7 +248,75 @@ Known outstanding items recorded in the latest audit checkpoint include:
 
 For exact per-file findings, test status, and commit checkpoints, use the [Master Implementation Tracker](app/MASTER_IMPLEMENTATION_TRACKER.md). The tracker is the source of truth for implementation evidence; this README is the product and architecture overview.
 
-## 12. Contribution and change-control rules
+## 12. UI/UX behavior and animation guide
+
+UI (User Interface) is what the student or Admin sees and touches: screens, text, buttons, fields, cards, colors, icons, and navigation. UX (User Experience) is how smoothly and clearly the user completes a task: where they go next, what feedback they receive, whether they can recover from an error, and whether the app feels predictable.
+
+### UI/UX interaction model
+
+Every interactive control must have a defined behavior and visible state:
+
+| User interaction | Expected UI response | UX requirement |
+|---|---|---|
+| Tap a navigation item | Open the matching screen and show the selected destination | Keep navigation consistent; preserve safe in-progress work |
+| Tap Start Test | Show instructions/loading, then open the test player | Prevent accidental duplicate starts |
+| Select an answer | Update selected option and save state | Clearly distinguish selected, saved, flagged, and unanswered |
+| Move to another question | Update question and palette state | Keep position and timer stable |
+| Upload a PDF | Show file details, progress, and processing stage | Explain quota, cancellation, retry, and failure reason |
+| Submit a test | Show confirmation, then submission progress | Disable repeat submission while request is in progress |
+| Receive result | Show score and breakdown after server confirmation | Never show a guessed or client-forged official score |
+| Encounter an error | Show plain-language message and recovery action | Do not silently fail or erase user work |
+
+### Required screen states
+
+Design and implement these states consistently across Student and Admin panels:
+- **Default:** normal screen with clear primary action.
+- **Loading:** progress indicator plus a short explanation of what is happening.
+- **Empty:** explain why there is no content and what the user can do next.
+- **Success:** confirm the completed action and show the next useful step.
+- **Error:** explain the problem without exposing secrets or internal stack traces; provide safe retry/help.
+- **Offline / reconnecting:** show connectivity status and protect locally saved work.
+- **Disabled / permission denied:** explain why an action is unavailable; never rely on hidden buttons as security.
+
+### Motion and animation principles
+
+- Use short, purposeful transitions to explain navigation, hierarchy, progress, and state changes.
+- Prefer subtle screen transitions, button feedback, progress animation, question navigation, upload-stage progress, and result-chart reveal.
+- Keep animations interruptible and respect Android system **Remove animations** / reduced-motion preferences where available.
+- Do not animate every element; avoid distracting loops, flashing, excessive parallax, and motion that delays a task.
+- Never use animation as the only way to communicate status; pair it with text, icons, or accessible labels.
+- Keep test timer, answer selection, and submission responsive; decorative motion must never block exam actions.
+- Test animation smoothness on low-memory and lower-end Android devices.
+
+### Student and Admin UX flows
+
+**Student:** Login → Dashboard → choose exam → test series → instructions → test player → submit confirmation → server result → authorized review → eligible ranking → practice recommendations.
+
+**PDF workflow:** choose PDF → inspect file → extraction preview → show detected questions and source pages → validation status → resolve exceptions if needed → save private test or deliberately share.
+
+**Admin:** sign in → role/permission check → role-specific dashboard → queue/alert → inspect exception → take permitted action → record reason/audit event → confirm outcome.
+
+### UI/UX acceptance checklist
+
+- Every visible button, menu item, tab, and card has a working destination or action.
+- Back navigation, deep links, loading states, empty states, and error recovery are tested.
+- Touch targets, contrast, text scaling, screen-reader labels, and keyboard/focus behavior are checked.
+- Student data and test progress survive supported interruptions.
+- Admin actions are visible only when appropriate and are still authorized on the server.
+- Motion respects reduced-motion preferences and does not obstruct test-taking.
+- Validate layouts on small phones, large phones, and tablet/window sizes.
+
+### Animation video / walkthrough
+
+A real MP4 walkthrough is **not included yet**. The linked storyboard defines the scenes, narration, and UI states to record or render. Once the video is produced and added to the repository or uploaded to a stable video host, replace the pending status below with the verified MP4/video URL. Do not use a fabricated link.
+
+- **Storyboard:** [UI/UX animation video storyboard](docs/UI_UX_ANIMATION_STORYBOARD.md)
+- **Video status:** Planned — recording/rendering and upload pending.
+- **Suggested final asset:** `docs/media/ak-test-series-ui-ux-overview.mp4` (create this file only after the actual video is rendered).
+
+---
+
+## 13. Contribution and change-control rules
 
 1. Work on a feature/fix branch; keep `main` safe.
 2. Inspect call sites and data flow before removing or replacing a function.
