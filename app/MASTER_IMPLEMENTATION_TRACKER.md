@@ -465,3 +465,10 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Added Node and Kotlin regression cases for non-finite keys and equivalence.
 - Related client parity: cropped question diagrams now upload to UID-scoped Storage paths; the uploader no longer attempts a write to the legacy top-level Firestore `questions` collection, which is intentionally denied by the current rules. The caller persists the returned URL through the local question repository.
 - Verification: source/test updates committed; Node/JUnit and Storage Emulator tests NOT executed.
+
+### Admin Answer Correction & OCR Page Limit — 2026-11-06
+
+- Admin review now treats the source answer entered by the reviewer as the answer-key authority: after the reviewer compares it with the source PDF, the saved question answer is corrected to that value, then the full validator runs again. A correction notice is retained in validation reasons.
+- The review card now displays option E and highlights every key in comma-separated multiple-correct answers.
+- Local OCR now rejects PDFs exceeding the configured 50-page processing limit rather than silently generating questions from a truncated prefix.
+- Verification: static inspection only; Android compilation, UI interaction, PDF fixture tests, and OCR memory profiling NOT run.
