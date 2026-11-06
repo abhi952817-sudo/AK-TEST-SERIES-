@@ -659,7 +659,9 @@ exports.syncRankingProfileVisibility = functions.firestore
     const allTimeSnapshot = await db.collection("XP_Leaderboard_AllTime")
       .doc("Entries").collection("Students")
       .where("userId", "==", context.params.userId).get();
-    const docs = [...entrySnapshot.docs, ...allTimeSnapshot.docs];
+    const userRanksSnapshot = await db.collection("User_Ranks").doc(context.params.userId)
+      .collection("Exams").get();
+    const docs = [...entrySnapshot.docs, ...allTimeSnapshot.docs, ...userRanksSnapshot.docs];
     for (let offset = 0; offset < docs.length; offset += 450) {
       const batch = db.batch();
       docs.slice(offset, offset + 450).forEach(doc => {
