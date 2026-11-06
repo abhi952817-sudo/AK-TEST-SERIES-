@@ -149,7 +149,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     );
   }
 
-  const countsTowardRanking = testData.countsTowardRanking === true && (testData.isOfficial === true || testData.isPublic === true);
+  const countsTowardRanking = testData.countsTowardRanking === true && isPubliclyAvailable;
   const canonicalExam = normalizeExamKey(testData.targetExam || testData.subject || "NEET");
   const rankingWeight = resolveRankingWeight(testData);
   const rankingNow = Date.now();
@@ -373,7 +373,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     // All transaction reads must happen before writes.
     const xpTransactionSnap = await transaction.get(xpTransactionRef);
-    const shouldAwardXp = isFirstAttempt && !xpTransactionSnap.exists;
+    const shouldAwardXp = isFirstAttempt && !xpTransactionSnap.exists && isPubliclyAvailable;
     const xpAward = shouldAwardXp ? calculateXpAward(evalResult.correctCount) : 0;
     const currentXpTotal = Number(userData.xpTotal || 0);
     const profileIsPublic = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
