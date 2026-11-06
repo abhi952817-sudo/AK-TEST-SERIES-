@@ -93,3 +93,13 @@ test("class cohort ranking status is not mislabeled as AIR", () => {
   assert.equal(getCohortRankingStatus(999, "12th").status, "Provisional Class Rank");
   assert.equal(getCohortRankingStatus(1000, "11th").isOfficialAkAir, false);
 });
+
+
+test("ranking rejects scoring results with ungraded or invalid marks", () => {
+  const { isEligibleScoringResult } = require("./rankingEngine");
+  assert.equal(isEligibleScoringResult({ finalScore: 3.5, maxScore: 10, ungradedCount: 0 }), true);
+  assert.equal(isEligibleScoringResult({ finalScore: 3.5, maxScore: 10, ungradedCount: 1 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 11, maxScore: 10, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 0, maxScore: 0, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: NaN, maxScore: 10, ungradedCount: 0 }), false);
+});
