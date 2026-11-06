@@ -14,7 +14,7 @@ function isAnswerKeyVerified(key) {
   if (VALID_ANSWER_OPTIONS.has(clean) || isFiniteNumericAnswer(clean)) return true;
   if (clean.includes(",")) {
     const parts = clean.split(",").map(p => p.trim());
-    if (parts.length > 0 && parts.every(p => VALID_ANSWER_OPTIONS.has(p) || isFiniteNumericAnswer(p))) {
+    if (parts.length > 0 && new Set(parts).size === parts.length && parts.every(p => VALID_ANSWER_OPTIONS.has(p) || isFiniteNumericAnswer(p))) {
       return true;
     }
   }
@@ -42,10 +42,20 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
       Math.abs(num1 - num2) < 0.0001;
   }
 
-  if (a === b) return true;
-
   const mapIndex = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
-  if (mapIndex[a] === b || mapIndex[b] === a) return true;
+  if (!isNumerical && (a.includes(",") || b.includes(","))) {
+    if (!a.includes(",") || !b.includes(",")) return false;
+    const normalizeParts = value => value.split(",").map(part => {
+      const key = part.trim();
+      return mapIndex[key] || key;
+    }).sort();
+    const left = normalizeParts(a);
+    const right = normalizeParts(b);
+    return left.length >= 2 && right.length >= 2 && new Set(left).size === left.length && new Set(right).size === right.length && left.join(",") === right.join(",");
+  }
+
+  if (a === b) return true;
+  if (!isNumerical && (mapIndex[a] === b || mapIndex[b] === a)) return true;
 
   // For non-numerical questions, only allow complete numeric aliases
   // (for example "1" <-> "1.0"); never let parseFloat accept "123abc".
