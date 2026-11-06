@@ -37,6 +37,22 @@ test("Option equivalence: index to letter and numerical precision", () => {
   assert.strictEqual(areOptionsEquivalent("Infinity", "Infinity", true), false);
 });
 
+test("Authoritative evaluator grades MSQ only when the exact set is selected", () => {
+  const questions = [
+    { id: "msq_subset", correctAnswer: "A,B", section: "SECTION_A", subject: "Physics", questionType: "MCQ_MULTIPLE" },
+    { id: "msq_exact", correctAnswer: "A,B", section: "SECTION_A", subject: "Physics", questionType: "MSQ" }
+  ];
+  const result = evaluateTestAttempt("NEET UG", questions, {
+    msq_subset: { ans: "A" },
+    msq_exact: { ans: "B,A" }
+  }, 60);
+  assert.equal(result.correctCount, 1);
+  assert.equal(result.wrongCount, 1);
+  assert.equal(result.positiveMarksEarned, 4);
+  assert.equal(result.negativeMarksPenalty, 1);
+  assert.equal(result.finalScore, 3);
+});
+
 test("User answer correctness: single, index, multiple correct", () => {
   assert.strictEqual(isUserAnswerCorrect("A", "A"), true);
   assert.strictEqual(isUserAnswerCorrect("1", "A"), true);
