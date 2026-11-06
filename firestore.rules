@@ -38,6 +38,7 @@ service cloud.firestore {
     // Helper: verifies that only safe, non-privileged student profile fields can be modified
     function isValidProfileVisibility(data) {
       return !data.keys().hasAny(['profileVisibility'])
+        || data.get('profileVisibility', 'PUBLIC') == null
         || data.get('profileVisibility', 'PUBLIC') in ['PUBLIC', 'PRIVATE'];
     }
 
