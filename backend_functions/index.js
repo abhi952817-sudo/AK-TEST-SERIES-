@@ -225,7 +225,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const evalResult = evaluateTestAttempt(canonicalExam, questions, answers, cleanTimeSpent);
 
   const attemptDocId = attemptSessionToken.trim();
-  const userRef = db.collection("Users_Data").doc(userId);
   const attemptsRef = userRef.collection("Attempts");
   const stableUserTestKey = userId + ":" + cleanTestId;
   const stableKeyHash = crypto.createHash("sha256").update(stableUserTestKey).digest("hex");
