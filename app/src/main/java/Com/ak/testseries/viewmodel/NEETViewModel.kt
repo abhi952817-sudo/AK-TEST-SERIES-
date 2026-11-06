@@ -577,11 +577,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val db = firestoreDb
             
-            leaderboardListener = db.collection("Leaderboard")
-                .whereEqualTo("targetExam", canonicalExam)
+            leaderboardListener = db.collection("Exam_Leaderboards").document(canonicalExam)
+                .collection("Entries")
                 .whereEqualTo("isEligibleForRanking", true)
                 .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .limit(20)
+                .limit(100)
                 .addSnapshotListener { snapshot, e ->
                     if (e != null || snapshot == null || snapshot.isEmpty) {
                         fetchLeaderboardFallback(rawExam)
@@ -596,12 +596,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
                         val qCount = (doc.getLong("totalTestsAttempted") ?: doc.getLong("qualifyingTestsCount") ?: 0L).toInt()
                         val streakVal = (doc.getLong("streakDays") ?: doc.getLong("streak") ?: 0L).toInt()
-                        val leagueVal = doc.getString("league") ?: when {
-                            score >= 5000 -> "Master"
-                            score >= 2000 -> "Elite"
-                            score >= 500 -> "Scholar"
-                            else -> "Rookie"
-                        }
+                        // Exam ranking score is not XP. League is deliberately not inferred from AIR points.
+                        val leagueVal = doc.getString("xpLeague") ?: "Exam Rank"
                         val assignedRank = if (prevScore != null && score == prevScore) {
                             prevRank
                         } else {
@@ -639,11 +635,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
             val db = firestoreDb
-            db.collection("Leaderboard")
-                .whereEqualTo("targetExam", canonicalExam)
+            db.collection("Exam_Leaderboards").document(canonicalExam)
+                .collection("Entries")
                 .whereEqualTo("isEligibleForRanking", true)
                 .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .limit(20)
+                .limit(100)
                 .get()
                 .addOnSuccessListener { snapshot ->
                     if (snapshot != null && !snapshot.isEmpty) {
@@ -651,7 +647,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         var prevScore: Int? = null
                         var prevRank = 1
                         for ((index, doc) in snapshot.documents.withIndex()) {
-                            val name = doc.getString("displayName") ?: doc.getString("name") ?: "Student"
+                            val name = if ((doc.getString("profileVisibility") ?: "PUBLIC").equals("PRIVATE", ignoreCase = true)) "Private Student" else (doc.getString("displayName") ?: "Student")
                             val score = (doc.getLong("score") ?: 0L).toInt()
                             val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
                             val assignedRank = if (prevScore != null && score == prevScore) {
