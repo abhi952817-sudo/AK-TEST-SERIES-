@@ -181,6 +181,29 @@ Universal-branch-specific changes observed:
 **Phase 1 exit gate:** the file matrix and high-risk overlap behavior are now documented. Exact divergent commit-level attribution is still being checked; Phase 1 remains IN PROGRESS until that last check is complete. No source-code files have been changed on the integration branch yet.
 
 
+
+
+### 2.4 Phase 1 closeout and Phase 2 backend port — 2026-11-06
+
+**Phase 1 closeout:** The 15-file decision matrix above is the approved integration map. Reverse compare confirms Universal is 4 commits behind Ranking and the only reported behind-side file delta is the validation workflow; the workflow patch has been inspected. The GitHub connector's compare response exposes aggregate commit counts and file-level changes, not a complete list of individual commit SHAs, so no individual SHA list is claimed. This is recorded as a tooling limitation, not a reason to merge either branch wholesale.
+
+**Phase 1 status: COMPLETE.** Ranking Engine V2 code remains the source of truth; the Universal branch is a selective source for scoring, decimal, ungraded and migration features.
+
+**Phase 2 implementation started on integration branch:**
+- Replaced `backend_functions/examScoring.js` with the reviewed Universal scoring revision. It adds strict finite-number validation, question-type-aware exact-set MSQ grading, explicit ungraded counts and preserves the existing exam marking scheme entry points.
+- Replaced `backend_functions/examScoring.test.js` with the Universal regression suite and removed one duplicated ungraded-answer test case found in the source branch.
+- Reconciled `backend_functions/index.js` with the Universal revision. Verified by content comparison that Ranking-specific markers remain present: `calculateWeightedRankingScore`, `firstAttemptLockRef`, `rebuildRankingV2Batch`, and `normalizedRankingPoints`. The port preserves those Ranking flows while persisting decimal score/maxScore values and `ungradedCount` rather than rounding/truncating them.
+- Updated the validation workflow to run on pushes to and pull requests targeting `feature/ranking-universal-integration-v1`.
+
+**Commits created on integration branch:**
+- Scoring engine: `95bcf625ab810d86960260c6ce01733054aca9d5`
+- Scoring regression tests: `e906827af5656d10066a117e83022034b910d1f2`
+- Backend callable integration: `35618ae558ff99fa2ac3dbc1984e5eaa868ca92b`
+- CI trigger update: `2e315cf398c9b29f77f1ad8a9913733cf0caa132`
+
+**Validation status:** Source changes are committed, but no new CI run is yet visible for the integration branch commit. Existing Universal PR run confirms backend syntax/unit tests and Firestore Emulator tests passed on the source head; Android unit tests still fail on the unrelated-looking but unresolved `CrashResilienceTest > classMethod` / Robolectric `DefaultSdkProvider.java:170` failure. Do not mark Phase 2 complete until the integration branch's backend tests pass and the callable scoring→ranking/idempotency contract is covered.
+
+
 ---
 
 ## 3. Known audit findings to verify and fix
@@ -466,8 +489,8 @@ Development is not complete until all of these are true:
 | Phase | Status | Commit SHA | Tests/evidence | Notes |
 |---|---|---|---|---|
 | 0 Baseline refresh | COMPLETE | `f6fc002aeb70644f7a436ad475dbe98cf7b13122` | Branch/PR comparisons; PR #1/#2 CI jobs and Android logs inspected | Android unit-test failure remains a release blocker |
-| 1 Overlap map | IN PROGRESS | — | PR #2 15-file patch; reverse compare; shared blob SHAs | Complete commit/hunk matrix before Phase 2 |
-| 2 Backend contract | NOT STARTED | — | — | Scoring → ranking → XP |
+| 1 Overlap map | COMPLETE | `faf51cdb9778b3179dd3be47df12377688b264c9` | 15-file keep/port/reconcile matrix; branch compare and shared-file review | Individual commit SHA list not exposed by connector; only workflow file delta confirmed |
+| 2 Backend contract | IN PROGRESS | `2e315cf398c9b29f77f1ad8a9913733cf0caa132` | Scoring, tests, index ported; CI trigger enabled | Need integration CI and contract/idempotency regression proof |
 | 3 Secure publishing | NOT STARTED | — | — | P0 answer leak |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
 | 5 Exam configuration | NOT STARTED | — | — | Year/stage/paper provenance |
