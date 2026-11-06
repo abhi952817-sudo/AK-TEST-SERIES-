@@ -3,9 +3,9 @@ name: Ranking V2 Validation
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main]
+    branches: [main, feature/ranking-engine-v2-2026-11-06]
   push:
-    branches: [feature/ranking-engine-v2-2026-11-06]
+    branches: [feature/ranking-engine-v2-2026-11-06, feature/universal-exam-scoring-v1-2026-11-06]
 
 jobs:
   backend-unit-tests:
@@ -25,8 +25,8 @@ jobs:
           node --check backend_functions/index.js
           node --check backend_functions/examScoring.js
           node --check backend_functions/rankingEngine.js
-      - name: Run scoring and ranking unit tests
-        run: node --test backend_functions/examScoring.test.js backend_functions/rankingEngine.test.js
+      - name: Run scoring, callable security, and ranking unit tests
+        run: node --test backend_functions/examScoring.test.js backend_functions/callableValidation.test.js backend_functions/rankingEngine.test.js
 
   firestore-rules-tests:
     runs-on: ubuntu-latest
