@@ -773,18 +773,30 @@ exports.rebuildRankingV2Batch = functions.https.onCall(async (data, context) => 
     throw new functions.https.HttpsError(err.code || "permission-denied", err.message);
   }
   const input = data || {};
-  const limit = Math.min(100, Math.max(1, Number(input.limit) || 25));
+  const limit = Math.min(20, Math.max(1, Number(input.limit) || 10));
+  const migrationStateRef = db.collection("Config").doc("Ranking_Migration_State");
+  const migrationStateSnap = await migrationStateRef.get();
+  const savedCursor = migrationStateSnap.exists ? migrationStateSnap.data().lastProcessedUid : null;
+  const effectiveCursor = input.cursor || savedCursor || null;
   let query = db.collection("Users_Data").orderBy(admin.firestore.FieldPath.documentId()).limit(limit);
-  if (input.cursor) query = query.startAfter(String(input.cursor));
+  if (effectiveCursor) query = query.startAfter(String(effectiveCursor));
   const snapshot = await query.get();
   const results = [];
   for (const doc of snapshot.docs) {
     results.push(await rebuildRankingV2ForUser(doc.id));
   }
+  const nextCursor = snapshot.size === limit ? snapshot.docs[snapshot.docs.length - 1].id : null;
+  const hasMore = snapshot.size === limit;
+  await migrationStateRef.set({
+    lastProcessedUid: nextCursor || effectiveCursor || null,
+    hasMore,
+    completed: !hasMore,
+    lastBatchProcessed: snapshot.size,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
   return {
     success: true, processed: snapshot.size,
-    nextCursor: snapshot.size === limit ? snapshot.docs[snapshot.docs.length - 1].id : null,
-    hasMore: snapshot.size === limit, results
+    nextCursor, hasMore, results
   };
 });
 
