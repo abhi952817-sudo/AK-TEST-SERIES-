@@ -296,6 +296,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     val leaderboardExamFilter = MutableStateFlow("NEET")
 
+    private val _xpLeaderboard = MutableStateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>>(emptyList())
+    val xpLeaderboard: StateFlow<List<Com.ak.testseries.domain.auth.LeaderboardEntry>> = _xpLeaderboard.asStateFlow()
+    private val _xpTotal = MutableStateFlow(0L)
+    val xpTotal: StateFlow<Long> = _xpTotal.asStateFlow()
+    private val _xpThisWeek = MutableStateFlow(0L)
+    val xpThisWeek: StateFlow<Long> = _xpThisWeek.asStateFlow()
+    private val _xpLeague = MutableStateFlow("ROOKIE")
+    val xpLeague: StateFlow<String> = _xpLeague.asStateFlow()
+    private val _serverActivityStreak = MutableStateFlow(0)
+    val serverActivityStreak: StateFlow<Int> = _serverActivityStreak.asStateFlow()
+    private val _longestActivityStreak = MutableStateFlow(0)
+    val longestActivityStreak: StateFlow<Int> = _longestActivityStreak.asStateFlow()
+
+
     private val _userRankStatus = MutableStateFlow("Rank Pending")
     val userRankStatus: StateFlow<String> = _userRankStatus.asStateFlow()
 
@@ -562,6 +576,58 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private var leaderboardListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+    fun fetchXpLeaderboard(mode: String = "WEEKLY") {
+        val cleanMode = if (mode.equals("ALL_TIME", ignoreCase = true)) "ALL_TIME" else "WEEKLY"
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                    .getHttpsCallable("getXpLeaderboard")
+                val result = callable.call(mapOf("mode" to cleanMode, "limit" to 100)).await()
+                val payload = result.data as? Map<*, *> ?: emptyMap<Any, Any>()
+                val rows = payload["entries"] as? List<*> ?: emptyList<Any>()
+                val mapped = rows.mapNotNull { item ->
+                    val row = item as? Map<*, *> ?: return@mapNotNull null
+                    val rank = (row["rank"] as? Number)?.toInt() ?: 0
+                    val name = row["displayName"] as? String ?: "Student"
+                    val score = (row["xp"] as? Number)?.toInt() ?: 0
+                    val uid = row["userId"] as? String ?: return@mapNotNull null
+                    val league = row["league"] as? String ?: "ROOKIE"
+                    Com.ak.testseries.domain.auth.LeaderboardEntry(
+                        rank = rank, name = name, score = score, uid = uid,
+                        targetExam = "XP_$cleanMode", league = league
+                    )
+                }
+                _xpLeaderboard.value = mapped
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "XP leaderboard fetch failed", e)
+                _xpLeaderboard.value = emptyList()
+            }
+        }
+    }
+
+    fun fetchMyRankingProgress(uid: String = currentUserId.value) {
+        if (uid.isBlank()) {
+            _xpTotal.value = 0L
+            _xpThisWeek.value = 0L
+            _xpLeague.value = "ROOKIE"
+            _serverActivityStreak.value = 0
+            _longestActivityStreak.value = 0
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val snapshot = firestoreDb.collection("Users_Data").document(uid).get().await()
+                _xpTotal.value = snapshot.getLong("xpTotal") ?: 0L
+                _xpThisWeek.value = snapshot.getLong("xpThisWeek") ?: 0L
+                _xpLeague.value = snapshot.getString("xpLeague") ?: "ROOKIE"
+                _serverActivityStreak.value = (snapshot.getLong("currentStreak") ?: 0L).toInt()
+                _longestActivityStreak.value = (snapshot.getLong("longestStreak") ?: 0L).toInt()
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "Ranking progress fetch failed", e)
+            }
+        }
+    }
 
     fun fetchLeaderboard(selectedExam: String? = null) {
         val rawExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
