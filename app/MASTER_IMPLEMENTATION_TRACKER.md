@@ -424,6 +424,9 @@
 - Aligned Android maximum-mark calculation with server-side optional-section caps. Printed surplus questions no longer inflate the maximum score.
 - Added an explicit `ungradedCount` for answered questions whose answer key is invalid or unverified. Such answers are not silently classified as wrong or unanswered, and they do not distort accuracy.
 - Persisted and returned the ungraded count in authoritative backend attempt records/results.
+- Preserved decimal marks at all authoritative Firestore and callable-result persistence boundaries; fractional values are no longer rounded in attempt records, Test_Leaderboards, max-score summaries, or response payloads.
+- Added Room schema version 21 with a safe 20→21 migration that adds `ungradedCount` using a default of zero, preserving existing attempt rows and fractional score columns.
+- Carried `ungradedCount` through Android online/offline attempt models, Firestore restore, backup export/import, and the result-screen warning.
 - Added Kotlin and Node regression tests for strict numerical validation, exact MSQ grading, ungraded responses, and optional-section maximum marks.
 - Expanded the validation workflow to run callable security tests and to execute on this isolated implementation branch and its development-base pull requests.
 
