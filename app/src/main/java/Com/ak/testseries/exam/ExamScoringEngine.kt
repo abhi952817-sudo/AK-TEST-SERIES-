@@ -270,8 +270,8 @@ object ExamScoringEngine {
             maxScore = totalMaxPossible,
             accuracyPercent = Math.round(accuracy * 100.0) / 100.0,
             timeSpentSeconds = timeSpentSeconds,
-            correctMarksPerQuestion = defaultSection.positiveMarks,
-            negativeMarksPerQuestion = defaultSection.negativeMarks,
+            correctMarksPerQuestion = paperMarkingScheme.first,
+            negativeMarksPerQuestion = paperMarkingScheme.second,
             rawScore = rawScore
         )
     }
