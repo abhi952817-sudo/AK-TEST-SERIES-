@@ -48,6 +48,11 @@ test("canonical exam identity never infers an exam from a subject or ambiguous a
   assert.equal(normalizeExamKey("RRB"), "RRB");
   assert.equal(normalizeExamKey(""), "UNKNOWN");
   assert.equal(resolveCanonicalExamIdentity({ examId: "neet_ug", targetExam: "NEET UG" }), "NEET");
+  assert.equal(resolveCanonicalExamIdentity({ examId: "jee_main", targetExam: "JEE Main Paper 1" }), "JEE_MAIN");
+  assert.throws(
+    () => resolveCanonicalExamIdentity({ examId: "neet_ug", targetExam: "JEE Main" }),
+    { code: "failed-precondition" }
+  );
   assert.throws(() => resolveCanonicalExamIdentity({ subject: "Biology" }), { code: "failed-precondition" });
   assert.throws(() => resolveCanonicalExamIdentity({ examId: "ALL" }), { code: "failed-precondition" });
 });
