@@ -106,6 +106,17 @@ test("class level normalization supports class 11, class 12 and dropper cohorts"
   assert.equal(normalizeClassLevel("Dropper"), "Dropper");
   assert.equal(normalizeClassLevel("All"), "All");
 });
+test("class cohort filters reject unknown values instead of silently widening to All", () => {
+  const { resolveClassLevelFilter } = require("./rankingEngine");
+  assert.equal(resolveClassLevelFilter(undefined), "All");
+  assert.equal(resolveClassLevelFilter("All"), "All");
+  assert.equal(resolveClassLevelFilter("Class 11"), "11th");
+  assert.equal(resolveClassLevelFilter("Class 12"), "12th");
+  assert.equal(resolveClassLevelFilter("Dropper"), "Dropper");
+  assert.equal(resolveClassLevelFilter("Class 10"), null);
+  assert.equal(resolveClassLevelFilter("Unknown"), null);
+});
+
 test("class cohort ranking status is not mislabeled as AIR", () => {
   const { getCohortRankingStatus } = require("./rankingEngine");
   assert.equal(getCohortRankingStatus(1000, "All").status, "Official AK AIR");
