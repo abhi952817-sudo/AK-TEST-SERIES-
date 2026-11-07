@@ -964,3 +964,31 @@ The previously queued workflow run `42355909308` has now completed against commi
 **Current verification:** a new CI run was triggered for the latest feature-branch commit and is pending. The Android test-contract failures remain open and must be fixed by aligning obsolete tests with the actual fail-closed registry and verified scoring policies, then rerunning the full suite. No main-branch changes, production deployment, or production data writes were performed.
 
 **Follow-up CI run `42364198857` findings:** the canonical-entry fixture correction passed. The added week/date regression tests exposed a second implementation defect: regex escaping in the first validator/date-hardening commit was doubled, so valid dates/weeks were rejected. This was corrected in commit `55c60de3fdd701b34af25b9f01e40751d74d5147`. The Android and Firestore jobs from that run were still in progress at the time of this note; backend job had failed on the two newly added validator/streak cases before this correction. A fresh run for the corrected code is required before considering those fixes verified.
+
+### 2.31 Source-verification test contract and privacy/migration hardening — 2026-11-07
+
+The Android test failures were traced to stale assertions that predated the source-verification gate. They expected:
+- NEET UG to use the older 200-question / optional Section B pattern instead of the source-verified 2026 180-question compulsory pattern.
+- JEE Main to be treated as a generic exam identity, although the verified scope is explicitly Paper 1 (B.E./B.Tech) and the canonical short name is `JEE Main P1`.
+- CUET, UPSC, CAT, GATE, banking, CTET, UGC NET and other scaffolds to expose unverified question counts, durations, option counts, negative marking and scoring rules.
+- Unknown OCR answer keys to be counted as unanswered/wrong instead of ungraded and excluded from ranking.
+
+The following test updates were made without relaxing production scoring:
+- Pattern integrity now audits only active, source-verified exam configurations; unverified registry entries must remain inactive with empty stages.
+- NEET UG tests now assert 45 compulsory questions per subject, 180 total, 720 marks and 180 minutes.
+- JEE Main tests now assert Paper 1 exact identity, 20 compulsory MCQs + 5 compulsory numerical questions per subject, 75 total, 300 marks and 180 minutes.
+- Unverified exam tests now assert that pattern metadata and scoring APIs fail closed.
+- Generic `JEE` and ambiguous `JEE Main` lookup are rejected; explicit `JEE Main P1` is used for scoring and registry lookup.
+- Parser tests resolve the UPSC scaffold by canonical ID and assert that unverified configurations produce no generated question metadata.
+- Unknown answer-key test data now includes the exact verified section/type and asserts `ungradedCount` rather than falsely treating it as an unanswered graded question.
+- Canonical partition tests verify all 25 registered exam identities remain unique and reject ambiguous generic aliases.
+
+Additional backend corrections:
+- Profile visibility now fails closed: only an explicit `PUBLIC` value is publicly identified. Missing, malformed or unknown visibility values are treated as private in writes, profile synchronization, migration materializations and callable response redaction.
+- Historical migration no longer assigns attempts with missing/invalid timestamps to `Date.now()`. Such attempts may contribute to the exam aggregate if otherwise verified, but are omitted from date-scoped period buckets because their period cannot be proven.
+- Migration batch requests must continue from the server-saved cursor. A client-supplied cursor that differs from the checkpoint is rejected, and completed migrations return an explicit already-completed response. This prevents a stale/manual cursor from skipping users.
+- Period identifiers reject year zero.
+
+**Verification boundary:** the latest completed CI run `42364272119` was against the earlier commit `207c4c9...`, before these Android test and latest backend edits. In that run, backend unit tests and Firestore rules tests passed; Android compilation succeeded but its unit-test suite failed on the stale assertions listed above. The updated test suite and backend hardening require a fresh CI result. Do not treat this section as claiming the latest changes are already green.
+
+No production Firestore data, Cloud Functions or rules were deployed or modified. All edits remain isolated to `feature/ranking-universal-integration-v1`; `main` remains untouched.
