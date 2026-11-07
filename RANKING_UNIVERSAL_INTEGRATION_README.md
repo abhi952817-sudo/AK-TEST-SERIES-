@@ -731,3 +731,20 @@ Merge is prohibited until all three passes are complete, all blocking findings a
 - Pass 1: IN PROGRESS. The known findings above are now consolidated in this file; full file-by-file matrix and Android CI root-cause retrieval remain outstanding.
 - Pass 2: NOT STARTED as a complete implementation pass. Existing code is partial and must not be described as complete.
 - Pass 3: NOT STARTED. Existing CI results are partial/failing and do not satisfy release gates.
+
+
+### 2.18 Android CI root cause and isolated blocker fix — 2026-11-07
+
+**Root cause retrieved from the actual failed job log (run 42346089736, job 128324033837):**
+- The failure was not a unit-test runtime failure. Kotlin compilation stopped in `NEETViewModel.kt` at lines 5921/5925 because Firebase `DocumentSnapshot.exists` is a function and was referenced as a property in three places.
+- Exact compiler output: `Function invocation 'exists()' expected` (three occurrences). The previous summary that suggested a `CrashResilienceTest` failure was incorrect for this integration-head run; the raw job log is authoritative.
+- The build also logged missing `google-services.json`; that message did not stop the task. The fatal error was the Kotlin compile failure.
+
+**Isolated corrective change committed on the integration branch only:**
+- File: `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt`
+- Replaced the three invalid `existingTest.exists` / `existingKeyDoc.exists` property-style references with function calls `exists()`.
+- Commit: `8e998722a412dfdf3af0cd3e5c26e1b08a6d3e19`.
+- Scope is deliberately limited to the compile blocker; no ranking policy, data, Firebase deployment, or main-branch change.
+- Validation status: awaiting the CI run for this exact commit. This fix is not marked verified until Kotlin compile, Android tests, and debug build complete successfully.
+
+**Next required work remains:** finish Pass 1's full latest-main/shared-file semantic matrix and then proceed through Pass 2 subsystem implementation in the order defined above. The per-test rank/percentile concurrency and fake-zero fallback defects remain open; no production rank contract has been silently chosen.
