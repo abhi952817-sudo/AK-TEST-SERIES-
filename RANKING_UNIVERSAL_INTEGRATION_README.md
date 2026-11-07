@@ -1044,3 +1044,16 @@ Historical migration previously trusted the stored attempt's `rankingWeight` and
 Question documents loaded from Firestore now always use the Firestore document ID as the canonical question ID, preventing a data field from overriding the actual document identity.
 
 **CI remains pending:** the latest code changes are committed on the feature branch, but GitHub Actions runs are still queued. The latest green/failed state cannot be determined until a workflow for the current head completes. No production migration or deployment has been run.
+
+### 2.35 Legacy leaderboard direct-read privacy gate — 2026-11-07
+
+The legacy `Leaderboard` collection remains only for compatibility and profile/ban hygiene; new v2 scoring does not write new ranking totals there. Its Firestore read rule is now restricted to documents with explicit `profileVisibility == "PUBLIC"`. Private entries and legacy entries missing visibility metadata are denied. Regression tests verify:
+- Explicit public row: readable.
+- Explicit private row: denied.
+- Legacy row with missing visibility: denied.
+- Query constrained to `profileVisibility == "PUBLIC"`: readable.
+- Unfiltered collection query containing mixed visibility: denied.
+
+The current Android ranking ViewModel uses the sanitized v2 callable endpoints, not direct reads of raw v2 materialization collections. Legacy rows are still updated by the server-side profile visibility trigger; no production backfill has been run.
+
+Latest code commit before this note: `399aa05025914ea6f0ae4889748d2497871ce705`. GitHub Actions remains queued for the latest branch commits; no current-head CI pass is claimed.
