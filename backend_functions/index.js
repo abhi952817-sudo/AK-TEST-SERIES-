@@ -6,7 +6,6 @@ admin.initializeApp();
 const db = admin.firestore();
 const {
   evaluateTestAttempt,
-  calculatePopulationPercentile,
   validateAndMergeAnswerKeys,
   normalizeExamKey,
   resolveCanonicalExamIdentity,
