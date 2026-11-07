@@ -5932,7 +5932,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     require(incomingKeysComplete) {
                         "A new public test must include a complete private answer key. No document was written."
                     }
-                    transaction.set(testDocRef, testData)
+                    transaction.set(testDocRef, testData, com.google.firebase.firestore.SetOptions.merge())
                     transaction.set(answerKeyDocRef, answerKeyData)
                 } else {
                     val existingPublicJson = existingTest.getString("questionsJson")
@@ -5968,7 +5968,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                     }
-                    transaction.set(testDocRef, testData)
+                    transaction.set(testDocRef, testData, com.google.firebase.firestore.SetOptions.merge())
                     // Do not rewrite the existing private key document on metadata-only updates.
                 }
             }.await()
