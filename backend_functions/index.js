@@ -789,7 +789,8 @@ async function rebuildRankingV2ForUser(userId) {
 
     const rawScore = Number(attempt.authoritativeScore !== undefined ? attempt.authoritativeScore : attempt.score);
     const maxScore = Number(attempt.maxScore);
-    if (!Number.isFinite(rawScore) || !Number.isFinite(maxScore) || maxScore <= 0) continue;
+    if (!Number.isFinite(rawScore) || !Number.isFinite(maxScore) ||
+        maxScore <= 0 || rawScore < 0 || rawScore > maxScore + 0.000001) continue;
     let testSnap = await db.collection("Tests_Data").doc(testId).get();
     if (!testSnap.exists) testSnap = await db.collection("Tests").doc(testId).get();
     // Do not backfill orphaned, private, community, pending, or unapproved tests.
