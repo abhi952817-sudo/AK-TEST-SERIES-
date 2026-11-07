@@ -149,6 +149,17 @@ test("JEE Main Paper 1 numerical answer keys must be integers", () => {
   assert.equal(invalid.maxScore, 4);
 });
 
+test("explicit SKIPPED answers are counted as unanswered", () => {
+  const result = evaluateTestAttempt("NEET UG", [
+    { id: "skip", correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" }
+  ], { skip: { ans: "SKIPPED" } }, 10);
+  assert.equal(result.correctCount, 0);
+  assert.equal(result.wrongCount, 0);
+  assert.equal(result.unansweredCount, 1);
+  assert.equal(result.ungradedCount, 0);
+  assert.equal(result.finalScore, 0);
+});
+
 test("old NEET Section A/B aliases and unsupported subjects fail closed instead of scoring", () => {
   const result = evaluateTestAttempt("NEET UG", [
     { id: "old", correctAnswer: "A", section: "SECTION_A", subject: "Physics", questionType: "MCQ_SINGLE" },
