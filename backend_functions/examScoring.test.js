@@ -47,19 +47,27 @@ test("canonical exam identity never infers an exam from a subject or ambiguous a
   assert.equal(normalizeExamKey("NEET PG"), "NEET_PG");
   assert.equal(normalizeExamKey("RRB"), "RRB");
   assert.equal(normalizeExamKey(""), "UNKNOWN");
-  assert.equal(resolveCanonicalExamIdentity({ examId: "neet_ug", targetExam: "NEET UG" }), "NEET");
-  assert.equal(resolveCanonicalExamIdentity({ examId: "jee_main", targetExam: "JEE Main Paper 1" }), "JEE_MAIN");
+  assert.equal(resolveCanonicalExamIdentity({ examId: "neet_ug", targetExam: "NEET UG", stageId: "neet_main", paperId: "neet_paper_1" }), "NEET");
+  assert.equal(resolveCanonicalExamIdentity({ examId: "jee_main", targetExam: "JEE Main Paper 1", stageId: "jee_paper_1", paperId: "jee_main_p1" }), "JEE_MAIN");
   assert.throws(
     () => resolveCanonicalExamIdentity({ examId: "neet_ug", targetExam: "JEE Main" }),
     { code: "failed-precondition" }
   );
   assert.throws(() => resolveCanonicalExamIdentity({ examId: "JEE Advanced" }), { code: "failed-precondition" });
   assert.throws(() => resolveCanonicalExamIdentity({ examId: "CUET UG" }), { code: "failed-precondition" });
+  assert.throws(
+    () => resolveCanonicalExamIdentity({ examId: "jee_main", stageId: "jee_paper_1", paperId: "jee_main_p2a" }),
+    { code: "failed-precondition" }
+  );
+  assert.throws(
+    () => resolveCanonicalExamIdentity({ examId: "neet_ug", stageId: "neet_main" }),
+    { code: "failed-precondition" }
+  );
   assert.throws(() => resolveCanonicalExamIdentity({ subject: "Biology" }), { code: "failed-precondition" });
   assert.throws(() => resolveCanonicalExamIdentity({ examId: "ALL" }), { code: "failed-precondition" });
 });
 
-test("only source-verified NEET UG 2026 and JEE Main 2026 scoring schemes are enabled", () => {
+test("only source-verified NEET UG 2026 and JEE Main 2027 scoring schemes are enabled", () => {
   assert.deepEqual(getMarkingSchemeForExam("NEET UG"), { pos: 4, neg: 1 });
   assert.deepEqual(getMarkingSchemeForExam("JEE Main"), { pos: 4, neg: 1 });
   for (const exam of ["JEE", "JEE Advanced", "NEET PG", "CUET UG", "UPSC CSE", "SSC CGL", "SSC CHSL", "SSC MTS", "SSC GD", "SSC CPO", "RRB NTPC", "RRB Group D", "RRB ALP", "RRB Technician", "RRB JE", "CTET", "UGC NET", "CAT", "IBPS PO", "IBPS Clerk", "SBI PO", "SBI Clerk", "NDA", "CDS", "GATE"]) {
