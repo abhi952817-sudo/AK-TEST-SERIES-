@@ -192,7 +192,7 @@ class UniversalRankingAndIdentityTest {
     }
 
     @Test
-    fun 2026VerifiedPatternsHaveNoOptionalSectionAttemptCaps() {
+    fun verified2026PatternsHaveNoOptionalSectionAttemptCaps() {
         try {
             UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
                 "NEET UG", "Section B", "Physics"
