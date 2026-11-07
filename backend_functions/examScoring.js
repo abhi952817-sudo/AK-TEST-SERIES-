@@ -141,8 +141,8 @@ function normalizeExamKey(examName) {
   return examName.trim().toUpperCase().replace(/\s+/g, "_");
 }
 
-// Only source-verified 2026 exam patterns may be scored server-side.
-// Keep this allowlist aligned with UniversalExamRegistry.kt. Unverified exams fail closed.
+// Only source-verified NEET UG 2026 and JEE Main Paper 1 2027 patterns may be scored server-side.
+// Keep this allowlist and exact paper identities aligned with UniversalExamRegistry.kt. Unverified exams fail closed.
 const VERIFIED_PAPER_IDENTITIES = Object.freeze({
   NEET: Object.freeze({ stageId: "neet_main", paperId: "neet_paper_1" }),
   JEE_MAIN: Object.freeze({ stageId: "jee_paper_1", paperId: "jee_main_p1" })
