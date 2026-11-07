@@ -174,20 +174,10 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
         Button(
             onClick = {
                 if (title.isNotEmpty() && chapterName.isNotEmpty()) {
-                    viewModel.scheduleLiveTest(
-                        title = title,
-                        subject = subject,
-                        classLevel = classLevel,
-                        chapter = chapterName,
-                        scheduledTime = scheduledTime,
-                        durationMinutes = durationMinutes.toIntOrNull() ?: 180,
-                        questionsCount = questionsCount.toIntOrNull() ?: 90,
-                        pdfUri = pdfUri
-                    )
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Live test successfully scheduled & uploaded!")
-                        title = ""
-                        chapterName = ""
+                        snackbarHostState.showSnackbar(
+                            "Publishing blocked: this form does not yet extract and verify real PDF questions. Use Universal Exam Admin PDF review before scheduling."
+                        )
                     }
                 } else {
                     coroutineScope.launch {
