@@ -622,3 +622,13 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Deleted the standalone `backend_functions/adminRoles.js` module to avoid duplicate authorization sources.
 - Commits: `3e7bf794b008f6369fa6e28d7187e0daf45abb98`, `6b97f51073a4aaef5c81576a861e75e209e16474`, `9dca871b93964b84d8c69157ee58b4e037823a32`.
 - Status remains **policy foundation only**. Existing callables and rules still need coordinated enforcement; no claim that the three roles are active end-to-end.
+
+### Admin role migration — callable assignment foundation — 2026-11-07
+- Reused the existing `backend_functions/authHelper.js`; no parallel runtime authorization module was introduced.
+- Added claim-to-role resolution for the three canonical roles: `super_admin`, `content_admin`, and `support_admin`.
+- Added permission lookup from custom claims and a custom-claims builder that preserves unrelated Firebase claims.
+- Updated the existing `setAdminRole` callable to accept a canonical `role` value or `null` for revocation. The legacy `isAdmin: true/false` input remains temporarily supported (`true` maps to `super_admin`) to avoid breaking older callers during migration.
+- Added regression tests for role claim assignment, preservation of unrelated Firebase claims, legacy-claim compatibility, revocation, invalid roles, and permission boundaries.
+- Commits: `8e22547bbf220607a12d83e373118107f3f61adb`, `2e6a64a905c25b40dbb9a6ae6b112c14988befd3`, `22e216e099ba93f0dc2bc3df5278d33a325330bb`.
+- **Status: PARTIAL — source changes committed; tests NOT EXECUTED.** This is not yet end-to-end role enforcement. Existing Firestore/Storage rules, callable authorization checks, Android Admin UI, and legacy `admin: true` access still need a coordinated migration and emulator/device verification. Do not treat Content Admin or Support Admin as safely isolated in production until those layers are updated and tested.
+- Next: inventory each Admin callable and each Firestore/Storage rule path, map it to the least-privilege permission constant, then integrate role-aware authorization at those existing boundaries without removing the verified owner recovery path.
