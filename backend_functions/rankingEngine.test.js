@@ -14,6 +14,18 @@ const {
   getRankingStatus
 } = require("./rankingEngine");
 
+test("answer payload canonicalization makes object key order irrelevant but preserves values", () => {
+  const { canonicalizeAnswerPayload } = require("./rankingEngine");
+  const left = canonicalizeAnswerPayload({ q2: { ans: "B", confidence: 1 }, q1: "A" });
+  const right = canonicalizeAnswerPayload({ q1: "A", q2: { confidence: 1, ans: "B" } });
+  assert.equal(left, right);
+  assert.notEqual(
+    canonicalizeAnswerPayload({ q1: "A" }),
+    canonicalizeAnswerPayload({ q1: "B" })
+  );
+  assert.throws(() => canonicalizeAnswerPayload([]), { code: "invalid-argument" });
+});
+
 test("ranking score normalizes different test maxima before weight", () => {
   assert.equal(calculateWeightedRankingScore(360, 720, 1), 5000);
   assert.equal(calculateWeightedRankingScore(45, 90, 1), 5000);
