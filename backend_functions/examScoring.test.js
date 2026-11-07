@@ -159,6 +159,8 @@ test("population and score percentiles handle ties and boundary cases", () => {
 test("ranking-eligible tests require complete trusted private answer keys", () => {
   const testData = {
     examId: "neet_ug",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     status: "PUBLISHED",
     isOfficial: true,
     isPublic: true,
