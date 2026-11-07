@@ -21,6 +21,24 @@ const RANKING_CONFIG = Object.freeze({
   })
 });
 
+function canonicalizeAnswerPayload(answers) {
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+    const err = new Error("Answer payload must be a JSON object.");
+    err.code = "invalid-argument";
+    throw err;
+  }
+  const normalize = value => {
+    if (Array.isArray(value)) return value.map(normalize);
+    if (value && typeof value === "object") {
+      const sorted = {};
+      for (const key of Object.keys(value).sort()) sorted[key] = normalize(value[key]);
+      return sorted;
+    }
+    return value;
+  };
+  return JSON.stringify(normalize(answers));
+}
+
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -193,6 +211,7 @@ function getCohortRankingStatus(totalEligible, classLevel) {
 
 module.exports = {
   RANKING_CONFIG,
+  canonicalizeAnswerPayload,
   resolveRankingWeight,
   calculateWeightedRankingScore,
   isEligibleScoringResult,
