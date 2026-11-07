@@ -78,11 +78,11 @@ function resolveRankingWeight(testData = {}) {
  * Returns an integer so existing Android clients reading Firestore Long values remain compatible.
  */
 function isEligibleHistoricalRankingTest(testData = {}) {
-  const status = String(testData.status || "").trim().toUpperCase();
+  const status = String(testData.status || "").trim();
   return testData.isOfficial === true &&
     testData.isPublic === true &&
     testData.countsTowardRanking === true &&
-    (status === "APPROVED" || status === "PUBLISHED");
+    ["APPROVED", "PUBLISHED", "Published"].includes(status);
 }
 
 function isEligibleScoringResult(result = {}) {
