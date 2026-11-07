@@ -433,9 +433,14 @@ object UniversalPdfPipeline {
                     sectionQuestionEnd += section.totalQuestions
                     qIndexInBatch <= sectionQuestionEnd
                 }
-                val parsedSecId = item.optString("sectionId").takeIf { it.isNotBlank() } ?: resolvedSection?.sectionId ?: continue
+                val expectedSection = resolvedSection ?: continue
+                val suppliedSectionId = item.optString("sectionId").takeIf { it.isNotBlank() }
+                if (suppliedSectionId != null && suppliedSectionId != expectedSection.sectionId) continue
+                val parsedSecId = expectedSection.sectionId
                 val sectionConfig = subjectConfig.sections.singleOrNull { it.sectionId == parsedSecId } ?: continue
-                val parsedSecName = item.optString("sectionName").takeIf { it.isNotBlank() } ?: sectionConfig.sectionName
+                val suppliedSectionName = item.optString("sectionName").takeIf { it.isNotBlank() }
+                if (suppliedSectionName != null && !suppliedSectionName.equals(sectionConfig.sectionName, true)) continue
+                val parsedSecName = sectionConfig.sectionName
                 val parsedPosMarks = if (item.has("positiveMarks")) item.optDouble("positiveMarks", Double.NaN) else sectionConfig.positiveMarks
                 val parsedNegMarks = if (item.has("negativeMarks")) item.optDouble("negativeMarks", Double.NaN) else sectionConfig.negativeMarks
                 if (!parsedPosMarks.isFinite() || parsedPosMarks <= 0.0 || !parsedNegMarks.isFinite() || parsedNegMarks < 0.0) continue
@@ -449,32 +454,30 @@ object UniversalPdfPipeline {
                     else -> continue
                 }
 
-                val qTypeStr = item.optString("questionType").uppercase()
-                val parsedQType = if (qTypeStr.isBlank()) sectionConfig.questionType else when {
-                    qTypeStr.contains("STATEMENT_I") || qTypeStr.contains("STATEMENT_1") -> QuestionType.STATEMENT_I_II
-                    qTypeStr.contains("ASSERTION") -> QuestionType.ASSERTION_REASON
-                    qTypeStr.contains("MATCH") -> QuestionType.MATCH_LIST_I_II
-                    qTypeStr.contains("MULTI") -> QuestionType.MULTI_STATEMENT
-                    qTypeStr.contains("NUMERICAL") || qTypeStr.contains("NAT") || qTypeStr.contains("NVQ") -> QuestionType.NUMERICAL_VALUE
-                    qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
-                    qTypeStr.contains("GRAPH") -> QuestionType.GRAPH
-                    qTypeStr.contains("DIRECT") || qTypeStr.contains("MCQ") -> QuestionType.DIRECT_MCQ
+                val qTypeStr = item.optString("questionType").trim().uppercase()
+                val suppliedType = when {
+                    qTypeStr.isBlank() -> sectionConfig.questionType
+                    qTypeStr in setOf("MCQ", "MCQ_SINGLE", "DIRECT_MCQ") -> QuestionType.MCQ_SINGLE
+                    qTypeStr in setOf("NUMERICAL", "NUMERICAL_VALUE", "NAT", "NVQ", "TITA") -> QuestionType.NUMERICAL_VALUE
                     else -> continue
                 }
-                if (parsedQType !in examConfig.supportedQuestionTypes) continue
-                if (parsedQType != sectionConfig.questionType &&
-                    !(sectionConfig.questionType in setOf(QuestionType.MCQ_SINGLE, QuestionType.DIRECT_MCQ) &&
-                      parsedQType in setOf(QuestionType.MCQ_SINGLE, QuestionType.DIRECT_MCQ))) continue
+                if (suppliedType != sectionConfig.questionType ||
+                    suppliedType !in examConfig.supportedQuestionTypes) continue
 
-                val isNumerical = (parsedQType == QuestionType.NUMERICAL_VALUE || parsedQType == QuestionType.NUMERICAL || parsedQType == QuestionType.TITA)
+                val isNumerical = sectionConfig.questionType in setOf(
+                    QuestionType.NUMERICAL_VALUE, QuestionType.NUMERICAL, QuestionType.TITA
+                )
+                if (isNumerical && options.isNotEmpty()) continue
+                if (!isNumerical && (options.size != sectionConfig.optionsCount ||
+                    options.any { it.isBlank() } ||
+                    options.distinctBy { it.trim().lowercase() }.size != sectionConfig.optionsCount)) continue
                 val finalOptions = if (isNumerical) emptyList() else options
 
-                val rawAnswer = item.optString("correctAnswer", "").trim()
-                val correctAnswer = if (isNumerical) {
-                    rawAnswer // Preserve full integer, decimal, or negative numerical answer
-                } else {
-                    if (rawAnswer.length == 1) rawAnswer.uppercase() else rawAnswer
-                }
+                val rawAnswer = item.optString("correctAnswer").trim()
+                val correctAnswer = rawAnswer.uppercase()
+                val validAnswerKey = if (isNumerical) correctAnswer.toDoubleOrNull()?.isFinite() == true
+                    else correctAnswer in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+                if (!validAnswerKey) continue
                 val explanation = item.optString("explanationEn").ifBlank { item.optString("explanation") }
 
                 val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
@@ -487,7 +490,7 @@ object UniversalPdfPipeline {
                     hasDiagramAttached = false,
                     duplicateResult = dupResult,
                     questionType = parsedQType,
-                    expectedOptionCount = examConfig.defaultOptionCount
+                    expectedOptionCount = sectionConfig.optionsCount
                 )
 
                 val model = UniversalQuestionModel(
@@ -524,7 +527,7 @@ object UniversalPdfPipeline {
                     duplicateHash = hash,
                     sourceName = actualSource,
                     isOfficialPYQ = false,
-                    sourcePage = batchIndex + 1,
+                    sourcePage = item.optInt("sourcePage", 0).coerceAtLeast(0),
                     questionVersion = 1,
                     validationVersion = 1,
                     generationModel = actualModel,
