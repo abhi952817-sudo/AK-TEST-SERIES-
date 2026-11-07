@@ -762,17 +762,21 @@ async function rebuildRankingV2ForUser(userId) {
     const rawScore = Number(attempt.authoritativeScore !== undefined ? attempt.authoritativeScore : attempt.score);
     const maxScore = Number(attempt.maxScore);
     if (!Number.isFinite(rawScore) || !Number.isFinite(maxScore) || maxScore <= 0) continue;
-    seenTests.add(testId);
-
     let testData = {};
     let testSnap = await db.collection("Tests_Data").doc(testId).get();
     if (!testSnap.exists) testSnap = await db.collection("Tests").doc(testId).get();
     if (testSnap.exists) testData = testSnap.data() || {};
 
-    const examId = normalizeExamKey(attempt.targetExam || testData.targetExam || testData.subject || "UNKNOWN");
+    // Historical ranking must use an explicit exam identity and a known weight.
+    // Subject labels are not exam IDs (e.g. Biology must never become a NEET guess).
+    const identity = attempt.targetExam || attempt.examId || testData.examId || testData.targetExam;
+    if (typeof identity !== "string" || identity.trim().length === 0) continue;
+    const examId = normalizeExamKey(identity);
     if (examId === "UNKNOWN" || examId === "ALL") continue;
     const storedWeight = Number(attempt.rankingWeight);
     const weight = storedWeight === 1 || storedWeight === 0.2 ? storedWeight : resolveRankingWeight(testData);
+    if (weight !== 1 && weight !== 0.2) continue;
+    seenTests.add(testId);
     const points = calculateWeightedRankingScore(rawScore, maxScore, weight);
     const aggregate = exams.get(examId) || { score: 0, count: 0, maxSingleScore: 0 };
     aggregate.score += points;
