@@ -4055,29 +4055,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     // --- Exam Engine ---
 
     private fun calculateExamDurationSeconds(test: TestEntity): Long {
-        if (test.durationMinutes > 0) {
-            return test.durationMinutes * 60L
-        }
-        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getAllExams().find { 
-            it.examName.equals(test.targetExam, ignoreCase = true) || it.shortName.equals(test.targetExam, ignoreCase = true) 
-        }
-        val standardPaperDuration = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.durationMinutes
-        val qCount = if (test.questionsCount > 0) test.questionsCount else 10
-        
-        return if (standardPaperDuration != null && qCount >= 50) {
-            standardPaperDuration * 60L
-        } else {
-            val perQuestionSeconds = when {
-                test.targetExam.contains("JEE", ignoreCase = true) || test.targetExam.contains("GATE", ignoreCase = true) -> 120L
-                test.targetExam.contains("UPSC", ignoreCase = true) -> 72L
-                test.targetExam.contains("NEET", ignoreCase = true) -> 60L
-                test.targetExam.contains("CAT", ignoreCase = true) -> 120L
-                test.targetExam.contains("Bank", ignoreCase = true) || test.targetExam.contains("IBPS", ignoreCase = true) || test.targetExam.contains("SBI", ignoreCase = true) -> 45L
-                test.targetExam.contains("SSC", ignoreCase = true) || test.targetExam.contains("RRB", ignoreCase = true) -> 54L
-                else -> 60L
-            }
-            qCount * perQuestionSeconds
-        }
+        if (test.durationMinutes > 0) return test.durationMinutes * 60L
+
+        // No exam-name heuristics or first-stage defaults: resolve only the exact
+        // persisted exam/stage/paper identity. Missing metadata blocks a timed attempt.
+        val examIdentity = test.examId?.takeIf { it.isNotBlank() } ?: test.targetExam
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examIdentity)
+            ?: return 0L
+        if (!examConfig.active || !examConfig.verified) return 0L
+        val stageId = test.stageId?.takeIf { it.isNotBlank() } ?: return 0L
+        val paperId = test.paperId?.takeIf { it.isNotBlank() } ?: return 0L
+        val stage = examConfig.stages.singleOrNull { it.stageId == stageId } ?: return 0L
+        val paper = stage.papers.singleOrNull { it.paperId == paperId } ?: return 0L
+        return paper.durationMinutes.takeIf { it > 0 }?.times(60L) ?: 0L
     }
 
     fun pauseTest() {
@@ -4136,6 +4126,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val isAdmin = isAdminFlow.value
         if (!TestVisibilityManager.isTestVisible(test, currentUid, isAdmin)) {
             android.widget.Toast.makeText(getApplication(), "Access restricted: You do not have permission to access this private test.", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        if (calculateExamDurationSeconds(test) <= 0L) {
+            android.widget.Toast.makeText(
+                getApplication(),
+                "Test timer is missing or its exam/stage/paper identity is ambiguous. Admin must correct the test configuration before it can start.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
             return
         }
         viewModelScope.launch {
