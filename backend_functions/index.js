@@ -512,12 +512,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }, { merge: true });
     }
 
-    const qualifyingTests = updates[examQCountKey] !== undefined
-      ? updates[examQCountKey]
-      : currentExamQCount;
-
+    const qualifyingTests = currentExamQCount + (isFirstQualifyingAttempt ? 1 : 0);
     const isEligible = qualifyingTests >= RANKING_CONFIG.minQualifyingTests && !userIsBanned;
-    const competitiveScore = updates[examScoreKey] !== undefined ? updates[examScoreKey] : currentExamScore;
+    const competitiveScore = newExamScore;
 
     if (isFirstQualifyingAttempt) {
       const periodBase = {
@@ -805,7 +802,6 @@ async function rebuildRankingV2ForUser(userId) {
 
   for (const [examId, aggregate] of exams.entries()) {
     const eligible = aggregate.count >= RANKING_CONFIG.minQualifyingTests;
-    userUpdates["cumulativeScore_" + examId] = aggregate.score;
     // Exam_Leaderboards is the only canonical exam-score store. Do not mirror the
     // same aggregate into Users_Data, which previously created a second source of truth.
     totalCumulativeScore += aggregate.score;
@@ -821,7 +817,6 @@ async function rebuildRankingV2ForUser(userId) {
 
     // User_Ranks is a legacy duplicate; the rebuilt Exam_Leaderboards entry is canonical.
   }
-  userUpdates.totalCumulativeScoreV2 = totalCumulativeScore;
 
   for (const period of periods.values()) {
     const eligible = period.count >= RANKING_CONFIG.minQualifyingTests;
@@ -986,7 +981,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   const eligibleSnap = await eligibleQuery.count().get();
   const totalEligible = eligibleSnap.data().count;
 
-  if (qualifyingCount < 2) {
+  if (qualifyingCount < RANKING_CONFIG.minQualifyingTests || !entryData || entryData.isEligibleForRanking !== true) {
     return {
       isEligible: false,
       status: "Rank Pending",
