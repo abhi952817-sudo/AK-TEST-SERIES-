@@ -318,7 +318,7 @@ fun ExamListTab(
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
-                        val stagesText = exam.stages.joinToString(", ") { it.stageName }
+                        val stagesText = if (exam.verified) exam.stages.joinToString(", ") { it.stageName } else "Pending official verification"
                         Text("Stages: $stagesText", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(4.dp))
                     }
