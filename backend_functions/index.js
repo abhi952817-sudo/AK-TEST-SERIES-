@@ -919,7 +919,22 @@ async function rebuildRankingV2ForUser(userId) {
   const userUpdates = { rankingBackfillVersion: RANKING_CONFIG.version,
     rankingBackfilledAt: admin.firestore.FieldValue.serverTimestamp() };
   let totalCumulativeScore = 0;
-  const batch = db.batch();
+  let batch = db.batch();
+  let batchWriteCount = 0;
+  const enqueueSet = (ref, data, options) => {
+    batch.set(ref, data, options);
+    batchWriteCount += 1;
+  };
+  const enqueueUpdate = (ref, data) => {
+    batch.update(ref, data);
+    batchWriteCount += 1;
+  };
+  const flushBatchIfNeeded = async () => {
+    if (batchWriteCount < 450) return;
+    await batch.commit();
+    batch = db.batch();
+    batchWriteCount = 0;
+  };
 
   for (const [examId, aggregate] of exams.entries()) {
     const eligible = aggregate.count >= RANKING_CONFIG.minQualifyingTests;
@@ -927,7 +942,7 @@ async function rebuildRankingV2ForUser(userId) {
     // same aggregate into Users_Data, which previously created a second source of truth.
     totalCumulativeScore += aggregate.score;
 
-    batch.set(db.collection("Exam_Leaderboards").doc(examId).collection("Entries").doc(userId), {
+    enqueueSet(db.collection("Exam_Leaderboards").doc(examId).collection("Entries").doc(userId), {
       userId, displayName, profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
       isBanned: userIsBanned, classLevel,
       targetExam: examId, score: aggregate.score, maxSingleScore: aggregate.maxSingleScore,
@@ -935,13 +950,14 @@ async function rebuildRankingV2ForUser(userId) {
       scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", rankingWeightVersion: RANKING_CONFIG.version,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
     }, { merge: true });
+    await flushBatchIfNeeded();
 
     // User_Ranks is a legacy duplicate; the rebuilt Exam_Leaderboards entry is canonical.
   }
 
   for (const period of periods.values()) {
     const eligible = period.count >= RANKING_CONFIG.minQualifyingTests;
-    batch.set(db.collection("Ranking_Periods").doc(period.examId)
+    enqueueSet(db.collection("Ranking_Periods").doc(period.examId)
       .collection("Periods").doc(period.periodId).collection("Entries").doc(userId), {
         userId, displayName, profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
         isBanned: userIsBanned, classLevel,
@@ -951,9 +967,10 @@ async function rebuildRankingV2ForUser(userId) {
         scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
       }, { merge: true });
+    await flushBatchIfNeeded();
   }
 
-  batch.update(userRef, userUpdates);
+  enqueueUpdate(userRef, userUpdates);
   await batch.commit();
   return {
     userId, migrated: true, examsMigrated: exams.size,
