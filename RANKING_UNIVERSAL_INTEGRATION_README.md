@@ -201,7 +201,25 @@ Universal-branch-specific changes observed:
 - Backend callable integration: `35618ae558ff99fa2ac3dbc1984e5eaa868ca92b`
 - CI trigger update: `2e315cf398c9b29f77f1ad8a9913733cf0caa132`
 
-**Validation status:** Source changes are committed, but no new CI run is yet visible for the integration branch commit. Existing Universal PR run confirms backend syntax/unit tests and Firestore Emulator tests passed on the source head; Android unit tests still fail on the unrelated-looking but unresolved `CrashResilienceTest > classMethod` / Robolectric `DefaultSdkProvider.java:170` failure. Do not mark Phase 2 complete until the integration branch's backend tests pass and the callable scoring→ranking/idempotency contract is covered.
+**Validation status at the 2026-11-07 refresh:** The integration branch now has a completed green workflow run #183 (`42217629328`) on commit `01eca516a017794cb0f435916adc4c56d84391fa`: backend syntax/unit tests PASS, Firestore Emulator tests PASS, and Android unit tests + debug build PASS. This resolves the earlier observed CrashResilienceTest CI failure for that commit; it must not be treated as proof that every later commit is green.
+
+**Additional Phase 2 correctness fix (2026-11-07):**
+- Found a JavaScript truthiness bug in evaluateTestAttempt(): numeric answer value `0` and numeric answer key `0` could be converted to empty strings and incorrectly counted as unanswered/ungraded.
+- Fixed null/undefined checks and property-presence handling in `backend_functions/examScoring.js`.
+- Added a GATE numerical-zero regression case in `backend_functions/examScoring.test.js`.
+- Scoring fix commit: `c48900ebe043f4549e96348b81ff0738f8ae92db`.
+- Regression test commit: `cd714bbc3c044f7e451db5798c7a20cfbeccc2b4`.
+- New integration workflow run #187 (`42321925510`) was observed IN PROGRESS at the time of this update. The new regression is not marked PASS until that run completes.
+
+**Live branch snapshot — 2026-11-07:**
+- Integration head before this README update: `cd714bbc3c044f7e451db5798c7a20cfbeccc2b4`.
+- Integration vs `main`: 123 commits ahead, 0 behind.
+- Integration vs Ranking branch: 31 commits ahead, 0 behind.
+- Integration vs Universal branch: diverged, 35 commits ahead and 45 behind; no wholesale merge is permitted.
+- Open Draft PR #3 targets the Ranking development branch, not `main`: https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/3.
+- No production deployment, production migration, or `main` branch write has occurred.
+
+**Phase 2 status remains IN PROGRESS.** The current workflow validates backend and Android builds, but callable scoring→eligibility→ranking→XP behavior still needs dedicated contract/idempotency regression coverage. Static exam-name marking rules are not yet the canonical year/stage/paper configuration; that is a later Phase 5/6 requirement.
 
 
 ---
@@ -488,9 +506,9 @@ Development is not complete until all of these are true:
 
 | Phase | Status | Commit SHA | Tests/evidence | Notes |
 |---|---|---|---|---|
-| 0 Baseline refresh | COMPLETE | `f6fc002aeb70644f7a436ad475dbe98cf7b13122` | Branch/PR comparisons; PR #1/#2 CI jobs and Android logs inspected | Android unit-test failure remains a release blocker |
+| 0 Baseline refresh | COMPLETE | `cd714bbc3c044f7e451db5798c7a20cfbeccc2b4` | 2026-11-07 live branch comparisons; PR #3; integration workflow #183 all 3 jobs PASS | Latest code-change workflow #187 was still running at this update; check before claiming green |
 | 1 Overlap map | COMPLETE | `faf51cdb9778b3179dd3be47df12377688b264c9` | 15-file keep/port/reconcile matrix; branch compare and shared-file review | Individual commit SHA list not exposed by connector; only workflow file delta confirmed |
-| 2 Backend contract | IN PROGRESS | `2e315cf398c9b29f77f1ad8a9913733cf0caa132` | Scoring, tests, index ported; CI trigger enabled | Need integration CI and contract/idempotency regression proof |
+| 2 Backend contract | IN PROGRESS | `cd714bbc3c044f7e451db5798c7a20cfbeccc2b4` | Workflow #183 PASS; numeric-zero bug fixed and regression added; workflow #187 pending | Need dedicated callable scoring→ranking→XP idempotency contract tests; Phase 2 not complete |
 | 3 Secure publishing | NOT STARTED | — | — | P0 answer leak |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
 | 5 Exam configuration | NOT STARTED | — | — | Year/stage/paper provenance |
