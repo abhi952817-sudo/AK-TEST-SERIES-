@@ -141,5 +141,5 @@ test("ranking-eligible tests require complete trusted private answer keys", () =
   const merged = validateAndMergeAnswerKeys(testData, [{ id: "q1" }], {
     questions: [{ id: "q1", correctAnswer: "B" }]
   });
-  assert.equal(merged[0].correctAnswer, "B");
+  assert.equal(merged.questions[0].correctAnswer, "B");
 });
