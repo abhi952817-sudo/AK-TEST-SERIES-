@@ -7,6 +7,8 @@ const {
   getIndiaDateKey,
   getIndiaWeekId,
   getRankingPeriodIds,
+  isValidRankingPeriodId,
+  isValidRankingWeekId,
   getLeagueForXp,
   calculateXpAward,
   calculateCompetitionRank,
@@ -221,4 +223,20 @@ test("per-test rank snapshot fails closed for missing board entries and invalid 
   const notEligible = buildTestRankingSnapshot({ countsTowardRanking: false });
   assert.equal(notEligible.rankStatus, "NOT_ELIGIBLE");
   assert.equal(notEligible.percentile, null);
+});
+
+
+test("ranking period and weekly leaderboard identifiers reject malformed dates", () => {
+  assert.equal(isValidRankingPeriodId("HALF_MONTH", "2026-11-H1"), true);
+  assert.equal(isValidRankingPeriodId("HALF_MONTH", "2026-11-H2"), true);
+  assert.equal(isValidRankingPeriodId("MONTH", "2026-11"), true);
+  for (const id of ["2026-00-H1", "2026-13-H2", "2026-11-H3", "2026-11", "2026-1-H1"]) {
+    assert.equal(isValidRankingPeriodId("HALF_MONTH", id), false);
+  }
+  assert.equal(isValidRankingPeriodId("MONTH", "2026-11-H1"), false);
+  assert.equal(isValidRankingPeriodId("MONTH", "2026-99"), false);
+  assert.equal(isValidRankingWeekId("2026-W01"), true);
+  assert.equal(isValidRankingWeekId("2026-W53"), true);
+  assert.equal(isValidRankingWeekId("2026-W00"), false);
+  assert.equal(isValidRankingWeekId("2026-W54"), false);
 });
