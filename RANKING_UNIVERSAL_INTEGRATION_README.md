@@ -1057,3 +1057,11 @@ The legacy `Leaderboard` collection remains only for compatibility and profile/b
 The current Android ranking ViewModel uses the sanitized v2 callable endpoints, not direct reads of raw v2 materialization collections. Legacy rows are still updated by the server-side profile visibility trigger; no production backfill has been run.
 
 Latest code commit before this note: `399aa05025914ea6f0ae4889748d2497871ce705`. GitHub Actions remains queued for the latest branch commits; no current-head CI pass is claimed.
+
+### 2.36 Canonical historical attempt selection — 2026-11-07
+
+Historical backfill now claims the first server-verified, ranking-eligible attempt for a test before revalidation. If its current official test source, private answer key, answer payload, score or max score cannot be revalidated, the migration skips that test for that user rather than substituting a later repeat attempt. Explicit `isFirstQualifyingAttempt=false` records are excluded; where older records lack that field, deterministic timestamp/token ordering is used, preferring a valid timestamp over an unknown one.
+
+This preserves the live product rule: one canonical first qualifying attempt per user/test. It also avoids silently converting a repeat attempt into the canonical score when an earlier attempt's source evidence is incomplete.
+
+Latest code commit: `89da8e37264f89bc27a0dd699c7b3b1198149507`. GitHub Actions for this commit are still queued. The last completed CI run is an older baseline and does not verify these changes.
