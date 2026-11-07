@@ -1111,7 +1111,7 @@ object UniversalExamRegistry {
 
     fun getAllExams(): List<ExamConfig> = defaultExams.values.map(::publicExamConfig)
 
-    fun getActiveExams(): List<ExamConfig> = defaultExams.values.filter { it.active }.map(::publicExamConfig)
+    fun getActiveExams(): List<ExamConfig> = defaultExams.values.filter { it.active && it.verified }.map(::publicExamConfig)
 
     fun getExamById(examId: String): ExamConfig? = defaultExams[examId]?.let(::publicExamConfig)
 
@@ -1162,7 +1162,7 @@ object UniversalExamRegistry {
             it.examName.trim().lowercase() == q ||
                 it.shortName.trim().lowercase() == q ||
                 it.examId.trim().lowercase() == q
-        }
+        }?.let(::publicExamConfig)
     }
 
     fun getDifficultyRatioForExam(examName: String): DifficultyRatio {
