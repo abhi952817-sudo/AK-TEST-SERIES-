@@ -75,6 +75,33 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun jeeMainNumericalAnswerKeysMustBeIntegers() {
+        val valid = ExamScoringEngine.evaluateTestAttempt(
+            "JEE Main P1",
+            listOf(
+                createQuestion("integer", "12", "Mathematics", "math_sec_b", "NUMERICAL_VALUE"),
+                createQuestion("integer_decimal_format", "12.0", "Physics", "phy_sec_b", "NUMERICAL_VALUE")
+            ),
+            mapOf("integer" to "12.0", "integer_decimal_format" to "12"),
+            30
+        )
+        assertEquals(2, valid.correctCount)
+        assertEquals(0, valid.ungradedCount)
+        assertEquals(8.0, valid.finalScore, 0.001)
+
+        val invalid = ExamScoringEngine.evaluateTestAttempt(
+            "JEE Main P1",
+            listOf(createQuestion("decimal", "12.5", "Mathematics", "math_sec_b", "NUMERICAL_VALUE")),
+            mapOf("decimal" to "12.5"),
+            30
+        )
+        assertEquals(0, invalid.correctCount)
+        assertEquals(1, invalid.ungradedCount)
+        assertEquals(0.0, invalid.finalScore, 0.001)
+        assertEquals(4.0, invalid.maxScore, 0.001)
+    }
+
+    @Test
     fun legacyOrAmbiguousSectionsAreUngradedAndNeverDefaultToSectionA() {
         val result = ExamScoringEngine.evaluateTestAttempt(
             "NEET UG",
