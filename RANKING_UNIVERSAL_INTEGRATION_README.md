@@ -876,3 +876,14 @@ A follow-up endpoint audit found two input-validation gaps:
 **Changed files:** `backend_functions/index.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`.
 
 **Verification:** awaiting CI for the current branch head. No Firestore data was changed. The broader audit remains open, including period migration write batching, cross-query population consistency, Android rankStatus visibility, and all ranking/security edge cases.
+
+
+### 2.24 Migration batching and API pagination hardening — 2026-11-07
+
+The backfill implementation previously accumulated all Exam_Leaderboards, Ranking_Periods and Users_Data writes for one user in a single Firestore WriteBatch. A long-lived account with many historical periods could exceed Firestore's 500-write batch limit and stop migration. The backfill now flushes at 450 queued writes and continues with a fresh batch; each write is an idempotent merge/update, and the migration marker is written only in the final batch. If an intermediate batch fails, the user is not marked complete and a retry safely reapplies the merge writes.
+
+The admin migration and leaderboard endpoints also accepted fractional limits, which can be rejected by Firestore query `limit()`. Added shared `clampRankingLimit` with finite-number handling, floor-to-integer behavior and endpoint-specific bounds (migration 1–20; leaderboards 1–100), with unit tests. Applied to migration batches, exam leaderboard, period leaderboard and XP leaderboard.
+
+**Changed files:** `backend_functions/index.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`.
+
+**Verification:** CI for the latest commits is pending. Emulator testing of a synthetic user with more than 450 materialization writes remains required; no production migration was run.
