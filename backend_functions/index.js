@@ -290,32 +290,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const examEntryRef = db.collection("Exam_Leaderboards").doc(canonicalExam)
     .collection("Entries").doc(userId);
 
-  // 5b. Compute population-based percentile on this test if it qualifies for competitive ranking
-  let testTotalCandidates = 0;
-  let testHigherCount = 0;
-  let testRank = 0;
-  let attemptPercentile = 0.0;
-
-  if (countsTowardRanking) {
-    try {
-      const testEntriesRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries");
-      const higherSnap = await testEntriesRef.where("score", ">", evalResult.finalScore).count().get();
-      testHigherCount = higherSnap.data().count;
-
-      const totalSnap = await testEntriesRef.count().get();
-      const existingCount = totalSnap.data().count;
-      testRank = testHigherCount + 1;
-      testTotalCandidates = Math.max(1, existingCount + 1);
-      attemptPercentile = calculatePopulationPercentile(testRank, testTotalCandidates);
-    } catch (e) {
-      testRank = 0;
-      testTotalCandidates = 0;
-      attemptPercentile = 0.0;
-    }
-  }
-
   // 6. Atomic, Idempotent Transaction for Competitive Ranking and Persistence
-  return db.runTransaction(async (transaction) => {
+  const submissionResult = await db.runTransaction(async (transaction) => {
     // Recompute India-local period boundaries on every transaction retry.
     const rankingNow = Date.now();
     const rankingDateKey = getIndiaDateKey(rankingNow);
@@ -414,9 +390,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
           score: existing.score,
           rawScore: existing.rawScore || existing.score,
           maxScore: existing.maxScore,
-          percentile: existing.percentile || 0.0,
-          testRank: existing.testRank || 1,
-          testTotalCandidates: existing.testTotalCandidates || 1,
+
           accuracy: existing.accuracy,
           correctCount: existing.correctCount,
           incorrectCount: existing.incorrectCount,
@@ -425,8 +399,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
           positiveMarksEarned: existing.positiveMarksEarned || 0,
           negativeMarksPenalty: existing.negativeMarksPenalty || 0,
           isFirstAttempt: existing.isFirstAttempt || false,
-          isFirstQualifyingAttempt: existing.isFirstQualifyingAttempt || false,
-          countsTowardRanking: existing.countsTowardRanking || false,
+          isFirstQualifyingAttempt: existing.isFirstQualifyingAttempt === true,
+          countsTowardRanking: existing.countsTowardRanking === true,
           isRetry: true
         };
       } else {
@@ -619,9 +593,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       score: evalResult.finalScore,
       rawScore: evalResult.rawScore,
       maxScore: evalResult.maxScore,
-      percentile: attemptPercentile, // Real population-based percentile calculated against candidate cohort
-      testRank: testRank,
-      testTotalCandidates: testTotalCandidates,
       accuracy: evalResult.accuracyPercent,
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
@@ -696,9 +667,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       score: evalResult.finalScore,
       rawScore: evalResult.rawScore,
       maxScore: evalResult.maxScore,
-      percentile: attemptPercentile,
-      testRank,
-      testTotalCandidates,
       accuracy: evalResult.accuracyPercent,
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
@@ -716,8 +684,61 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       xpLeague: getLeagueForXp(newXpTotal),
       currentStreak: shouldAwardXp ? currentStreak : Number(userData.currentStreak || 0),
       rankingPeriodIds: isFirstQualifyingAttempt ? rankingPeriodIds : null,
+      isFirstQualifyingAttempt
     };
   });
+
+  // Per-test rank is a post-commit live snapshot of the canonical first-attempt
+  // leaderboard row. A retry resolves the same row; repeat attempts never rank
+  // their uncommitted score. Rank-query failure cannot undo a committed score.
+  let testRankingSnapshot;
+  if (!submissionResult.countsTowardRanking) {
+    testRankingSnapshot = {
+      rankStatus: "NOT_ELIGIBLE",
+      testRank: null,
+      testTotalCandidates: null,
+      percentile: null
+    };
+  } else if (!submissionResult.isFirstQualifyingAttempt) {
+    testRankingSnapshot = {
+      rankStatus: "NOT_RANKED_REPEAT_ATTEMPT",
+      testRank: null,
+      testTotalCandidates: null,
+      percentile: null
+    };
+  } else {
+    try {
+      const testEntryRef = db.collection("Test_Leaderboards").doc(cleanTestId)
+        .collection("Entries").doc(userId);
+      const canonicalEntrySnap = await testEntryRef.get();
+      if (!canonicalEntrySnap.exists) {
+        throw new Error("Canonical per-test leaderboard entry is missing after commit.");
+      }
+      const canonicalEntry = canonicalEntrySnap.data() || {};
+      const testEntriesRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries");
+      const [higherSnap, totalSnap] = await Promise.all([
+        testEntriesRef.where("score", ">", Number(canonicalEntry.score)).count().get(),
+        testEntriesRef.count().get()
+      ]);
+      testRankingSnapshot = require("./rankingEngine").buildTestRankingSnapshot({
+        countsTowardRanking: true,
+        isFirstQualifyingAttempt: true,
+        canonicalEntry,
+        higherCount: higherSnap.data().count,
+        totalCount: totalSnap.data().count
+      });
+    } catch (rankError) {
+      console.error("Per-test rank snapshot unavailable after committed submission:", rankError);
+      testRankingSnapshot = {
+        rankStatus: "UNAVAILABLE",
+        testRank: null,
+        testTotalCandidates: null,
+        percentile: null
+      };
+    }
+  }
+
+  return { ...submissionResult, ...testRankingSnapshot };
 });
 
 /**
