@@ -6,6 +6,9 @@ const {
   isKnownAdminRole,
   hasAdminPermission,
   getAdminPermissions,
+  getAdminRoleFromClaims,
+  hasAdminPermissionFromClaims,
+  buildAdminCustomClaims,
 } = require("./authHelper");
 
 test("only the three canonical Admin roles are recognized", () => {
@@ -51,4 +54,46 @@ test("unknown roles and malformed permissions fail closed", () => {
   assert.equal(hasAdminPermission("legacy_admin", ADMIN_PERMISSIONS.STUDENT_READ), false);
   assert.equal(hasAdminPermission(ADMIN_ROLES.SUPPORT_ADMIN, null), false);
   assert.deepEqual(getAdminPermissions("unknown"), []);
+});
+
+
+test("role claims preserve unrelated claims and assign only canonical roles", () => {
+  const claims = buildAdminCustomClaims(
+    { premium: true, locale: "hi" },
+    ADMIN_ROLES.CONTENT_ADMIN
+  );
+  assert.deepEqual(claims, {
+    premium: true,
+    locale: "hi",
+    adminRole: ADMIN_ROLES.CONTENT_ADMIN,
+    admin: false,
+  });
+  assert.equal(getAdminRoleFromClaims(claims), ADMIN_ROLES.CONTENT_ADMIN);
+  assert.equal(hasAdminPermissionFromClaims(claims, ADMIN_PERMISSIONS.QUESTION_REVIEW), true);
+  assert.equal(hasAdminPermissionFromClaims(claims, ADMIN_PERMISSIONS.ADMIN_ROLES_MANAGE), false);
+});
+
+test("legacy admin claim remains mapped to Super Admin during migration", () => {
+  assert.equal(getAdminRoleFromClaims({ admin: true }), ADMIN_ROLES.SUPER_ADMIN);
+  assert.equal(
+    hasAdminPermissionFromClaims({ admin: true }, ADMIN_PERMISSIONS.ADMIN_ROLES_MANAGE),
+    true
+  );
+});
+
+test("revocation removes only administrative claims and preserves unrelated claims", () => {
+  assert.deepEqual(
+    buildAdminCustomClaims(
+      { admin: true, adminRole: ADMIN_ROLES.SUPER_ADMIN, premium: true },
+      null
+    ),
+    { premium: true }
+  );
+});
+
+test("invalid role assignment is rejected", () => {
+  assert.throws(
+    () => buildAdminCustomClaims({ premium: true }, "owner"),
+    (error) => error.code === "invalid-argument"
+  );
 });
