@@ -117,6 +117,22 @@ test("Authoritative evaluation preserves fractional marks for UPSC-style negativ
   assert.equal(result.maxScore, 6);
 });
 
+test("Authoritative evaluator treats numeric zero as a valid answer and answer key", () => {
+  const result = evaluateTestAttempt("GATE", [
+    { id: "zero_value", correctAnswer: 0, section: "NUMERICAL", subject: "Engineering", questionType: "NUMERICAL_VALUE" }
+  ], {
+    zero_value: { ans: 0 }
+  }, 5);
+
+  assert.equal(result.correctCount, 1);
+  assert.equal(result.wrongCount, 0);
+  assert.equal(result.ungradedCount, 0);
+  assert.equal(result.unansweredCount, 0);
+  assert.equal(result.positiveMarksEarned, 1);
+  assert.equal(result.finalScore, 1);
+  assert.equal(result.maxScore, 1);
+});
+
 test("Authoritative evaluation: NEET standard attempt", () => {
   const questions = [
     { id: "q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" },
