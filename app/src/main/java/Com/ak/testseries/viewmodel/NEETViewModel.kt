@@ -7580,10 +7580,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     isOfficial = false,
                     isVerifiedCommunity = false,
                     countsTowardRanking = false,
-                    targetExam = examConfig?.examId ?: examName,
-                    examId = examConfig?.examId ?: examName,
-                    stageId = selectedStage?.stageId,
-                    paperId = selectedPaper?.paperId,
+                    targetExam = examConfig.examId,
+                    examId = examConfig.examId,
+                    stageId = selectedStage.stageId,
+                    paperId = selectedPaper.paperId,
                     scoringVersion = 1,
                     status = "Under Review",
                     durationMinutes = resolvedDuration
@@ -7595,10 +7595,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qObj = org.json.JSONObject()
                     qObj.put("id", qId)
                     qObj.put("questionTextEn", uq.questionText)
-                    qObj.put("optionAEn", uq.options[0])
-                    qObj.put("optionBEn", uq.options[1])
-                    qObj.put("optionCEn", uq.options[2])
-                    qObj.put("optionDEn", uq.options[3])
+                    uq.options.getOrNull(0)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionAEn", it) }
+                    uq.options.getOrNull(1)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionBEn", it) }
+                    uq.options.getOrNull(2)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionCEn", it) }
+                    uq.options.getOrNull(3)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionDEn", it) }
                     uq.options.getOrNull(4)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionEEn", it) }
                     if (!uq.questionTextHi.isNullOrBlank()) qObj.put("questionTextHi", uq.questionTextHi)
                     uq.optionsHi?.getOrNull(0)?.let { qObj.put("optionAHi", it) }
