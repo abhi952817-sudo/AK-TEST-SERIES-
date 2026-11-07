@@ -56,7 +56,7 @@ fun UniversalExamAdminScreen(
 
     var selectedTab by remember { mutableStateOf(0) } // 0: 20 Exams, 1: Process PDF, 2: Review Questions
     val allExams = remember { mutableStateListOf(*UniversalExamRegistry.getAllExams().toTypedArray()) }
-    var selectedExam by remember { mutableStateOf(allExams.first()) }
+    var selectedExam by remember { mutableStateOf(allExams.firstOrNull { it.verified && it.active } ?: allExams.first()) }
     var selectedSubjectId by remember { mutableStateOf(selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectId ?: "") }
 
     var pdfUri by remember { mutableStateOf<Uri?>(null) }
@@ -133,7 +133,7 @@ fun UniversalExamAdminScreen(
                     }
                 )
                 1 -> ProcessPdfTab(
-                    exams = allExams.filter { it.active },
+                    exams = allExams.filter { it.active && it.verified },
                     selectedExam = selectedExam,
                     onSelectExam = {
                         selectedExam = it
@@ -256,6 +256,12 @@ fun ExamListTab(
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(exam.examName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                if (exam.verified) "Pattern verified" else "Unverified • publishing blocked",
+                                fontSize = 10.sp,
+                                color = if (exam.verified) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
                                 color = MaterialTheme.colorScheme.primaryContainer,
