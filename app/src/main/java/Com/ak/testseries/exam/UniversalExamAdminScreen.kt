@@ -277,27 +277,43 @@ fun ExamListTab(
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            "Marking: +${exam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.positiveMarks ?: 1.0} / -${exam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.negativeMarks ?: 0.0} • Duration: ${exam.stages.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: 60} min",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (exam.verified) {
+                            val verifiedPaper = exam.stages.singleOrNull()?.papers?.singleOrNull()
+                            val verifiedMarks = runCatching {
+                                UniversalExamRegistry.getMarkingSchemeForExam(exam.examName)
+                            }.getOrNull()
+                            if (verifiedPaper != null && verifiedMarks != null) {
+                                Text(
+                                    "Marking: +${verifiedMarks.first} / -${verifiedMarks.second} • Duration: ${verifiedPaper.durationMinutes} min",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "Difficulty: ${exam.difficultyRatio.summary()}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    "Types: ${exam.supportedQuestionTypes.joinToString(", ") { it.name }}",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else {
+                                Text("Verified scoring metadata is incomplete.", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                            }
+                        } else {
+                            Text(
+                                "Scoring, duration, difficulty and question types: Not verified",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                         val stagesText = exam.stages.joinToString(", ") { it.stageName }
                         Text("Stages: $stagesText", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "Difficulty: ${exam.difficultyRatio.summary()}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "Types: ${exam.supportedQuestionTypes.joinToString(", ") { it.name }}",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
 
                     Switch(
@@ -344,7 +360,7 @@ fun ProcessPdfTab(
         item {
             Text("Step 2: Select Subject / Paper", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
-            val subjects = selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects ?: emptyList()
+            val subjects = selectedExam.stages.singleOrNull()?.papers?.singleOrNull()?.subjects ?: emptyList()
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(subjects) { subj ->
                     FilterChip(
