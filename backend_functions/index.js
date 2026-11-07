@@ -1057,17 +1057,24 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
     ).limit(1).get();
     if (!higherDocsSnap.empty) {
       const targetDoc = higherDocsSnap.docs[0].data();
-      const targetScore = targetDoc.score || 0;
+      const targetScore = Number(targetDoc.score || 0);
       const ptsAway = Math.max(0, targetScore - competitiveScore);
+      const targetHigherSnap = await applyClassFilter(
+        db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
+          .where("isEligibleForRanking", "==", true)
+          .where("isBanned", "==", false)
+          .where("score", ">", targetScore)
+      ).count().get();
+      const targetRank = targetHigherSnap.data().count + 1;
       const name = targetDoc.displayName || "Student";
-      nextTarget = { name, rank: rank - 1, ptsAway };
+      nextTarget = { name, rank: targetRank, ptsAway };
     }
   }
 
   const message = rank === 1
     ? `🎉 Congratulations! You are Rank #1 on the ${canonicalExam} Leaderboard!`
     : nextTarget
-      ? `Next target: ${nextTarget.name} (#${nextTarget.rank}) — You are ${nextTarget.ptsAway} pts away! Take 1 test to overtake.`
+      ? `Next target: ${nextTarget.name} (#${nextTarget.rank}) is ${nextTarget.ptsAway} normalized ranking points ahead.`
       : `Keep practicing to climb higher on the ${canonicalExam} leaderboard!`;
 
   return {
