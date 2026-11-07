@@ -485,6 +485,7 @@ object UniversalPdfPipeline {
 
                 val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
                 val dupResult = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, seenHashes)
+                if (dupResult.isDuplicate) continue
                 val validation = QuestionValidationEngine.validateQuestion(
                     questionText = qText,
                     options = finalOptions,
