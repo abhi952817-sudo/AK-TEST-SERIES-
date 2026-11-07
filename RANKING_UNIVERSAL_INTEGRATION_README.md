@@ -539,7 +539,7 @@ Development is not complete until all of these are true:
 |---|---|---|---|---|
 | 0 Baseline refresh | COMPLETE | `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22` | 2026-11-07 live branch comparisons; PR #3; workflow #183 all 3 jobs PASS | Latest code commits are newer than workflow #193; fresh CI is required |
 | 1 Overlap map | COMPLETE | `faf51cdb9778b3179dd3be47df12377688b264c9` | 15-file keep/port/reconcile matrix; branch compare and shared-file review | Individual commit SHA list not exposed by connector; only workflow file delta confirmed |
-| 2 Backend contract | IN PROGRESS | `da98ae7aaf9acc93a8ebf475ad54d8948018391a` | Backend/Firestore PASS on prior head; latest Android compile failure fixed in source, fresh CI pending; simulated callable test identified as non-authoritative | Add shared production policy helpers and real transaction contract/idempotency coverage; verify fresh CI |
+| 2 Backend contract | IN PROGRESS | `40e8b9a7cd24a6e7eb62e7c99cc38ebe5a384773` | Added fail-closed official-only ranking, explicit 1.0x/0.2x classification, required exam identity, strict historical metadata handling, private leaderboard labels, canonical answer hashing; CI #221 queued on preceding commit `1b85adb` | Await CI for latest head; replace simulated callable test with production callable/emulator transaction tests; audit XP ledger/streak and concurrent first-attempt behavior |
 | 3 Secure publishing | IN PROGRESS | `4a476d6b713593102ea38ccbe7660384e121faf5` | LiveTests public/private answer separation, Admin-only private_keys rule, emulator test added; generated live mocks no longer auto-rank | Historical LiveTests docs may still leak keys; dry-run + approved migration and remaining publish-path audit required |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
 | 5 Exam configuration | NOT STARTED | — | — | Year/stage/paper provenance |
@@ -559,6 +559,17 @@ Development is not complete until all of these are true:
 - This is a source-level correction, not a passing validation result. A fresh workflow for the corrected head is still required before the fix is marked verified.
 - Further Phase 2 audit: callableValidation.test.js is a hand-written simulation, not an invocation of the production callable/Firestore transaction. It still contains legacy default-to-NEET and legacy ranking-eligibility logic that diverges from the current callable. It cannot serve as proof of scoring→eligibility→ranking→XP transactional correctness. Replace/augment it with shared production policy helpers and emulator-backed transaction contract tests before closing Phase 2.
 - No production data, Firebase deployment, rules deployment, or main branch was changed.
+### 2.8 Ranking contract hardening — 2026-11-07
+
+- `resolveRankingWeight` now returns no weight for ambiguous metadata instead of silently treating unknown/"Mock Test" as Full Test. Explicit Full/Complete/Grand or `isFullTest` resolves 1.0x; Part/Chapter/Topic/Subject or `isPartTest`/`isChapterTest` resolves 0.2x. Invalid explicit weights fail closed.
+- `submitTestAttemptServerSide` now requires `countsTowardRanking=true`, `isOfficial=true`, and approved/public publication before a test can contribute to competitive AIR. Ambiguous ranking weight on an otherwise ranking-eligible paper is rejected.
+- Ranking detail, exam leaderboard, and period leaderboard callables now require an explicit specific exam identity. Removed silent NEET defaults. Android ViewModel was inspected and already supplies `targetExam` to the rank/period callables.
+- Historical ranking rebuild no longer infers exam identity from a subject label and skips historical attempts with missing/ambiguous exam or weight metadata rather than inventing points.
+- Legacy and per-test leaderboard writes now anonymize private profiles and carry ban/eligibility metadata.
+- Added stable canonical answer payload serialization + SHA-256 attempt hash so semantically identical retries with different JSON key order do not become false conflicting submissions. Added pure unit coverage.
+- Commits in this bounded subtask: `2898c671e07ba8d383575c44811d95fedd567051`, `a293304177b23bcafc48b09dafe86e4f03f7e211`, `e295427244dcaf0d0324fc20a30e6ee46932a4ee`, `8c35348b6bc45037b077957f70c251b4f37d659`, `d52dc102b6797c2020683589d4df00985ca6805d`, `12bbfc7cbceb3fca6048d4c41743f125860c6581`, `1b85adb6042091c8f8b6ef760188032f10a3aed6`, `e9ca5e793eaf2b7046161b5b9603e1843ab031bc`, `e7db2d707e3f7b76779b2e97e56957d90b24e5a4`, `40e8b9a7cd24a6e7eb62e7c99cc38ebe5a384773`.
+- Workflow #221 (`42324462584`) was queued for the earlier commit `1b85adb...`; backend and Firestore jobs were observed in progress, Android queued. This is not validation evidence for later canonical-hash commits. Fresh CI for the latest branch head is still required.
+- No production deployment, data migration, Firestore rules deployment, or main-branch change was performed.
 ### Session handoff rule
 At the start of every later session:
 1. Read this entire file from the integration branch.
