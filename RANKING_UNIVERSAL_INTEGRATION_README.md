@@ -646,3 +646,27 @@ At the start of every later session:
 - Run #578 is still not a green validation: backend is FAILED for the earlier fixture revision; Android and Firestore jobs remained IN PROGRESS at the last poll. The connector returned no new workflow run for the fixture-fix commit, so the correction remains unverified by CI.
 - Latest branch comparison: `main` → integration is 324 commits ahead / 0 behind. There are 38 changed paths relative to main. This is not a zero-overlap diff: many files intentionally reconcile shared features. The safety rule is to preserve main's current content and reconcile each changed shared file semantically; never blindly overwrite or cherry-pick the Universal branch wholesale.
 - No merge or production operation was performed. PR #3 remains a draft integration-validation PR, and main remains untouched.
+
+
+### 2.16 Live repository refresh and Phase 1 risk findings — 2026-11-07
+
+**Fresh remote snapshot (checked before this audit entry):**
+- Integration branch head: `f3636cbe1e144134cfd910cdfa12063badfdfae4`.
+- Ranking development branch head: `a250f54a54035c21363a190df39dcd041d7aa55e`.
+- `main` comparison base/head snapshot: `d2feae47f908b705209c27b8e61e624f94c400d7`.
+- `main` → integration: 325 commits ahead / 0 behind; `feature/ranking-engine-v2-2026-11-06` → integration: 233 ahead / 0 behind. The integration branch is a descendant of the Ranking branch, not a diverged branch. This does not mean changed files are conflict-free.
+- The roadmap file exists on the integration branch; fetching it from `main` returns 404, so it is development documentation and is not currently part of main.
+- PR #3 remains DRAFT and targets the Ranking development branch, not main. No merge, deployment, rules deployment, or production migration was performed.
+
+**Latest CI evidence for integration head:** workflow run `42346089736` (run #584) completed with overall FAILURE. Backend unit/syntax job PASS; Firestore Emulator rules job PASS; Android validation FAIL at the combined `:app:testDebugUnitTest :app:assembleDebug` step. The job summary does not expose the failing test/log detail, so the root cause is still UNVERIFIED and must be retrieved before changing or waiving the test. This run is not a release gate pass.
+
+**Confirmed backend correctness issue requiring a code fix before release:**
+- In `backend_functions/index.js`, the per-test leaderboard count/rank/percentile query runs before `db.runTransaction`. A concurrent submission can change the population between that query and the transaction, so the attempt's stored rank/percentile can be stale.
+- The catch block converts count/query failures into `testRank=0`, `testTotalCandidates=0`, and `percentile=0`, then persists those values as if they were a valid result. This hides infrastructure failure as ranking data.
+- The same pre-transaction calculation uses the submitted attempt score even when the user's attempt is not the first qualifying attempt. The canonical per-test board is only written for the first qualifying attempt, so a repeat attempt can receive a rank for a score that is not present on that board.
+- Required remediation: define the product contract for historical-vs-live per-test rank; calculate only against the canonical leaderboard population and score basis; do not turn query failure into rank zero; preserve idempotent retry behavior; add concurrent-submission and repeat-attempt tests using Firestore Emulator/transaction behavior. Do not apply a superficial move of the count query into the transaction without checking Firestore transaction read/query semantics and index requirements.
+
+**Phase 1 merge-overlap inventory (from live compare Ranking → integration):**
+Shared/overlapping files requiring semantic reconciliation against both parent branch and main include `MainActivity.kt`, `NEETViewModel.kt`, `backend_functions/index.js`, `backend_functions/examScoring.js`, `backend_functions/examScoring.test.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`, `firestore.rules`, `firestore.test.js`, and `firestore.indexes.json` (the latter is unchanged relative to Ranking in this compare but remains part of the overall main diff). Universal-scoring-specific files include the Kotlin scoring/registry/PDF pipeline, Room database/entities/repository, sanitizer, backup adapter, and their tests/schema. These must be ported/reconciled by behavior, not wholesale copied over Ranking or main.
+
+**Current phase status:** Phase 0 baseline refresh is refreshed; Phase 1 overlap/correctness audit remains IN PROGRESS. No source code was modified in this audit. Next bounded work: retrieve the Android job's failing test/log detail, inspect full main-vs-integration content for every shared path, then implement and test the per-test rank contract fix on this integration branch only. Keep main untouched.
