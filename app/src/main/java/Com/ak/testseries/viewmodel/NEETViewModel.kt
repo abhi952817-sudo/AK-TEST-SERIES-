@@ -5283,7 +5283,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             Supported exams: $examNamesList.
                             
                             Identify and extract:
-                            1. targetExam: Match to one of the supported exams: $examNamesList. If not clearly specified, deduce from subjects/questions or default to '$currentTargetExam'.
+                            1. targetExam: Use an exact supported exam identity only when clearly stated. If unclear, return "UNKNOWN"; never guess from subjects or silently substitute another exam.
                             2. title: A descriptive test title.
                             3. institute: Name of institute or source if present.
                             4. subject: Name of primary subject or 'Full Syllabus'.
@@ -5305,35 +5305,38 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         if (responseJson != null) {
                             val cleanJson = responseJson.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
                             val jsonObj = JSONObject(cleanJson)
-                            val detectedExam = jsonObj.optString("targetExam", currentTargetExam)
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(detectedExam)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
-                            
-                            val officialDefaultQuestions = examConfig?.let {
-                                Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(it.examName)
-                            } ?: 180
-                            val officialDefaultDuration = examConfig?.let {
-                                Com.ak.testseries.exam.UniversalExamRegistry.getDefaultDurationMinutesForExam(it.examName)
-                            } ?: 180
-                            val officialTotalMarks = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 720.0
+                            val detectedExam = jsonObj.optString("targetExam").trim()
+                            val examLookup = detectedExam.takeIf { it.isNotBlank() && !it.equals("UNKNOWN", true) }
+                                ?: currentTargetExam
+                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(examLookup)
+                                ?: throw IllegalArgumentException("No exact supported exam was identified. Select the exam manually; no NEET/default exam will be assumed.")
+                            require(examConfig.active && examConfig.verified) {
+                                "The identified exam pattern is not source-verified. Scoring metadata cannot be inferred."
+                            }
+                            val selectedStage = examConfig.stages.singleOrNull()
+                                ?: throw IllegalArgumentException("Select an exact stage before analyzing this exam.")
+                            val selectedPaper = selectedStage.papers.singleOrNull()
+                                ?: throw IllegalArgumentException("Select an exact paper before analyzing this exam.")
 
-                            val extractedCount = jsonObj.optInt("questionsCount", officialDefaultQuestions)
-                            val extractedDuration = jsonObj.optInt("timerMinutes", officialDefaultDuration)
-                            val extractedMarks = jsonObj.optDouble("totalMarks", officialTotalMarks)
+                            // These are source-document observations only. Missing values remain unknown;
+                            // official defaults are not copied into an imported document as if detected.
+                            val extractedCount = jsonObj.optInt("questionsCount", localClassification.totalQuestionsDetected).coerceAtLeast(0)
+                            val extractedDuration = jsonObj.optInt("timerMinutes", 0).coerceAtLeast(0)
+                            val extractedMarks = jsonObj.optDouble("totalMarks", 0.0).takeIf { it.isFinite() && it > 0.0 } ?: 0.0
 
                             val result = AnalyzedTestResult(
-                                title = jsonObj.optString("title", "${examConfig?.shortName ?: detectedExam} Practice Test"),
-                                institute = jsonObj.optString("institute", "Previous Year Paper"),
-                                targetExam = examConfig?.examName ?: detectedExam,
-                                subject = jsonObj.optString("subject", examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "Full Syllabus"),
+                                title = jsonObj.optString("title", "${examConfig.shortName} Imported PDF").ifBlank { "${examConfig.shortName} Imported PDF" },
+                                institute = jsonObj.optString("institute", "").trim(),
+                                targetExam = examConfig.examName,
+                                subject = jsonObj.optString("subject", "Full Syllabus").ifBlank { "Full Syllabus" },
                                 classLevel = jsonObj.optString("classLevel", "All"),
-                                testType = jsonObj.optString("testType", "Full Syllabus"),
-                                chapter = jsonObj.optString("chapter", "Full Syllabus"),
-                                timerMinutes = if (extractedDuration > 0) extractedDuration else officialDefaultDuration,
-                                questionsCount = if (extractedCount > 0) extractedCount else officialDefaultQuestions,
-                                totalMarks = if (extractedMarks > 0) extractedMarks else officialTotalMarks,
-                                language = jsonObj.optString("language", "English"),
-                                confidence = jsonObj.optInt("confidence", 95),
+                                testType = jsonObj.optString("testType", "Unclassified").ifBlank { "Unclassified" },
+                                chapter = jsonObj.optString("chapter", "Unclassified").ifBlank { "Unclassified" },
+                                timerMinutes = extractedDuration,
+                                questionsCount = extractedCount,
+                                totalMarks = extractedMarks,
+                                language = jsonObj.optString("language", "Unknown"),
+                                confidence = jsonObj.optInt("confidence", 0).coerceIn(0, 100),
                                 detectedQuestionsCount = localClassification.totalQuestionsDetected,
                                 isQuestionPaperDetected = isQuestionsDetected,
                                 autoRoutedWorkflow = routedWorkflow,
@@ -5355,12 +5358,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val lowerText = extractedText.lowercase()
 
             // 1. Detect Target Exam from text across 20 exams
-            val detectedExamConfig = registeredExams.find { exam ->
+            val detectedExamConfig = registeredExams.singleOrNull { exam ->
                 lowerText.contains(exam.examName.lowercase()) ||
                 lowerText.contains(exam.shortName.lowercase()) ||
                 lowerText.contains(exam.examId.lowercase().replace("_", " "))
             } ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
-              ?: registeredExams.first()
+                ?: throw IllegalArgumentException("Could not identify one exact exam from the PDF. Select the exam manually; no default exam will be assigned.")
+            require(detectedExamConfig.active && detectedExamConfig.verified) {
+                "The detected exam is not source-verified. No scoring or test metadata will be guessed."
+            }
+            require(detectedExamConfig.stages.size == 1 && detectedExamConfig.stages.single().papers.size == 1) {
+                "Select an exact stage and paper before analyzing this exam."
+            }
 
             val detectedExamName = detectedExamConfig.examName
 
@@ -5374,14 +5383,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 lowerText.contains("adda247") -> "Adda247"
                 lowerText.contains("unacademy") -> "Unacademy"
                 lowerText.contains("byju") -> "BYJU'S"
-                else -> "Previous Year Paper"
+                else -> "Unknown Source"
             }
 
             // 3. Match Exam-Specific Subjects from UniversalExamRegistry
             val availableSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(detectedExamName)
-            val matchedSubject = availableSubjects.find { subj ->
+            val matchedSubject = availableSubjects.singleOrNull { subj ->
                 lowerText.contains(subj.lowercase())
-            } ?: availableSubjects.firstOrNull() ?: "Full Syllabus"
+            } ?: "Full Syllabus"
 
             val matchedType = when {
                 lowerText.contains("full test") || lowerText.contains("full syllabus") || lowerText.contains("fts") || lowerText.contains("mock test") -> "Full Syllabus"
@@ -5389,27 +5398,26 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 else -> "Single Chapter"
             }
 
-            val defaultQuestions = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(detectedExamName)
-            val defaultDuration = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultDurationMinutesForExam(detectedExamName)
-            val defaultMarks = detectedExamConfig.stages.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 100.0
+            // Fallback mode reports only detected source facts. It never fabricates a
+            // question count, part-test ratio, duration, marks, class, or PYQ provenance.
+            val finalQuestionsCount = localClassification.totalQuestionsDetected.coerceAtLeast(0)
+            val finalDuration = 0
+            val defaultMarks = 0.0
 
-            val finalQuestionsCount = if (matchedType == "Full Syllabus") defaultQuestions else (defaultQuestions / 3).coerceAtLeast(25)
-            val finalDuration = if (matchedType == "Full Syllabus") defaultDuration else 60
-
-            val matchedTitle = "${matchedInstitute} ${detectedExamConfig.shortName} ${matchedType} - ${matchedSubject}"
+            val matchedTitle = "${matchedInstitute} ${detectedExamConfig.shortName} Imported Source - ${matchedSubject}"
             val result = AnalyzedTestResult(
                 title = matchedTitle,
                 institute = matchedInstitute,
                 targetExam = detectedExamName,
                 subject = matchedSubject,
-                classLevel = if (matchedType == "Full Syllabus") "Dropper / Graduate" else "12th",
+                classLevel = "All",
                 testType = matchedType,
-                chapter = if (matchedType == "Full Syllabus") "Full Syllabus" else "Important Topics",
+                chapter = if (matchedType == "Full Syllabus") "Full Syllabus" else "Unclassified",
                 timerMinutes = finalDuration,
                 questionsCount = finalQuestionsCount,
                 totalMarks = defaultMarks,
-                language = if (lowerText.contains("hindi") || lowerText.any { it.code in 0x0900..0x097F }) "Hindi" else "English",
-                confidence = 80,
+                language = if (lowerText.contains("hindi") || lowerText.any { it.code in 0x0900..0x097F }) "Hindi" else "Unknown",
+                confidence = 0,
                 detectedQuestionsCount = localClassification.totalQuestionsDetected,
                 isQuestionPaperDetected = isQuestionsDetected,
                 autoRoutedWorkflow = routedWorkflow,
