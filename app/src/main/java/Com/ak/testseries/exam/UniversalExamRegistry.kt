@@ -1254,167 +1254,64 @@ object UniversalExamRegistry {
         questionTypeStr: String? = null
     ): Pair<Double, Double> {
         val config = findExamByNameOrShortName(examName)
-            ?: throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
-        require(config.verified) { "Scoring configuration for '$examName' is not source-verified." }
-        val secQuery = sectionIdOrName?.trim()?.lowercase() ?: ""
-        val subQuery = subjectName?.trim()?.lowercase() ?: ""
-        val typeQuery = questionTypeStr?.trim()?.uppercase() ?: ""
-
-        // Specific handling for JEE Advanced section/question-type resolution
-        if (config.examId == "jee_advanced" || config.shortName.equals("JEE Adv", ignoreCase = true) || config.examName.contains("Advanced", ignoreCase = true)) {
-            val isMulti = secQuery.contains("multi") || typeQuery == "MCQ_MULTIPLE" || typeQuery == "MULTIPLE"
-            val isNum = secQuery.contains("num") || secQuery.contains("nvq") ||
-                    typeQuery == "NUMERICAL" || typeQuery == "NUMERICAL_VALUE" || typeQuery == "TITA"
-            val isSingle = secQuery.contains("single") || typeQuery == "MCQ_SINGLE" || typeQuery == "MCQ" || typeQuery == "DIRECT_MCQ"
-
-            if (isMulti) return Pair(4.0, 2.0)
-            if (isNum) return Pair(3.0, 0.0)
-            if (isSingle) return Pair(3.0, 1.0)
+            ?: throw IllegalArgumentException("Unsupported exam scoring scheme: '$examName'")
+        require(config.active && config.verified) {
+            "Scoring configuration for '$examName' is not source-verified."
         }
-
-        // Specific handling for NDA & NA section/paper resolution
-        if (config.shortName.equals("NDA", ignoreCase = true) || config.examId.equals("nda", ignoreCase = true)) {
-            val isMath = secQuery.contains("math") || subQuery.contains("math")
-            val isGat = secQuery.contains("gat") || secQuery.contains("eng") || secQuery.contains("gk") ||
-                    subQuery.contains("gat") || subQuery.contains("eng") || subQuery.contains("gk") ||
-                    subQuery.contains("aware") || subQuery.contains("knowl") || subQuery.contains("science") ||
-                    subQuery.contains("history") || subQuery.contains("geograph")
-
-            if (isMath && !isGat) {
-                return Pair(2.5, 0.83)
-            }
-            if (isGat) {
-                return Pair(4.0, 1.33)
-            }
+        val stage = config.stages.singleOrNull()
+            ?: throw IllegalArgumentException("Exact stage is required for '$examName'.")
+        val paper = stage.papers.singleOrNull()
+            ?: throw IllegalArgumentException("Exact paper is required for '$examName'.")
+        val subjectQuery = subjectName?.trim().orEmpty()
+        val subject = paper.subjects.singleOrNull {
+            it.subjectId.equals(subjectQuery, true) || it.subjectName.equals(subjectQuery, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous subject '$subjectQuery' for '$examName'.")
+        val sectionQuery = sectionIdOrName?.trim().orEmpty()
+        val section = subject.sections.singleOrNull {
+            it.sectionId.equals(sectionQuery, true) || it.sectionName.equals(sectionQuery, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous section '$sectionQuery' for '$examName'.")
+        val type = questionTypeStr?.trim()?.uppercase().orEmpty()
+        val acceptedTypes = when (section.questionType) {
+            QuestionType.MCQ_SINGLE -> setOf("MCQ_SINGLE", "MCQ", "DIRECT_MCQ")
+            QuestionType.NUMERICAL_VALUE, QuestionType.TITA -> setOf("NUMERICAL_VALUE", "NUMERICAL", "TITA", "NAT")
+            else -> setOf(section.questionType.name)
         }
-
-        // Specific handling for CDS section/paper resolution
-        if (config.shortName.equals("CDS", ignoreCase = true) || config.examId.equals("cds", ignoreCase = true)) {
-            val isMath = secQuery.contains("math") || subQuery.contains("math")
-            if (isMath) {
-                return Pair(1.0, 0.33)
-            } else {
-                return Pair(0.83, 0.27)
-            }
+        require(type in acceptedTypes) {
+            "Question type '$type' conflicts with verified section '${section.sectionId}'."
         }
-
-        // Specific handling for GATE section/question-type resolution
-        if (config.shortName.equals("GATE", ignoreCase = true) || config.examId.equals("gate", ignoreCase = true)) {
-            val is2Mark = secQuery.contains("2m") || secQuery.contains("2-mark") || secQuery.contains("2_mark") ||
-                    secQuery.contains("2 mark") || subQuery.contains("2m")
-            val isTechOrNumerical = secQuery.contains("tech") || typeQuery == "NUMERICAL_VALUE" ||
-                    typeQuery == "NUMERICAL" || typeQuery == "TITA" || subQuery.contains("tech") ||
-                    subQuery.contains("engineering")
-
-            if (isTechOrNumerical) {
-                return if (is2Mark) Pair(2.0, 0.0) else Pair(1.0, 0.0)
-            } else {
-                return if (is2Mark) Pair(2.0, 0.66) else Pair(1.0, 0.33)
-            }
-        }
-
-        // Specific handling for SSC MTS section/session resolution
-        if (config.shortName.equals("MTS", ignoreCase = true) || config.examId.equals("ssc_mts", ignoreCase = true) || config.examName.contains("MTS", ignoreCase = true)) {
-            val isSession1 = secQuery.contains("session_1") || secQuery.contains("math") || secQuery.contains("reason") ||
-                    secQuery == "math_sec" || secQuery == "reaz_sec" ||
-                    subQuery.contains("session_1") || subQuery.contains("math") || subQuery.contains("reason") ||
-                    subQuery.contains("numerical")
-            val isSession2 = secQuery.contains("session_2") || secQuery.contains("ga") || secQuery.contains("eng") ||
-                    secQuery == "ga_sec" || secQuery == "eng_sec" ||
-                    subQuery.contains("session_2") || subQuery.contains("general") || subQuery.contains("awareness") ||
-                    subQuery.contains("english")
-
-            if (isSession2 && !isSession1) {
-                return Pair(3.0, 1.0)
-            }
-            if (isSession1) {
-                return Pair(3.0, 0.0)
-            }
-        }
-
-        // Generic section match across configured stages and papers
-        if (secQuery.isNotBlank() && secQuery != "section_a" && secQuery != "section_b") {
-            for (stage in config.stages) {
-                for (paper in stage.papers) {
-                    for (subject in paper.subjects) {
-                        for (sec in subject.sections) {
-                            if (sec.sectionId.equals(secQuery, ignoreCase = true) ||
-                                sec.sectionName.equals(sectionIdOrName?.trim(), ignoreCase = true) ||
-                                sec.sectionName.lowercase() == secQuery
-                            ) {
-                                return Pair(sec.positiveMarks, sec.negativeMarks)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Generic subject match
-        if (subQuery.isNotBlank()) {
-            for (stage in config.stages) {
-                for (paper in stage.papers) {
-                    for (subject in paper.subjects) {
-                        if (subject.subjectId.equals(subQuery, ignoreCase = true) ||
-                            subject.subjectName.equals(subjectName?.trim(), ignoreCase = true) ||
-                            subject.subjectName.lowercase().contains(subQuery) ||
-                            subQuery.contains(subject.subjectName.lowercase())
-                        ) {
-                            val sec = subject.sections.firstOrNull()
-                            if (sec != null) return Pair(sec.positiveMarks, sec.negativeMarks)
-                        }
-                    }
-                }
-            }
-        }
-
-        return getMarkingSchemeForExam(examName)
-    }
-
-    fun hasMultipleMarkingSchemes(examName: String): Boolean {
-        val config = findExamByNameOrShortName(examName) ?: return false
-        if (config.shortName.equals("NDA", ignoreCase = true) || config.examId.equals("nda", ignoreCase = true) ||
-            config.shortName.equals("CDS", ignoreCase = true) || config.examId.equals("cds", ignoreCase = true) ||
-            config.shortName.equals("GATE", ignoreCase = true) || config.examId.equals("gate", ignoreCase = true) ||
-            config.shortName.equals("MTS", ignoreCase = true) || config.examId.equals("ssc_mts", ignoreCase = true) ||
-            config.examId == "jee_advanced" || config.shortName.equals("JEE Adv", ignoreCase = true) || config.examName.contains("Advanced", ignoreCase = true)
-        ) {
-            return true
-        }
-
-        val allSections = config.stages.flatMap { it.papers.flatMap { p -> p.subjects.flatMap { s -> s.sections } } }
-        if (allSections.size > 1) {
-            val firstPos = allSections.first().positiveMarks
-            val firstNeg = allSections.first().negativeMarks
-            return allSections.any { it.positiveMarks != firstPos || it.negativeMarks != firstNeg }
-        }
-        return false
+        return Pair(section.positiveMarks, section.negativeMarks)
     }
 
     fun getMaximumAttemptQuestionsCountForExam(examName: String): Int? {
-        val config = findExamByNameOrShortName(examName) ?: return null
-        val paper = config.stages.firstOrNull()?.papers?.firstOrNull() ?: return null
-        val totalComp = paper.subjects.sumOf { subj -> subj.sections.sumOf { it.compulsoryQuestions } }
-        val totalPaper = paper.subjects.sumOf { subj -> subj.sections.sumOf { it.totalQuestions } }
-        return if (totalComp in 1 until totalPaper) totalComp else null
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) {
+            "Question-count policy for '$examName' is not source-verified."
+        }
+        require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
+            "Exact stage and paper are required for '$examName'."
+        }
+        val paper = config.stages.single().papers.single()
+        val total = paper.subjects.sumOf { subject -> subject.sections.sumOf { it.compulsoryQuestions } }
+        require(total > 0) { "Question count is not configured for '$examName'." }
+        return total
     }
 
     fun getMaximumAttemptQuestionsCountForSubject(examName: String, subjectNameOrId: String): Int? {
-        val config = findExamByNameOrShortName(examName) ?: return null
-        val clean = subjectNameOrId.trim()
-        if (clean.equals("biology", ignoreCase = true) && (config.shortName.equals("NEET", ignoreCase = true) || config.examId.contains("neet", ignoreCase = true))) {
-            return 90
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) {
+            "Subject question-count policy for '$examName' is not source-verified."
         }
-        val allPapers = config.stages.flatMap { it.papers }
-        val subject = allPapers.flatMap { it.subjects }.find {
-            it.subjectId.equals(clean, ignoreCase = true) ||
-            it.subjectName.equals(clean, ignoreCase = true) ||
-            clean.contains(it.subjectId, ignoreCase = true) ||
-            clean.contains(it.subjectName, ignoreCase = true)
-        } ?: return null
-        val totalComp = subject.sections.sumOf { it.compulsoryQuestions }
-        val totalPaper = subject.sections.sumOf { it.totalQuestions }
-        return if (totalComp in 1 until totalPaper) totalComp else null
+        val paper = config.stages.singleOrNull()?.papers?.singleOrNull()
+            ?: throw IllegalArgumentException("Exact stage and paper are required for '$examName'.")
+        val query = subjectNameOrId.trim()
+        val subject = paper.subjects.singleOrNull {
+            it.subjectId.equals(query, true) || it.subjectName.equals(query, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous subject '$query'.")
+        val total = subject.sections.sumOf { it.compulsoryQuestions }
+        require(total > 0) { "Question count is not configured for '$query'." }
+        return total
     }
 
     fun getMaximumAttemptQuestionsCountForSection(
@@ -1422,44 +1319,22 @@ object UniversalExamRegistry {
         sectionNameOrId: String,
         subjectName: String? = null
     ): Int? {
-        val config = findExamByNameOrShortName(examName) ?: return null
-        val secClean = sectionNameOrId.trim().lowercase()
-        val subClean = subjectName?.trim()?.lowercase() ?: ""
-
-        val allPapers = config.stages.flatMap { it.papers }
-        for (paper in allPapers) {
-            for (subject in paper.subjects) {
-                if (subClean.isNotEmpty() &&
-                    !subject.subjectId.equals(subClean, ignoreCase = true) &&
-                    !subject.subjectName.equals(subClean, ignoreCase = true) &&
-                    !subClean.contains(subject.subjectId.lowercase()) &&
-                    !subject.subjectName.lowercase().contains(subClean)
-                ) {
-                    continue
-                }
-                for (sec in subject.sections) {
-                    val idMatch = sec.sectionId.equals(secClean, ignoreCase = true)
-                    val nameMatch = sec.sectionName.equals(secClean, ignoreCase = true)
-                    val isSecB = (secClean == "section_b" || secClean == "section b") &&
-                            (sec.sectionId.contains("sec_b") || sec.sectionName.contains("Section B"))
-                    val isSecA = (secClean == "section_a" || secClean == "section a") &&
-                            (sec.sectionId.contains("sec_a") || sec.sectionName.contains("Section A"))
-
-                    if (idMatch || nameMatch || isSecB || isSecA) {
-                        if (sec.compulsoryQuestions in 1 until sec.totalQuestions) {
-                            return sec.compulsoryQuestions
-                        }
-                    }
-                }
-            }
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) {
+            "Section attempt policy for '$examName' is not source-verified."
         }
-        // Fallback for Section B when subject is generic or not matched
-        if (secClean == "section_b" || secClean.contains("section b")) {
-            val isNeet = config.shortName.equals("NEET", ignoreCase = true) || config.examId.contains("neet", ignoreCase = true)
-            if (isNeet) return 10
-            val isJee = config.shortName.equals("JEE", ignoreCase = true) || config.examId.contains("jee", ignoreCase = true)
-            if (isJee) return 5
-        }
+        val paper = config.stages.singleOrNull()?.papers?.singleOrNull()
+            ?: throw IllegalArgumentException("Exact stage and paper are required for '$examName'.")
+        val subjectQuery = subjectName?.trim().orEmpty()
+        val subject = paper.subjects.singleOrNull {
+            it.subjectId.equals(subjectQuery, true) || it.subjectName.equals(subjectQuery, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous subject '$subjectQuery'.")
+        val sectionQuery = sectionNameOrId.trim()
+        subject.sections.singleOrNull {
+            it.sectionId.equals(sectionQuery, true) || it.sectionName.equals(sectionQuery, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous section '$sectionQuery'.")
+        // Both verified 2026 patterns have compulsory sections only. There is no optional attempt cap.
         return null
     }
 
