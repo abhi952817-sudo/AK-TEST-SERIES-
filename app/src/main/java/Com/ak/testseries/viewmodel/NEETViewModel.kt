@@ -436,12 +436,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun fetchUserRank(selectedExam: String? = null, selectedClassLevel: String? = null) {
-        val rawExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
+        val rawExam = selectedExam?.takeIf { it.isNotBlank() } ?: leaderboardExamFilter.value.takeIf { it.isNotBlank() } ?: _userProfile.value.targetExam
         val classFilter = selectedClassLevel ?: leaderboardClassFilter.value
         leaderboardClassFilter.value = classFilter
         val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
 
-        if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || rawExam.equals("All", ignoreCase = true)) {
+        if (rawExam.isBlank() || canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || rawExam.equals("All", ignoreCase = true)) {
             _userQualifyingTestsCount.value = 0
             _userCompetitiveScore.value = 0
             _eligibleParticipantsCount.value = 0
@@ -1892,7 +1892,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val matchTargetExam = when {
                 userExam.isEmpty() || userExam.equals("All", ignoreCase = true) -> true
                 userExam.equals("NEET", ignoreCase = true) || userExam.equals("NEET UG", ignoreCase = true) -> {
-                    testExam.isEmpty() || testExam.contains("NEET", ignoreCase = true)
+                    testExam.isNotEmpty() && testExam.contains("NEET", ignoreCase = true)
                 }
                 userExam.equals("JEE", ignoreCase = true) || userExam.equals("JEE Main", ignoreCase = true) -> {
                     testExam.contains("JEE", ignoreCase = true)
