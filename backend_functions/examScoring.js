@@ -439,11 +439,11 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
     err.code = "failed-precondition";
     throw err;
   }
-  const status = String(testData.status || "").trim().toUpperCase();
+  const status = String(testData.status || "").trim();
   const countsTowardRanking = testData.isOfficial === true &&
     testData.isPublic === true &&
     testData.countsTowardRanking === true &&
-    ["APPROVED", "PUBLISHED"].includes(status);
+    ["APPROVED", "PUBLISHED", "Published"].includes(status);
 
   const keyMap = new Map();
   if (privateKeyData) {
@@ -677,6 +677,7 @@ module.exports = {
   calculatePopulationPercentile,
   calculateScorePercentileFromCounts,
   validateAndMergeAnswerKeys,
+  validateFullTestQuestionCoverage,
   getExamEligibility,
   normalizeExamKey,
   resolveCanonicalExamIdentity,
