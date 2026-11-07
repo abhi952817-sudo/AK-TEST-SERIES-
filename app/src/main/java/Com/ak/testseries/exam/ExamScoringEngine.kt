@@ -7,6 +7,7 @@ data class SubjectStatData(
     var total: Int = 0,
     var correct: Int = 0,
     var incorrect: Int = 0,
+    var ungraded: Int = 0,
     var score: Double = 0.0,
     var maxScore: Double = 0.0
 ) {
@@ -274,71 +275,46 @@ object ExamScoringEngine {
         questions: List<QuestionEntity>,
         userAnswers: Map<String, String>
     ): List<SubjectStatData> {
-        val (posMark, negMark) = getMarkingScheme(targetExam)
-        val isMultiScheme = UniversalExamRegistry.hasMultipleMarkingSchemes(targetExam)
-        val isCat = targetExam.equals("CAT", ignoreCase = true) || targetExam.contains("CAT", ignoreCase = true)
-
+        getMarkingScheme(targetExam)
         val statsMap = linkedMapOf<String, SubjectStatData>()
-        val sectionAttemptCounts = mutableMapOf<String, Int>()
 
         questions.forEach { question ->
-            val subjectKey = question.subject.ifBlank { "General" }
-            val stat = statsMap.getOrPut(subjectKey) {
-                SubjectStatData(subject = subjectKey)
-            }
+            val subjectKey = question.subject.ifBlank { "Unknown" }
+            val stat = statsMap.getOrPut(subjectKey) { SubjectStatData(subject = subjectKey) }
             stat.total++
 
-            val (qPosMark, qNegMark) = if (isMultiScheme) {
-                UniversalExamRegistry.getMarkingSchemeForQuestion(targetExam, question.section, question.subject, question.questionType)
-            } else {
-                Pair(posMark, negMark)
+            val policy = try {
+                UniversalExamRegistry.getMarkingSchemeForQuestion(
+                    targetExam, question.section, question.subject, question.questionType
+                )
+            } catch (_: IllegalArgumentException) {
+                stat.ungraded++
+                return@forEach
             }
+            val qPosMark = policy.first
+            val qNegMark = policy.second
             stat.maxScore += qPosMark
 
-            val isTitaOrNumerical = question.questionType.equals("TITA", ignoreCase = true) ||
-                    question.questionType.equals("NUMERICAL", ignoreCase = true) ||
-                    question.questionType.equals("NUMERICAL_VALUE", ignoreCase = true)
-            val effectiveNegMark = if (isCat && isTitaOrNumerical) 0.0 else qNegMark
+            val correctOpt = question.correctAnswer.trim().uppercase()
+            val numerical = question.questionType.equals("NUMERICAL_VALUE", true) ||
+                question.questionType.equals("NUMERICAL", true) ||
+                question.questionType.equals("TITA", true) ||
+                question.questionType.equals("NAT", true)
+            val keyVerified = if (numerical) correctOpt.toDoubleOrNull()?.isFinite() == true
+                else correctOpt in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            if (!keyVerified) {
+                stat.ungraded++
+                return@forEach
+            }
 
             val userOpt = userAnswers[question.id]?.trim()?.uppercase()
-            val correctOpt = question.correctAnswer.trim().uppercase()
-            val isKeyVerified = isAnswerKeyVerified(correctOpt)
-
-            if (userOpt.isNullOrEmpty()) {
-                // Unanswered / skipped
+            if (userOpt.isNullOrEmpty()) return@forEach
+            if (isUserAnswerCorrect(userOpt, correctOpt, numerical)) {
+                stat.correct++
+                stat.score += qPosMark
             } else {
-                val secKey = "${question.subject.lowercase().trim()}_${question.section.lowercase().trim()}"
-                val secLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                    examName = targetExam,
-                    sectionNameOrId = question.section,
-                    subjectName = question.subject
-                )
-                val currentAttempts = sectionAttemptCounts.getOrDefault(secKey, 0)
-                if (secLimit != null && currentAttempts >= secLimit) {
-                    // Surplus optional question beyond limit - ignored
-                } else {
-                    if (secLimit != null) {
-                        sectionAttemptCounts[secKey] = currentAttempts + 1
-                    }
-                    if (!isKeyVerified) {
-                        // Unverified key
-                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
-                        stat.correct++
-                        stat.score += qPosMark
-                    } else {
-                        stat.incorrect++
-                        stat.score -= effectiveNegMark
-                    }
-                }
-            }
-        }
-
-        if (!isMultiScheme) {
-            statsMap.forEach { (subKey, stat) ->
-                val maxAllowedQs = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSubject(targetExam, subKey)
-                if (maxAllowedQs != null && stat.total > maxAllowedQs) {
-                    stat.maxScore = maxAllowedQs * posMark
-                }
+                stat.incorrect++
+                stat.score -= qNegMark
             }
         }
 
