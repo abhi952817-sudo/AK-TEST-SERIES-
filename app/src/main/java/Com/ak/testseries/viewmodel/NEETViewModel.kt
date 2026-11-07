@@ -2396,6 +2396,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     val answer = qObj.optString("correctAnswer").trim()
                     require(answer.isNotBlank()) { "Question ${i + 1} has no answer key." }
+                    qClean.put("correctAnswer", answer)
                     if (numerical) require(answer.toDoubleOrNull()?.isFinite() == true) {
                         "Question ${i + 1} has invalid numerical answer key."
                     } else require(answer.uppercase() in listOf("A", "B", "C", "D", "1", "2", "3", "4")) {
