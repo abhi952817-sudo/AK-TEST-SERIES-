@@ -789,17 +789,27 @@ async function rebuildRankingV2ForUser(userId) {
     const rawScore = Number(attempt.authoritativeScore !== undefined ? attempt.authoritativeScore : attempt.score);
     const maxScore = Number(attempt.maxScore);
     if (!Number.isFinite(rawScore) || !Number.isFinite(maxScore) || maxScore <= 0) continue;
-    let testData = {};
     let testSnap = await db.collection("Tests_Data").doc(testId).get();
     if (!testSnap.exists) testSnap = await db.collection("Tests").doc(testId).get();
-    if (testSnap.exists) testData = testSnap.data() || {};
+    // Do not backfill orphaned, private, community, pending, or unapproved tests.
+    // Old attempt flags alone are not sufficient proof of official ranking eligibility.
+    if (!testSnap.exists) continue;
+    const testData = testSnap.data() || {};
+    const testStatus = String(testData.status || "").trim().toUpperCase();
+    if (
+      testData.isOfficial !== true ||
+      testData.isPublic !== true ||
+      testData.countsTowardRanking !== true ||
+      !["APPROVED", "PUBLISHED"].includes(testStatus)
+    ) continue;
 
-    // Historical ranking must use an explicit exam identity and a known weight.
-    // Subject labels are not exam IDs (e.g. Biology must never become a NEET guess).
-    const identity = attempt.targetExam || attempt.examId || testData.examId || testData.targetExam;
+    // Historical ranking must use the test's explicit exam identity, never a subject
+    // label or an attempt-supplied identity that could redirect it into another board.
+    const identity = testData.examId || testData.targetExam;
     if (typeof identity !== "string" || identity.trim().length === 0) continue;
     const examId = normalizeExamKey(identity);
     if (examId === "UNKNOWN" || examId === "ALL") continue;
+    if (attempt.targetExam && normalizeExamKey(attempt.targetExam) !== examId) continue;
     const storedWeight = Number(attempt.rankingWeight);
     const weight = storedWeight === 1 || storedWeight === 0.2 ? storedWeight : resolveRankingWeight(testData);
     if (weight !== 1 && weight !== 0.2) continue;
