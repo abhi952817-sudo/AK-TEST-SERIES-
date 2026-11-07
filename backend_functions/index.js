@@ -878,10 +878,75 @@ async function rebuildRankingV2ForUser(userId) {
     const parsed = Date.parse(String(value || ""));
     return Number.isFinite(parsed) ? parsed : 0;
   };
-  const attempts = [...byAttemptId.values()].sort((a, b) => attemptTime(a) - attemptTime(b));
+  const attempts = [...byAttemptId.values()].sort((a, b) => {
+    const aTime = attemptTime(a);
+    const bTime = attemptTime(b);
+    if (aTime === 0 && bTime !== 0) return 1;
+    if (bTime === 0 && aTime !== 0) return -1;
+    return aTime - bTime ||
+      String(a.attemptSessionToken || "").localeCompare(String(b.attemptSessionToken || ""));
+  });
   const seenTests = new Set();
   const exams = new Map();
   const periods = new Map();
+  const validatedTestCache = new Map();
+
+  const loadValidatedMigrationTest = async testId => {
+    if (validatedTestCache.has(testId)) return validatedTestCache.get(testId);
+    let testSnap = await db.collection("Tests_Data").doc(testId).get();
+    if (!testSnap.exists) testSnap = await db.collection("Tests").doc(testId).get();
+    if (!testSnap.exists) {
+      validatedTestCache.set(testId, null);
+      return null;
+    }
+    const testData = testSnap.data() || {};
+    if (!isEligibleHistoricalRankingTest(testData)) {
+      validatedTestCache.set(testId, null);
+      return null;
+    }
+
+    let examId;
+    let weight;
+    try {
+      examId = resolveCanonicalExamIdentity(testData);
+      weight = resolveRankingWeight(testData);
+      if (weight !== 1 && weight !== 0.2) throw new Error("Missing or conflicting Full/Part classification.");
+    } catch (_) {
+      validatedTestCache.set(testId, null);
+      return null;
+    }
+
+    let questions = [];
+    if (Array.isArray(testData.questionsJson)) {
+      questions = testData.questionsJson;
+    } else if (typeof testData.questionsJson === "string" && testData.questionsJson.trim()) {
+      try { questions = JSON.parse(testData.questionsJson); } catch (_) { questions = []; }
+    }
+    if (!Array.isArray(questions) || questions.length === 0) {
+      const lowerQuestions = await testSnap.ref.collection("questions").get();
+      if (!lowerQuestions.empty) {
+        questions = lowerQuestions.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      } else {
+        const upperQuestions = await testSnap.ref.collection("Questions").get();
+        if (!upperQuestions.empty) {
+          questions = upperQuestions.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        }
+      }
+    }
+
+    let privateKeyDoc = await testSnap.ref.collection("private_keys").doc("answerKey").get();
+    if (!privateKeyDoc.exists) privateKeyDoc = await db.collection("TestAnswerKeys").doc(testId).get();
+    const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+    try {
+      const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
+      const context = { testData, examId, weight, questions: validated.questions };
+      validatedTestCache.set(testId, context);
+      return context;
+    } catch (_) {
+      validatedTestCache.set(testId, null);
+      return null;
+    }
+  };
 
   for (const attempt of attempts) {
     const testId = String(attempt.testId || "");
@@ -890,53 +955,72 @@ async function rebuildRankingV2ForUser(userId) {
 
     const rawScore = Number(attempt.authoritativeScore !== undefined ? attempt.authoritativeScore : attempt.score);
     const maxScore = Number(attempt.maxScore);
-    if (!Number.isFinite(rawScore) || !Number.isFinite(maxScore) ||
-        maxScore <= 0 || rawScore < 0 || rawScore > maxScore + 0.000001) continue;
-    let testSnap = await db.collection("Tests_Data").doc(testId).get();
-    if (!testSnap.exists) testSnap = await db.collection("Tests").doc(testId).get();
-    // Do not backfill orphaned, private, community, pending, or unapproved tests.
-    // Old attempt flags alone are not sufficient proof of official ranking eligibility.
-    if (!testSnap.exists) continue;
-    const testData = testSnap.data() || {};
-    if (!isEligibleHistoricalRankingTest(testData)) continue;
+    if (!isEligibleScoringResult({
+      finalScore: rawScore,
+      maxScore,
+      ungradedCount: attempt.ungradedCount
+    })) continue;
 
-    // Historical ranking must use the test's explicit exam identity, never a subject
-    // label or an attempt-supplied identity that could redirect it into another board.
-    let examId;
+    const testContext = await loadValidatedMigrationTest(testId);
+    if (!testContext) continue;
+    if (attempt.targetExam && normalizeExamKey(attempt.targetExam) !== testContext.examId) continue;
+    if (attempt.examId && normalizeExamKey(attempt.examId) !== testContext.examId) continue;
+    if (attempt.stageId && attempt.stageId !== testContext.testData.stageId) continue;
+    if (attempt.paperId && attempt.paperId !== testContext.testData.paperId) continue;
+    if (attempt.rankingWeight !== undefined && attempt.rankingWeight !== null &&
+        Number(attempt.rankingWeight) !== testContext.weight) continue;
+
+    let answers;
     try {
-      // The same strict resolver used for live submissions rejects examId/targetExam conflicts.
-      examId = resolveCanonicalExamIdentity(testData);
+      answers = typeof attempt.answersJson === "string"
+        ? JSON.parse(attempt.answersJson)
+        : attempt.answersJson;
     } catch (_) {
       continue;
     }
-    if (attempt.targetExam && normalizeExamKey(attempt.targetExam) !== examId) continue;
-    const storedWeight = Number(attempt.rankingWeight);
-    const weight = storedWeight === 1 || storedWeight === 0.2 ? storedWeight : resolveRankingWeight(testData);
-    if (weight !== 1 && weight !== 0.2) continue;
+    if (!answers || typeof answers !== "object" || Array.isArray(answers)) continue;
+    const validQuestionIds = new Set(testContext.questions.map(question => String(question.id)));
+    if (Object.keys(answers).some(questionId => !validQuestionIds.has(String(questionId)))) continue;
+
+    let recalculated;
+    try {
+      recalculated = evaluateTestAttempt(
+        testContext.examId,
+        testContext.questions,
+        answers,
+        Number(attempt.timeSpentSeconds || 0)
+      );
+    } catch (_) {
+      continue;
+    }
+    if (!isEligibleScoringResult(recalculated) ||
+        Math.abs(recalculated.finalScore - rawScore) > 0.001 ||
+        Math.abs(recalculated.maxScore - maxScore) > 0.001) continue;
+
     seenTests.add(testId);
+    const weight = testContext.weight;
     const points = calculateWeightedRankingScore(rawScore, maxScore, weight);
-    const aggregate = exams.get(examId) || { score: 0, count: 0, maxSingleScore: 0 };
+    const aggregate = exams.get(testContext.examId) || { score: 0, count: 0, maxSingleScore: 0 };
     aggregate.score += points;
     aggregate.count += 1;
     aggregate.maxSingleScore = Math.max(aggregate.maxSingleScore, rawScore);
-    exams.set(examId, aggregate);
+    exams.set(testContext.examId, aggregate);
 
     const timestamp = attemptTime(attempt);
-    // Missing/invalid historical timestamps must never be assigned to the migration day.
-    // Keep the exam aggregate, but omit period buckets whose source date cannot be proven.
+    // Invalid historical timestamps may contribute to the exam aggregate, but never to a guessed period.
     if (timestamp > 0) {
       const periodIds = getRankingPeriodIds(timestamp);
       for (const item of [
-      { type: "HALF_MONTH", id: periodIds.halfMonthId },
-      { type: "MONTH", id: periodIds.monthId }
-    ]) {
-      const key = examId + ":" + item.type + ":" + item.id;
-      const period = periods.get(key) || {
-        examId, periodType: item.type, periodId: item.id, score: 0, count: 0
-      };
-      period.score += points;
-      period.count += 1;
-      periods.set(key, period);
+        { type: "HALF_MONTH", id: periodIds.halfMonthId },
+        { type: "MONTH", id: periodIds.monthId }
+      ]) {
+        const key = testContext.examId + ":" + item.type + ":" + item.id;
+        const period = periods.get(key) || {
+          examId: testContext.examId, periodType: item.type, periodId: item.id, score: 0, count: 0
+        };
+        period.score += points;
+        period.count += 1;
+        periods.set(key, period);
       }
     }
   }
