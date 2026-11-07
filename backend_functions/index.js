@@ -953,8 +953,12 @@ async function rebuildRankingV2ForUser(userId) {
   for (const attempt of attempts) {
     const testId = String(attempt.testId || "");
     if (!testId || seenTests.has(testId)) continue;
+    if (attempt.userId && String(attempt.userId) !== uid) continue;
     if (attempt.verifiedServerSide !== true || attempt.countsTowardRanking !== true ||
         attempt.isFirstQualifyingAttempt === false) continue;
+    const timeSpentSeconds = Number(attempt.timeSpentSeconds);
+    if (attempt.timeSpentSeconds === undefined || attempt.timeSpentSeconds === null ||
+        !Number.isFinite(timeSpentSeconds) || timeSpentSeconds < 0 || timeSpentSeconds > 86400) continue;
     // Claim the canonical first qualifying attempt before revalidation. If its trusted
     // source data is missing/corrupt, never substitute a later repeat attempt.
     seenTests.add(testId);
@@ -994,7 +998,7 @@ async function rebuildRankingV2ForUser(userId) {
         testContext.examId,
         testContext.questions,
         answers,
-        Number(attempt.timeSpentSeconds || 0)
+        timeSpentSeconds
       );
     } catch (_) {
       continue;
