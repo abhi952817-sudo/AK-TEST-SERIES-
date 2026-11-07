@@ -72,7 +72,7 @@ class UniversalRankingAndIdentityTest {
         assertEquals(
             4.0 to 1.0,
             UniversalExamRegistry.getMarkingSchemeForQuestion(
-                "JEE Main", "math_sec_b", "Mathematics", "NUMERICAL_VALUE"
+                "JEE Main P1", "math_sec_b", "Mathematics", "NUMERICAL_VALUE"
             )
         )
         try {
@@ -203,7 +203,7 @@ class UniversalRankingAndIdentityTest {
         }
         assertNull(
             UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                "JEE Main", "phy_sec_b", "Physics"
+                "JEE Main P1", "phy_sec_b", "Physics"
             )
         )
     }
