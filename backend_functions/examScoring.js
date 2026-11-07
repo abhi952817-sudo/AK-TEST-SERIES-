@@ -444,7 +444,8 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
       const answer = String(q.correctAnswer || "").trim().toUpperCase();
       const isNumerical = policy.questionType === "NUMERICAL_VALUE";
       const validAnswer = isNumerical
-        ? isFiniteNumericAnswer(answer)
+        ? isFiniteNumericAnswer(answer) &&
+          (!policy.integerAnswerRequired || Number.isInteger(Number(answer)))
         : ["A", "B", "C", "D"].includes(answer);
       if (!validAnswer) {
         const err = new Error("Ranking-eligible question has an invalid trusted answer key.");
