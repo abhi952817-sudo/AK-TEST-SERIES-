@@ -12,7 +12,7 @@ const {
   getMarkingSchemeForExam,
 } = require("./examScoring");
 const {
-  RANKING_CONFIG, clampRankingLimit, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
+  RANKING_CONFIG, clampRankingLimit, canAdvanceRankingMigrationCheckpoint, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
   isEligibleScoringResult, isEligibleHistoricalRankingTest,
   getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, isValidRankingPeriodId, isValidRankingWeekId, normalizeClassLevel, resolveClassLevelFilter,
   getLeagueForXp, calculateXpAward, calculateDailyStreak, calculatePercentileFromCounts, buildTestRankingSnapshot, getRankingStatus, getCohortRankingStatus
@@ -1050,18 +1050,32 @@ exports.rebuildRankingV2Batch = functions.https.onCall(async (data, context) => 
   for (const doc of snapshot.docs) {
     results.push(await rebuildRankingV2ForUser(doc.id));
   }
-  const nextCursor = snapshot.size === limit ? snapshot.docs[snapshot.docs.length - 1].id : null;
-  const hasMore = snapshot.size === limit;
-  await migrationStateRef.set({
-    lastProcessedUid: nextCursor || effectiveCursor || null,
-    hasMore,
-    completed: !hasMore,
-    lastBatchProcessed: snapshot.size,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
+  const proposedCursor = snapshot.size === limit ? snapshot.docs[snapshot.docs.length - 1].id : null;
+  const proposedHasMore = snapshot.size === limit;
+  let nextCursor = proposedCursor || effectiveCursor || null;
+  let hasMore = proposedHasMore;
+  let checkpointAdvanced = false;
+  await db.runTransaction(async transaction => {
+    const latestStateSnap = await transaction.get(migrationStateRef);
+    const latestState = latestStateSnap.exists ? latestStateSnap.data() : {};
+    if (!canAdvanceRankingMigrationCheckpoint(latestState, effectiveCursor)) {
+      // Another worker already advanced or completed this checkpoint. Never regress it.
+      nextCursor = latestState.completed === true ? null : (latestState.lastProcessedUid || null);
+      hasMore = latestState.completed === true ? false : latestState.hasMore === true;
+      return;
+    }
+    transaction.set(migrationStateRef, {
+      lastProcessedUid: proposedCursor || effectiveCursor || null,
+      hasMore: proposedHasMore,
+      completed: !proposedHasMore,
+      lastBatchProcessed: snapshot.size,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    checkpointAdvanced = true;
+  });
   return {
     success: true, processed: snapshot.size,
-    nextCursor, hasMore, results
+    nextCursor, hasMore, checkpointAdvanced, results
   };
 });
 
