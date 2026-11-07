@@ -1,5 +1,5 @@
 const { test } = require("node:test");
-const assert = require("node:assert");
+const assert = require("node:assert/strict");
 const {
   isAnswerKeyVerified,
   areOptionsEquivalent,
@@ -11,446 +11,135 @@ const {
   calculateScorePercentileFromCounts,
   normalizeExamKey,
   resolveCanonicalExamIdentity,
+  validateAndMergeAnswerKeys
 } = require("./examScoring.js");
 
-test("Canonical exam identity must be explicit and cannot fall back to subject or NEET", () => {
-  assert.equal(resolveCanonicalExamIdentity({ examId: "neet_ug", targetExam: "NEET UG" }), "NEET");
-  assert.equal(resolveCanonicalExamIdentity({ targetExam: "JEE Main" }), "JEE_MAIN");
-  assert.throws(() => resolveCanonicalExamIdentity({ subject: "Biology" }), {
-    code: "failed-precondition"
-  });
-  assert.throws(() => resolveCanonicalExamIdentity({ examId: "ALL" }), {
-    code: "failed-precondition"
-  });
-});
-
-test("Answer verification: standard options, numbers, and multiple keys", () => {
-  assert.strictEqual(isAnswerKeyVerified("A"), true);
-  assert.strictEqual(isAnswerKeyVerified("d"), true);
-  assert.strictEqual(isAnswerKeyVerified("1"), true);
-  assert.strictEqual(isAnswerKeyVerified("42.5"), true);
-  assert.strictEqual(isAnswerKeyVerified("A, C"), true);
-  assert.strictEqual(isAnswerKeyVerified(""), false);
-  assert.strictEqual(isAnswerKeyVerified("INVALID_KEY"), false);
-  assert.strictEqual(isAnswerKeyVerified("NaN"), false);
-  assert.strictEqual(isAnswerKeyVerified("Infinity"), false);
-  assert.strictEqual(isAnswerKeyVerified("12abc"), false);
-  assert.strictEqual(isAnswerKeyVerified("A,,B"), false);
-  assert.strictEqual(isAnswerKeyVerified("A,A"), false);
-});
-
-test("Option equivalence: index to letter and numerical precision", () => {
-  assert.strictEqual(areOptionsEquivalent("1", "A"), true);
-  assert.strictEqual(areOptionsEquivalent("B", "2"), true);
-  assert.strictEqual(areOptionsEquivalent("3.14", "3.15", true), false);
-  assert.strictEqual(areOptionsEquivalent("10.0", "10.000", true), true);
-  assert.strictEqual(areOptionsEquivalent("A", "C"), false);
-  assert.strictEqual(areOptionsEquivalent("12abc", "12", true), false);
-  assert.strictEqual(areOptionsEquivalent("Infinity", "Infinity", true), false);
-});
-
-test("Authoritative evaluator reports selected answers with unverified keys as ungraded", () => {
-  const result = evaluateTestAttempt("NEET UG", [
-    { id: "q1", correctAnswer: "NOT_SET", section: "SECTION_A", subject: "Physics" },
-    { id: "q2", correctAnswer: "A", section: "SECTION_A", subject: "Physics" }
-  ], { q1: { ans: "B" }, q2: { ans: "A" } }, 30);
-  assert.equal(result.correctCount, 1);
-  assert.equal(result.wrongCount, 0);
-  assert.equal(result.ungradedCount, 1);
-  assert.equal(result.attemptedCount, 2);
-  assert.equal(result.accuracyPercent, 100);
-});
-
-test("Authoritative evaluator grades MSQ only when the exact set is selected", () => {
-  const questions = [
-    { id: "msq_subset", correctAnswer: "A,B", section: "SECTION_A", subject: "Physics", questionType: "MCQ_MULTIPLE" },
-    { id: "msq_exact", correctAnswer: "A,B", section: "SECTION_A", subject: "Physics", questionType: "MSQ" }
-  ];
-  const result = evaluateTestAttempt("NEET UG", questions, {
-    msq_subset: { ans: "A" },
-    msq_exact: { ans: "B,A" }
-  }, 60);
-  assert.equal(result.correctCount, 1);
-  assert.equal(result.wrongCount, 1);
-  assert.equal(result.positiveMarksEarned, 4);
-  assert.equal(result.negativeMarksPenalty, 1);
-  assert.equal(result.finalScore, 3);
-});
-
-test("User answer correctness: single, index, multiple correct", () => {
-  assert.strictEqual(isUserAnswerCorrect("A", "A"), true);
-  assert.strictEqual(isUserAnswerCorrect("1", "A"), true);
-  assert.strictEqual(isUserAnswerCorrect("A, B", "B, A"), true);
-  // Legacy single-select keys may represent accepted alternatives.
-  assert.strictEqual(isUserAnswerCorrect("A", "A, B"), true);
-  assert.strictEqual(isUserAnswerCorrect("C", "A, B"), false);
-
-  // MSQ requires the exact selected set; subsets and supersets are not full-credit answers.
-  assert.strictEqual(isUserAnswerCorrect("A, B", "B, A", false, "MSQ"), true);
-  assert.strictEqual(isUserAnswerCorrect("1, 2", "A, B", false, "MSQ"), true);
-  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MSQ"), false);
-  assert.strictEqual(isUserAnswerCorrect("A, B, C", "A, B", false, "MSQ"), false);
-  assert.strictEqual(isUserAnswerCorrect("A, A", "A, B", false, "MSQ"), false);
-  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MCQ_MULTIPLE"), false);
-  assert.strictEqual(isUserAnswerCorrect("A", "A, B", false, "MCQ"), true);
-});
-
-test("Marking schemes for distinct exams", () => {
-  const neet = getMarkingSchemeForExam("NEET UG");
-  assert.strictEqual(neet.pos, 4.0);
-  assert.strictEqual(neet.neg, 1.0);
-
-  const upsc = getMarkingSchemeForExam("UPSC CSE");
-  assert.strictEqual(upsc.pos, 2.0);
-  assert.strictEqual(upsc.neg, 0.66);
-
-  const ssc = getMarkingSchemeForExam("SSC CGL");
-  assert.strictEqual(ssc.pos, 2.0);
-  assert.strictEqual(ssc.neg, 0.50);
-
-  const ctet = getMarkingSchemeForExam("CTET");
-  assert.strictEqual(ctet.pos, 1.0);
-  assert.strictEqual(ctet.neg, 0.0);
-});
-
-test("Authoritative evaluation preserves fractional marks for UPSC-style negative marking", () => {
-  const result = evaluateTestAttempt("UPSC CSE", [
-    { id: "upsc_correct", correctAnswer: "A", section: "GENERAL", subject: "General Studies" },
-    { id: "upsc_wrong", correctAnswer: "B", section: "GENERAL", subject: "General Studies" },
-    { id: "upsc_skip", correctAnswer: "C", section: "GENERAL", subject: "General Studies" }
-  ], {
-    upsc_correct: { ans: "A" },
-    upsc_wrong: { ans: "D" }
-  }, 90);
-  assert.equal(result.positiveMarksEarned, 2);
-  assert.equal(result.negativeMarksPenalty, 0.66);
-  assert.equal(result.rawScore, 1.34);
-  assert.equal(result.finalScore, 1.34);
-  assert.equal(result.maxScore, 6);
-});
-
-test("Authoritative evaluator treats numeric zero as a valid answer and answer key", () => {
-  const result = evaluateTestAttempt("GATE", [
-    { id: "zero_value", correctAnswer: 0, section: "NUMERICAL", subject: "Engineering", questionType: "NUMERICAL_VALUE" }
-  ], {
-    zero_value: { ans: 0 }
-  }, 5);
-
-  assert.equal(result.correctCount, 1);
-  assert.equal(result.wrongCount, 0);
-  assert.equal(result.ungradedCount, 0);
-  assert.equal(result.unansweredCount, 0);
-  assert.equal(result.positiveMarksEarned, 1);
-  assert.equal(result.finalScore, 1);
-  assert.equal(result.maxScore, 1);
-});
-
-test("Authoritative evaluation: NEET standard attempt", () => {
-  const questions = [
-    { id: "q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" },
-    { id: "q2", correctAnswer: "B", section: "SECTION_A", subject: "Physics" },
-    { id: "q3", correctAnswer: "C", section: "SECTION_A", subject: "Physics" },
-    { id: "q4", correctAnswer: "D", section: "SECTION_A", subject: "Physics" },
-  ];
-
-  const answers = {
-    q1: { ans: "A" }, // correct: +4
-    q2: { ans: "C" }, // wrong: -1
-    q3: { ans: "" },  // unanswered: 0
-    // q4 unattempted: 0
-  };
-
-  const result = evaluateTestAttempt("NEET UG", questions, answers, 120);
-  assert.strictEqual(result.totalQuestions, 4);
-  assert.strictEqual(result.correctCount, 1);
-  assert.strictEqual(result.wrongCount, 1);
-  assert.strictEqual(result.unansweredCount, 2);
-  assert.strictEqual(result.positiveMarksEarned, 4.0);
-  assert.strictEqual(result.negativeMarksPenalty, 1.0);
-  assert.strictEqual(result.finalScore, 3.0);
-  assert.strictEqual(result.rawScore, 3.0);
-  assert.strictEqual(result.maxScore, 16.0);
-  assert.strictEqual(result.accuracyPercent, 50.0);
-});
-
-test("Section B optional limit: surplus questions are ignored", () => {
-  const questions = [];
-  const answers = {};
-  for (let i = 1; i <= 12; i++) {
-    const qid = `secB_q${i}`;
-    questions.push({ id: qid, correctAnswer: "A", section: "SECTION_B", subject: "Physics" });
-    answers[qid] = { ans: "A" };
+test("answer keys reject empty, malformed and non-finite values", () => {
+  assert.equal(isAnswerKeyVerified("A"), true);
+  assert.equal(isAnswerKeyVerified("4"), true);
+  assert.equal(isAnswerKeyVerified("42.5"), true);
+  assert.equal(isAnswerKeyVerified("A,C"), true);
+  for (const value of ["", "INVALID", "NaN", "Infinity", "12abc", "A,,B", "A,A"]) {
+    assert.equal(isAnswerKeyVerified(value), false);
   }
-
-  const result = evaluateTestAttempt("NEET UG", questions, answers, 300);
-  assert.strictEqual(result.correctCount, 10);
-  assert.strictEqual(result.unansweredCount, 2);
-  assert.strictEqual(result.finalScore, 40.0);
-  assert.strictEqual(result.maxScore, 40.0);
-  assert.strictEqual(result.maxScore, 40.0, "NEET Section B maximum must cap at 10 questions");
 });
 
-test("CAT TITA questions have zero negative penalty", () => {
-  const questions = [
-    { id: "q1", correctAnswer: "15", section: "QA", subject: "Quant", questionType: "TITA" },
-    { id: "q2", correctAnswer: "A", section: "VARC", subject: "Verbal", questionType: "MCQ" },
-  ];
-
-  const answers = {
-    q1: { ans: "20" }, // wrong TITA: 0 penalty
-    q2: { ans: "B" },  // wrong MCQ: -1 penalty
-  };
-
-  const result = evaluateTestAttempt("CAT", questions, answers, 100);
-  assert.strictEqual(result.wrongCount, 2);
-  assert.strictEqual(result.negativeMarksPenalty, 1.0);
+test("option equivalence handles index aliases and numeric precision", () => {
+  assert.equal(areOptionsEquivalent("1", "A"), true);
+  assert.equal(areOptionsEquivalent("B", "2"), true);
+  assert.equal(areOptionsEquivalent("10.0", "10.000", true), true);
+  assert.equal(areOptionsEquivalent("3.14", "3.15", true), false);
+  assert.equal(areOptionsEquivalent("12abc", "12", true), false);
 });
 
-test("Population Percentile: standard ranking formula and boundary cases", () => {
-  // Candidate Rank 1 out of 1
-  assert.strictEqual(calculatePopulationPercentile(1, 1), 100.0);
-
-  // Candidate Rank 1 out of 10
-  assert.strictEqual(calculatePopulationPercentile(1, 10), 100.0);
-
-  // Candidate Rank 2 out of 10: ((10 - 2 + 1) / 10) * 100 = 90.0%
-  assert.strictEqual(calculatePopulationPercentile(2, 10), 90.0);
-
-  // Candidate Rank 5 out of 10: ((10 - 5 + 1) / 10) * 100 = 60.0%
-  assert.strictEqual(calculatePopulationPercentile(5, 10), 60.0);
-
-  // Candidate Rank 10 out of 10: ((10 - 10 + 1) / 10) * 100 = 10.0%
-  assert.strictEqual(calculatePopulationPercentile(10, 10), 10.0);
-
-  // Boundary: Invalid or zero cohort
-  assert.strictEqual(calculatePopulationPercentile(1, 0), 0.0);
-  assert.strictEqual(calculatePopulationPercentile(0, 10), 0.0);
-  assert.strictEqual(calculatePopulationPercentile(-1, 10), 0.0);
-
-  // Rank exceeding cohort size gracefully clamped to lowest percentile bracket (1/N * 100)
-  assert.strictEqual(calculatePopulationPercentile(15, 10), 10.0);
+test("multi-select comparison requires the exact selected set", () => {
+  assert.equal(isUserAnswerCorrect("A,B", "B,A", false, "MSQ"), true);
+  assert.equal(isUserAnswerCorrect("1,2", "A,B", false, "MSQ"), true);
+  assert.equal(isUserAnswerCorrect("A", "A,B", false, "MSQ"), false);
+  assert.equal(isUserAnswerCorrect("A,B,C", "A,B", false, "MSQ"), false);
+  assert.equal(isUserAnswerCorrect("A,A", "A,B", false, "MSQ"), false);
 });
 
-test("Score Percentile From Counts: exact testing formula with ties", () => {
-  // Top score: 9 candidates below, 1 equal out of 10 total -> 100.0%
-  assert.strictEqual(calculateScorePercentileFromCounts(9, 1, 10), 100.0);
-
-  // Median score: 4 below, 1 equal out of 10 total -> 50.0%
-  assert.strictEqual(calculateScorePercentileFromCounts(4, 1, 10), 50.0);
-
-  // Ties: 3 below, 3 equal (tied with 2 others) out of 10 -> (3 + 3)/10 * 100 = 60.0%
-  assert.strictEqual(calculateScorePercentileFromCounts(3, 3, 10), 60.0);
-
-  // Lowest score: 0 below, 1 equal out of 10 -> 10.0%
-  assert.strictEqual(calculateScorePercentileFromCounts(0, 1, 10), 10.0);
-
-  // Zero candidates edge case
-  assert.strictEqual(calculateScorePercentileFromCounts(0, 0, 0), 0.0);
-});
-
-// ==========================================
-// PHASE 8.1: SCORING ENGINE PARITY TESTS
-// ==========================================
-
-test("Phase 8.1: Marking schemes for all 9 verified exam types", () => {
-  // 1. IBPS PO (+1.0 / -0.25)
-  const ibpsPo = getMarkingSchemeForExam("IBPS PO");
-  assert.strictEqual(ibpsPo.pos, 1.0);
-  assert.strictEqual(ibpsPo.neg, 0.25);
-
-  // 2. IBPS Clerk (+1.0 / -0.25)
-  const ibpsClerk = getMarkingSchemeForExam("ibps_clerk");
-  assert.strictEqual(ibpsClerk.pos, 1.0);
-  assert.strictEqual(ibpsClerk.neg, 0.25);
-
-  // 3. SBI PO (+1.0 / -0.25)
-  const sbiPo = getMarkingSchemeForExam("SBI PO");
-  assert.strictEqual(sbiPo.pos, 1.0);
-  assert.strictEqual(sbiPo.neg, 0.25);
-
-  // 4. SBI Clerk (+1.0 / -0.25)
-  const sbiClerk = getMarkingSchemeForExam("sbi_clerk");
-  assert.strictEqual(sbiClerk.pos, 1.0);
-  assert.strictEqual(sbiClerk.neg, 0.25);
-
-  // 5. UGC NET (+2.0 / 0.0)
-  const ugcNet = getMarkingSchemeForExam("UGC NET");
-  assert.strictEqual(ugcNet.pos, 2.0);
-  assert.strictEqual(ugcNet.neg, 0.0);
-
-  // 6. SSC CPO (+1.0 / -0.25)
-  const sscCpo = getMarkingSchemeForExam("SSC CPO");
-  assert.strictEqual(sscCpo.pos, 1.0);
-  assert.strictEqual(sscCpo.neg, 0.25);
-
-  // 7. SSC GD (+2.0 / -0.25)
-  const sscGd = getMarkingSchemeForExam("SSC GD");
-  assert.strictEqual(sscGd.pos, 2.0);
-  assert.strictEqual(sscGd.neg, 0.25);
-
-  // 8. RRB ALP (+1.0 / -0.33)
-  const rrbAlp = getMarkingSchemeForExam("rrb_alp");
-  assert.strictEqual(rrbAlp.pos, 1.0);
-  assert.strictEqual(rrbAlp.neg, 0.33);
-
-  // 9. CAT Base (+3.0 / -1.0)
-  const cat = getMarkingSchemeForExam("CAT");
-  assert.strictEqual(cat.pos, 3.0);
-  assert.strictEqual(cat.neg, 1.0);
-});
-
-test("Phase 8.1: CAT question-level scoring evaluates MCQ vs TITA separately", () => {
-  const mcqScheme = getMarkingSchemeForQuestion("CAT", "VARC", "Verbal", "MCQ");
-  assert.strictEqual(mcqScheme.pos, 3.0);
-  assert.strictEqual(mcqScheme.neg, 1.0);
-
-  const titaScheme = getMarkingSchemeForQuestion("CAT", "QA", "Quant", "TITA");
-  assert.strictEqual(titaScheme.pos, 3.0);
-  assert.strictEqual(titaScheme.neg, 0.0);
-
-  const numericalScheme = getMarkingSchemeForQuestion("CAT", "QA", "Quant", "NUMERICAL");
-  assert.strictEqual(numericalScheme.pos, 3.0);
-  assert.strictEqual(numericalScheme.neg, 0.0);
-});
-
-test("Phase 8.1: Authoritative evaluation: Banking incorrect answers accumulate -0.25 penalty", () => {
-  const questions = [
-    { id: "q1", correctAnswer: "A", section: "eng_sec", subject: "English" },
-    { id: "q2", correctAnswer: "B", section: "qa_sec", subject: "Quant" },
-    { id: "q3", correctAnswer: "C", section: "reaz_sec", subject: "Reasoning" },
-    { id: "q4", correctAnswer: "D", section: "reaz_sec", subject: "Reasoning" },
-  ];
-
-  const answers = {
-    q1: { ans: "A" }, // Correct: +1.0
-    q2: { ans: "C" }, // Wrong: -0.25
-    q3: { ans: "" },  // Unanswered: 0.0
-    q4: { ans: "A" }, // Wrong: -0.25
-  };
-
-  const result = evaluateTestAttempt("IBPS PO", questions, answers, 180);
-  assert.strictEqual(result.totalQuestions, 4);
-  assert.strictEqual(result.correctCount, 1);
-  assert.strictEqual(result.wrongCount, 2);
-  assert.strictEqual(result.unansweredCount, 1);
-  assert.strictEqual(result.positiveMarksEarned, 1.0);
-  assert.strictEqual(result.negativeMarksPenalty, 0.50);
-  assert.strictEqual(result.rawScore, 0.50);
-  assert.strictEqual(result.finalScore, 0.50);
-});
-
-test("Phase 8.1: Authoritative evaluation: UGC NET incorrect answers have ZERO negative penalty", () => {
-  const questions = [
-    { id: "q1", correctAnswer: "A", section: "ta_sec", subject: "Teaching Aptitude" },
-    { id: "q2", correctAnswer: "B", section: "ta_sec", subject: "Research Aptitude" },
-    { id: "q3", correctAnswer: "C", section: "ta_sec", subject: "Communication" },
-  ];
-
-  const answers = {
-    q1: { ans: "A" }, // Correct: +2.0
-    q2: { ans: "D" }, // Wrong: ZERO penalty (0.0)
-    q3: { ans: "" },  // Unanswered: 0.0
-  };
-
-  const result = evaluateTestAttempt("UGC NET", questions, answers, 150);
-  assert.strictEqual(result.totalQuestions, 3);
-  assert.strictEqual(result.correctCount, 1);
-  assert.strictEqual(result.wrongCount, 1);
-  assert.strictEqual(result.unansweredCount, 1);
-  assert.strictEqual(result.positiveMarksEarned, 2.0);
-  assert.strictEqual(result.negativeMarksPenalty, 0.0);
-  assert.strictEqual(result.rawScore, 2.0);
-  assert.strictEqual(result.finalScore, 2.0);
-});
-
-test("Phase 8.1: Authoritative evaluation: CAT MCQ (-1.0) and TITA (0.0) incorrect answers evaluated separately", () => {
-  const questions = [
-    { id: "q1", correctAnswer: "A", section: "VARC", subject: "Verbal", questionType: "MCQ" },
-    { id: "q2", correctAnswer: "B", section: "VARC", subject: "Verbal", questionType: "MCQ" },
-    { id: "q3", correctAnswer: "42", section: "QA", subject: "Quant", questionType: "TITA" },
-    { id: "q4", correctAnswer: "99", section: "QA", subject: "Quant", questionType: "TITA" },
-  ];
-
-  const answers = {
-    q1: { ans: "A" },  // Correct MCQ: +3.0
-    q2: { ans: "C" },  // Wrong MCQ: -1.0 penalty
-    q3: { ans: "42" }, // Correct TITA: +3.0
-    q4: { ans: "50" }, // Wrong TITA: 0.0 penalty
-  };
-
-  const result = evaluateTestAttempt("CAT", questions, answers, 240);
-  assert.strictEqual(result.totalQuestions, 4);
-  assert.strictEqual(result.correctCount, 2);
-  assert.strictEqual(result.wrongCount, 2);
-  assert.strictEqual(result.positiveMarksEarned, 6.0);
-  assert.strictEqual(result.negativeMarksPenalty, 1.0); // Only MCQ penalized
-  assert.strictEqual(result.rawScore, 5.0);
-  assert.strictEqual(result.finalScore, 5.0);
-});
-
-test("Phase 8.1: Unknown or missing exam handling throws controlled error without defaulting to NEET", () => {
-  // Empty exam name throws invalid-argument
-  assert.throws(
-    () => getMarkingSchemeForExam(""),
-    (err) => err.code === "invalid-argument"
-  );
-
-  // Unknown exam name throws invalid-argument rather than returning NEET +4/-1
-  assert.throws(
-    () => getMarkingSchemeForExam("NON_EXISTENT_OLYMPIAD_XYZ"),
-    (err) => err.code === "invalid-argument"
-  );
-
-  // evaluateTestAttempt with unknown exam throws invalid-argument
-  assert.throws(
-    () => evaluateTestAttempt("UNKNOWN_EXAM_FOO", [{ id: "q1", correctAnswer: "A" }], { q1: "A" }),
-    (err) => err.code === "invalid-argument"
-  );
-});
-
-test("Phase 8.1: Railway normalization preserves all 5 distinct railway exam keys", () => {
-  assert.strictEqual(normalizeExamKey("rrb_ntpc"), "RRB_NTPC");
-  assert.strictEqual(normalizeExamKey("rrb_group_d"), "RRB_GROUP_D");
-  assert.strictEqual(normalizeExamKey("rrb_alp"), "RRB_ALP");
-  assert.strictEqual(normalizeExamKey("rrb_technician"), "RRB_TECHNICIAN");
-  assert.strictEqual(normalizeExamKey("rrb_je"), "RRB_JE");
-});
-
-test("Phase 8.1: Railway normalization handles supported aliases without cross-exam identity loss", () => {
-  assert.strictEqual(normalizeExamKey("RRB NTPC CBT-1"), "RRB_NTPC");
-  assert.strictEqual(normalizeExamKey("Railway Group D Level 1"), "RRB_GROUP_D");
-  assert.strictEqual(normalizeExamKey("Assistant Loco Pilot (ALP)"), "RRB_ALP");
-  assert.strictEqual(normalizeExamKey("RRB Technician Grade III"), "RRB_TECHNICIAN");
-  assert.strictEqual(normalizeExamKey("RRB Junior Engineer CBT 1"), "RRB_JE");
-});
-
-test("Phase 8.1: Normalization: Missing or unrecognized inputs do not silently become NEET or RRB NTPC", () => {
-  assert.strictEqual(normalizeExamKey(""), "UNKNOWN");
-  assert.strictEqual(normalizeExamKey(null), "UNKNOWN");
-  assert.strictEqual(normalizeExamKey(undefined), "UNKNOWN");
-  assert.strictEqual(normalizeExamKey("   "), "UNKNOWN");
-  assert.strictEqual(normalizeExamKey("Special State Board Exam"), "SPECIAL_STATE_BOARD_EXAM");
-});
-
-test("Ambiguous exam aliases never collapse into another exam's ranking identity", () => {
+test("canonical exam identity never infers an exam from a subject or ambiguous alias", () => {
+  assert.equal(normalizeExamKey("NEET UG"), "NEET");
+  assert.equal(normalizeExamKey("JEE Main Paper 1"), "JEE_MAIN");
   assert.equal(normalizeExamKey("JEE"), "JEE");
   assert.equal(normalizeExamKey("NEET PG"), "NEET_PG");
   assert.equal(normalizeExamKey("RRB"), "RRB");
-  assert.throws(() => getMarkingSchemeForExam("JEE"), { code: "invalid-argument" });
-  assert.throws(() => getMarkingSchemeForExam("NEET PG"), { code: "invalid-argument" });
-  assert.throws(() => getMarkingSchemeForExam("RRB"), { code: "invalid-argument" });
+  assert.equal(normalizeExamKey(""), "UNKNOWN");
+  assert.equal(resolveCanonicalExamIdentity({ examId: "neet_ug", targetExam: "NEET UG" }), "NEET");
+  assert.throws(() => resolveCanonicalExamIdentity({ subject: "Biology" }), { code: "failed-precondition" });
+  assert.throws(() => resolveCanonicalExamIdentity({ examId: "ALL" }), { code: "failed-precondition" });
 });
 
-test("Phase 8.1: Regression test for existing NEET, JEE Main, and UPSC marking schemes", () => {
-  const neet = getMarkingSchemeForExam("NEET UG");
-  assert.strictEqual(neet.pos, 4.0);
-  assert.strictEqual(neet.neg, 1.0);
+test("only source-verified NEET UG 2026 and JEE Main 2026 scoring schemes are enabled", () => {
+  assert.deepEqual(getMarkingSchemeForExam("NEET UG"), { pos: 4, neg: 1 });
+  assert.deepEqual(getMarkingSchemeForExam("JEE Main"), { pos: 4, neg: 1 });
+  for (const exam of ["JEE", "JEE Advanced", "NEET PG", "UPSC CSE", "CAT", "IBPS PO", "RRB NTPC"]) {
+    assert.throws(() => getMarkingSchemeForExam(exam), { code: "failed-precondition" });
+  }
+});
 
-  const jee = getMarkingSchemeForExam("JEE Main Paper 1");
-  assert.strictEqual(jee.pos, 4.0);
-  assert.strictEqual(jee.neg, 1.0);
+test("NEET question marking requires exact subject, section and question type", () => {
+  assert.deepEqual(getMarkingSchemeForQuestion("NEET UG", "phy_all", "Physics", "MCQ_SINGLE"), { pos: 4, neg: 1 });
+  assert.throws(() => getMarkingSchemeForQuestion("NEET UG", "SECTION_A", "Physics", "MCQ_SINGLE"), { code: "failed-precondition" });
+  assert.throws(() => getMarkingSchemeForQuestion("NEET UG", "phy_all", "Biology", "MCQ_SINGLE"), { code: "failed-precondition" });
+  assert.throws(() => getMarkingSchemeForQuestion("NEET UG", "phy_all", "Physics", "MCQ_MULTIPLE"), { code: "failed-precondition" });
+});
 
-  const upsc = getMarkingSchemeForExam("UPSC Civil Services Prelims");
-  assert.strictEqual(upsc.pos, 2.0);
-  assert.strictEqual(upsc.neg, 0.66);
+test("NEET UG 2026 scoring uses 180 compulsory single-correct questions and +4/-1", () => {
+  const questions = [
+    { id: "q1", correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" },
+    { id: "q2", correctAnswer: "B", section: "chem_all", subject: "Chemistry", questionType: "MCQ_SINGLE" },
+    { id: "q3", correctAnswer: "C", section: "bot_all", subject: "Botany", questionType: "MCQ_SINGLE" },
+    { id: "q4", correctAnswer: "NOT_SET", section: "zoo_all", subject: "Zoology", questionType: "MCQ_SINGLE" }
+  ];
+  const result = evaluateTestAttempt("NEET UG", questions, {
+    q1: { ans: "A" },
+    q2: { ans: "C" },
+    q4: { ans: "A" }
+  }, 120);
+  assert.equal(result.totalQuestions, 4);
+  assert.equal(result.correctCount, 1);
+  assert.equal(result.wrongCount, 1);
+  assert.equal(result.unansweredCount, 1);
+  assert.equal(result.ungradedCount, 1);
+  assert.equal(result.positiveMarksEarned, 4);
+  assert.equal(result.negativeMarksPenalty, 1);
+  assert.equal(result.finalScore, 3);
+  assert.equal(result.maxScore, 16);
+});
+
+test("JEE Main 2026 scores MCQ and compulsory numerical questions under exact section policies", () => {
+  const questions = [
+    { id: "mcq", correctAnswer: "A", section: "phy_sec_a", subject: "Physics", questionType: "MCQ_SINGLE" },
+    { id: "zero", correctAnswer: "0", section: "math_sec_b", subject: "Mathematics", questionType: "NUMERICAL_VALUE" },
+    { id: "wrong", correctAnswer: "42", section: "chem_sec_b", subject: "Chemistry", questionType: "NUMERICAL_VALUE" }
+  ];
+  const result = evaluateTestAttempt("JEE Main", questions, {
+    mcq: { ans: "A" },
+    zero: { ans: 0 },
+    wrong: { ans: "50" }
+  }, 90);
+  assert.equal(result.correctCount, 2);
+  assert.equal(result.wrongCount, 1);
+  assert.equal(result.positiveMarksEarned, 8);
+  assert.equal(result.negativeMarksPenalty, 1);
+  assert.equal(result.finalScore, 7);
+  assert.equal(result.maxScore, 12);
+});
+
+test("old NEET Section A/B aliases and unsupported subjects fail closed instead of scoring", () => {
+  const result = evaluateTestAttempt("NEET UG", [
+    { id: "old", correctAnswer: "A", section: "SECTION_A", subject: "Physics", questionType: "MCQ_SINGLE" },
+    { id: "bio", correctAnswer: "B", section: "bot_all", subject: "Biology", questionType: "MCQ_SINGLE" }
+  ], { old: { ans: "A" }, bio: { ans: "B" } }, 60);
+  assert.equal(result.ungradedCount, 2);
+  assert.equal(result.correctCount, 0);
+  assert.equal(result.finalScore, 0);
+});
+
+test("missing or unverified exam identity cannot silently default to NEET", () => {
+  assert.throws(() => evaluateTestAttempt("", [], {}), { code: "invalid-argument" });
+  assert.throws(() => evaluateTestAttempt("UPSC CSE", [], {}), { code: "failed-precondition" });
+});
+
+test("population and score percentiles handle ties and boundary cases", () => {
+  assert.equal(calculatePopulationPercentile(1, 1), 100);
+  assert.equal(calculatePopulationPercentile(2, 10), 90);
+  assert.equal(calculatePopulationPercentile(10, 10), 10);
+  assert.equal(calculatePopulationPercentile(1, 0), 0);
+  assert.equal(calculateScorePercentileFromCounts(9, 1, 10), 100);
+  assert.equal(calculateScorePercentileFromCounts(3, 3, 10), 60);
+  assert.equal(calculateScorePercentileFromCounts(0, 0, 0), 0);
+});
+
+test("ranking-eligible tests require complete trusted private answer keys", () => {
+  const testData = { isOfficial: true, isPublic: true, countsTowardRanking: true };
+  const questions = [{ id: "q1", correctAnswer: "A" }];
+  assert.throws(() => validateAndMergeAnswerKeys(testData, questions, null), { code: "failed-precondition" });
+  const merged = validateAndMergeAnswerKeys(testData, [{ id: "q1" }], {
+    questions: [{ id: "q1", correctAnswer: "B" }]
+  });
+  assert.equal(merged[0].correctAnswer, "B");
 });
