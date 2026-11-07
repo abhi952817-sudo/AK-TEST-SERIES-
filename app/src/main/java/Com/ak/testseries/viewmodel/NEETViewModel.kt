@@ -2323,6 +2323,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(requestedExam)
                     ?: throw IllegalArgumentException("Unsupported exam identity '$requestedExam'; sharing is blocked.")
                 require(examConfig.verified) { "Exam scoring policy is not source-verified; sharing is blocked." }
+                val paperConfig = examConfig.stages.singleOrNull()?.papers?.singleOrNull()
+                    ?: throw IllegalArgumentException("Exact exam stage/paper is unavailable; sharing is blocked.")
                 val targetExam = examConfig.examId
 
                 // Standardize question data ensuring all required fields are present while excluding private user data
@@ -2374,21 +2376,40 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     require(qText.isNotBlank() && qType.isNotBlank() && secId.isNotBlank()) {
                         "Question ${i + 1} is missing text, question type or exact section identity."
                     }
-                    val numerical = qType.equals("NUMERICAL", true) || qType.equals("NUMERICAL_VALUE", true) || qType.equals("TITA", true)
+                    val qSubject = qObj.optString("subject", test.subject).trim()
+                    val subjectConfig = paperConfig.subjects.singleOrNull {
+                        it.subjectId.equals(qSubject, true) || it.subjectName.equals(qSubject, true)
+                    } ?: throw IllegalArgumentException("Question ${i + 1} has unknown subject identity.")
+                    val sectionConfig = subjectConfig.sections.singleOrNull { it.sectionId == secId }
+                        ?: throw IllegalArgumentException("Question ${i + 1} has unknown section identity.")
+                    val numerical = qType.equals("NUMERICAL", true) || qType.equals("NUMERICAL_VALUE", true) ||
+                        qType.equals("TITA", true) || qType.equals("NAT", true)
+                    val sectionNumerical = sectionConfig.questionType in setOf(
+                        Com.ak.testseries.exam.QuestionType.NUMERICAL_VALUE,
+                        Com.ak.testseries.exam.QuestionType.TITA
+                    )
+                    require(numerical == sectionNumerical) { "Question ${i + 1} type conflicts with its section." }
+                    if (!numerical) require(qType.uppercase() in setOf("MCQ", "MCQ_SINGLE", "DIRECT_MCQ") &&
+                        sectionConfig.optionsCount == 4 && listOf(optA, optB, optC, optD).all { it.isNotBlank() } &&
+                        listOf(optA, optB, optC, optD).distinct().size == 4) {
+                        "Question ${i + 1} has invalid MCQ type/options."
+                    }
                     val answer = qObj.optString("correctAnswer").trim()
                     require(answer.isNotBlank()) { "Question ${i + 1} has no answer key." }
-                    if (!numerical) require(listOf(optA, optB, optC, optD).all { it.isNotBlank() }) {
-                        "Question ${i + 1} has incomplete MCQ options."
+                    if (numerical) require(answer.toDoubleOrNull()?.isFinite() == true) {
+                        "Question ${i + 1} has invalid numerical answer key."
+                    } else require(answer.uppercase() in listOf("A", "B", "C", "D", "1", "2", "3", "4")) {
+                        "Question ${i + 1} has invalid MCQ answer key."
                     }
                     qClean.put("questionType", qType)
                     val secName = qObj.optString("sectionName").trim().ifBlank { secId }
                     qClean.put("section", secId)
                     qClean.put("sectionName", secName)
 
-                    val (calcPos, calcNeg) = Com.ak.testseries.exam.UniversalExamRegistry
-                        .getMarkingSchemeForQuestion(targetExam, secId, qObj.optString("subject", test.subject), qType)
-                    val suppliedPos = qObj.optDouble("positiveMarks", calcPos)
-                    val suppliedNeg = qObj.optDouble("negativeMarks", calcNeg)
+                    val calcPos = sectionConfig.positiveMarks
+                    val calcNeg = sectionConfig.negativeMarks
+                    val suppliedPos = if (qObj.has("positiveMarks")) qObj.optDouble("positiveMarks", Double.NaN) else calcPos
+                    val suppliedNeg = if (qObj.has("negativeMarks")) qObj.optDouble("negativeMarks", Double.NaN) else calcNeg
                     require(suppliedPos.isFinite() && suppliedNeg.isFinite() &&
                         suppliedPos == calcPos && suppliedNeg == calcNeg) {
                         "Question ${i + 1} marks conflict with the verified section policy."
@@ -2399,7 +2420,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qClean.put("negativeMarks", finalNeg)
 
 
-                    qClean.put("subject", qObj.optString("subject", test.subject))
+                    qClean.put("subject", qSubject)
                     qClean.put("chapter", qObj.optString("chapter", test.chapter))
                     qClean.put("topic", qObj.optString("topic", test.topic))
                     qClean.put("difficulty", qObj.optString("difficulty", test.difficulty))
@@ -2417,6 +2438,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.optString("optionDHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionDHi", it) }
 
                     standardizedArray.put(qClean)
+                }
+                require(standardizedArray.length() == rawArray.length()) {
+                    "Some source questions failed validation; the test cannot be partially shared."
                 }
 
                 // Reuse existing image sanitization & upload logic to ensure no local paths are published
