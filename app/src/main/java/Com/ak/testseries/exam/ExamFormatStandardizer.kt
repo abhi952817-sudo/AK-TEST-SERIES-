@@ -83,6 +83,10 @@ object ExamFormatStandardizer {
             val isNumerical = expectedType in setOf(
                 QuestionType.NUMERICAL_VALUE, QuestionType.NUMERICAL, QuestionType.TITA
             )
+            val answerKey = question.correctAnswer.trim().uppercase()
+            val answerKeyValid = if (isNumerical) answerKey.toDoubleOrNull()?.isFinite() == true
+                else answerKey in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            require(answerKeyValid) { "Question ${index + 1} has an invalid answer key for its configured type." }
             val sanitizedOptions = if (isNumerical) {
                 require(question.options.isEmpty()) {
                     "Numerical question ${index + 1} must not contain MCQ options."
