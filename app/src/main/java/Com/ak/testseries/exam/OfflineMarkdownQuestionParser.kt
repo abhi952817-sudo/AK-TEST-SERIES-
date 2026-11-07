@@ -280,7 +280,7 @@ object OfflineMarkdownQuestionParser {
                 pq.optionD.takeIf { it.isNotBlank() }
             )
             var cumulativeQuestions = 0
-            val resolvedSection = sections.firstOrNull { section ->
+            val resolvedSection = sections.singleOrNull { section ->
                 cumulativeQuestions += section.totalQuestions
                 pq.questionNumber <= cumulativeQuestions
             } ?: return@mapNotNull null
