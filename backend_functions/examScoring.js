@@ -1,3 +1,5 @@
+const { resolveRankingWeight } = require("./rankingEngine");
+
 /**
  * Authoritative Server-Side Exam Scoring Engine
  * Strictly mirrors UniversalExamRegistry.kt and ExamScoringEngine.kt.
@@ -147,6 +149,51 @@ const VERIFIED_PAPER_IDENTITIES = Object.freeze({
   NEET: Object.freeze({ stageId: "neet_main", paperId: "neet_paper_1" }),
   JEE_MAIN: Object.freeze({ stageId: "jee_paper_1", paperId: "jee_main_p1" })
 });
+
+const VERIFIED_FULL_TEST_PATTERNS = Object.freeze({
+  NEET: Object.freeze({
+    totalQuestions: 180,
+    sections: Object.freeze({
+      "physics:phy_all": 45,
+      "chemistry:chem_all": 45,
+      "botany:bot_all": 45,
+      "zoology:zoo_all": 45
+    })
+  }),
+  JEE_MAIN: Object.freeze({
+    totalQuestions: 75,
+    sections: Object.freeze({
+      "physics:phy_sec_a": 20,
+      "physics:phy_sec_b": 5,
+      "chemistry:chem_sec_a": 20,
+      "chemistry:chem_sec_b": 5,
+      "mathematics:math_sec_a": 20,
+      "mathematics:math_sec_b": 5
+    })
+  })
+});
+
+function validateFullTestQuestionCoverage(examName, questions) {
+  const examKey = normalizeExamKey(examName);
+  const pattern = VERIFIED_FULL_TEST_PATTERNS[examKey];
+  if (!pattern) throw new Error("No source-verified full-test pattern exists for this exam.");
+  if (!Array.isArray(questions) || questions.length !== pattern.totalQuestions) {
+    throw new Error(`Full test must contain exactly ${pattern.totalQuestions} verified questions.`);
+  }
+  const counts = new Map();
+  for (const question of questions) {
+    const subject = normalizeScoringSubject(question.subject);
+    const section = String(question.section || "").trim().toLowerCase();
+    const key = subject + ":" + section;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const expectedKeys = Object.keys(pattern.sections);
+  if (counts.size !== expectedKeys.length ||
+      expectedKeys.some(key => counts.get(key) !== pattern.sections[key])) {
+    throw new Error("Full test subject/section distribution does not match the verified exam paper.");
+  }
+  return true;
+}
 
 const VERIFIED_SCORING_POLICIES = Object.freeze({
   NEET: Object.freeze({
@@ -381,6 +428,17 @@ function calculateScorePercentileFromCounts(countBelow, countEqual, totalCount) 
  *    - Falls back to public question properties if private key is absent.
  */
 function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
+  if (!Array.isArray(rawQuestions)) {
+    const err = new Error("Test question payload must be an array.");
+    err.code = "failed-precondition";
+    throw err;
+  }
+  const questionIds = rawQuestions.map(question => String(question && question.id || "").trim());
+  if (questionIds.some(id => !id) || new Set(questionIds).size !== questionIds.length) {
+    const err = new Error("Test contains missing or duplicate question IDs; scoring would be ambiguous.");
+    err.code = "failed-precondition";
+    throw err;
+  }
   const status = String(testData.status || "").trim().toUpperCase();
   const countsTowardRanking = testData.isOfficial === true &&
     testData.isPublic === true &&
@@ -392,13 +450,24 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
     const keyList = privateKeyData.questions || privateKeyData.keys || [];
     for (const item of keyList) {
       if (item && item.id) {
-        keyMap.set(String(item.id), item);
+        const keyId = String(item.id);
+        if (keyMap.has(keyId)) {
+          const err = new Error(`Duplicate trusted answer-key ID: ${keyId}`);
+          err.code = "failed-precondition";
+          throw err;
+        }
+        keyMap.set(keyId, item);
       }
     }
   }
 
   if (countsTowardRanking && (!privateKeyData || keyMap.size === 0)) {
     const err = new Error("Official ranking-eligible test requires verified server-side answer keys. None found in private storage.");
+    err.code = "failed-precondition";
+    throw err;
+  }
+  if (countsTowardRanking && [...keyMap.keys()].some(id => !questionIds.includes(id))) {
+    const err = new Error("Private answer-key document contains IDs that are not present in the test question set.");
     err.code = "failed-precondition";
     throw err;
   }
@@ -428,6 +497,21 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
 
   if (countsTowardRanking) {
     const examIdentity = resolveCanonicalExamIdentity(testData);
+    const rankingWeight = resolveRankingWeight(testData);
+    if (rankingWeight === null) {
+      const err = new Error("Official ranking test classification is missing or conflicting.");
+      err.code = "failed-precondition";
+      throw err;
+    }
+    if (rankingWeight === 1) {
+      try {
+        validateFullTestQuestionCoverage(examIdentity, mergedQuestions);
+      } catch (coverageError) {
+        const err = new Error(coverageError.message);
+        err.code = "failed-precondition";
+        throw err;
+      }
+    }
     for (const q of mergedQuestions) {
       const questionText = String(q.questionText || q.questionTextEn || q.question || "").trim();
       if (!questionText) {
