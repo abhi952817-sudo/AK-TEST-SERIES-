@@ -111,6 +111,23 @@ test("class cohort ranking status is not mislabeled as AIR", () => {
 });
 
 
+test("historical ranking backfill accepts only approved public official ranking tests", () => {
+  const { isEligibleHistoricalRankingTest } = require("./rankingEngine");
+  const base = {
+    isOfficial: true,
+    isPublic: true,
+    countsTowardRanking: true,
+    status: "Published"
+  };
+  assert.equal(isEligibleHistoricalRankingTest(base), true);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, isPublic: false }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, isOfficial: false }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, countsTowardRanking: false }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "Under Review" }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "Rejected" }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "" }), false);
+});
+
 test("ranking rejects scoring results with ungraded or invalid marks", () => {
   const { isEligibleScoringResult } = require("./rankingEngine");
   assert.equal(isEligibleScoringResult({ finalScore: 3.5, maxScore: 10, ungradedCount: 0 }), true);
