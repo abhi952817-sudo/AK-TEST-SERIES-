@@ -40,6 +40,7 @@ test("scoring eligibility requires finite bounded score and zero ungraded questi
   assert.equal(isEligibleScoringResult({ finalScore: 101, maxScore: 100, ungradedCount: 0 }), false);
   assert.equal(isEligibleScoringResult({ finalScore: -1, maxScore: 100, ungradedCount: 0 }), false);
   assert.equal(isEligibleScoringResult({ finalScore: 0, maxScore: 0, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult(null), false);
 });
 
 test("ranking score normalizes different test maxima before weight", () => {
@@ -293,6 +294,18 @@ test("per-test rank snapshot does not rank a banned canonical board entry", () =
   assert.equal(result.testRank, null);
 });
 
+
+test("per-test rank snapshot rejects negative canonical scores", () => {
+  const result = buildTestRankingSnapshot({
+    countsTowardRanking: true,
+    isFirstQualifyingAttempt: true,
+    canonicalEntry: { score: -1, isBanned: false },
+    higherCount: 0,
+    totalCount: 1
+  });
+  assert.equal(result.rankStatus, "UNAVAILABLE");
+  assert.equal(result.testRank, null);
+});
 
 test("daily streak updates on consecutive days and never increments twice in one day", () => {
   assert.equal(calculateDailyStreak("2026-11-06", "2026-11-06", 4), 4);
