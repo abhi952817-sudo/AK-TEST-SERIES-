@@ -1295,6 +1295,24 @@ object UniversalExamRegistry {
         return Pair(section.positiveMarks, section.negativeMarks)
     }
 
+    fun isIntegerAnswerRequiredForQuestion(
+        examName: String,
+        sectionIdOrName: String?,
+        subjectName: String?,
+        questionTypeStr: String?
+    ): Boolean {
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported exam scoring scheme: '$examName'")
+        require(config.active && config.verified) {
+            "Scoring configuration for '$examName' is not source-verified."
+        }
+        getMarkingSchemeForQuestion(examName, sectionIdOrName, subjectName, questionTypeStr)
+        val paper = config.stages.single().papers.single()
+        val subject = paper.subjects.single { it.subjectId.equals(subjectName?.trim(), true) || it.subjectName.equals(subjectName?.trim(), true) }
+        val section = subject.sections.single { it.sectionId.equals(sectionIdOrName?.trim(), true) || it.sectionName.equals(sectionIdOrName?.trim(), true) }
+        return section.integerAnswerRequired
+    }
+
     fun getMaximumAttemptQuestionsCountForExam(examName: String): Int? {
         val config = findExamByNameOrShortName(examName)
             ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
