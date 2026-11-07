@@ -945,3 +945,20 @@ A privacy audit found that the v2 materialized board documents stored internal `
 **Changed files:** `backend_functions/index.js`, `NEETViewModel.kt`, `firestore.rules`, `firestore.test.js`.
 
 **Compatibility and rollout:** Android and backend callable code must be deployed together with the new Firestore rules. Existing direct-read clients will receive permission-denied until updated. Do not deploy rules alone. The public legacy `Leaderboard` collection is still retained for legacy compatibility and requires a separate usage/privacy audit before removal.
+
+### 2.30 Latest CI audit and test-contract findings — 2026-11-07
+
+The previously queued workflow run `42355909308` has now completed against commit `d2555badbdcb677d0ba528ca32319a7a114c1ba9`:
+
+- Firestore security rules tests: **PASS**.
+- Android source compilation and debug APK assembly: **PASS**.
+- Android unit-test suite: **FAIL**, 306 tests executed with 19 failures. The failures are in pre-existing exam-pattern/scoring/parser/identity tests whose assertions conflict with the current fail-closed registry policy and current source-verified NEET/JEE configurations. Examples include expecting all 25 exam scaffolds to be verified, expecting obsolete NEET optional Section B / 200-minute timing, expecting stale JEE pattern data, and expecting unverified exam configs to score. These tests must be reconciled to the documented security contract; do not weaken production scoring or fabricate exam configurations merely to make stale assertions pass.
+- Backend unit tests: **FAIL**, 70/71 passed. The per-test snapshot fixture omitted the newly required explicit `isBanned: false` active-state field. The fixture was corrected on the feature branch; no production logic was relaxed.
+
+**Follow-up fixes on the feature branch:**
+- Corrected the per-test rank unit-test fixture to explicitly represent an active canonical entry.
+- Tightened ISO week validation to reject week 53 in years that do not actually contain ISO week 53 (for example, 2025-W53), while retaining valid week 53 years (for example, 2026-W53 and 2020-W53).
+- Tightened daily-streak date parsing to reject impossible calendar dates such as 2026-02-30 rather than relying on JavaScript date normalization.
+- Added regression tests for the ISO week-year boundary and impossible calendar dates.
+
+**Current verification:** a new CI run was triggered for the latest feature-branch commit and is pending. The Android test-contract failures remain open and must be fixed by aligning obsolete tests with the actual fail-closed registry and verified scoring policies, then rerunning the full suite. No main-branch changes, production deployment, or production data writes were performed.
