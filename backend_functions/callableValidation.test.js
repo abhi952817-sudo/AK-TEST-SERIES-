@@ -394,10 +394,10 @@ test("Official ranking test calculates population percentile against candidate c
     countsTowardRanking: true,
     targetExam: "NEET UG",
     questionsJson: JSON.stringify([
-      { id: "q1", correctAnswer: "A" },
-      { id: "q2", correctAnswer: "B" },
-      { id: "q3", correctAnswer: "C" },
-      { id: "q4", correctAnswer: "D" }
+      { id: "q1", questionText: "Question 1", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE", options: ["A option", "B option", "C option", "D option"] },
+      { id: "q2", questionText: "Question 2", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE", options: ["A option", "B option", "C option", "D option"] },
+      { id: "q3", questionText: "Question 3", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE", options: ["A option", "B option", "C option", "D option"] },
+      { id: "q4", questionText: "Question 4", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE", options: ["A option", "B option", "C option", "D option"] }
     ])
   };
 
@@ -652,7 +652,7 @@ test("Ban enforcement: Active non-banned student can submit valid test attempt",
     isOfficial: true,
     countsTowardRanking: true,
     targetExam: "NEET UG",
-    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
+    questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE", options: ["A option", "B option", "C option", "D option"] }])
   };
   const privateKeys = { questions: [{ id: "q1", correctAnswer: "A" }] };
   const activeUserData = { uid: "active_student_1", isBanned: false, name: "Active Student" };
