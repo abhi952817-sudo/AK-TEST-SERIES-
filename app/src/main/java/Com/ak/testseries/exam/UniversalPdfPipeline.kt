@@ -489,7 +489,7 @@ object UniversalPdfPipeline {
                     explanation = explanation,
                     hasDiagramAttached = false,
                     duplicateResult = dupResult,
-                    questionType = parsedQType,
+                    questionType = sectionConfig.questionType,
                     expectedOptionCount = sectionConfig.optionsCount
                 )
 
@@ -516,7 +516,7 @@ object UniversalPdfPipeline {
                     explanation = explanation,
                     explanationHi = item.optString("explanationHi").takeIf { it.isNotBlank() },
                     difficulty = diffLevel,
-                    questionType = parsedQType,
+                    questionType = sectionConfig.questionType,
                     positiveMarks = parsedPosMarks,
                     negativeMarks = parsedNegMarks,
                     difficultyScore = validation.difficultyScore,
