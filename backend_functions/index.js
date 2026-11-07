@@ -1139,7 +1139,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
     throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
   }
   const input = data || {};
-  const examId = normalizeExamKey(input.targetExam || "NEET");
+  const examId = requireCanonicalExamId(input.targetExam);
   const classLevel = normalizeClassLevel(input.classLevel || "All");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const periodType = String(input.periodType || "HALF_MONTH").toUpperCase();
