@@ -2786,119 +2786,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     var pdfCropCallback: ((String) -> Unit)? = null
 
     fun open180QuestionsForPreview() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.Main) {
             if (previewQuestions.value.isEmpty()) {
-                val list = mutableListOf<QuestionEntity>()
-                val testId = "preview_180_" + System.currentTimeMillis()
-                
-                // Physics Q1 to Q45
-                for (i in 1..45) {
-                    list.add(
-                        QuestionEntity(
-                            id = "${testId}_phy_$i",
-                            testId = testId,
-                            questionText = "Q$i (Physics): Two point charges q1 and q2 are separated by distance r. What is the electrostatic force between them in vacuum?\nप्रश्न $i (भौतिकी): दो बिंदु आवेश q1 और q2 दूरी r पर स्थित हैं। निर्वात में उनके बीच वैद्युत बल क्या है?",
-                            optionA = "A) F = k*(q1*q2)/r²",
-                            optionB = "B) F = k*(q1*q2)/r",
-                            optionC = "C) F = k*(q1+q2)/r²",
-                            optionD = "D) F = zero",
-                            correctAnswer = "A",
-                            explanation = "According to Coulomb's Law, electrostatic force F = k*(q1*q2)/r².\nकूलाम के नियम अनुसार वैद्युत बल F = k*(q1*q2)/r² होता है।",
-                            subject = "Physics",
-                            chapter = "Electrostatics & Magnetism",
-                            questionTextHi = "प्रश्न $i (भौतिकी): दो बिंदु आवेश q1 और q2 दूरी r पर स्थित हैं। निर्वात में उनके बीच वैद्युत बल क्या है?",
-                            optionAHi = "A) F = k*(q1*q2)/r²",
-                            optionBHi = "B) F = k*(q1*q2)/r",
-                            optionCHi = "C) F = k*(q1+q2)/r²",
-                            optionDHi = "D) F = शून्य",
-                            explanationHi = "कूलाम के नियम अनुसार वैद्युत बल F = k*(q1*q2)/r² होता है।",
-                            section = if (i <= 35) "SECTION_A" else "SECTION_B"
-                        )
-                    )
-                }
-
-                // Chemistry Q46 to Q90
-                for (i in 46..90) {
-                    val qNum = i - 45
-                    list.add(
-                        QuestionEntity(
-                            id = "${testId}_chem_$i",
-                            testId = testId,
-                            questionText = "Q$i (Chemistry): Which of the following orbital has spherical symmetry?\nप्रश्न $i (रसायन विज्ञान): निम्नलिखित में से किस कक्षक में गोल सममिति (Spherical Symmetry) होती है?",
-                            optionA = "A) s-orbital / s-कक्षक",
-                            optionB = "B) p-orbital / p-कक्षक",
-                            optionC = "C) d-orbital / d-कक्षक",
-                            optionD = "D) f-orbital / f-कक्षक",
-                            correctAnswer = "A",
-                            explanation = "s-orbitals are non-directional and spherical in shape.\ns-कक्षक की आकृति गोलाकार और अदिशात्मक होती है।",
-                            subject = "Chemistry",
-                            chapter = "Atomic Structure & Periodic Table",
-                            questionTextHi = "प्रश्न $i (रसायन विज्ञान): निम्नलिखित में से किस कक्षक में गोल सममिति होती है?",
-                            optionAHi = "A) s-कक्षक",
-                            optionBHi = "B) p-कक्षक",
-                            optionCHi = "C) d-कक्षक",
-                            optionDHi = "D) f-कक्षक",
-                            explanationHi = "s-कक्षक की आकृति गोलाकार और अदिशात्मक होती है।",
-                            section = if (qNum <= 35) "SECTION_A" else "SECTION_B"
-                        )
-                    )
-                }
-
-                // Botany Q91 to Q135
-                for (i in 91..135) {
-                    val qNum = i - 90
-                    list.add(
-                        QuestionEntity(
-                            id = "${testId}_bot_$i",
-                            testId = testId,
-                            questionText = "Q$i (Botany): In C4 plants, initial carbon dioxide fixation occurs in which cells?\nप्रश्न $i (वनस्पति विज्ञान): C4 पौधों में प्राथमिक कार्बन डाइऑक्साइड स्थिरीकरण किन कोशिकाओं में होता है?",
-                            optionA = "A) Mesophyll cells / पर्णमध्योतक (Mesophyll) कोशिकाएं",
-                            optionB = "B) Bundle sheath cells / पूल आच्छद (Bundle sheath) कोशिकाएं",
-                            optionC = "C) Epidermal cells / बाह्यत्वचा कोशिकाएं",
-                            optionD = "D) Guard cells / द्वार कोशिकाएं",
-                            correctAnswer = "A",
-                            explanation = "In C4 plants, CO2 is fixed by PEP carboxylase in mesophyll cells to form oxaloacetic acid.\nC4 पौधों में मेसोफिल कोशिकाओं में PEP कार्बोक्सिलेज़ द्वारा CO2 स्थिरीकरण होता है।",
-                            subject = "Biology",
-                            chapter = "Plant Physiology - Photosynthesis",
-                            questionTextHi = "प्रश्न $i (वनस्पति विज्ञान): C4 पौधों में प्राथमिक CO2 स्थिरीकरण किन कोशिकाओं में होता है?",
-                            optionAHi = "A) मेसोफिल (Mesophyll) कोशिकाएं",
-                            optionBHi = "B) बंडल शीथ (Bundle Sheath) कोशिकाएं",
-                            optionCHi = "C) बाह्यत्वचा कोशिकाएं",
-                            optionDHi = "D) द्वार कोशिकाएं",
-                            explanationHi = "C4 पौधों में मेसोफिल कोशिकाओं में PEP कार्बोक्सिलेज़ द्वारा CO2 स्थिरीकरण होता है।",
-                            section = if (qNum <= 35) "SECTION_A" else "SECTION_B"
-                        )
-                    )
-                }
-
-                // Zoology Q136 to Q180
-                for (i in 136..180) {
-                    val qNum = i - 135
-                    list.add(
-                        QuestionEntity(
-                            id = "${testId}_zoo_$i",
-                            testId = testId,
-                            questionText = "Q$i (Zoology): Which hormone triggers ovulation in humans?\nप्रश्न $i (प्राणि विज्ञान): मनुष्यों में अंडोत्सर्ग (Ovulation) को कौन सा हार्मोन प्रेरित करता है?",
-                            optionA = "A) Luteinizing Hormone (LH) / ल्यूटिनाइजिंग हार्मोन (LH)",
-                            optionB = "B) Follicle Stimulating Hormone (FSH) / फॉलिकल स्टिम्युलेटिंग हार्मोन (FSH)",
-                            optionC = "C) Progesterone / प्रोजेस्टेरोन",
-                            optionD = "D) Estrogen / एस्ट्रोजन",
-                            correctAnswer = "A",
-                            explanation = "Rapid secretion of LH leads to LH surge mid-cycle, inducing rupture of Graafian follicle and ovulation.\nLH के तीव्र स्राव (LH Surge) से परिपक्व ग्रैफियन पुटक फट जाता है और अंडोत्सर्ग होता है।",
-                            subject = "Biology",
-                            chapter = "Human Reproduction & Physiology",
-                            questionTextHi = "प्रश्न $i (प्राणि विज्ञान): मनुष्यों में अंडोत्सर्ग को कौन सा हार्मोन प्रेरित करता है?",
-                            optionAHi = "A) ल्यूटिनाइजिंग हार्मोन (LH)",
-                            optionBHi = "B) फॉलिकल स्टिम्युलेटिंग हार्मोन (FSH)",
-                            optionCHi = "C) प्रोजेस्टेरोन",
-                            optionDHi = "D) एस्ट्रोजन",
-                            explanationHi = "LH के तीव्र स्राव से ग्रैफियन पुटक फट जाता है और अंडोत्सर्ग होता है।",
-                            section = if (qNum <= 35) "SECTION_A" else "SECTION_B"
-                        )
-                    )
-                }
-
-                previewQuestions.value = list
+                android.widget.Toast.makeText(
+                    getApplication<Application>(),
+                    "No real questions are loaded. Generate or import a validated test before previewing.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                return@launch
             }
             show180QuestionsDialog.value = true
         }
