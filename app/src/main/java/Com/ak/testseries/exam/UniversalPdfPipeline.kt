@@ -173,6 +173,13 @@ object UniversalPdfPipeline {
         } else ""
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
+        require(resumeFromBatch <= totalBatches + 1) {
+            "Resume batch exceeds the configured extraction batch count."
+        }
+        val expectedCachedCount = ((resumeFromBatch - 1) * batchSize).coerceAtMost(expectedQuestions)
+        require(existingQuestionsCache.size == expectedCachedCount) {
+            "Resume cache mismatch: expected $expectedCachedCount validated questions before batch $resumeFromBatch, found ${existingQuestionsCache.size}."
+        }
         val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }.toMutableMap()
         val effectiveApiKey = apiKey ?: BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
 
