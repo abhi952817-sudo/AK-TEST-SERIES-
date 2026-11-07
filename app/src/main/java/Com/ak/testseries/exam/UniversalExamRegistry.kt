@@ -30,17 +30,12 @@ object UniversalExamRegistry {
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 40, hardPercent = 15),
                 supportedQuestionTypes = listOf(
                     QuestionType.MCQ_SINGLE,
-                    QuestionType.DIRECT_MCQ,
-                    QuestionType.STATEMENT_I_II,
-                    QuestionType.ASSERTION_REASON,
-                    QuestionType.MATCH_LIST_I_II,
-                    QuestionType.DIAGRAM_LABELING,
-                    QuestionType.GRAPH
+                    QuestionType.DIRECT_MCQ
                 ),
-                aiSystemInstruction = "You are the Chief Academic Examiner for NEET UG. Strictly adhere to NCERT Class 11 & 12 curriculum for Physics, Chemistry, and Biology (Botany & Zoology). Emphasize NCERT factual accuracy, biochemical cycles, diagrammatic interpretations, genetics crosses, and conceptual numericals. Eliminate out-of-syllabus graduate concepts.",
+                aiSystemInstruction = "You are the Chief Academic Examiner for NEET UG. Strictly adhere to NCERT Class 11 & 12 curriculum for Physics, Chemistry, Botany and Zoology. Generate only single-correct MCQs with four options.",
                 patternRules = listOf(
                     "+4 marks for correct answer, -1 mark penalty for incorrect answer",
-                    "2026 pattern: 45 compulsory single-correct MCQs in Physics, 45 in Chemistry, and 90 in Biology (Botany + Zoology)",
+                    "2026 pattern: 45 compulsory questions each in Physics, Chemistry, Botany and Zoology",
                     "No optional Section B in the 2026 bulletin",
                     "Total 720 marks (180 compulsory questions)",
                     "Duration 180 minutes (3 hours)",
@@ -59,36 +54,24 @@ object UniversalExamRegistry {
                                 subjects = listOf(
                                     SubjectConfig(
                                         "physics", "Physics",
-                                        listOf(
-                                            SectionConfig("phy_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            
-                                        )
+                                        listOf(SectionConfig("phy_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "chemistry", "Chemistry",
-                                        listOf(
-                                            SectionConfig("chem_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            
-                                        )
+                                        listOf(SectionConfig("chem_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "botany", "Botany",
-                                        listOf(
-                                            SectionConfig("bot_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            
-                                        )
+                                        listOf(SectionConfig("bot_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "zoology", "Zoology",
-                                        listOf(
-                                            SectionConfig("zoo_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            
+                                        listOf(SectionConfig("zoo_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
+                                    )
+                                )
                             )
                         )
                     )
-                )
-            )
-        )
                 )
             )
         )
