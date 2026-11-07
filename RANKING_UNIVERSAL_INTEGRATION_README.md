@@ -1028,3 +1028,19 @@ The profile-visibility synchronization trigger now compares raw normalized value
 Android score calculation now consistently uses the canonical exam ID resolved from the test's explicit exam ID and exact stage/paper. It no longer passes an ambiguous display label directly to the scoring engine. Answer selection, timer validation, offline score calculation and post-submit leaderboard refresh share this exact identity resolver.
 
 **Current verification:** latest code commit is `6744b09cd136eb42dd59f9a21a75e7b8a6627bef`. GitHub Actions has created workflows for this branch, but the latest runs remain queued; no latest-commit CI pass is claimed. The previous completed baseline `42364272119` predates the current test and code corrections. No production deployment, Firestore migration or main-branch modification has occurred.
+
+### 2.34 Historical backfill revalidation and missing eligibility-helper correction — 2026-11-07
+
+A further backend audit found that `index.js` imported `isEligibleScoringResult` from `rankingEngine.js`, but the function was absent from the module. The import therefore resolved to `undefined`; a qualifying server submission could fail when it attempted to evaluate ranking eligibility. The helper is now implemented and exported. It fails closed unless score and max score are finite and bounded, max score is positive, and `ungradedCount` is exactly zero. Boundary tests cover missing eligibility data, ungraded responses, invalid score bounds and zero maximum.
+
+Historical migration previously trusted the stored attempt's `rankingWeight` and only checked the test's official/public/status flags. That could backfill a legacy attempt whose weight conflicted with its Full/Part classification or whose full-test paper was incomplete. The migration now:
+- Resolves weight from current test metadata; a stored weight, if present, must match.
+- Loads the official test, question set and protected answer-key document.
+- Reuses `validateAndMergeAnswerKeys` so current status, public/official flags, unique IDs, trusted keys, exact subject/section/question type, option count, integer-only JEE NVQ policy and Full/Part composition rules are rechecked.
+- Parses the immutable attempt answer payload and recalculates the score with the current verified scoring engine.
+- Requires recalculated score and maximum to match the stored authoritative score/max within 0.001, and requires zero ungraded questions.
+- Skips historical records lacking sufficient trusted source data rather than guessing. Such records need separate manual reconciliation; they are not silently included in AIR.
+
+Question documents loaded from Firestore now always use the Firestore document ID as the canonical question ID, preventing a data field from overriding the actual document identity.
+
+**CI remains pending:** the latest code changes are committed on the feature branch, but GitHub Actions runs are still queued. The latest green/failed state cannot be determined until a workflow for the current head completes. No production migration or deployment has been run.
