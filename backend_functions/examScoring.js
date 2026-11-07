@@ -555,16 +555,17 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
         err.code = "failed-precondition";
         throw err;
       }
-      let options = [];
-      if (Array.isArray(q.options)) {
-        options = q.options.map(option => String(
+      const arrayOptions = Array.isArray(q.options)
+        ? q.options.map(option => String(
           option && typeof option === "object" ? (option.text || option.value || option.label || "") : option || ""
-        ).trim());
-      } else {
-        options = ["A", "B", "C", "D", "E"].slice(0, Math.max(4, policy.optionsCount)).map(letter =>
-          String(q[`option${letter}En`] ?? q[`option${letter}`] ?? "").trim()
-        );
-      }
+        ).trim())
+        : [];
+      const optionFields = ["A", "B", "C", "D", "E"].map(letter =>
+        String(q[`option${letter}En`] ?? q[`option${letter}`] ?? "").trim()
+      );
+      const options = arrayOptions.length > 0
+        ? arrayOptions
+        : optionFields.slice(0, Math.max(4, policy.optionsCount));
       if (policy.optionsCount > 0) {
         if (options.length !== policy.optionsCount || options.some(option => !option) ||
             new Set(options.map(option => option.toLowerCase())).size !== options.length) {
@@ -572,7 +573,7 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
           err.code = "failed-precondition";
           throw err;
         }
-      } else if (options.some(option => option)) {
+      } else if (arrayOptions.some(Boolean) || optionFields.some(Boolean)) {
         const err = new Error("Ranking-eligible numerical-value questions must not contain MCQ options.");
         err.code = "failed-precondition";
         throw err;
