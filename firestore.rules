@@ -141,9 +141,9 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // PUBLIC LEADERBOARDS & RANKINGS
-    // Read: Authenticated students (competitive rankings across exams)
-    // Write: Verified Admins & Server Functions only (tamper-proof)
+    // LEGACY PUBLIC LEADERBOARDS & RANKINGS
+    // Legacy raw-mark collections remain readable for compatibility.
+    // V2 ranking materializations below are callable-only because raw rows contain internal user IDs.
     // =========================================================================
     match /Leaderboard/{entryDoc} {
       allow read: if isAuthenticated();
