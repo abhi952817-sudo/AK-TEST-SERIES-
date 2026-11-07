@@ -10,7 +10,7 @@ const {
   getExamEligibility,
   normalizeExamKey,
 } = require("./examScoring");
-const { validateSetAdminRoleAuth, assertActiveUserStatus, ADMIN_ROLES, buildAdminCustomClaims } = require("./authHelper");
+const { validateSetAdminRoleAuth, assertActiveUserStatus, ADMIN_ROLES, ADMIN_PERMISSIONS, buildAdminCustomClaims, hasAdminPermissionFromClaims } = require("./authHelper");
 
 exports.normalizeExamKey = normalizeExamKey;
 
@@ -760,15 +760,14 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
 
   const testData = testDoc.data();
-  const isCallerAdmin = Boolean(
-    context.auth.token && (
-      context.auth.token.admin === true ||
-      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
-    )
-  );
+  // Only Super Admin and Content Admin have the question-review permission.
+  // Support Admin must never receive answer-key or solution-review bypass access.
+  const isQuestionReviewAdmin =
+    hasAdminPermissionFromClaims(context.auth.token, ADMIN_PERMISSIONS.QUESTION_REVIEW) ||
+    (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true);
 
   // Check explicit review disallowance
-  if (!isCallerAdmin && testData.allowSolutionsReview === false) {
+  if (!isQuestionReviewAdmin && testData.allowSolutionsReview === false) {
     throw new functions.https.HttpsError(
       "permission-denied",
       "Detailed solutions review has been disabled for this examination."
@@ -776,7 +775,7 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
 
   // Check live test window
-  if (!isCallerAdmin && (testData.isLive === true || testData.liveEndTime)) {
+  if (!isQuestionReviewAdmin && (testData.isLive === true || testData.liveEndTime)) {
     const now = Date.now();
     const liveEndTime = typeof testData.liveEndTime === "number"
       ? testData.liveEndTime
