@@ -150,14 +150,26 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     );
   }
 
-  const testCountsTowardRanking = testData.countsTowardRanking === true && isPubliclyAvailable;
+  // Competitive AIR is restricted to explicitly approved, public, official papers.
+  // A public community/practice test must never enter the official exam ranking.
+  const testCountsTowardRanking =
+    testData.countsTowardRanking === true &&
+    testData.isOfficial === true &&
+    isPubliclyAvailable;
   let canonicalExam;
   try {
     canonicalExam = resolveCanonicalExamIdentity(testData);
   } catch (err) {
     throw new functions.https.HttpsError(err.code || "failed-precondition", err.message);
   }
-  const rankingWeight = resolveRankingWeight(testData);
+  const resolvedRankingWeight = resolveRankingWeight(testData);
+  if (testCountsTowardRanking && resolvedRankingWeight === null) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Official ranking test has no verified Full Test (1.0x) or Part Test (0.2x) classification."
+    );
+  }
+  const rankingWeight = testCountsTowardRanking ? resolvedRankingWeight : 0;
 
   // 4. Load questions and trusted answer keys (Protected Separation)
   let questions = [];
@@ -382,9 +394,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     let newExamScore = currentExamScore;
 
     // Normalize to a common 10,000-point full-test scale before applying test weight.
-    const weightedScore = calculateWeightedRankingScore(
-      evalResult.finalScore, evalResult.maxScore, rankingWeight
-    );
+    const weightedScore = isFirstQualifyingAttempt
+      ? calculateWeightedRankingScore(evalResult.finalScore, evalResult.maxScore, rankingWeight)
+      : 0;
 
     if (isFirstQualifyingAttempt) {
       newExamScore = currentExamScore + weightedScore;
