@@ -2,60 +2,64 @@ package Com.ak.testseries.exam
 
 object UniversalAIContext {
 
-    /**
-     * Builds the comprehensive AI System Instruction tailored to the specific exam.
-     */
     fun buildSystemInstruction(examConfig: ExamConfig): String {
+        require(examConfig.active && examConfig.verified) {
+            "AI generation is disabled for an unverified exam pattern."
+        }
+        require(examConfig.aiSystemInstruction.isNotBlank()) {
+            "A source-reviewed exam-specific AI instruction is required."
+        }
+        require(examConfig.defaultOptionCount > 0 && examConfig.supportedQuestionTypes.isNotEmpty()) {
+            "Verified question type and option-count policy is incomplete."
+        }
         val diff = examConfig.difficultyRatio
         val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
         val rules = examConfig.patternRules.joinToString("; ")
 
         return buildString {
-            appendLine("=== EXAM-SPECIFIC SYSTEM INSTRUCTION: ${examConfig.examName} (${examConfig.shortName}) ===")
-            if (examConfig.aiSystemInstruction.isNotBlank()) {
-                appendLine(examConfig.aiSystemInstruction)
+            appendLine("=== SOURCE-VERIFIED EXAM INSTRUCTION: ${examConfig.examName} (${examConfig.examId}) ===")
+            appendLine(examConfig.aiSystemInstruction)
+            appendLine()
+            appendLine("TARGET DIFFICULTY DISTRIBUTION:")
+            appendLine("- Easy: ${diff.easyPercent}%")
+            appendLine("- Medium: ${diff.mediumPercent}%")
+            appendLine("- Hard: ${diff.hardPercent}%")
+            appendLine()
+            appendLine("SUPPORTED QUESTION TYPES: $qTypes")
+            appendLine("VERIFIED PATTERN RULES: $rules")
+            appendLine()
+            appendLine("STRICT CONTENT RULES:")
+            appendLine("1. Use only facts supported by the supplied source material and verified curriculum.")
+            appendLine("2. Never invent question text, options, answer keys, explanations, source pages or exam metadata.")
+            appendLine("3. Never add generic marks, section names, option labels or placeholder content.")
+            appendLine("4. The application assigns section identity and marks from the verified exam policy. Do not output section IDs or marks.")
+            appendLine("5. For MCQ_SINGLE sections, provide exactly ${examConfig.defaultOptionCount} distinct real options and a valid option key.")
+            appendLine("6. For numerical sections, provide no MCQ options and a finite numerical answer.")
+            appendLine("7. If the source does not contain or support a reliable answer key, leave correctAnswer empty. That question will be rejected from scoring.")
+            appendLine("8. Difficulty must be assessed from the question itself. Do not use a fixed default.")
+            if (examConfig.language.contains("Hindi", ignoreCase = true)) {
+                appendLine("9. Provide accurate English and Hindi question/options/explanation text when the source contains both.")
             } else {
-                appendLine("You are an authoritative senior academic examiner and curriculum developer for ${examConfig.examName}.")
+                appendLine("9. Use English only; do not fabricate translations.")
             }
-            appendLine()
-            appendLine("TARGET DIFFICULTY RATIO (Strict Distribution):")
-            appendLine("- Easy: ${diff.easyPercent}% (Direct conceptual, formulaic, foundational recall)")
-            appendLine("- Medium: ${diff.mediumPercent}% (Multi-step application, relational reasoning, calculation)")
-            appendLine("- Hard: ${diff.hardPercent}% (Multi-concept synthesis, edge cases, high cognitive demand)")
-            appendLine()
-            appendLine("SUPPORTED QUESTION TYPES FOR THIS EXAM: $qTypes")
-            if (rules.isNotBlank()) {
-                appendLine("OFFICIAL PATTERN & MARKING RULES: $rules")
-            }
-            appendLine()
-            appendLine("CRITICAL GENERATION CONSTRAINTS:")
-            appendLine("1. INTERNAL REASONING: Every question MUST begin with an extensive 'reasoning' block verifying facts, proving why the correct option is uniquely true, and proving why every distractor is false.")
-            appendLine("2. ANTI-HALLUCINATION: Do NOT fabricate incorrect scientific/historical facts. Strictly follow the provided source material.")
-            if (examConfig.language.contains("English", ignoreCase = true) && !examConfig.language.contains("Hindi", ignoreCase = true)) {
-                appendLine("3. LANGUAGE: Strictly English medium. Do not include Hindi translations for this exam (${examConfig.examName}).")
-            } else {
-                appendLine("3. LANGUAGE & BILINGUAL SUPPORT: ${examConfig.language}. Provide accurate, natural Hindi translations ('questionTextHi', 'optionAHi'..'optionDHi', 'explanationHi') alongside English.")
-            }
-            appendLine("4. DEFAULT OPTIONS: ${examConfig.defaultOptionCount} options for MCQs (or 0 for Numerical/NAT/TITA questions).")
-            appendLine("5. NEEDS IMAGE: Set 'needsImage': true whenever the question requires a diagram, circuit, graph, or illustration.")
         }.trim()
     }
 
-    /**
-     * Finds the applicable sections for a given subject within the exam configuration.
-     */
     fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
-        val allSubjects = examConfig.stages.flatMap { it.papers.flatMap { p -> p.subjects } }
-        val matchingSubject = allSubjects.find { 
-            it.subjectName.equals(subject, ignoreCase = true) || it.subjectId.equals(subject, ignoreCase = true) 
-        } ?: allSubjects.firstOrNull()
-        return matchingSubject?.sections ?: emptyList()
+        require(examConfig.active && examConfig.verified) {
+            "Section lookup is disabled for an unverified exam pattern."
+        }
+        val stage = examConfig.stages.singleOrNull()
+            ?: throw IllegalArgumentException("Select an exact exam stage.")
+        val paper = stage.papers.singleOrNull()
+            ?: throw IllegalArgumentException("Select an exact exam paper.")
+        val subjectConfig = paper.subjects.singleOrNull {
+            it.subjectName.equals(subject.trim(), true) || it.subjectId.equals(subject.trim(), true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous subject '$subject'.")
+        require(subjectConfig.sections.isNotEmpty()) { "Selected subject has no verified sections." }
+        return subjectConfig.sections
     }
 
-    /**
-     * Builds the complete prompt dynamically injecting the selected exam's system instruction,
-     * difficulty ratios, pattern rules, and the compact Markdown payload.
-     */
     fun buildDynamicGenerationPrompt(
         examConfig: ExamConfig,
         subject: String,
@@ -67,148 +71,109 @@ object UniversalAIContext {
         totalQuestions: Int,
         isExtractionMode: Boolean = false
     ): String {
+        require(examConfig.active && examConfig.verified) {
+            "Generation is blocked for an unverified exam pattern."
+        }
+        require(compactMarkdownPayload.isNotBlank()) {
+            "A real source document is required; synthetic syllabus fallback is disabled."
+        }
+        require(currentChunkSize > 0 && startQ > 0 && endQ >= startQ && totalQuestions >= endQ) {
+            "Question range metadata is invalid."
+        }
         val systemInstruction = buildSystemInstruction(examConfig)
         val diff = examConfig.difficultyRatio
-        val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
-        val patternList = examConfig.patternRules.joinToString("\n  - ")
+        val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { it.name }
         val sections = getApplicableSections(examConfig, subject)
-        val sectionDetails = if (sections.isNotEmpty()) {
-            sections.joinToString("\n") { s ->
-                "  * [${s.sectionId}] \"${s.sectionName}\": ${s.totalQuestions} Questions (${s.compulsoryQuestions} Compulsory) | Type: ${s.questionType.name} (${s.questionType.displayName}) | Scoring: +${s.positiveMarks} correct, -${s.negativeMarks} wrong"
-            }
-        } else {
-            "  * Default Section: +4.0 correct, -1.0 wrong | Type: ${examConfig.supportedQuestionTypes.firstOrNull()?.name ?: "MCQ_SINGLE"}"
+        val sectionDetails = sections.joinToString("\n") { section ->
+            "  * ${section.sectionId}: ${section.sectionName}; total=${section.totalQuestions}; compulsory=${section.compulsoryQuestions}; type=${section.questionType.name}; positive=${section.positiveMarks}; negative=${section.negativeMarks}; options=${section.optionsCount}"
         }
 
-        val taskObjective = if (isExtractionMode) {
+        val objective = if (isExtractionMode) {
             """
-            TASK OBJECTIVE (STRICT TRANSCRIPTION & EXTRACTION MODE):
-            Extract and transcribe the existing questions, options, and answer keys VERBATIM from the COMPACT SOURCE MARKDOWN PAYLOAD below.
-            
-            CRITICAL TRANSCRIPTION DIRECTIVES:
-            1. STRICT VERBATIM TRANSCRIPTION: Do NOT generate, synthesize, or invent new questions. Transcribe ONLY questions, options, and keys that actually exist in the provided source text.
-            2. PRESERVE QUESTIONS & OPTIONS: Accurately extract each question's stem and all available options (A, B, C, D / 1, 2, 3, 4) exactly as written in the source text.
-            3. PRESERVE OFFICIAL ANSWER KEYS: If an answer key, marked option, or solution is provided in the source text, extract and assign that exact correct answer. If not explicitly stated, verify and solve strictly based on the question facts without inventing alternative keys.
-            4. ORIGINAL QUESTION ORDER: Retain the sequential order and numbering from the original paper.
-            5. If this chunk contains fewer questions than $currentChunkSize, extract ONLY the existing questions. Do not fabricate filler questions to reach a quota.
+            TASK: VERBATIM SOURCE EXTRACTION.
+            Extract only questions that actually exist in the supplied source text.
+            Preserve their original order and wording. Do not synthesize missing questions to reach a count.
+            If the source lacks a reliable answer key, leave correctAnswer empty; the application will reject it for scoring.
             """.trimIndent()
         } else {
             """
-            TASK OBJECTIVE:
-            Generate exactly $currentChunkSize realistic, exam-aligned questions for:
-            - Exam: ${examConfig.examName} (${examConfig.shortName}) - ${examConfig.category}
+            TASK: SOURCE-BASED QUESTION CONSTRUCTION.
+            Create exactly $currentChunkSize questions grounded in the supplied source material for:
+            - Exam: ${examConfig.examName} (${examConfig.examId})
             - Subject: $subject
-            - Test Title: $testTitle
-            - Range: Questions $startQ to $endQ (out of $totalQuestions total)
-            - Target Difficulty Split: Easy: ${diff.easyPercent}%, Medium: ${diff.mediumPercent}%, Hard: ${diff.hardPercent}%
-            - Permitted Question Types: $qTypes
-            ${if (patternList.isNotBlank()) "- Official Pattern Rules:\n  - $patternList" else ""}
-            - Configured Section Structure & Scoring Rules:
-            $sectionDetails
+            - Test title: $testTitle
+            - Question range: $startQ-$endQ of $totalQuestions
+            - Difficulty distribution: Easy ${diff.easyPercent}%, Medium ${diff.mediumPercent}%, Hard ${diff.hardPercent}%
+            - Supported question types: $qTypes
             """.trimIndent()
         }
 
         return """
             $systemInstruction
-            
-            --------------------------------------------------------------------------------
-            $taskObjective
-            
-            --------------------------------------------------------------------------------
-            STRICT NO-FORMAT-MIXING CONSTRAINTS:
-            1. CONSISTENT SECTION STRUCTURE: Each question MUST be assigned its appropriate sectionId, sectionName, positiveMarks, and negativeMarks exactly matching the exam configuration.
-            2. NO TYPE POLLUTION:
-               - If the section specifies NUMERICAL_VALUE / NVQ / NAT: Provide a single numerical problem without multiple-choice options (options empty or omitted), with exact numerical answer in 'correctAnswer'. Do NOT include A, B, C, D choices.
-               - If the section specifies MCQ_SINGLE: Provide exactly ${examConfig.defaultOptionCount} distinct options (${if (examConfig.defaultOptionCount == 5) "'optionAEn'..'optionEEn'" else "'optionAEn'..'optionDEn'"}) with single letter 'correctAnswer' (${if (examConfig.defaultOptionCount == 5) "A, B, C, D, or E" else "A, B, C, or D"}).
-               - If the section specifies STATEMENT_I_II: Structure question with Statement I and Statement II with standard analytical options.
-               - If the section specifies ASSERTION_REASON: Provide Assertion (A) and Reason (R) with standard 4-option reasoning format.
-               - If the section specifies MATCH_LIST_I_II: Provide List I and List II and match combinations.
-            3. CONSISTENT SCORING: Use each section's exact positiveMarks and negativeMarks. Never invent arbitrary scoring schemes.
-            4. LANGUAGE: ${if (examConfig.language.contains("English") && !examConfig.language.contains("Hindi")) "English medium exclusively. Set Hindi translation fields to null or empty." else "Bilingual medium (${examConfig.language}). Provide natural, fluent Hindi translations."}
-            
-            --------------------------------------------------------------------------------
-            COMPACT SOURCE MARKDOWN PAYLOAD (Cleaned & Token-Optimized):
-            ${if (compactMarkdownPayload.isNotBlank()) compactMarkdownPayload.take(50000) else "Source: Standard Official Syllabus for $subject in ${examConfig.examName}."}
-            
-            --------------------------------------------------------------------------------
-            REQUIRED JSON OUTPUT SCHEMA:
-            Return ONLY a valid JSON array of objects. Do not wrap in markdown quotes if possible, return strictly raw JSON:
+
+            $objective
+
+            VERIFIED SUBJECT SECTION POLICY:
+            $sectionDetails
+
+            OUTPUT RULES:
+            - Return only a JSON array with exactly $currentChunkSize objects if the source supports that many.
+            - Do not include sectionId, sectionName, positiveMarks or negativeMarks. The application derives them from the verified section policy and question order.
+            - Do not add sample, dummy, generic or placeholder questions/options/answers.
+            - MCQ options must be real, distinct and complete. Numerical questions must not contain options.
+            - correctAnswer must be a verified option key or finite numeric value. Otherwise use an empty string.
+            - difficulty must be EASY, MEDIUM or HARD based on the actual question.
+            - Keep explanations factual and concise. Do not output hidden chain-of-thought.
+
+            REQUIRED JSON SHAPE (empty values are required fields to be filled with real source-derived content):
             [
               {
-                "sectionId": "sec_id",
-                "sectionName": "Section Name",
-                "positiveMarks": 4.0,
-                "negativeMarks": 1.0,
-                "questionType": "MCQ_SINGLE",
-                "reasoning": "Step-by-step verification proving the correct answer according to official curriculum and showing why distractors are wrong.",
-                "questionTextEn": "English question text",
-                ${if (examConfig.language.contains("Hindi")) "\"questionTextHi\": \"Hindi translation of question\"," else ""}
-                "optionAEn": "Option A (English)",
-                "optionBEn": "Option B (English)",
-                "optionCEn": "Option C (English)",
-                "optionDEn": "Option D (English)",
-                ${if (examConfig.defaultOptionCount == 5) "\"optionEEn\": \"Option E (English)\"," else ""}
-                ${if (examConfig.language.contains("Hindi")) """
-                "optionAHi": "विकल्प A (हिंदी)",
-                "optionBHi": "विकल्प B (हिंदी)",
-                "optionCHi": "विकल्प C (हिंदी)",
-                "optionDHi": "विकल्प D (हिंदी)",
-                ${if (examConfig.defaultOptionCount == 5) "\"optionEHi\": \"विकल्प E (हिंदी)\"," else ""}
-                """.trimIndent() else ""}
-                "correctAnswer": "A",
-                "explanationEn": "Clear, pedagogically sound explanation",
-                ${if (examConfig.language.contains("Hindi")) "\"explanationHi\": \"हिंदी में विस्तृत व्याख्या\"," else ""}
-                "difficulty": "EASY",
-                "chapter": "Chapter name",
-                "topic": "Topic name",
+                "questionTextEn": "",
+                "questionTextHi": "",
+                "optionAEn": "",
+                "optionBEn": "",
+                "optionCEn": "",
+                "optionDEn": "",
+                "optionAHi": "",
+                "optionBHi": "",
+                "optionCHi": "",
+                "optionDHi": "",
+                "correctAnswer": "",
+                "explanationEn": "",
+                "explanationHi": "",
+                "difficulty": "",
+                "chapter": "",
+                "topic": "",
                 "needsImage": false
               }
             ]
+
+            SOURCE MATERIAL:
+            ${compactMarkdownPayload.take(50000)}
         """.trimIndent()
     }
 
-    /**
-     * Builds the extraction prompt for extracting questions from already existing question papers.
-     */
     fun buildExtractionPrompt(examConfig: ExamConfig, subjectId: String, expectedQuestions: Int): String {
+        require(examConfig.active && examConfig.verified) {
+            "Extraction is blocked for an unverified exam pattern."
+        }
+        require(expectedQuestions > 0) { "Expected question count must be positive." }
+        val sections = getApplicableSections(examConfig, subjectId)
+        val sectionRules = sections.joinToString("\n") {
+            "- ${it.sectionId}: ${it.sectionName}; ${it.totalQuestions} total; ${it.questionType}; +${it.positiveMarks}/-${it.negativeMarks}"
+        }
         val sysInst = buildSystemInstruction(examConfig)
         return """
             $sysInst
-            
-            You are a strict, high-accuracy question extractor for ${examConfig.examName} ($subjectId).
-            Extract up to $expectedQuestions questions from the provided source material.
-            
-            CRITICAL RULES - DO NOT FABRICATE:
-            - DO NOT invent missing options.
-            - DO NOT invent missing diagrams (set hasMissingDiagram = true).
-            - DO NOT guess answers if they are not explicitly present or derivable.
-            - DO NOT invent source facts.
-            - DO NOT silently correct ambiguous questions (flag them).
-            - DO NOT change numerical values or units.
-            - Target Difficulty Baseline: Easy ${examConfig.difficultyRatio.easyPercent}%, Medium ${examConfig.difficultyRatio.mediumPercent}%, Hard ${examConfig.difficultyRatio.hardPercent}%.
-            
-            ANSWER ACCURACY PIPELINE:
-            1. EXTRACT the source question text exactly as it appears.
-            2. EXTRACT the options exactly.
-            3. EXTRACT the answer key if provided.
-            4. INDEPENDENT ANSWER CHECK: Verify the answer independently.
-            5. SOURCE/ANSWER-KEY CHECK: Compare independent answer with extracted key.
-            6. CONSISTENCY CHECK: If there is a conflict, mark answerConfidence = 0.
-            
-            Return a JSON array of objects with the following schema:
-            [
-              {
-                "questionText": "exact text",
-                "options": ["A", "B", "C", "D"],
-                "correctAnswer": "A",
-                "explanation": "Independent step-by-step derivation",
-                "difficulty": "MEDIUM",
-                "hasMissingOptions": false,
-                "hasMissingDiagram": false,
-                "answerConflictDetected": false,
-                "sourceConfidence": 100
-              }
-            ]
+
+            Extract up to $expectedQuestions real questions for subject $subjectId from the supplied source.
+            Do not invent missing options, answer keys, diagrams, explanations or source facts.
+            If an answer key is absent or ambiguous, leave correctAnswer empty. Do not solve or guess it.
+            Preserve exact wording, numerical values, units and source order.
+            Use only these verified section rules:
+            $sectionRules
+
+            Return a JSON array. Use empty strings for unavailable fields. Do not create filler questions.
         """.trimIndent()
     }
 }
