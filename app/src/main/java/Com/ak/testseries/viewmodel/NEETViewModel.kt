@@ -6014,6 +6014,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
+            qObj.put("questionType", q.questionType)
+            qObj.put("section", q.section)
+            val questionSubjectConfig = selectedPaper.subjects.singleOrNull {
+                it.subjectId.equals(q.subject, true) || it.subjectName.equals(q.subject, true)
+            } ?: throw IllegalArgumentException("Question has an invalid subject identity.")
+            val questionSectionConfig = questionSubjectConfig.sections.singleOrNull { it.sectionId == q.section }
+                ?: throw IllegalArgumentException("Question has an invalid section identity.")
+            qObj.put("positiveMarks", questionSectionConfig.positiveMarks)
+            qObj.put("negativeMarks", questionSectionConfig.negativeMarks)
             qObj.put("subject", q.subject)
             qObj.put("chapter", q.chapter)
             qObj.put("topic", q.topic)
