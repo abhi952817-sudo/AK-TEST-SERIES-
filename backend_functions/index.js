@@ -746,7 +746,42 @@ async function rebuildRankingV2ForUser(userId) {
     userRef.collection("attempts").get()
   ]);
   const byAttemptId = new Map();
-  [...upperSnap.docs, ...lowerSnap.docs].forEach(doc => byAttemptId.set(doc.id, doc.data()));
+  const answerHashForMigration = record => {
+    if (record && typeof record.answersHash === "string" && record.answersHash) return record.answersHash;
+    if (!record || record.answersJson === undefined) return null;
+    try {
+      const answers = typeof record.answersJson === "string"
+        ? JSON.parse(record.answersJson)
+        : record.answersJson;
+      return crypto.createHash("sha256").update(canonicalizeAnswerPayload(answers)).digest("hex");
+    } catch (_) {
+      return null;
+    }
+  };
+  [...upperSnap.docs, ...lowerSnap.docs].forEach(doc => {
+    const record = doc.data();
+    const key = String(record.attemptSessionToken || doc.id);
+    const previous = byAttemptId.get(key);
+    if (previous) {
+      const sameIdentity = previous.userId === record.userId && previous.testId === record.testId;
+      const previousHash = answerHashForMigration(previous);
+      const currentHash = answerHashForMigration(record);
+      const sameResult = Number(previous.authoritativeScore ?? previous.score) ===
+          Number(record.authoritativeScore ?? record.score) &&
+        Number(previous.maxScore) === Number(record.maxScore) &&
+        previous.countsTowardRanking === record.countsTowardRanking;
+      if (!sameIdentity || !previousHash || !currentHash || previousHash !== currentHash || !sameResult) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Conflicting canonical/legacy attempt copies found. Ranking backfill stopped for manual reconciliation."
+        );
+      }
+      // Prefer the app's lowercase canonical history document after proving equivalence.
+      if (doc.ref.parent.id === "attempts") byAttemptId.set(key, record);
+    } else {
+      byAttemptId.set(key, record);
+    }
+  });
   const attemptTime = attempt => {
     const value = attempt && (attempt.submittedAt || attempt.dateTaken);
     if (value && typeof value.toMillis === "function") return value.toMillis();
