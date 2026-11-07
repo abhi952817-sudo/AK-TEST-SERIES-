@@ -670,3 +670,64 @@ At the start of every later session:
 Shared/overlapping files requiring semantic reconciliation against both parent branch and main include `MainActivity.kt`, `NEETViewModel.kt`, `backend_functions/index.js`, `backend_functions/examScoring.js`, `backend_functions/examScoring.test.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`, `firestore.rules`, `firestore.test.js`, and `firestore.indexes.json` (the latter is unchanged relative to Ranking in this compare but remains part of the overall main diff). Universal-scoring-specific files include the Kotlin scoring/registry/PDF pipeline, Room database/entities/repository, sanitizer, backup adapter, and their tests/schema. These must be ported/reconciled by behavior, not wholesale copied over Ranking or main.
 
 **Current phase status:** Phase 0 baseline refresh is refreshed; Phase 1 overlap/correctness audit remains IN PROGRESS. No source code was modified in this audit. Next bounded work: retrieve the Android job's failing test/log detail, inspect full main-vs-integration content for every shared path, then implement and test the per-test rank contract fix on this integration branch only. Keep main untouched.
+
+
+## 2.17 Required three-pass completion protocol and consolidated defect register — 2026-11-07
+
+This section is binding for the remaining Ranking Universal work. The work is deliberately split into three controlled passes. Do not mix the final verification pass into implementation or treat a successful build as proof of correctness. Do not promise an error-free result before the tests demonstrate it.
+
+### Pass 1 — Audit, record, and freeze the implementation plan (DOCUMENTATION/AUDIT ONLY)
+
+**Purpose:** record every known defect, overlap, dependency, compatibility rule, acceptance criterion, and unresolved question in this roadmap before the main implementation pass. Do not make broad production-source changes during this pass. Any urgent source change must be separately justified, isolated, tested, and recorded.
+
+Consolidated blockers and required corrections:
+
+1. **Per-test rank/percentile race:** `backend_functions/index.js` calculates per-test rank/count/percentile before the submission transaction. Define the canonical rank contract (historical submission snapshot vs live board rank), derive rank from the exact canonical leaderboard population and canonical score, and handle concurrent submissions deterministically. Do not blindly move count queries inside a transaction; validate Firestore transaction/query support, indexes, retry behavior, and contention strategy first.
+2. **Fake zero rank on read failure:** current catch path maps leaderboard query failures to rank=0, population=0, percentile=0. Never persist infrastructure failure as a valid rank. Return an explicit unavailable/error state or fail the relevant operation safely without corrupting the authoritative attempt/score record. Preserve API compatibility deliberately.
+3. **Repeat-attempt score mismatch:** current rank calculation uses the latest submitted score even when only the first qualifying attempt is represented in the canonical per-test leaderboard. Rank must use the exact score/attempt that the board represents. Reattempts must not receive a fabricated board position.
+4. **Idempotent retry consistency:** identical retries must return the canonical stored attempt and must not double-increment score, XP, streak, period totals, counts, or leaderboard rows. Conflicting reuse of an attempt token must fail closed. Canonical and legacy duplicate copies must be reconciled or rejected, never silently selected when inconsistent.
+5. **Android CI blocker:** workflow run `42346089736` / #584 had backend and Firestore rules jobs PASS but Android validation FAIL at the combined unit-test/debug-build step. Exact failing test/log is still unknown. Retrieve the actual failure output, identify root cause, fix the underlying issue, and rerun; do not disable or weaken tests to obtain green CI.
+6. **Main/Ranking/Universal overlap:** shared paths include `MainActivity.kt`, `NEETViewModel.kt`, `backend_functions/index.js`, `backend_functions/examScoring.js`, `backend_functions/examScoring.test.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`, `firestore.rules`, `firestore.test.js`, and relevant Firestore indexes. Reconcile each file against the latest `main` and the Ranking parent by behavior and symbol-level changes. Never wholesale replace a shared file, erase main-only features, or assume a zero-behind commit comparison proves there is no semantic conflict.
+7. **Universal scoring parity:** one canonical exam identity and scoring policy must drive Android and backend. Verify positive marks, negative marking, unanswered/ungraded questions, decimal precision/rounding, optional questions, sections, duration/time limits, MCQ/MSQ/NAT and exam-specific formats. Add shared golden vectors and require Kotlin/Node outputs to match exactly within the declared decimal policy.
+8. **Exam registry completeness:** do not create a board for an unknown or unsupported exam. Each enabled exam needs verified identity aliases, official scoring policy, test type/weight policy, subject/section rules, and source-backed configuration. Missing CAT, IBPS/SBI or any other exam configuration must remain explicitly unsupported until verified, not be filled with guessed/dummy defaults.
+9. **Ranking eligibility and provenance:** only explicitly approved, public, official, source-verified tests with valid canonical exam/stage/paper identity and protected answer keys can award competitive AIR points. Community/practice/private/unapproved tests must not leak into AIR. Validate status and answer-key provenance at submission and transaction boundaries.
+10. **Canonical storage/no duplicate writes:** retain one authoritative source per ranking domain. Exam AIR, per-test board, period board, XP ledger/boards, and attempt history must have documented ownership. Legacy `Leaderboard`, `User_Ranks`, uppercase attempt paths, and old aggregates must not become a second write target for new v2 totals. Audit collection names, document keys, transaction paths, and backfills for duplicates.
+11. **Privacy/ban enforcement:** private profiles, banned/suspended accounts, deleted users, display-name/class changes, and visibility changes must be applied consistently across every ranking collection and retrieval query. Do not rely only on write-time flags; test read-time exclusion and profile visibility propagation.
+12. **Historical ranking/migration:** define immutable ranking-period snapshots/history, time-zone boundary behavior (IST), tie-breaking, percentile population definition, eligibility thresholds, and migration source of truth. Migration must be dry-run first, idempotent, conflict-detecting, auditable, and rollback-capable. Never infer or invent historical score data.
+13. **Android page/navigation integration:** map every page in the roadmap to an existing navigation route, ViewModel state, repository/API, loading/error/empty state, pagination, privacy handling, and language strings. Reuse existing app shell and features; no duplicate leaderboard tabs/screens or disconnected mock UI.
+14. **Room/offline/backup compatibility:** local cache must be explicitly non-authoritative for public rank; schema migrations must preserve existing user/test/attempt data; backup/restore must not duplicate or overwrite canonical server ranking data. Verify old schema migration paths and rollback/recovery.
+15. **Security/rules/indexes:** verify callable authentication/authorization, admin-only rebuild, client write denial for authoritative ranking collections, least-privilege reads, privacy filters, required composite indexes, App Check/rate limits where applicable, and Storage/PDF access boundaries.
+16. **PDF/import pipeline:** imported papers must retain source, exam, stage, paper, year, official status, answer-key provenance, and validation state. OCR/extraction uncertainty must not silently create official answer keys or ranking-eligible tests. No dummy rows or placeholder official papers.
+17. **Operational resilience:** define retry/backoff, transaction contention, rate limits, bounded queries/pagination, aggregation/rebuild observability, error reporting, and safe failure states. No hidden catch-and-default behavior for authoritative ranking values.
+
+Pass 1 must also produce a file-by-file integration matrix: path; main baseline behavior; Ranking branch changes; Universal branch changes; overlap type; data/schema/API impact; merge strategy; tests; status. Mark unresolved findings as BLOCKED, not PASS.
+
+### Pass 2 — Full implementation (CODE ONLY AFTER PASS 1 BASELINE IS RECORDED)
+
+Implement the complete roadmap in the dedicated integration/development branch. Reconcile against latest `main` while keeping `main` untouched. Preserve main-only features and existing data. Make small, reviewable commits grouped by subsystem. For each subsystem update source, tests, rules, indexes, and documentation together. No broad file replacement, speculative schema, duplicate collections, fake data, silent fallback defaults, or production data migration during ordinary development.
+
+Required implementation areas: backend authoritative scoring/submission and transactions; canonical AIR/per-test/period ranking; XP/league/streak ledger; eligibility/privacy/ban handling; tie-break/percentile/history; verified exam registry and scoring policies; Android repositories/ViewModels/pages/navigation; Firestore rules/indexes; Room cache/migrations; PDF/import provenance; migration tooling with dry-run/rollback; observability and admin rebuild. Keep API/data contracts backward-compatible or provide explicit versioned migration adapters. Resolve each Pass 1 defect in source and add its regression test in the same implementation series.
+
+### Pass 3 — Independent complete verification (NO FEATURE WORKAROUNDS)
+
+After Pass 2 is feature-complete, freeze implementation scope and run a clean validation on the exact candidate commit. Minimum required gates:
+- Backend lint/syntax/unit tests and callable tests.
+- Firestore Emulator integration/security tests, including concurrent submissions, transaction retries, duplicate attempts, conflicting legacy/canonical records, privacy and ban cases.
+- Kotlin/Node scoring golden-vector parity across every enabled exam and question type.
+- Android unit tests, Room migration tests from every supported prior schema, and clean debug build.
+- UI/navigation tests for all Ranking pages, loading/error/empty/pagination and Hindi/English states.
+- Firestore rules and index validation; Storage/PDF authorization tests.
+- Duplicate-write/collection audit and production-data non-mutation audit.
+- Migration dry-run, idempotency, conflict report, rollback proof, and historical-data reconciliation.
+- Main compatibility regression: compare candidate with latest main, inspect every changed shared file and preserve all main-only behavior.
+- Latest-head CI must be fully green; attach exact run/commit evidence. No skipped, quarantined, disabled, or weakened test may be counted as PASS without explicit documented approval and risk acceptance.
+
+### Release/merge gate
+
+Merge is prohibited until all three passes are complete, all blocking findings are resolved, all required gates are PASS on the exact candidate SHA, the final diff is reviewed against the latest `main`, and the user explicitly authorizes the merge. Keep `main` unchanged until that authorization. No production deployment or historical-data migration is authorized by this plan alone.
+
+### Current execution state
+
+- Pass 1: IN PROGRESS. The known findings above are now consolidated in this file; full file-by-file matrix and Android CI root-cause retrieval remain outstanding.
+- Pass 2: NOT STARTED as a complete implementation pass. Existing code is partial and must not be described as complete.
+- Pass 3: NOT STARTED. Existing CI results are partial/failing and do not satisfy release gates.
