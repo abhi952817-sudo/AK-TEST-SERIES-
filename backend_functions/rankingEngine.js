@@ -224,7 +224,7 @@ function buildTestRankingSnapshot({
     rankStatus: "AVAILABLE",
     testRank: rank,
     testTotalCandidates: total,
-    percentile: calculatePopulationPercentile(rank, total)
+    percentile: total === 1 ? 100.0 : Math.round(((total - rank + 1) / total) * 10000) / 100
   };
 }
 
@@ -278,6 +278,7 @@ module.exports = {
   calculateXpAward,
   calculateCompetitionRank,
   calculatePercentileFromCounts,
+  buildTestRankingSnapshot,
   getRankingStatus,
   getCohortRankingStatus
 };
