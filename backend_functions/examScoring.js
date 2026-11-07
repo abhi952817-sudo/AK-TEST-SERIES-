@@ -23,7 +23,7 @@ function isAnswerKeyVerified(key) {
 }
 
 function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
-  if (!ans1 || !ans2) return false;
+  if (ans1 === null || ans1 === undefined || ans2 === null || ans2 === undefined) return false;
   const a = String(ans1).trim().toUpperCase();
   const b = String(ans2).trim().toUpperCase();
   if (isNumerical && (!isFiniteNumericAnswer(a) || !isFiniteNumericAnswer(b))) return false;
@@ -297,9 +297,19 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
 
   for (const q of questions) {
     const qId = q.id;
-    const rawUserOpt = userAnswers[qId] ? (typeof userAnswers[qId] === "object" ? userAnswers[qId].ans : userAnswers[qId]) : null;
-    const userOpt = rawUserOpt ? String(rawUserOpt).trim().toUpperCase() : "";
-    const correctOpt = q.correctAnswer ? String(q.correctAnswer).trim().toUpperCase() : "";
+    const answerValue = userAnswers && Object.prototype.hasOwnProperty.call(userAnswers, qId)
+      ? userAnswers[qId]
+      : null;
+    const rawUserOpt = answerValue !== null && typeof answerValue === "object"
+      ? answerValue.ans
+      : answerValue;
+    // Numeric zero is a valid numerical/TITA answer, not an empty response.
+    const userOpt = rawUserOpt === null || rawUserOpt === undefined
+      ? ""
+      : String(rawUserOpt).trim().toUpperCase();
+    const correctOpt = q.correctAnswer === null || q.correctAnswer === undefined
+      ? ""
+      : String(q.correctAnswer).trim().toUpperCase();
     const isKeyVerified = isAnswerKeyVerified(correctOpt);
 
     const scheme = isMultiScheme
