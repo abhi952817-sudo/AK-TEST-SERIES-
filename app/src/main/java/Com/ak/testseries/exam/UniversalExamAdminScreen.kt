@@ -56,8 +56,10 @@ fun UniversalExamAdminScreen(
 
     var selectedTab by remember { mutableStateOf(0) } // 0: 20 Exams, 1: Process PDF, 2: Review Questions
     val allExams = remember { mutableStateListOf(*UniversalExamRegistry.getAllExams().toTypedArray()) }
-    var selectedExam by remember { mutableStateOf(allExams.first()) }
-    var selectedSubjectId by remember { mutableStateOf(selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectId ?: "") }
+    var selectedExam by remember { mutableStateOf(allExams.firstOrNull { it.verified && it.active } ?: allExams.first()) }
+    var hasExplicitExamSelection by remember { mutableStateOf(false) }
+    var selectedSubjectId by remember { mutableStateOf("") }
+    var hasExplicitSubjectSelection by remember { mutableStateOf(false) }
 
     var pdfUri by remember { mutableStateOf<Uri?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
@@ -133,25 +135,52 @@ fun UniversalExamAdminScreen(
                     }
                 )
                 1 -> ProcessPdfTab(
-                    exams = allExams.filter { it.active },
+                    exams = allExams.filter { it.active && it.verified },
                     selectedExam = selectedExam,
+                    hasExplicitExamSelection = hasExplicitExamSelection,
                     onSelectExam = {
                         selectedExam = it
-                        selectedSubjectId = it.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectId ?: ""
+                        hasExplicitExamSelection = true
+                        selectedSubjectId = ""
+                        hasExplicitSubjectSelection = false
                     },
                     selectedSubjectId = selectedSubjectId,
-                    onSelectSubject = { selectedSubjectId = it },
+                    hasExplicitSubjectSelection = hasExplicitSubjectSelection,
+                    onSelectSubject = {
+                        selectedSubjectId = it
+                        hasExplicitSubjectSelection = true
+                    },
                     pdfUri = pdfUri,
                     onPickPdf = { pdfPickerLauncher.launch("application/pdf") },
                     isProcessing = isProcessing,
                     progressStatus = progressStatus,
                     onStartProcessing = {
+                        if (!hasExplicitExamSelection) {
+                            Toast.makeText(context, "Select the target exam explicitly before processing this PDF.", Toast.LENGTH_LONG).show()
+                            return@ProcessPdfTab
+                        }
+                        if (!hasExplicitSubjectSelection || selectedSubjectId.isBlank()) {
+                            Toast.makeText(context, "Select the exact subject explicitly before processing this PDF.", Toast.LENGTH_LONG).show()
+                            return@ProcessPdfTab
+                        }
                         if (!isAiEnabled) {
                             Toast.makeText(context, "AI processing is disabled by Admin (Global Killswitch active).", Toast.LENGTH_LONG).show()
                             return@ProcessPdfTab
                         }
                         if (pdfUri == null) {
                             Toast.makeText(context, "Please select a PDF first", Toast.LENGTH_SHORT).show()
+                            return@ProcessPdfTab
+                        }
+                        val selectedStage = selectedExam.stages.singleOrNull()
+                        val selectedPaper = selectedStage?.papers?.singleOrNull()
+                        if (selectedStage == null || selectedPaper == null) {
+                            Toast.makeText(context, "This exam requires an explicit stage and paper selector before PDF processing. No default stage/paper will be guessed.", Toast.LENGTH_LONG).show()
+                            return@ProcessPdfTab
+                        }
+                        val selectedSubject = selectedPaper.subjects.singleOrNull { it.subjectId == selectedSubjectId }
+                        val expectedQuestionCount = selectedSubject?.sections?.sumOf { it.totalQuestions } ?: 0
+                        if (expectedQuestionCount <= 0) {
+                            Toast.makeText(context, "Selected subject has no verified question-count configuration.", Toast.LENGTH_LONG).show()
                             return@ProcessPdfTab
                         }
                         isProcessing = true
@@ -162,7 +191,9 @@ fun UniversalExamAdminScreen(
                                     pdfUri = pdfUri!!,
                                     examConfig = selectedExam,
                                     subjectId = selectedSubjectId,
-                                    expectedQuestions = 20,
+                                    stageId = selectedStage.stageId,
+                                    paperId = selectedPaper.paperId,
+                                    expectedQuestions = expectedQuestionCount,
                                     isAiEnabled = isAiEnabled,
                                     onProgress = { prog ->
                                         progressStatus = prog.statusMessage
@@ -171,8 +202,13 @@ fun UniversalExamAdminScreen(
                                 extractedQuestions.clear()
                                 extractedQuestions.addAll(results)
                                 isProcessing = false
-                                selectedTab = 2 // Move to review
-                                Toast.makeText(context, "Extracted ${results.size} questions successfully!", Toast.LENGTH_SHORT).show()
+                                if (results.isNotEmpty()) selectedTab = 2 // Move to review only when real questions exist
+                                val resultMessage = if (results.isEmpty()) {
+                                    "No valid questions extracted. No placeholder questions were generated; check PDF/OCR quality."
+                                } else {
+                                    "Extracted ${results.size} questions. All require Admin verification before approval."
+                                }
+                                Toast.makeText(context, resultMessage, Toast.LENGTH_LONG).show()
                             } catch (e: Exception) {
                                 isProcessing = false
                                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
@@ -252,6 +288,12 @@ fun ExamListTab(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(exam.examName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                if (exam.verified) "Pattern verified" else "Unverified • publishing blocked",
+                                fontSize = 10.sp,
+                                color = if (exam.verified) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Surface(
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 shape = RoundedCornerShape(6.dp)
@@ -266,27 +308,43 @@ fun ExamListTab(
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            "Marking: +${exam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.positiveMarks ?: 1.0} / -${exam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.negativeMarks ?: 0.0} • Duration: ${exam.stages.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: 60} min",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        val stagesText = exam.stages.joinToString(", ") { it.stageName }
+                        if (exam.verified) {
+                            val verifiedPaper = exam.stages.singleOrNull()?.papers?.singleOrNull()
+                            val verifiedMarks = runCatching {
+                                UniversalExamRegistry.getMarkingSchemeForExam(exam.examName)
+                            }.getOrNull()
+                            if (verifiedPaper != null && verifiedMarks != null) {
+                                Text(
+                                    "Marking: +${verifiedMarks.first} / -${verifiedMarks.second} • Duration: ${verifiedPaper.durationMinutes} min",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "Difficulty: ${exam.difficultyRatio.summary()}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    "Types: ${exam.supportedQuestionTypes.joinToString(", ") { it.name }}",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else {
+                                Text("Verified scoring metadata is incomplete.", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                            }
+                        } else {
+                            Text(
+                                "Scoring, duration, difficulty and question types: Not verified",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        val stagesText = if (exam.verified) exam.stages.joinToString(", ") { it.stageName } else "Pending official verification"
                         Text("Stages: $stagesText", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "Difficulty: ${exam.difficultyRatio.summary()}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "Types: ${exam.supportedQuestionTypes.joinToString(", ") { it.name }}",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
 
                     Switch(
@@ -303,8 +361,10 @@ fun ExamListTab(
 fun ProcessPdfTab(
     exams: List<ExamConfig>,
     selectedExam: ExamConfig,
+    hasExplicitExamSelection: Boolean,
     onSelectExam: (ExamConfig) -> Unit,
     selectedSubjectId: String,
+    hasExplicitSubjectSelection: Boolean,
     onSelectSubject: (String) -> Unit,
     pdfUri: Uri?,
     onPickPdf: () -> Unit,
@@ -322,7 +382,7 @@ fun ProcessPdfTab(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(exams) { exam ->
                     FilterChip(
-                        selected = exam.examId == selectedExam.examId,
+                        selected = hasExplicitExamSelection && exam.examId == selectedExam.examId,
                         onClick = { onSelectExam(exam) },
                         label = { Text(exam.shortName) }
                     )
@@ -333,11 +393,11 @@ fun ProcessPdfTab(
         item {
             Text("Step 2: Select Subject / Paper", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
-            val subjects = selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects ?: emptyList()
+            val subjects = selectedExam.stages.singleOrNull()?.papers?.singleOrNull()?.subjects ?: emptyList()
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(subjects) { subj ->
                     FilterChip(
-                        selected = subj.subjectId == selectedSubjectId,
+                        selected = hasExplicitSubjectSelection && subj.subjectId == selectedSubjectId,
                         onClick = { onSelectSubject(subj.subjectId) },
                         label = { Text(subj.subjectName) }
                     )
@@ -416,7 +476,7 @@ fun QuestionReviewTab(
 ) {
     val approvedCount = questions.count { it.validationStatus == ValidationStatus.APPROVED }
     
-    val tableDuration = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: (if (approvedCount > 0) approvedCount else 60)
+    val tableDuration = examConfig.stages.singleOrNull()?.papers?.singleOrNull()?.durationMinutes ?: 0
     var durationMinutes by remember(examConfig) { mutableStateOf(tableDuration.toString()) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {

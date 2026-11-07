@@ -251,7 +251,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "neet_test_series_db"
                 )
                 .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
-                .fallbackToDestructiveMigration()
+                // Never silently erase a student's local test/attempt history when a
+                // migration path is missing. Room must fail open rather than wipe data.
                 .build()
                 INSTANCE = instance
                 instance
@@ -265,13 +266,36 @@ abstract class AppDatabase : RoomDatabase() {
         fun emergencyResetDatabase(context: android.content.Context): Boolean {
             return synchronized(this) {
                 try {
+                    val appContext = context.applicationContext
                     try {
                         INSTANCE?.close()
                     } catch (_: Throwable) {}
                     INSTANCE = null
-                    context.applicationContext.deleteDatabase("neet_test_series_db")
-                    // Re-instantiate fresh clean database tables
-                    getDatabase(context.applicationContext)
+
+                    // Preserve the raw database and sidecar files before any destructive reset.
+                    val databaseFile = appContext.getDatabasePath("neet_test_series_db")
+                    if (databaseFile.exists()) {
+                        val backupDirectory = java.io.File(appContext.filesDir, "emergency_db_backups")
+                        if (!backupDirectory.exists() && !backupDirectory.mkdirs()) return@synchronized false
+                        val backupBase = java.io.File(
+                            backupDirectory,
+                            "neet_test_series_db_${System.currentTimeMillis()}.sqlite"
+                        )
+                        databaseFile.copyTo(backupBase, overwrite = false)
+                        listOf("-wal", "-shm").forEach { suffix ->
+                            val sidecar = java.io.File(databaseFile.absolutePath + suffix)
+                            if (sidecar.exists()) {
+                                sidecar.copyTo(java.io.File(backupDirectory, backupBase.name + suffix), overwrite = false)
+                            }
+                        }
+                        if (!backupBase.exists() || backupBase.length() == 0L) return@synchronized false
+                    }
+
+                    if (databaseFile.exists() && !appContext.deleteDatabase("neet_test_series_db")) {
+                        return@synchronized false
+                    }
+                    // Re-instantiate only after a non-empty byte-for-byte recovery copy exists.
+                    getDatabase(appContext)
                     true
                 } catch (_: Throwable) {
                     false

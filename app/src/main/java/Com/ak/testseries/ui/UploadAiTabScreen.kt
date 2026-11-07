@@ -1828,7 +1828,7 @@ fun UploadAiTabScreen(viewModel: NEETViewModel) {
                                 )
 
                                 // Exam Pattern & Marking Scheme Chip
-                                if (currentExamConfig != null) {
+                                if (currentExamConfig?.verified == true) {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     val marking = Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForExam(genTargetExamStr)
                                     Surface(
@@ -1917,9 +1917,19 @@ fun UploadAiTabScreen(viewModel: NEETViewModel) {
                                             }
                                         }
                                     }
+                                } else if (currentExamConfig != null) {
+                                    Text(
+                                        text = if (selectedLanguage == AppLanguage.HINDI)
+                                            "इस परीक्षा का आधिकारिक पैटर्न सत्यापित नहीं है। AI प्रश्न निर्माण और स्कोरिंग बंद हैं।"
+                                        else
+                                            "Official exam pattern is not verified. AI question generation and scoring are disabled.",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                    )
                                 }
                                 Spacer(modifier = Modifier.height(14.dp))
-                                
+
                                 // Questions count & Batch/Class
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     var questionsDropdownExpanded by remember { mutableStateOf(false) }
@@ -1951,9 +1961,9 @@ fun UploadAiTabScreen(viewModel: NEETViewModel) {
                                             modifier = Modifier.background(Color.White)
                                         ) {
                                             val commonCounts = remember(currentExamConfig) {
-                                                val defaultCount = currentExamConfig?.let {
+                                                val defaultCount = currentExamConfig?.takeIf { it.verified }?.let {
                                                     Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(it.examName)
-                                                } ?: 180
+                                                } ?: 0
                                                 (listOf(0, 10, 15, 20, 25, 30, 45, 50, 75, 90, 100, 120, 150, 180, 200) + defaultCount).distinct().sorted()
                                             }
                                             commonCounts.forEach { count ->

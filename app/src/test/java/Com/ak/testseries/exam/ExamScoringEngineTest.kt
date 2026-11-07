@@ -10,343 +10,279 @@ class ExamScoringEngineTest {
         id: String,
         correctAnswer: String,
         subject: String = "Physics",
-        section: String = "SECTION_A",
-        questionType: String = "MCQ"
-    ): QuestionEntity {
-        return QuestionEntity(
-            id = id,
-            testId = "test_unit",
-            questionText = "Question $id",
-            optionA = "Choice A",
-            optionB = "Choice B",
-            optionC = "Choice C",
-            optionD = "Choice D",
-            correctAnswer = correctAnswer,
-            explanation = "Explanation for $id",
-            subject = subject,
-            chapter = "Chapter 1",
-            section = section,
-            questionType = questionType
+        section: String = "phy_all",
+        questionType: String = "MCQ_SINGLE"
+    ): QuestionEntity = QuestionEntity(
+        id = id,
+        testId = "test_unit",
+        questionText = "Question $id",
+        optionA = "Choice A",
+        optionB = "Choice B",
+        optionC = "Choice C",
+        optionD = "Choice D",
+        correctAnswer = correctAnswer,
+        explanation = "Explanation for $id",
+        subject = subject,
+        chapter = "Verified Chapter",
+        section = section,
+        questionType = questionType
+    )
+
+    @Test
+    fun neet2026ScoresOnlyExactCompulsorySubjectSections() {
+        val questions = listOf(
+            createQuestion("q1", "A", section = "phy_all"),
+            createQuestion("q2", "B", section = "chem_all", subject = "Chemistry"),
+            createQuestion("q3", "C", section = "bot_all", subject = "Botany"),
+            createQuestion("q4", "D", section = "zoo_all", subject = "Zoology")
         )
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            "NEET UG", questions,
+            mapOf("q1" to "A", "q2" to "C", "q4" to "D"),
+            120
+        )
+        assertEquals(4, result.totalQuestions)
+        assertEquals(3, result.attemptedCount)
+        assertEquals(2, result.correctCount)
+        assertEquals(1, result.wrongCount)
+        assertEquals(1, result.unansweredCount)
+        assertEquals(0, result.ungradedCount)
+        assertEquals(8.0, result.positiveMarksEarned, 0.001)
+        assertEquals(1.0, result.negativeMarksPenalty, 0.001)
+        assertEquals(7.0, result.finalScore, 0.001)
+        assertEquals(16.0, result.maxScore, 0.001)
     }
 
     @Test
-    fun testNeetScoringStandardPlusMinus() {
-        val q1 = createQuestion("q1", "A") // Correct (+4)
-        val q2 = createQuestion("q2", "B") // Wrong (-1)
-        val q3 = createQuestion("q3", "C") // Skipped (0)
-        val q4 = createQuestion("q4", "D") // Correct (+4)
-
-        val userAnswers = mapOf(
-            "q1" to "A",
-            "q2" to "C", // Wrong
-            "q4" to "D"
-        )
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "NEET UG",
-            questions = listOf(q1, q2, q3, q4),
-            userAnswers = userAnswers,
-            timeSpentSeconds = 120
-        )
-
-        assertEquals(4, breakdown.totalQuestions)
-        assertEquals(3, breakdown.attemptedCount)
-        assertEquals(2, breakdown.correctCount)
-        assertEquals(1, breakdown.wrongCount)
-        assertEquals(1, breakdown.unansweredCount)
-        assertEquals(8.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(1.0, breakdown.negativeMarksPenalty, 0.001)
-        assertEquals(7.0, breakdown.finalScore, 0.001)
-        assertEquals(7.0, breakdown.rawScore, 0.001)
-        assertEquals(16.0, breakdown.maxScore, 0.001) // 4 * 4 = 16
-        assertEquals(66.67, breakdown.accuracyPercent, 0.01)
-    }
-
-    @Test
-    fun testZeroNegativeMarkingExams() {
-        val q1 = createQuestion("ctet_1", "A") // Correct (+1)
-        val q2 = createQuestion("ctet_2", "B") // Wrong (0 penalty)
-        val q3 = createQuestion("ctet_3", "C") // Skipped (0)
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "CTET",
-            questions = listOf(q1, q2, q3),
-            userAnswers = mapOf("ctet_1" to "A", "ctet_2" to "D"),
-            timeSpentSeconds = 60
-        )
-
-        assertEquals(1, breakdown.correctCount)
-        assertEquals(1, breakdown.wrongCount)
-        assertEquals(1, breakdown.unansweredCount)
-        assertEquals(1.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(0.0, breakdown.negativeMarksPenalty, 0.001) // No negative marking in CTET
-        assertEquals(1.0, breakdown.finalScore, 0.001)
-        assertEquals(3.0, breakdown.maxScore, 0.001)
-    }
-
-    @Test
-    fun testUgcNetScoringTwoMarksZeroNegative() {
-        val q1 = createQuestion("net_1", "A") // Correct (+2)
-        val q2 = createQuestion("net_2", "B") // Wrong (0 penalty)
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "UGC NET",
-            questions = listOf(q1, q2),
-            userAnswers = mapOf("net_1" to "A", "net_2" to "C"),
-            timeSpentSeconds = 60
-        )
-
-        assertEquals(2.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(0.0, breakdown.negativeMarksPenalty, 0.001)
-        assertEquals(2.0, breakdown.finalScore, 0.001)
-        assertEquals(4.0, breakdown.maxScore, 0.001)
-    }
-
-    @Test
-    fun testCatMcqVsTitaScoring() {
-        val qMcq1 = createQuestion("cat_mcq", "A", questionType = "MCQ") // Correct (+3)
-        val qMcq2 = createQuestion("cat_mcq_wrong", "B", questionType = "MCQ") // Wrong (-1)
-        val qTita1 = createQuestion("cat_tita_right", "42", questionType = "TITA") // Correct (+3)
-        val qTita2 = createQuestion("cat_tita_wrong", "15", questionType = "TITA") // Wrong (0 penalty for TITA)
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "CAT",
-            questions = listOf(qMcq1, qMcq2, qTita1, qTita2),
-            userAnswers = mapOf(
-                "cat_mcq" to "A",
-                "cat_mcq_wrong" to "C", // Wrong MCQ (-1)
-                "cat_tita_right" to "42", // Correct TITA (+3)
-                "cat_tita_wrong" to "99" // Wrong TITA (0 penalty)
-            ),
-            timeSpentSeconds = 180
-        )
-
-        assertEquals(2, breakdown.correctCount)
-        assertEquals(2, breakdown.wrongCount)
-        assertEquals(6.0, breakdown.positiveMarksEarned, 0.001) // 3 + 3
-        assertEquals(1.0, breakdown.negativeMarksPenalty, 0.001) // Only MCQ penalized (-1), TITA not penalized
-        assertEquals(5.0, breakdown.finalScore, 0.001)
-        assertEquals(12.0, breakdown.maxScore, 0.001)
-    }
-
-    @Test
-    fun testUpscCivilServicesNegativeMarking() {
-        val q1 = createQuestion("upsc_1", "A") // Correct (+2.0)
-        val q2 = createQuestion("upsc_2", "B") // Wrong (-0.66)
-        val q3 = createQuestion("upsc_3", "C") // Skipped (0)
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "UPSC CSE",
-            questions = listOf(q1, q2, q3),
-            userAnswers = mapOf("upsc_1" to "A", "upsc_2" to "D"),
-            timeSpentSeconds = 90
-        )
-
-        assertEquals(1, breakdown.correctCount)
-        assertEquals(1, breakdown.wrongCount)
-        assertEquals(1, breakdown.unansweredCount)
-        assertEquals(2.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(0.66, breakdown.negativeMarksPenalty, 0.001)
-        assertEquals(1.34, breakdown.finalScore, 0.01)
-        assertEquals(6.0, breakdown.maxScore, 0.001)
-    }
-
-    @Test
-    fun testSscCglAndChslNegativeMarking() {
-        val q1 = createQuestion("cgl_1", "A") // Correct (+2.0)
-        val q2 = createQuestion("cgl_2", "B") // Wrong (-0.50)
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "SSC CGL",
-            questions = listOf(q1, q2),
-            userAnswers = mapOf("cgl_1" to "A", "cgl_2" to "C"),
-            timeSpentSeconds = 60
-        )
-
-        assertEquals(2.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(0.50, breakdown.negativeMarksPenalty, 0.001)
-        assertEquals(1.50, breakdown.finalScore, 0.001)
-        assertEquals(4.0, breakdown.maxScore, 0.001)
-    }
-
-    @Test
-    fun testSscGdConstableNegativeMarking() {
-        val q1 = createQuestion("gd_1", "A") // Correct (+2.0)
-        val q2 = createQuestion("gd_2", "B") // Wrong (-0.25)
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "SSC GD Constable",
-            questions = listOf(q1, q2),
-            userAnswers = mapOf("gd_1" to "A", "gd_2" to "C"),
-            timeSpentSeconds = 60
-        )
-
-        assertEquals(2.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(0.25, breakdown.negativeMarksPenalty, 0.001)
-        assertEquals(1.75, breakdown.finalScore, 0.001)
-        assertEquals(4.0, breakdown.maxScore, 0.001)
-    }
-
-    @Test
-    fun testBankingExamsNegativeMarking() {
-        val q1 = createQuestion("ibps_1", "A") // Correct (+1.0)
-        val q2 = createQuestion("ibps_2", "B") // Wrong (-0.25)
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "IBPS PO",
-            questions = listOf(q1, q2),
-            userAnswers = mapOf("ibps_1" to "A", "ibps_2" to "E"),
-            timeSpentSeconds = 60
-        )
-
-        assertEquals(1.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(0.25, breakdown.negativeMarksPenalty, 0.001)
-        assertEquals(0.75, breakdown.finalScore, 0.001)
-        assertEquals(2.0, breakdown.maxScore, 0.001)
-    }
-
-    @Test
-    fun testNumericOptionEquivalence() {
-        // Option "1" should match "A", "2" should match "B"
-        assertTrue(ExamScoringEngine.areOptionsEquivalent("1", "A"))
-        assertTrue(ExamScoringEngine.areOptionsEquivalent("A", "1"))
-        assertTrue(ExamScoringEngine.areOptionsEquivalent("2", "B"))
-        assertTrue(ExamScoringEngine.areOptionsEquivalent("4", "D"))
-        assertTrue(ExamScoringEngine.areOptionsEquivalent("5", "E"))
-        assertFalse(ExamScoringEngine.areOptionsEquivalent("1", "B"))
-
-        // Float / decimal equivalence
-        assertTrue(ExamScoringEngine.areOptionsEquivalent("12.25", "12.250"))
-        assertTrue(ExamScoringEngine.areOptionsEquivalent("0.5", ".5"))
-        assertFalse(ExamScoringEngine.areOptionsEquivalent("12.25", "12.26"))
-
-        // Test in evaluateTestAttempt
-        val q1 = createQuestion("q_num_1", "A") // student answers "1"
-        val q2 = createQuestion("q_num_2", "12.25", questionType = "NUMERICAL") // student answers "12.250"
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "NEET UG",
-            questions = listOf(q1, q2),
-            userAnswers = mapOf("q_num_1" to "1", "q_num_2" to "12.250"),
-            timeSpentSeconds = 60
-        )
-
-        assertEquals(2, breakdown.correctCount)
-        assertEquals(0, breakdown.wrongCount)
-        assertEquals(8.0, breakdown.positiveMarksEarned, 0.001)
-    }
-
-    @Test
-    fun testMultipleCorrectAndCommaSeparatedKeys() {
-        // Either A or B accepted
-        assertTrue(ExamScoringEngine.isUserAnswerCorrect("A", "A, B"))
-        assertTrue(ExamScoringEngine.isUserAnswerCorrect("B", "A, B"))
-        assertFalse(ExamScoringEngine.isUserAnswerCorrect("C", "A, B"))
-
-        // Full multi-correct answer matches
-        assertTrue(ExamScoringEngine.isUserAnswerCorrect("A, B", "A, B"))
-        assertTrue(ExamScoringEngine.isUserAnswerCorrect("B, A", "A, B"))
-    }
-
-    @Test
-    fun testNonNegativeScoreBoundaryAndRawScorePreservation() {
-        // If student gets 0 right and 4 wrong in NEET (-4 raw score)
-        val q1 = createQuestion("w1", "A")
-        val q2 = createQuestion("w2", "A")
-        val q3 = createQuestion("w3", "A")
-        val q4 = createQuestion("w4", "A")
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "NEET UG",
-            questions = listOf(q1, q2, q3, q4),
-            userAnswers = mapOf("w1" to "B", "w2" to "B", "w3" to "B", "w4" to "B"),
-            timeSpentSeconds = 60
-        )
-
-        assertEquals(0, breakdown.correctCount)
-        assertEquals(4, breakdown.wrongCount)
-        assertEquals(0.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(4.0, breakdown.negativeMarksPenalty, 0.001)
-        assertEquals(-4.0, breakdown.rawScore, 0.001) // Raw uncoerced score preserved
-        assertEquals(0.0, breakdown.finalScore, 0.001) // Coerced to 0.0 display boundary
-    }
-
-    @Test
-    fun testSectionBOptionalAttemptCapping() {
-        // 12 questions in Physics Section B for NEET UG (only first 10 should be evaluated)
-        val questions = (1..12).map { i ->
+    fun jeeMain2026ScoresCompulsoryMcqAndNumericalSections() {
+        val questions = listOf(
+            createQuestion("mcq", "A", section = "phy_sec_a"),
             createQuestion(
-                id = "phy_b_$i",
-                correctAnswer = "A",
-                subject = "Physics",
-                section = "SECTION_B"
+                "numeric_zero", "0", subject = "Mathematics",
+                section = "math_sec_b", questionType = "NUMERICAL_VALUE"
             )
-        }
-
-        // Student answers all 12 questions (first 10 correct, 11 and 12 wrong)
-        val userAnswers = mutableMapOf<String, String>()
-        for (i in 1..10) {
-            userAnswers["phy_b_$i"] = "A" // Correct
-        }
-        userAnswers["phy_b_11"] = "B" // Surplus wrong (should be ignored)
-        userAnswers["phy_b_12"] = "B" // Surplus wrong (should be ignored)
-
-        val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "NEET UG",
-            questions = questions,
-            userAnswers = userAnswers,
-            timeSpentSeconds = 300
         )
-
-        assertEquals("Only first 10 attempts in Section B should be counted", 10, breakdown.attemptedCount)
-        assertEquals("First 10 were correct", 10, breakdown.correctCount)
-        assertEquals("Surplus attempts 11 & 12 should not count as wrong", 0, breakdown.wrongCount)
-        assertEquals(40.0, breakdown.positiveMarksEarned, 0.001)
-        assertEquals(0.0, breakdown.negativeMarksPenalty, 0.001)
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            "JEE Main P1", questions,
+            mapOf("mcq" to "A", "numeric_zero" to "0"),
+            90
+        )
+        assertEquals(2, result.correctCount)
+        assertEquals(0, result.wrongCount)
+        assertEquals(0, result.ungradedCount)
+        assertEquals(8.0, result.positiveMarksEarned, 0.001)
+        assertEquals(8.0, result.maxScore, 0.001)
     }
 
     @Test
-    fun testFormatMarkHelper() {
-        assertEquals("4", ExamScoringEngine.formatMark(4.0))
-        assertEquals("0", ExamScoringEngine.formatMark(0.0))
-        assertEquals("2.5", ExamScoringEngine.formatMark(2.5))
-        assertEquals("0.66", ExamScoringEngine.formatMark(0.66))
-        assertEquals("0.33", ExamScoringEngine.formatMark(0.33))
-        assertEquals("0.25", ExamScoringEngine.formatMark(0.25))
+    fun jeeMainNumericalAnswerKeysMustBeIntegers() {
+        val valid = ExamScoringEngine.evaluateTestAttempt(
+            "JEE Main P1",
+            listOf(
+                createQuestion("integer", "12", "Mathematics", "math_sec_b", "NUMERICAL_VALUE"),
+                createQuestion("integer_decimal_format", "12.0", "Physics", "phy_sec_b", "NUMERICAL_VALUE")
+            ),
+            mapOf("integer" to "12.0", "integer_decimal_format" to "12"),
+            30
+        )
+        assertEquals(2, valid.correctCount)
+        assertEquals(0, valid.ungradedCount)
+        assertEquals(8.0, valid.finalScore, 0.001)
+
+        val invalid = ExamScoringEngine.evaluateTestAttempt(
+            "JEE Main P1",
+            listOf(createQuestion("decimal", "12.5", "Mathematics", "math_sec_b", "NUMERICAL_VALUE")),
+            mapOf("decimal" to "12.5"),
+            30
+        )
+        assertEquals(0, invalid.correctCount)
+        assertEquals(1, invalid.ungradedCount)
+        assertEquals(0.0, invalid.finalScore, 0.001)
+        assertEquals(4.0, invalid.maxScore, 0.001)
     }
 
     @Test
-    fun testSubjectBreakdownAccuracy() {
-        val p1 = createQuestion("p1", "A", subject = "Physics") // Correct (+4)
-        val p2 = createQuestion("p2", "B", subject = "Physics") // Wrong (-1)
-        val c1 = createQuestion("c1", "A", subject = "Chemistry") // Correct (+4)
-        val c2 = createQuestion("c2", "A", subject = "Chemistry") // Skipped
+    fun directScoringRejectsMissingOrDuplicateQuestionIds() {
+        val duplicate = listOf(
+            createQuestion("same", "A"),
+            createQuestion("same", "B")
+        )
+        try {
+            ExamScoringEngine.evaluateTestAttempt("NEET UG", duplicate, emptyMap(), 10)
+            fail("Duplicate question IDs must be rejected.")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("unique"))
+        }
+        try {
+            ExamScoringEngine.evaluateTestAttempt(
+                "NEET UG",
+                listOf(createQuestion("", "A")),
+                emptyMap(),
+                10
+            )
+            fail("Missing question IDs must be rejected.")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("unique"))
+        }
+    }
 
-        val userAnswers = mapOf("p1" to "A", "p2" to "D", "c1" to "A")
+    @Test
+    fun explicitSkippedAnswerIsUnansweredNotWrong() {
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            "NEET UG",
+            listOf(createQuestion("skip", "A")),
+            mapOf("skip" to "SKIPPED"),
+            10
+        )
+        assertEquals(0, result.correctCount)
+        assertEquals(0, result.wrongCount)
+        assertEquals(1, result.unansweredCount)
+        assertEquals(0, result.ungradedCount)
+        assertEquals(0.0, result.finalScore, 0.001)
+    }
+
+    @Test
+    fun explicitPaperScoringAndSubjectBreakdownApplyIntegerAnswerPolicy() {
+        val config = UniversalExamRegistry.getExamById("jee_main")!!
+        val explicit = ExamScoringEngine.calculateScore(
+            examConfig = config,
+            stageId = "jee_paper_1",
+            paperId = "jee_main_p1",
+            totalQuestions = 1,
+            userAnswers = mapOf("decimal" to "12.5"),
+            correctAnswers = mapOf("decimal" to "12.5"),
+            questionSections = mapOf("decimal" to "math_sec_b"),
+            timeSpentSeconds = 10
+        )
+        assertEquals(1, explicit.ungradedCount)
+        assertEquals(0, explicit.correctCount)
+        assertEquals(0.0, explicit.maxScore, 0.001)
 
         val breakdown = ExamScoringEngine.evaluateSubjectBreakdown(
-            targetExam = "NEET UG",
-            questions = listOf(p1, p2, c1, c2),
-            userAnswers = userAnswers
+            "JEE Main P1",
+            listOf(createQuestion("decimal", "12.5", "Mathematics", "math_sec_b", "NUMERICAL_VALUE")),
+            mapOf("decimal" to "12.5")
         )
+        assertEquals(1, breakdown.single().ungraded)
+        assertEquals(0, breakdown.single().correct)
+        assertEquals(0.0, breakdown.single().score, 0.001)
+    }
 
-        assertEquals(2, breakdown.size)
-        val phyStat = breakdown.find { it.subject == "Physics" }!!
-        val chemStat = breakdown.find { it.subject == "Chemistry" }!!
+    @Test
+    fun legacyOrAmbiguousSectionsAreUngradedAndNeverDefaultToSectionA() {
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            "NEET UG",
+            listOf(createQuestion("old", "A", section = "SECTION_A")),
+            mapOf("old" to "A"),
+            30
+        )
+        assertEquals(0, result.correctCount)
+        assertEquals(1, result.ungradedCount)
+        assertEquals(0.0, result.finalScore, 0.001)
+        assertEquals(0.0, result.maxScore, 0.001)
+    }
 
-        assertEquals(2, phyStat.total)
-        assertEquals(1, phyStat.correct)
-        assertEquals(1, phyStat.incorrect)
-        assertEquals(3.0, phyStat.score, 0.001) // 4 - 1 = 3
-        assertEquals(8.0, phyStat.maxScore, 0.001)
-        assertEquals(50f, phyStat.accuracy, 0.01f)
+    @Test
+    fun ambiguousBiologySubjectDoesNotCrossAssignBotanyOrZoology() {
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            "NEET UG",
+            listOf(createQuestion("bio", "A", subject = "Biology", section = "bot_all")),
+            mapOf("bio" to "A"),
+            30
+        )
+        assertEquals(1, result.ungradedCount)
+        assertEquals(0, result.correctCount)
+    }
 
-        assertEquals(2, chemStat.total)
-        assertEquals(1, chemStat.correct)
-        assertEquals(0, chemStat.incorrect)
-        assertEquals(4.0, chemStat.score, 0.001)
-        assertEquals(8.0, chemStat.maxScore, 0.001)
-        assertEquals(100f, chemStat.accuracy, 0.01f)
+    @Test
+    fun unverifiedExamPatternsCannotBeScoredWithGuessedMarks() {
+        for (exam in listOf("CTET", "UPSC Civil Services", "CAT", "JEE Advanced", "NEET PG", "RRB NTPC")) {
+            try {
+                ExamScoringEngine.evaluateTestAttempt(
+                    exam,
+                    listOf(createQuestion("q", "A")),
+                    mapOf("q" to "A"),
+                    30
+                )
+                fail("Expected scoring to be blocked for $exam")
+            } catch (expected: IllegalArgumentException) {
+                assertTrue(expected.message.orEmpty().contains("source-verified", ignoreCase = true))
+            }
+        }
+    }
+
+    @Test
+    fun numericalZeroIsAValidJeeMainAnswer() {
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            "JEE Main P1",
+            listOf(createQuestion("zero", "0", "Mathematics", "math_sec_b", "NUMERICAL_VALUE")),
+            mapOf("zero" to "0"),
+            5
+        )
+        assertEquals(1, result.correctCount)
+        assertEquals(0, result.unansweredCount)
+        assertEquals(4.0, result.finalScore, 0.001)
+    }
+
+    @Test
+    fun answerKeysWithInvalidNumericalOrMcqFormatAreUngraded() {
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            "NEET UG",
+            listOf(createQuestion("bad", "12abc")),
+            mapOf("bad" to "12"),
+            5
+        )
+        assertEquals(1, result.ungradedCount)
+        assertEquals(0, result.correctCount)
+    }
+
+    @Test
+    fun explicitStagePaperCalculationHasNoGenericMarksFallback() {
+        val config = UniversalExamRegistry.getExam("neet_ug")!!
+        val result = ExamScoringEngine.calculateScore(
+            examConfig = config,
+            stageId = "neet_main",
+            paperId = "neet_paper_1",
+            totalQuestions = 2,
+            userAnswers = mapOf("q1" to "A", "q2" to "C"),
+            correctAnswers = mapOf("q1" to "A", "q2" to "B"),
+            questionSections = mapOf("q1" to "phy_all", "q2" to "phy_all"),
+            timeSpentSeconds = 60
+        )
+        assertEquals(1, result.correctCount)
+        assertEquals(1, result.wrongCount)
+        assertEquals(3.0, result.finalScore, 0.001)
+        assertEquals(8.0, result.maxScore, 0.001)
+        assertEquals(0, result.ungradedCount)
+    }
+
+    @Test
+    fun subjectBreakdownReportsInvalidQuestionsAsUngraded() {
+        val result = ExamScoringEngine.evaluateSubjectBreakdown(
+            "NEET UG",
+            listOf(
+                createQuestion("p1", "A"),
+                createQuestion("p2", "B"),
+                createQuestion("bad", "A", subject = "Biology", section = "bot_all")
+            ),
+            mapOf("p1" to "A", "p2" to "C", "bad" to "A")
+        )
+        val physics = result.single { it.subject == "Physics" }
+        val biology = result.single { it.subject == "Biology" }
+        assertEquals(1, physics.correct)
+        assertEquals(1, physics.incorrect)
+        assertEquals(3.0, physics.score, 0.001)
+        assertEquals(8.0, physics.maxScore, 0.001)
+        assertEquals(1, biology.ungraded)
+        assertEquals(0.0, biology.score, 0.001)
+    }
+
+    @Test
+    fun optionEquivalenceAndMarkFormattingRemainStable() {
+        assertTrue(ExamScoringEngine.areOptionsEquivalent("1", "A"))
+        assertTrue(ExamScoringEngine.areOptionsEquivalent("12.25", "12.250", true))
+        assertFalse(ExamScoringEngine.areOptionsEquivalent("12.25", "12.26", true))
+        assertEquals("4", ExamScoringEngine.formatMark(4.0))
+        assertEquals("2.5", ExamScoringEngine.formatMark(2.5))
     }
 }

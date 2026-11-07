@@ -139,7 +139,9 @@ class Phase3CTest {
             correctAnswer = "", // UNKNOWN answer key from OCR
             explanation = "",
             subject = "Physics",
-            chapter = "Motion"
+            chapter = "Motion",
+            section = "phy_all",
+            questionType = "MCQ_SINGLE"
         )
 
         // Case 1: Student skips -> SKIPPED, score = 0
@@ -151,7 +153,8 @@ class Phase3CTest {
         )
         assertEquals(0, breakdownSkipped.correctCount)
         assertEquals(0, breakdownSkipped.wrongCount)
-        assertEquals(1, breakdownSkipped.unansweredCount)
+        assertEquals(0, breakdownSkipped.unansweredCount)
+        assertEquals(1, breakdownSkipped.ungradedCount)
         assertEquals(0.0, breakdownSkipped.finalScore, 0.001)
         assertEquals(0.0, breakdownSkipped.negativeMarksPenalty, 0.001)
 
@@ -164,6 +167,7 @@ class Phase3CTest {
         )
         assertEquals(0, breakdownAnswered.correctCount)
         assertEquals(0, breakdownAnswered.wrongCount)
+        assertEquals(1, breakdownAnswered.ungradedCount)
         assertEquals(0.0, breakdownAnswered.finalScore, 0.001)
         assertEquals(0.0, breakdownAnswered.negativeMarksPenalty, 0.001)
         assertEquals(0.0, breakdownAnswered.accuracyPercent, 0.001)

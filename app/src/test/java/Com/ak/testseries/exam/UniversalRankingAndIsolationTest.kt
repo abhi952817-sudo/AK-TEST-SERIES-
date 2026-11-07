@@ -18,93 +18,26 @@ class UniversalRankingAndIsolationTest {
 
     @Test
     fun testCanonicalExamKeyNormalization_AllExams() {
-        // Medical
-        assertEquals("NEET", UniversalExamRegistry.getCanonicalExamKey("NEET"))
+
+        val exams = UniversalExamRegistry.getAllExams()
+        assertEquals(25, exams.size)
+        assertEquals(exams.size, exams.map { it.examId }.distinct().size)
+        val canonicalKeys = exams.map { UniversalExamRegistry.getCanonicalExamKey(it.examName) }
+        assertFalse("Every registered exam must map to a stable canonical partition", canonicalKeys.any { it == "UNKNOWN" })
+        assertEquals("Canonical exam partitions must not collide", canonicalKeys.size, canonicalKeys.distinct().size)
+
         assertEquals("NEET", UniversalExamRegistry.getCanonicalExamKey("NEET UG"))
-        assertEquals("NEET", UniversalExamRegistry.getCanonicalExamKey("neet_ug"))
-
-        // Engineering
-        assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("JEE Main"))
-        assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("JEE"))
-        assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("jee_main"))
+        assertEquals("NEET_PG", UniversalExamRegistry.getCanonicalExamKey("NEET PG"))
+        assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("JEE Main Paper 1"))
         assertEquals("JEE_ADVANCED", UniversalExamRegistry.getCanonicalExamKey("JEE Advanced"))
-        assertEquals("JEE_ADVANCED", UniversalExamRegistry.getCanonicalExamKey("JEE Adv"))
-        assertEquals("JEE_ADVANCED", UniversalExamRegistry.getCanonicalExamKey("jee_advanced"))
-        assertEquals("GATE", UniversalExamRegistry.getCanonicalExamKey("GATE"))
-        assertEquals("GATE", UniversalExamRegistry.getCanonicalExamKey("gate"))
-
-        // University
-        assertEquals("CUET", UniversalExamRegistry.getCanonicalExamKey("CUET"))
-        assertEquals("CUET", UniversalExamRegistry.getCanonicalExamKey("CUET UG"))
-        assertEquals("CUET", UniversalExamRegistry.getCanonicalExamKey("cuet_ug"))
-
-        // Civil Services & Defence
-        assertEquals("UPSC", UniversalExamRegistry.getCanonicalExamKey("UPSC"))
-        assertEquals("UPSC", UniversalExamRegistry.getCanonicalExamKey("UPSC Civil Services"))
-        assertEquals("UPSC", UniversalExamRegistry.getCanonicalExamKey("upsc_cse"))
-        assertEquals("NDA", UniversalExamRegistry.getCanonicalExamKey("NDA"))
-        assertEquals("NDA", UniversalExamRegistry.getCanonicalExamKey("NDA & NA"))
-        assertEquals("NDA", UniversalExamRegistry.getCanonicalExamKey("nda"))
-        assertEquals("CDS", UniversalExamRegistry.getCanonicalExamKey("CDS"))
-        assertEquals("CDS", UniversalExamRegistry.getCanonicalExamKey("cds"))
-
-        // SSC
-        assertEquals("SSC_CGL", UniversalExamRegistry.getCanonicalExamKey("SSC CGL"))
-        assertEquals("SSC_CGL", UniversalExamRegistry.getCanonicalExamKey("CGL"))
-        assertEquals("SSC_CGL", UniversalExamRegistry.getCanonicalExamKey("ssc_cgl"))
-        assertEquals("SSC_CHSL", UniversalExamRegistry.getCanonicalExamKey("SSC CHSL"))
-        assertEquals("SSC_CHSL", UniversalExamRegistry.getCanonicalExamKey("CHSL"))
-        assertEquals("SSC_CHSL", UniversalExamRegistry.getCanonicalExamKey("ssc_chsl"))
-        assertEquals("SSC_MTS", UniversalExamRegistry.getCanonicalExamKey("SSC MTS"))
-        assertEquals("SSC_MTS", UniversalExamRegistry.getCanonicalExamKey("MTS"))
-        assertEquals("SSC_MTS", UniversalExamRegistry.getCanonicalExamKey("ssc_mts"))
-        assertEquals("SSC_CPO", UniversalExamRegistry.getCanonicalExamKey("SSC CPO"))
-        assertEquals("SSC_CPO", UniversalExamRegistry.getCanonicalExamKey("CPO"))
-        assertEquals("SSC_CPO", UniversalExamRegistry.getCanonicalExamKey("ssc_cpo"))
-        assertEquals("SSC_GD", UniversalExamRegistry.getCanonicalExamKey("SSC GD"))
-        assertEquals("SSC_GD", UniversalExamRegistry.getCanonicalExamKey("GD"))
-        assertEquals("SSC_GD", UniversalExamRegistry.getCanonicalExamKey("ssc_gd"))
-
-        // Banking
-        assertEquals("IBPS_PO", UniversalExamRegistry.getCanonicalExamKey("IBPS PO"))
-        assertEquals("IBPS_PO", UniversalExamRegistry.getCanonicalExamKey("ibps_po"))
-        assertEquals("IBPS_CLERK", UniversalExamRegistry.getCanonicalExamKey("IBPS Clerk"))
-        assertEquals("IBPS_CLERK", UniversalExamRegistry.getCanonicalExamKey("ibps_clerk"))
-        assertEquals("SBI_PO", UniversalExamRegistry.getCanonicalExamKey("SBI PO"))
-        assertEquals("SBI_PO", UniversalExamRegistry.getCanonicalExamKey("sbi_po"))
-        assertEquals("SBI_CLERK", UniversalExamRegistry.getCanonicalExamKey("SBI Clerk"))
-        assertEquals("SBI_CLERK", UniversalExamRegistry.getCanonicalExamKey("sbi_clerk"))
-
-        // Teaching
-        assertEquals("CTET", UniversalExamRegistry.getCanonicalExamKey("CTET"))
-        assertEquals("CTET", UniversalExamRegistry.getCanonicalExamKey("ctet"))
-        assertEquals("UGC_NET", UniversalExamRegistry.getCanonicalExamKey("UGC NET"))
-        assertEquals("UGC_NET", UniversalExamRegistry.getCanonicalExamKey("ugc_net"))
-
-        // Management
-        assertEquals("CAT", UniversalExamRegistry.getCanonicalExamKey("CAT"))
-        assertEquals("CAT", UniversalExamRegistry.getCanonicalExamKey("cat"))
-
-        // Railways - Distinct Identities
         assertEquals("RRB_NTPC", UniversalExamRegistry.getCanonicalExamKey("RRB NTPC"))
-        assertEquals("RRB_NTPC", UniversalExamRegistry.getCanonicalExamKey("NTPC"))
-        assertEquals("RRB_NTPC", UniversalExamRegistry.getCanonicalExamKey("rrb_ntpc"))
-        assertEquals("RRB_GROUP_D", UniversalExamRegistry.getCanonicalExamKey("RRB Group D"))
-        assertEquals("RRB_GROUP_D", UniversalExamRegistry.getCanonicalExamKey("Group D"))
-        assertEquals("RRB_GROUP_D", UniversalExamRegistry.getCanonicalExamKey("level 1"))
-        assertEquals("RRB_ALP", UniversalExamRegistry.getCanonicalExamKey("RRB ALP"))
-        assertEquals("RRB_ALP", UniversalExamRegistry.getCanonicalExamKey("ALP"))
-        assertEquals("RRB_ALP", UniversalExamRegistry.getCanonicalExamKey("loco pilot"))
-        assertEquals("RRB_TECHNICIAN", UniversalExamRegistry.getCanonicalExamKey("RRB Technician"))
-        assertEquals("RRB_TECHNICIAN", UniversalExamRegistry.getCanonicalExamKey("Technician"))
-        assertEquals("RRB_TECHNICIAN", UniversalExamRegistry.getCanonicalExamKey("rrb_tech"))
-        assertEquals("RRB_JE", UniversalExamRegistry.getCanonicalExamKey("RRB JE"))
-        assertEquals("RRB_JE", UniversalExamRegistry.getCanonicalExamKey("junior engineer"))
-
-        // Edge Cases
+        assertEquals("UNKNOWN", UniversalExamRegistry.getCanonicalExamKey("JEE"))
+        assertEquals("UNKNOWN", UniversalExamRegistry.getCanonicalExamKey("RRB"))
         assertEquals("UNKNOWN", UniversalExamRegistry.getCanonicalExamKey(null))
         assertEquals("UNKNOWN", UniversalExamRegistry.getCanonicalExamKey(""))
-        assertEquals("UNKNOWN", UniversalExamRegistry.getCanonicalExamKey("   "))
+        assertNull(UniversalExamRegistry.findExamByNameOrShortName("JEE"))
+        assertNull(UniversalExamRegistry.findExamByNameOrShortName("JEE Main"))
+    
     }
 
     @Test

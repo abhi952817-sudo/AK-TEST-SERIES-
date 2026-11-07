@@ -15,6 +15,8 @@ object UniversalExamRegistry {
     }
 
     private fun registerDefaultExams() {
+        // Source: NTA NEET (UG)-2026 Information Bulletin, official NTA document.
+        // https://neet.nta.nic.in/documents/page/4/
         // 1. NEET UG (Medical Entrance)
         register(
             ExamConfig(
@@ -25,22 +27,21 @@ object UniversalExamRegistry {
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
                 verified = true,
+                sourceYear = 2026,
+                sourceTitle = "NEET (UG)-2026 Information Bulletin",
+                sourceUrl = "https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/02/202602231394640855.pdf",
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 40, hardPercent = 15),
                 supportedQuestionTypes = listOf(
-                    QuestionType.DIRECT_MCQ,
-                    QuestionType.STATEMENT_I_II,
-                    QuestionType.ASSERTION_REASON,
-                    QuestionType.MATCH_LIST_I_II,
-                    QuestionType.DIAGRAM_LABELING,
-                    QuestionType.GRAPH
+                    QuestionType.MCQ_SINGLE,
+                    QuestionType.DIRECT_MCQ
                 ),
-                aiSystemInstruction = "You are the Chief Academic Examiner for NEET UG. Strictly adhere to NCERT Class 11 & 12 curriculum for Physics, Chemistry, and Biology (Botany & Zoology). Emphasize NCERT factual accuracy, biochemical cycles, diagrammatic interpretations, genetics crosses, and conceptual numericals. Eliminate out-of-syllabus graduate concepts.",
+                aiSystemInstruction = "You are the Chief Academic Examiner for NEET UG. Strictly adhere to NCERT Class 11 & 12 curriculum for Physics, Chemistry, Botany and Zoology. Generate only single-correct MCQs with four options.",
                 patternRules = listOf(
                     "+4 marks for correct answer, -1 mark penalty for incorrect answer",
-                    "Section A: 35 compulsory questions per subject",
-                    "Section B: 15 questions per subject (students attempt any 10)",
-                    "Total 720 marks (180 questions attempted out of 200)",
-                    "Duration 200 minutes (3 hours 20 minutes)",
+                    "2026 pattern: 45 compulsory questions each in Physics, Chemistry, Botany and Zoology",
+                    "No optional Section B in the 2026 bulletin",
+                    "Total 720 marks (180 compulsory questions)",
+                    "Duration 180 minutes (3 hours)",
                     "Strict bilingual formatting in English and Hindi"
                 ),
                 stages = listOf(
@@ -51,70 +52,61 @@ object UniversalExamRegistry {
                             PaperConfig(
                                 paperId = "neet_paper_1",
                                 paperName = "NEET Single Paper",
-                                durationMinutes = 200,
+                                durationMinutes = 180,
                                 totalMarks = 720.0,
                                 subjects = listOf(
                                     SubjectConfig(
                                         "physics", "Physics",
-                                        listOf(
-                                            SectionConfig("phy_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("phy_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
-                                        )
+                                        listOf(SectionConfig("phy_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "chemistry", "Chemistry",
-                                        listOf(
-                                            SectionConfig("chem_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("chem_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
-                                        )
+                                        listOf(SectionConfig("chem_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "botany", "Botany",
-                                        listOf(
-                                            SectionConfig("bot_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("bot_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
-                                        )
+                                        listOf(SectionConfig("bot_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "zoology", "Zoology",
-                                        listOf(
-                                            SectionConfig("zoo_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("zoo_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
+                                        listOf(SectionConfig("zoo_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
+                                    )
+                                )
                             )
                         )
                     )
                 )
             )
         )
-                )
-            )
-        )
 
+        // Source: NTA JEE (Main)-2026 Information Bulletin, official NTA document.
+        // https://jeemain.nta.nic.in/information-bulletin/
         // 2. JEE Main (Engineering Entrance)
         register(
             ExamConfig(
                 examId = "jee_main",
-                examName = "JEE Main",
-                shortName = "JEE",
+                examName = "JEE Main Paper 1 (B.E./B.Tech only)",
+                shortName = "JEE Main P1",
                 category = "Engineering Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
                 verified = true,
+                sourceYear = 2027,
+                sourceTitle = "JEE (Main)-2027 Information Bulletin",
+                sourceUrl = "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/10/202610241890224107.pdf",
                 difficultyRatio = DifficultyRatio(easyPercent = 25, mediumPercent = 50, hardPercent = 25),
                 supportedQuestionTypes = listOf(
-                    QuestionType.DIRECT_MCQ,
-                    QuestionType.NUMERICAL_VALUE,
-                    QuestionType.ASSERTION_REASON,
-                    QuestionType.MULTI_STATEMENT,
-                    QuestionType.GRAPH
+                    QuestionType.MCQ_SINGLE,
+                    QuestionType.NUMERICAL_VALUE
                 ),
-                aiSystemInstruction = "You are the Chief Academic Examiner for JEE Main. Generate rigorous analytical questions for Physics, Chemistry, and Mathematics. Focus on multi-concept synthesis, calculus-based derivations, vector algebra, organic reaction mechanisms, and physical chemistry stoichiometry. Numerical value questions require exact integer or rounded values.",
+                aiSystemInstruction = "You are the Chief Academic Examiner for JEE Main Paper 1 (B.E./B.Tech), 2027. Generate only single-correct MCQs and numerical-value questions for Mathematics, Physics, and Chemistry. Numerical responses must follow the official integer-answer rule. Do not generate unsupported assertion-reason, multi-select, or graph-only formats.",
                 patternRules = listOf(
-                    "+4 marks for correct, -1 mark penalty for incorrect",
-                    "Section A: 20 Multiple Choice Questions (compulsory)",
-                    "Section B: 10 Numerical value questions (attempt any 5)",
-                    "Total 300 marks (75 questions attempted out of 90)",
-                    "Duration 180 minutes (3 hours)"
+                    "2027 NTA Bulletin: +4 marks for correct, -1 for incorrect, 0 for unanswered in both Section A and Section B",
+                    "Section A: 20 compulsory single-correct MCQs per subject",
+                    "Section B: 5 compulsory numerical-value questions per subject",
+                    "Total 75 questions and 300 marks",
+                    "Duration 180 minutes (3 hours)",
+                    "Paper 1 covers Mathematics, Physics and Chemistry only"
                 ),
                 stages = listOf(
                     StageConfig(
@@ -129,21 +121,21 @@ object UniversalExamRegistry {
                                         "physics", "Physics",
                                         listOf(
                                             SectionConfig("phy_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("phy_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("phy_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0, integerAnswerRequired = true)
                                         )
                                     ),
                                     SubjectConfig(
                                         "chemistry", "Chemistry",
                                         listOf(
                                             SectionConfig("chem_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("chem_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("chem_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0, integerAnswerRequired = true)
                                         )
                                     ),
                                     SubjectConfig(
                                         "mathematics", "Mathematics",
                                         listOf(
                                             SectionConfig("math_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("math_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("math_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0, integerAnswerRequired = true)
                                         )
                                     )
                                 )
@@ -163,7 +155,7 @@ object UniversalExamRegistry {
                 category = "Engineering Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 10, mediumPercent = 45, hardPercent = 45),
                 supportedQuestionTypes = listOf(
                     QuestionType.MCQ_SINGLE,
@@ -228,7 +220,7 @@ object UniversalExamRegistry {
                 category = "University Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 50, mediumPercent = 40, hardPercent = 10),
                 supportedQuestionTypes = listOf(
                     QuestionType.DIRECT_MCQ,
@@ -270,7 +262,7 @@ object UniversalExamRegistry {
                 category = "Civil Services",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 20, mediumPercent = 50, hardPercent = 30),
                 supportedQuestionTypes = listOf(
                     QuestionType.MULTI_STATEMENT,
@@ -317,7 +309,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 35, mediumPercent = 50, hardPercent = 15),
                 supportedQuestionTypes = listOf(
                     QuestionType.DIRECT_MCQ,
@@ -362,7 +354,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 45, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.GRAPH),
                 aiSystemInstruction = "You are an examiner for SSC CHSL (10+2 Level). Formulate balanced questions in quantitative aptitude (basic arithmetic and geometry), logical reasoning, English grammar & vocabulary, and general awareness.",
@@ -400,7 +392,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 60, mediumPercent = 35, hardPercent = 5),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for SSC MTS (Matriculation Level). Test foundational numerical abilities, basic reasoning, core general knowledge (history, geography, science), and elementary English grammar.",
@@ -439,7 +431,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 60, mediumPercent = 35, hardPercent = 5),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for SSC GD Constable. Craft practical, high-clarity questions testing basic intelligence, elementary math, general knowledge, and language comprehension for constable recruits.",
@@ -478,7 +470,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 35, mediumPercent = 50, hardPercent = 15),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for SSC CPO. Generate comprehensive questions testing analytical reasoning, General Knowledge/Science, quantitative arithmetic & algebra, and English language comprehension.",
@@ -516,7 +508,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 40, mediumPercent = 45, hardPercent = 15),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.TABLE_BASED),
                 aiSystemInstruction = "You are an examiner for RRB NTPC CBT-1 & CBT-2. Prioritize General Awareness (Indian Railways history, science, geography, constitution), Mathematics (percentages, ratio, time & work), and General Intelligence.",
@@ -553,7 +545,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 50, mediumPercent = 40, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for Railway RRB Group D (Level 1). Prioritize General Science (Class 10 CBSE physics, chemistry, biology), Basic Mathematics, General Intelligence, and Current Affairs.",
@@ -591,7 +583,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 35, mediumPercent = 50, hardPercent = 15),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.NUMERICAL_VALUE, QuestionType.DIAGRAM_LABELING),
                 aiSystemInstruction = "You are an examiner for RRB ALP CBT-1. Focus on Basic Science & Engineering (Units, Measurements, Work Energy & Power, Heat, Electricity, Levers), Technical Mathematics, and General Intelligence.",
@@ -629,7 +621,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 40, mediumPercent = 45, hardPercent = 15),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.NUMERICAL_VALUE),
                 aiSystemInstruction = "You are an examiner for RRB Technician. Emphasize Basic Science & Engineering applications, technical trade fundamentals, Mathematics, and General Awareness.",
@@ -667,7 +659,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 30, mediumPercent = 50, hardPercent = 20),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.NUMERICAL_VALUE, QuestionType.DIAGRAM_LABELING),
                 aiSystemInstruction = "You are an examiner for RRB Junior Engineer (CBT 1). Test Mathematics (algebra, calculus, trigonometry), General Science, General Intelligence, and General Awareness for diploma/degree engineering candidates.",
@@ -705,7 +697,7 @@ object UniversalExamRegistry {
                 category = "Teaching",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 50, mediumPercent = 40, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.CASE_BASED, QuestionType.STATEMENT_I_II),
                 aiSystemInstruction = "You are an examiner for CTET Paper 1 & 2. Formulate pedagogy-centric questions on Child Development and Pedagogy (CDP), inclusive education, learning theories of Piaget, Vygotsky, and Kohlberg, language learning pedagogy, and pedagogical content knowledge.",
@@ -744,7 +736,7 @@ object UniversalExamRegistry {
                 category = "Teaching",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 25, mediumPercent = 50, hardPercent = 25),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.ASSERTION_REASON, QuestionType.MATCH_LIST_I_II, QuestionType.STATEMENT_I_II),
                 aiSystemInstruction = "You are an examiner for UGC NET Paper 1. Focus on Teaching Aptitude, Research Aptitude & Methodology, Communication, Mathematical Reasoning & Aptitude, Logical Reasoning, Data Interpretation, Information & Communication Technology (ICT), and Higher Education System in India.",
@@ -779,7 +771,7 @@ object UniversalExamRegistry {
                 category = "Management",
                 language = "English",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 15, mediumPercent = 50, hardPercent = 35),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.NUMERICAL_VALUE, QuestionType.TITA, QuestionType.PASSAGE_BASED, QuestionType.CASE_BASED),
                 aiSystemInstruction = "You are the Chief Academic Examiner for CAT (IIMs). Design high-difficulty Data Interpretation & Logical Reasoning (DILR) caselets, complex Reading Comprehension with deep philosophical/analytical inferences (VARC), and rigorous Quantitative Aptitude (Algebra, Modern Math, Number Theory, Geometry).",
@@ -817,7 +809,7 @@ object UniversalExamRegistry {
                 category = "Banking",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 5,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 20, mediumPercent = 50, hardPercent = 30),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.CASE_BASED, QuestionType.PASSAGE_BASED),
                 aiSystemInstruction = "You are an examiner for IBPS PO Prelims. Formulate multi-attribute seating arrangement puzzles, Data Interpretation sets (pie charts, tables, missing DI), quadratic equations, approximation, and advanced English cloze tests.",
@@ -855,7 +847,7 @@ object UniversalExamRegistry {
                 category = "Banking",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 5,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 45, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for IBPS Clerk Prelims. Emphasize fast mental calculations, simplification, arithmetic word problems, standard blood relations, direction sense, syllogisms, and vocabulary.",
@@ -892,7 +884,7 @@ object UniversalExamRegistry {
                 category = "Banking",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 5,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 40, mediumPercent = 50, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for SBI Clerk (Junior Associates). Focus on high-speed Quantitative Aptitude (simplification, number series, quadratic equations), Reasoning puzzles, and English comprehension.",
@@ -929,7 +921,7 @@ object UniversalExamRegistry {
                 category = "Banking",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 5,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 15, mediumPercent = 50, hardPercent = 35),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.CASE_BASED, QuestionType.PASSAGE_BASED),
                 aiSystemInstruction = "You are an examiner for SBI PO. Frame intricate reasoning puzzles, novel-pattern critical reasoning, advanced data sufficiency, high-level DI sets, and rigorous English vocabulary in context.",
@@ -966,7 +958,7 @@ object UniversalExamRegistry {
                 category = "Defence",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 30, mediumPercent = 50, hardPercent = 20),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.ASSERTION_REASON, QuestionType.GRAPH),
                 aiSystemInstruction = "You are an examiner for UPSC NDA & NA. Formulate Mathematics questions (Class 11-12 Trigonometry, Matrices, Calculus, Vectors, Probability) and General Ability Test (GAT) questions in English, Physics, Chemistry, History, Geography, and Current Events.",
@@ -1011,7 +1003,7 @@ object UniversalExamRegistry {
                 category = "Defence",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 30, mediumPercent = 50, hardPercent = 20),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.ASSERTION_REASON, QuestionType.STATEMENT_I_II),
                 aiSystemInstruction = "You are an examiner for UPSC Combined Defence Services (CDS). Formulate questions for English, General Knowledge, and Elementary Mathematics according to UPSC CDS standards.",
@@ -1063,7 +1055,7 @@ object UniversalExamRegistry {
                 category = "Engineering",
                 language = "English",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 20, mediumPercent = 45, hardPercent = 35),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.MCQ_MULTIPLE, QuestionType.NUMERICAL_VALUE, QuestionType.GRAPH),
                 aiSystemInstruction = "You are the Chief Examiner for GATE. Frame rigorous engineering and general aptitude problems. Include Multiple Choice (MCQ), Multiple Select (MSQ), and Numerical Answer Type (NAT) problems requiring numerical precision.",
@@ -1105,94 +1097,119 @@ object UniversalExamRegistry {
     }
 
     fun register(config: ExamConfig) {
+        require(config.examId.isNotBlank()) { "Exam configuration requires a stable examId." }
+        if (config.verified) {
+            require(config.sourceYear != null && !config.sourceTitle.isNullOrBlank() &&
+                config.sourceUrl?.startsWith("https://") == true) {
+                "A verified exam configuration must include its official source year, title, and HTTPS URL."
+            }
+        }
         defaultExams[config.examId] = config
     }
 
-    fun getAllExams(): List<ExamConfig> = defaultExams.values.toList()
+    private fun publicExamConfig(config: ExamConfig): ExamConfig {
+        if (config.verified) return config
+        return config.copy(
+            defaultOptionCount = 0,
+            difficultyRatio = DifficultyRatio(0, 0, 0),
+            supportedQuestionTypes = emptyList(),
+            aiSystemInstruction = "",
+            patternRules = listOf("Official source verification pending"),
+            stages = emptyList(),
+            sourceYear = null,
+            sourceTitle = null,
+            sourceUrl = null
+        )
+    }
 
-    fun getActiveExams(): List<ExamConfig> = defaultExams.values.filter { it.active }
+    fun getAllExams(): List<ExamConfig> = defaultExams.values.map(::publicExamConfig)
 
-    fun getExamById(examId: String): ExamConfig? = defaultExams[examId]
+    fun getActiveExams(): List<ExamConfig> = defaultExams.values.filter { it.active && it.verified }.map(::publicExamConfig)
 
-    fun getExam(query: String): ExamConfig? = getExamById(query) ?: findExamByNameOrShortName(query)
+    fun getExamById(examId: String): ExamConfig? = defaultExams[examId]?.let(::publicExamConfig)
+
+    fun getExam(query: String): ExamConfig? =
+        getExamById(query) ?: findExamByNameOrShortName(query)?.let(::publicExamConfig)
 
     fun getCanonicalExamKey(query: String?): String {
         if (query.isNullOrBlank()) return "UNKNOWN"
-        if (query.equals("All", ignoreCase = true)) return "ALL"
-        val q = query.trim().lowercase()
+        val q = query.trim().lowercase().replace('-', ' ').replace('_', ' ').replace(Regex("\\s+"), " ")
+        if (q == "all") return "ALL"
         return when {
-            q.contains("neet") -> "NEET"
-            q.contains("jee adv") || q == "jee_advanced" -> "JEE_ADVANCED"
-            q.contains("jee main") || q == "jee_main" || q.contains("jee") -> "JEE_MAIN"
+            q == "jee" || q == "rrb" || q == "railway" || q == "railways" -> "UNKNOWN"
+            q.contains("jee advanced") || q == "jee adv" -> "JEE_ADVANCED"
+            q.contains("jee main") -> "JEE_MAIN"
+            q.contains("neet pg") -> "NEET_PG"
+            q == "neet" || q.contains("neet ug") -> "NEET"
             q.contains("gate") -> "GATE"
             q.contains("cuet") -> "CUET"
             q.contains("upsc") || q.contains("civil services") -> "UPSC"
             q.contains("nda") -> "NDA"
             q.contains("cds") -> "CDS"
-            q.contains("cgl") || q.contains("ssc_cgl") -> "SSC_CGL"
-            q.contains("chsl") || q.contains("ssc_chsl") -> "SSC_CHSL"
-            q.contains("mts") || q.contains("ssc_mts") -> "SSC_MTS"
-            q.contains("cpo") || q.contains("ssc_cpo") -> "SSC_CPO"
-            q.contains("ssc_gd") || q.contains("ssc gd") || q == "gd" -> "SSC_GD"
-            q.contains("ibps_po") || q.contains("ibps po") -> "IBPS_PO"
-            q.contains("ibps_clerk") || q.contains("ibps clerk") -> "IBPS_CLERK"
-            q.contains("sbi_po") || q.contains("sbi po") -> "SBI_PO"
-            q.contains("sbi_clerk") || q.contains("sbi clerk") -> "SBI_CLERK"
+            q.contains("ssc cgl") || q == "cgl" -> "SSC_CGL"
+            q.contains("ssc chsl") || q == "chsl" -> "SSC_CHSL"
+            q.contains("ssc mts") || q == "mts" -> "SSC_MTS"
+            q.contains("ssc cpo") || q == "cpo" -> "SSC_CPO"
+            q.contains("ssc gd") || q == "gd" -> "SSC_GD"
+            q.contains("ibps po") -> "IBPS_PO"
+            q.contains("ibps clerk") -> "IBPS_CLERK"
+            q.contains("sbi po") -> "SBI_PO"
+            q.contains("sbi clerk") -> "SBI_CLERK"
             q.contains("ctet") || q.contains("uptet") -> "CTET"
-            q.contains("ugc_net") || q.contains("ugc net") || q == "ugc" || (q.contains("net") && !q.contains("neet")) -> "UGC_NET"
-            q.contains("cat") -> "CAT"
-            q.contains("group_d") || q.contains("group d") || q.contains("level 1") -> "RRB_GROUP_D"
-            q.contains("alp") || q.contains("loco pilot") -> "RRB_ALP"
-            q.contains("technician") || q.contains("rrb_tech") -> "RRB_TECHNICIAN"
-            q.contains("rrb_je") || q.contains("rrb je") || q.contains("junior engineer") -> "RRB_JE"
-            q.contains("ntpc") || q.contains("rrb_ntpc") -> "RRB_NTPC"
-            q == "rrb" || q == "railways" || q == "railway" -> "RRB_NTPC"
-            else -> {
-                val config = findExamByNameOrShortName(query)
-                config?.shortName?.uppercase()?.replace(" ", "_") ?: query.trim().uppercase().replace(" ", "_")
-            }
+            q.contains("ugc net") -> "UGC_NET"
+            q == "cat" -> "CAT"
+            q.contains("rrb group d") || q == "group d" || q.contains("level 1") -> "RRB_GROUP_D"
+            q.contains("rrb alp") || q.contains("loco pilot") -> "RRB_ALP"
+            q.contains("rrb technician") -> "RRB_TECHNICIAN"
+            q.contains("rrb je") || q.contains("junior engineer") -> "RRB_JE"
+            q.contains("rrb ntpc") || q == "ntpc" -> "RRB_NTPC"
+            else -> findExamByNameOrShortName(query)?.examId?.uppercase()
+                ?: "UNKNOWN"
         }
     }
 
     fun findExamByNameOrShortName(query: String): ExamConfig? {
         val q = query.trim().lowercase()
-        val exact = defaultExams.values.find {
-            it.examName.lowercase() == q ||
-            it.shortName.lowercase() == q ||
-            it.examId.lowercase() == q
-        }
-        if (exact != null) return exact
-
-        return defaultExams.values.find {
-            it.examName.lowercase().contains(q) ||
-            q.contains(it.examName.lowercase()) ||
-            q.contains(it.shortName.lowercase())
-        }
+        if (q.isBlank() || q in setOf("jee", "rrb", "railway", "railways")) return null
+        return defaultExams.values.singleOrNull {
+            it.examName.trim().lowercase() == q ||
+                it.shortName.trim().lowercase() == q ||
+                it.examId.trim().lowercase() == q
+        }?.let(::publicExamConfig)
     }
 
     fun getDifficultyRatioForExam(examName: String): DifficultyRatio {
         val config = findExamByNameOrShortName(examName)
-        return config?.difficultyRatio ?: DifficultyRatio(40, 40, 20)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified) { "Difficulty policy is not source-verified for '$examName'." }
+        return config.difficultyRatio
     }
 
     fun getSupportedQuestionTypesForExam(examName: String): List<QuestionType> {
         val config = findExamByNameOrShortName(examName)
-        return config?.supportedQuestionTypes ?: listOf(QuestionType.MCQ_SINGLE)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified) { "Question-type policy is not source-verified for '$examName'." }
+        return config.supportedQuestionTypes
     }
 
     fun getAiSystemInstructionForExam(examName: String): String {
         val config = findExamByNameOrShortName(examName)
-        return config?.aiSystemInstruction?.takeIf { it.isNotBlank() }
-            ?: "You are an expert academic examiner and question generator for $examName."
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified && config.aiSystemInstruction.isNotBlank()) {
+            "AI generation instructions are not source-verified for '$examName'."
+        }
+        return config.aiSystemInstruction
     }
 
     fun getPatternRulesForExam(examName: String): List<String> {
         val config = findExamByNameOrShortName(examName)
-        return config?.patternRules ?: emptyList()
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified) { "Pattern rules are not source-verified for '$examName'." }
+        return config.patternRules
     }
 
     fun getSubjectsForExamName(examName: String): List<String> {
-        val config = findExamByNameOrShortName(examName)
+        val config = findExamByNameOrShortName(examName)?.takeIf { it.active && it.verified }
         if (config != null) {
             val subjects = config.stages.flatMap { stage ->
                 stage.papers.flatMap { paper ->
@@ -1201,36 +1218,46 @@ object UniversalExamRegistry {
             }.distinct()
             if (subjects.isNotEmpty()) return subjects
         }
-        return listOf("Physics", "Chemistry", "Biology", "Mathematics")
+        return emptyList()
     }
 
     fun getDefaultQuestionsCountForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
-        if (config != null) {
-            val paper = config.stages.firstOrNull()?.papers?.firstOrNull()
-            if (paper != null) {
-                val sum = paper.subjects.sumOf { subj ->
-                    subj.sections.sumOf { it.compulsoryQuestions }
-                }
-                if (sum > 0) return sum
-            }
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) { "Question-count policy is not source-verified for '$examName'." }
+        require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
+            "Select an exact stage and paper for '$examName'; implicit first-paper selection is disabled."
         }
-        return 180
+        val count = config.stages.single().papers.single().subjects.sumOf { subject ->
+            subject.sections.sumOf { it.compulsoryQuestions }
+        }
+        require(count > 0) { "Question count is not configured for '$examName'." }
+        return count
     }
 
     fun getDefaultDurationMinutesForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
-        return config?.stages?.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: 180
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) { "Duration policy is not source-verified for '$examName'." }
+        require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
+            "Select an exact stage and paper for '$examName'; implicit first-paper selection is disabled."
+        }
+        val duration = config.stages.single().papers.single().durationMinutes
+        require(duration > 0) { "Duration is not configured for '$examName'." }
+        return duration
     }
 
     fun getMarkingSchemeForExam(examName: String): Pair<Double, Double> {
         val config = findExamByNameOrShortName(examName)
-        val section = config?.stages?.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()
-        return if (section != null) {
-            Pair(section.positiveMarks, section.negativeMarks)
-        } else {
-            throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
+            ?: throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
+        require(config.verified) { "Scoring configuration for '$examName' is not source-verified." }
+        require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
+            "Select an exact stage and paper for '$examName'; a single exam-wide marking scheme is ambiguous."
         }
+        val schemes = config.stages.single().papers.single().subjects.flatMap { it.sections }
+            .map { it.positiveMarks to it.negativeMarks }.distinct()
+        require(schemes.size == 1) { "This paper has section-specific marking; provide an exact section." }
+        return schemes.single()
     }
 
     fun getMarkingSchemeForQuestion(
@@ -1240,166 +1267,82 @@ object UniversalExamRegistry {
         questionTypeStr: String? = null
     ): Pair<Double, Double> {
         val config = findExamByNameOrShortName(examName)
-            ?: throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
-        val secQuery = sectionIdOrName?.trim()?.lowercase() ?: ""
-        val subQuery = subjectName?.trim()?.lowercase() ?: ""
-        val typeQuery = questionTypeStr?.trim()?.uppercase() ?: ""
-
-        // Specific handling for JEE Advanced section/question-type resolution
-        if (config.examId == "jee_advanced" || config.shortName.equals("JEE Adv", ignoreCase = true) || config.examName.contains("Advanced", ignoreCase = true)) {
-            val isMulti = secQuery.contains("multi") || typeQuery == "MCQ_MULTIPLE" || typeQuery == "MULTIPLE"
-            val isNum = secQuery.contains("num") || secQuery.contains("nvq") ||
-                    typeQuery == "NUMERICAL" || typeQuery == "NUMERICAL_VALUE" || typeQuery == "TITA"
-            val isSingle = secQuery.contains("single") || typeQuery == "MCQ_SINGLE" || typeQuery == "MCQ" || typeQuery == "DIRECT_MCQ"
-
-            if (isMulti) return Pair(4.0, 2.0)
-            if (isNum) return Pair(3.0, 0.0)
-            if (isSingle) return Pair(3.0, 1.0)
+            ?: throw IllegalArgumentException("Unsupported exam scoring scheme: '$examName'")
+        require(config.active && config.verified) {
+            "Scoring configuration for '$examName' is not source-verified."
         }
-
-        // Specific handling for NDA & NA section/paper resolution
-        if (config.shortName.equals("NDA", ignoreCase = true) || config.examId.equals("nda", ignoreCase = true)) {
-            val isMath = secQuery.contains("math") || subQuery.contains("math")
-            val isGat = secQuery.contains("gat") || secQuery.contains("eng") || secQuery.contains("gk") ||
-                    subQuery.contains("gat") || subQuery.contains("eng") || subQuery.contains("gk") ||
-                    subQuery.contains("aware") || subQuery.contains("knowl") || subQuery.contains("science") ||
-                    subQuery.contains("history") || subQuery.contains("geograph")
-
-            if (isMath && !isGat) {
-                return Pair(2.5, 0.83)
-            }
-            if (isGat) {
-                return Pair(4.0, 1.33)
-            }
+        val stage = config.stages.singleOrNull()
+            ?: throw IllegalArgumentException("Exact stage is required for '$examName'.")
+        val paper = stage.papers.singleOrNull()
+            ?: throw IllegalArgumentException("Exact paper is required for '$examName'.")
+        val subjectQuery = subjectName?.trim().orEmpty()
+        val subject = paper.subjects.singleOrNull {
+            it.subjectId.equals(subjectQuery, true) || it.subjectName.equals(subjectQuery, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous subject '$subjectQuery' for '$examName'.")
+        val sectionQuery = sectionIdOrName?.trim().orEmpty()
+        val section = subject.sections.singleOrNull {
+            it.sectionId.equals(sectionQuery, true) || it.sectionName.equals(sectionQuery, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous section '$sectionQuery' for '$examName'.")
+        val type = questionTypeStr?.trim()?.uppercase().orEmpty()
+        val acceptedTypes = when (section.questionType) {
+            QuestionType.MCQ_SINGLE -> setOf("MCQ_SINGLE", "MCQ", "DIRECT_MCQ")
+            QuestionType.NUMERICAL_VALUE, QuestionType.TITA -> setOf("NUMERICAL_VALUE", "NUMERICAL", "TITA", "NAT")
+            else -> setOf(section.questionType.name)
         }
-
-        // Specific handling for CDS section/paper resolution
-        if (config.shortName.equals("CDS", ignoreCase = true) || config.examId.equals("cds", ignoreCase = true)) {
-            val isMath = secQuery.contains("math") || subQuery.contains("math")
-            if (isMath) {
-                return Pair(1.0, 0.33)
-            } else {
-                return Pair(0.83, 0.27)
-            }
+        require(type in acceptedTypes) {
+            "Question type '$type' conflicts with verified section '${section.sectionId}'."
         }
-
-        // Specific handling for GATE section/question-type resolution
-        if (config.shortName.equals("GATE", ignoreCase = true) || config.examId.equals("gate", ignoreCase = true)) {
-            val is2Mark = secQuery.contains("2m") || secQuery.contains("2-mark") || secQuery.contains("2_mark") ||
-                    secQuery.contains("2 mark") || subQuery.contains("2m")
-            val isTechOrNumerical = secQuery.contains("tech") || typeQuery == "NUMERICAL_VALUE" ||
-                    typeQuery == "NUMERICAL" || typeQuery == "TITA" || subQuery.contains("tech") ||
-                    subQuery.contains("engineering")
-
-            if (isTechOrNumerical) {
-                return if (is2Mark) Pair(2.0, 0.0) else Pair(1.0, 0.0)
-            } else {
-                return if (is2Mark) Pair(2.0, 0.66) else Pair(1.0, 0.33)
-            }
-        }
-
-        // Specific handling for SSC MTS section/session resolution
-        if (config.shortName.equals("MTS", ignoreCase = true) || config.examId.equals("ssc_mts", ignoreCase = true) || config.examName.contains("MTS", ignoreCase = true)) {
-            val isSession1 = secQuery.contains("session_1") || secQuery.contains("math") || secQuery.contains("reason") ||
-                    secQuery == "math_sec" || secQuery == "reaz_sec" ||
-                    subQuery.contains("session_1") || subQuery.contains("math") || subQuery.contains("reason") ||
-                    subQuery.contains("numerical")
-            val isSession2 = secQuery.contains("session_2") || secQuery.contains("ga") || secQuery.contains("eng") ||
-                    secQuery == "ga_sec" || secQuery == "eng_sec" ||
-                    subQuery.contains("session_2") || subQuery.contains("general") || subQuery.contains("awareness") ||
-                    subQuery.contains("english")
-
-            if (isSession2 && !isSession1) {
-                return Pair(3.0, 1.0)
-            }
-            if (isSession1) {
-                return Pair(3.0, 0.0)
-            }
-        }
-
-        // Generic section match across configured stages and papers
-        if (secQuery.isNotBlank() && secQuery != "section_a" && secQuery != "section_b") {
-            for (stage in config.stages) {
-                for (paper in stage.papers) {
-                    for (subject in paper.subjects) {
-                        for (sec in subject.sections) {
-                            if (sec.sectionId.equals(secQuery, ignoreCase = true) ||
-                                sec.sectionName.equals(sectionIdOrName?.trim(), ignoreCase = true) ||
-                                sec.sectionName.lowercase() == secQuery
-                            ) {
-                                return Pair(sec.positiveMarks, sec.negativeMarks)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Generic subject match
-        if (subQuery.isNotBlank()) {
-            for (stage in config.stages) {
-                for (paper in stage.papers) {
-                    for (subject in paper.subjects) {
-                        if (subject.subjectId.equals(subQuery, ignoreCase = true) ||
-                            subject.subjectName.equals(subjectName?.trim(), ignoreCase = true) ||
-                            subject.subjectName.lowercase().contains(subQuery) ||
-                            subQuery.contains(subject.subjectName.lowercase())
-                        ) {
-                            val sec = subject.sections.firstOrNull()
-                            if (sec != null) return Pair(sec.positiveMarks, sec.negativeMarks)
-                        }
-                    }
-                }
-            }
-        }
-
-        return getMarkingSchemeForExam(examName)
+        return Pair(section.positiveMarks, section.negativeMarks)
     }
 
-    fun hasMultipleMarkingSchemes(examName: String): Boolean {
-        val config = findExamByNameOrShortName(examName) ?: return false
-        if (config.shortName.equals("NDA", ignoreCase = true) || config.examId.equals("nda", ignoreCase = true) ||
-            config.shortName.equals("CDS", ignoreCase = true) || config.examId.equals("cds", ignoreCase = true) ||
-            config.shortName.equals("GATE", ignoreCase = true) || config.examId.equals("gate", ignoreCase = true) ||
-            config.shortName.equals("MTS", ignoreCase = true) || config.examId.equals("ssc_mts", ignoreCase = true) ||
-            config.examId == "jee_advanced" || config.shortName.equals("JEE Adv", ignoreCase = true) || config.examName.contains("Advanced", ignoreCase = true)
-        ) {
-            return true
+    fun isIntegerAnswerRequiredForQuestion(
+        examName: String,
+        sectionIdOrName: String?,
+        subjectName: String?,
+        questionTypeStr: String?
+    ): Boolean {
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported exam scoring scheme: '$examName'")
+        require(config.active && config.verified) {
+            "Scoring configuration for '$examName' is not source-verified."
         }
-
-        val allSections = config.stages.flatMap { it.papers.flatMap { p -> p.subjects.flatMap { s -> s.sections } } }
-        if (allSections.size > 1) {
-            val firstPos = allSections.first().positiveMarks
-            val firstNeg = allSections.first().negativeMarks
-            return allSections.any { it.positiveMarks != firstPos || it.negativeMarks != firstNeg }
-        }
-        return false
+        getMarkingSchemeForQuestion(examName, sectionIdOrName, subjectName, questionTypeStr)
+        val paper = config.stages.single().papers.single()
+        val subject = paper.subjects.single { it.subjectId.equals(subjectName?.trim(), true) || it.subjectName.equals(subjectName?.trim(), true) }
+        val section = subject.sections.single { it.sectionId.equals(sectionIdOrName?.trim(), true) || it.sectionName.equals(sectionIdOrName?.trim(), true) }
+        return section.integerAnswerRequired
     }
 
     fun getMaximumAttemptQuestionsCountForExam(examName: String): Int? {
-        val config = findExamByNameOrShortName(examName) ?: return null
-        val paper = config.stages.firstOrNull()?.papers?.firstOrNull() ?: return null
-        val totalComp = paper.subjects.sumOf { subj -> subj.sections.sumOf { it.compulsoryQuestions } }
-        val totalPaper = paper.subjects.sumOf { subj -> subj.sections.sumOf { it.totalQuestions } }
-        return if (totalComp in 1 until totalPaper) totalComp else null
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) {
+            "Question-count policy for '$examName' is not source-verified."
+        }
+        require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
+            "Exact stage and paper are required for '$examName'."
+        }
+        val paper = config.stages.single().papers.single()
+        val total = paper.subjects.sumOf { subject -> subject.sections.sumOf { it.compulsoryQuestions } }
+        require(total > 0) { "Question count is not configured for '$examName'." }
+        return total
     }
 
     fun getMaximumAttemptQuestionsCountForSubject(examName: String, subjectNameOrId: String): Int? {
-        val config = findExamByNameOrShortName(examName) ?: return null
-        val clean = subjectNameOrId.trim()
-        if (clean.equals("biology", ignoreCase = true) && (config.shortName.equals("NEET", ignoreCase = true) || config.examId.contains("neet", ignoreCase = true))) {
-            return 90
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) {
+            "Subject question-count policy for '$examName' is not source-verified."
         }
-        val allPapers = config.stages.flatMap { it.papers }
-        val subject = allPapers.flatMap { it.subjects }.find {
-            it.subjectId.equals(clean, ignoreCase = true) ||
-            it.subjectName.equals(clean, ignoreCase = true) ||
-            clean.contains(it.subjectId, ignoreCase = true) ||
-            clean.contains(it.subjectName, ignoreCase = true)
-        } ?: return null
-        val totalComp = subject.sections.sumOf { it.compulsoryQuestions }
-        val totalPaper = subject.sections.sumOf { it.totalQuestions }
-        return if (totalComp in 1 until totalPaper) totalComp else null
+        val paper = config.stages.singleOrNull()?.papers?.singleOrNull()
+            ?: throw IllegalArgumentException("Exact stage and paper are required for '$examName'.")
+        val query = subjectNameOrId.trim()
+        val subject = paper.subjects.singleOrNull {
+            it.subjectId.equals(query, true) || it.subjectName.equals(query, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous subject '$query'.")
+        val total = subject.sections.sumOf { it.compulsoryQuestions }
+        require(total > 0) { "Question count is not configured for '$query'." }
+        return total
     }
 
     fun getMaximumAttemptQuestionsCountForSection(
@@ -1407,45 +1350,33 @@ object UniversalExamRegistry {
         sectionNameOrId: String,
         subjectName: String? = null
     ): Int? {
-        val config = findExamByNameOrShortName(examName) ?: return null
-        val secClean = sectionNameOrId.trim().lowercase()
-        val subClean = subjectName?.trim()?.lowercase() ?: ""
-
-        val allPapers = config.stages.flatMap { it.papers }
-        for (paper in allPapers) {
-            for (subject in paper.subjects) {
-                if (subClean.isNotEmpty() &&
-                    !subject.subjectId.equals(subClean, ignoreCase = true) &&
-                    !subject.subjectName.equals(subClean, ignoreCase = true) &&
-                    !subClean.contains(subject.subjectId.lowercase()) &&
-                    !subject.subjectName.lowercase().contains(subClean)
-                ) {
-                    continue
-                }
-                for (sec in subject.sections) {
-                    val idMatch = sec.sectionId.equals(secClean, ignoreCase = true)
-                    val nameMatch = sec.sectionName.equals(secClean, ignoreCase = true)
-                    val isSecB = (secClean == "section_b" || secClean == "section b") &&
-                            (sec.sectionId.contains("sec_b") || sec.sectionName.contains("Section B"))
-                    val isSecA = (secClean == "section_a" || secClean == "section a") &&
-                            (sec.sectionId.contains("sec_a") || sec.sectionName.contains("Section A"))
-
-                    if (idMatch || nameMatch || isSecB || isSecA) {
-                        if (sec.compulsoryQuestions in 1 until sec.totalQuestions) {
-                            return sec.compulsoryQuestions
-                        }
-                    }
-                }
-            }
+        val config = findExamByNameOrShortName(examName)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) {
+            "Section attempt policy for '$examName' is not source-verified."
         }
-        // Fallback for Section B when subject is generic or not matched
-        if (secClean == "section_b" || secClean.contains("section b")) {
-            val isNeet = config.shortName.equals("NEET", ignoreCase = true) || config.examId.contains("neet", ignoreCase = true)
-            if (isNeet) return 10
-            val isJee = config.shortName.equals("JEE", ignoreCase = true) || config.examId.contains("jee", ignoreCase = true)
-            if (isJee) return 5
-        }
+        val paper = config.stages.singleOrNull()?.papers?.singleOrNull()
+            ?: throw IllegalArgumentException("Exact stage and paper are required for '$examName'.")
+        val subjectQuery = subjectName?.trim().orEmpty()
+        val subject = paper.subjects.singleOrNull {
+            it.subjectId.equals(subjectQuery, true) || it.subjectName.equals(subjectQuery, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous subject '$subjectQuery'.")
+        val sectionQuery = sectionNameOrId.trim()
+        subject.sections.singleOrNull {
+            it.sectionId.equals(sectionQuery, true) || it.sectionName.equals(sectionQuery, true)
+        } ?: throw IllegalArgumentException("Unknown or ambiguous section '$sectionQuery'.")
+        // Both verified 2026 patterns have compulsory sections only. There is no optional attempt cap.
         return null
+    }
+
+    fun hasMultipleMarkingSchemes(examName: String): Boolean {
+        val config = findExamByNameOrShortName(examName) ?: return false
+        if (!config.active || !config.verified) return false
+        val paper = config.stages.singleOrNull()?.papers?.singleOrNull() ?: return false
+        val schemes = paper.subjects.flatMap { it.sections }
+            .map { it.positiveMarks to it.negativeMarks }
+            .distinct()
+        return schemes.size > 1
     }
 
     fun updateExamStatus(examId: String, active: Boolean) {
@@ -1456,12 +1387,15 @@ object UniversalExamRegistry {
 
     fun getLanguageForExam(examName: String): String {
         val config = findExamByNameOrShortName(examName)
-        return config?.language ?: "Bilingual (English & Hindi)"
+        return config?.takeIf { it.verified }?.language ?: "Not verified"
     }
 
     fun getDefaultOptionCountForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
-        return config?.defaultOptionCount ?: 4
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified) { "Option count is not source-verified for '$examName'." }
+        require(config.defaultOptionCount > 0) { "Option count is not configured for '$examName'." }
+        return config.defaultOptionCount
     }
 
     fun isExamVerified(examId: String): Boolean {
@@ -1469,29 +1403,36 @@ object UniversalExamRegistry {
     }
 
     fun getExamDisplaySubtitle(config: ExamConfig): String {
-        val allPapers = config.stages.flatMap { it.papers }
-        val paper = allPapers.firstOrNull()
-        val totalCompQs = allPapers.sumOf { p -> p.subjects.sumOf { s -> s.sections.sumOf { it.compulsoryQuestions } } }
-        val totalPaperQs = allPapers.sumOf { p -> p.subjects.sumOf { s -> s.sections.sumOf { it.totalQuestions } } }
-        val totalMarks = allPapers.sumOf { it.totalMarks }
-        val duration = allPapers.sumOf { it.durationMinutes }
-
-        val firstSec = paper?.subjects?.firstOrNull()?.sections?.firstOrNull()
-        val pos = firstSec?.positiveMarks ?: 4.0
-        val neg = firstSec?.negativeMarks ?: 1.0
-
+        if (!config.active || !config.verified) {
+            return "Pattern not verified • scoring and publishing disabled"
+        }
+        val paper = config.stages.singleOrNull()?.papers?.singleOrNull()
+            ?: return "Verified pattern metadata is incomplete"
+        val marking = runCatching { getMarkingSchemeForExam(config.examName) }.getOrNull()
+            ?: return "Verified scoring metadata is incomplete"
+        val totalCompQs = paper.subjects.sumOf { subject ->
+            subject.sections.sumOf { it.compulsoryQuestions }
+        }
+        val totalPaperQs = paper.subjects.sumOf { subject ->
+            subject.sections.sumOf { it.totalQuestions }
+        }
         val qText = if (totalCompQs < totalPaperQs) "$totalCompQs/$totalPaperQs Qs" else "$totalCompQs Qs"
-        val marksText = if (totalMarks == totalMarks.toLong().toDouble()) "${totalMarks.toLong()} Marks" else "$totalMarks Marks"
-        val durationText = "${duration} Mins"
-        val posText = if (pos == pos.toLong().toDouble()) pos.toLong().toString() else String.format(java.util.Locale.US, "%.2f", pos).trimEnd('0').trimEnd('.')
-        val negText = if (neg == neg.toLong().toDouble()) neg.toLong().toString() else String.format(java.util.Locale.US, "%.2f", neg).trimEnd('0').trimEnd('.')
-        val markingText = if (neg == 0.0) "(+$posText, 0 -ve)" else "(+$posText, -$negText)"
-
+        val marksText = if (paper.totalMarks == paper.totalMarks.toLong().toDouble()) {
+            "${paper.totalMarks.toLong()} Marks"
+        } else "${paper.totalMarks} Marks"
+        val durationText = "${paper.durationMinutes} Mins"
+        val posText = if (marking.first == marking.first.toLong().toDouble()) {
+            marking.first.toLong().toString()
+        } else String.format(java.util.Locale.US, "%.2f", marking.first).trimEnd('0').trimEnd('.')
+        val negText = if (marking.second == marking.second.toLong().toDouble()) {
+            marking.second.toLong().toString()
+        } else String.format(java.util.Locale.US, "%.2f", marking.second).trimEnd('0').trimEnd('.')
+        val markingText = if (marking.second == 0.0) "(+$posText, 0 -ve)" else "(+$posText, -$negText)"
         return "$qText • $marksText • $durationText $markingText"
     }
 
     fun getExamDisplaySubtitleByName(examName: String): String {
         val config = findExamByNameOrShortName(examName)
-        return if (config != null) getExamDisplaySubtitle(config) else "Pattern from Official Syllabus"
+        return if (config != null) getExamDisplaySubtitle(config) else "Exam pattern not configured"
     }
 }

@@ -200,7 +200,7 @@ object OfflineMarkdownQuestionParser {
         }
 
         val questionStem = stemLines.joinToString(" ").trim()
-        if (questionStem.isBlank() && optionsMap.isEmpty()) return null
+        if (questionStem.isBlank()) return null
 
         val optA = optionsMap["A"] ?: ""
         val optB = optionsMap["B"] ?: ""
@@ -208,11 +208,11 @@ object OfflineMarkdownQuestionParser {
         val optD = optionsMap["D"] ?: ""
 
         // Final answer resolution
-        val finalAnswer = inlineDetectedAnswer ?: "A"
+        val finalAnswer = inlineDetectedAnswer.orEmpty()
 
         return ParsedQuestion(
             questionNumber = qNum,
-            questionText = questionStem.ifBlank { "Question $qNum" },
+            questionText = questionStem,
             optionA = optA,
             optionB = optB,
             optionC = optC,
@@ -234,7 +234,7 @@ object OfflineMarkdownQuestionParser {
         examName: String
     ): List<QuestionEntity> {
         val parsedList = parseStructuredQuestions(text)
-        return parsedList.map { pq ->
+        return parsedList.mapNotNull { pq ->
             QuestionEntity(
                 id = "${testId}_q${pq.questionNumber}",
                 testId = testId,
@@ -246,9 +246,9 @@ object OfflineMarkdownQuestionParser {
                 correctAnswer = pq.correctAnswer,
                 explanation = pq.explanation,
                 subject = subject,
-                chapter = "Exam Test Paper",
-                questionType = "MCQ",
-                section = "SECTION_A"
+                chapter = "",
+                questionType = "",
+                section = ""
             )
         }
     }
@@ -260,43 +260,58 @@ object OfflineMarkdownQuestionParser {
         markdown: String,
         examConfig: ExamConfig,
         subjectId: String,
-        stageId: String = ""
+        stageId: String,
+        paperId: String
     ): List<UniversalQuestionModel> {
         val parsedList = parseStructuredQuestions(markdown)
-        val defaultMarks = 4.0
-        val defaultNegMarks = 1.0
+        val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId } ?: return emptyList()
+        val selectedPaper = selectedStage.papers.singleOrNull { it.paperId == paperId } ?: return emptyList()
+        val selectedSubject = selectedPaper?.subjects?.singleOrNull {
+            it.subjectId.equals(subjectId, ignoreCase = true) ||
+                it.subjectName.equals(subjectId, ignoreCase = true)
+        }
+        val sections = selectedSubject?.sections.orEmpty()
 
-        return parsedList.map { pq ->
+        return parsedList.mapNotNull { pq ->
             val optionsList = listOfNotNull(
                 pq.optionA.takeIf { it.isNotBlank() },
                 pq.optionB.takeIf { it.isNotBlank() },
                 pq.optionC.takeIf { it.isNotBlank() },
                 pq.optionD.takeIf { it.isNotBlank() }
             )
-
-            val qType = if (optionsList.isEmpty()) QuestionType.NUMERICAL else QuestionType.DIRECT_MCQ
+            var cumulativeQuestions = 0
+            val resolvedSection = sections.singleOrNull { section ->
+                cumulativeQuestions += section.totalQuestions
+                pq.questionNumber <= cumulativeQuestions
+            } ?: return@mapNotNull null
+            val questionType = resolvedSection.questionType
 
             UniversalQuestionModel(
-                questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${pq.questionNumber}",
+                questionId = "uq_${examConfig.examId}_${java.util.UUID.randomUUID()}",
                 examId = examConfig.examId,
-                stageId = stageId,
-                paperId = "paper_1",
+                stageId = selectedStage.stageId,
+                paperId = selectedPaper.paperId,
                 subjectId = subjectId,
-                sectionId = "SECTION_A",
-                sectionName = "Section A",
-                questionType = qType,
+                sectionId = resolvedSection.sectionId,
+                sectionName = resolvedSection.sectionName,
+                questionType = questionType,
                 questionText = pq.questionText,
                 options = optionsList,
                 correctAnswer = pq.correctAnswer,
+                sourceAnswer = null,
                 explanation = pq.explanation,
-                positiveMarks = defaultMarks,
-                negativeMarks = defaultNegMarks,
+                positiveMarks = resolvedSection.positiveMarks,
+                negativeMarks = resolvedSection.negativeMarks,
                 difficulty = DifficultyLevel.MEDIUM,
-                qualityScore = 95,
-                validationStatus = ValidationStatus.APPROVED,
+                qualityScore = 0,
+                validationStatus = ValidationStatus.NEEDS_REVIEW,
+                validationReasons = listOf(
+                    "Extracted from an uploaded PDF; verify source provenance, question text, answer key, section and marking scheme before approval."
+                ),
                 duplicateHash = DuplicateDetectionEngine.generateNormalizedHash(pq.questionText, optionsList),
                 generationModel = "pdf-real-extractor-v1",
-                sourceName = "Extracted PDF Test Paper"
+                sourceName = "Uploaded PDF (unverified provenance)",
+                isOfficialPYQ = false
             )
         }
     }
@@ -309,7 +324,7 @@ object OfflineMarkdownQuestionParser {
             "4", "द", "घ", "४" -> "D"
             "5", "य", "ङ", "५" -> "E"
             "A", "B", "C", "D", "E" -> raw.trim().uppercase()
-            else -> "A"
+            else -> ""
         }
     }
 
