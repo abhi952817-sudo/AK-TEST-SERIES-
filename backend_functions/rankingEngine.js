@@ -230,7 +230,7 @@ function buildTestRankingSnapshot({
   });
   if (!countsTowardRanking) return unavailable("NOT_ELIGIBLE");
   if (!isFirstQualifyingAttempt) return unavailable("NOT_RANKED_REPEAT_ATTEMPT");
-  if (!canonicalEntry || !Number.isFinite(Number(canonicalEntry.score))) {
+  if (!canonicalEntry || canonicalEntry.isBanned === true || !Number.isFinite(Number(canonicalEntry.score))) {
     return unavailable("UNAVAILABLE");
   }
   const higher = Number(higherCount);
