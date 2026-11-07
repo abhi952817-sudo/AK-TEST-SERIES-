@@ -197,12 +197,19 @@ function calculateDailyStreak(previousDate, currentDate, existingStreak) {
   const current = String(currentDate || "");
   const previous = String(previousDate || "");
   const streak = Math.max(0, Math.floor(Number(existingStreak) || 0));
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(current)) return streak;
+  const toUtcDay = value => {
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return null;
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day) return null;
+    return date.getTime();
+  };
+  const currentMs = toUtcDay(current);
+  if (currentMs === null) return streak;
   if (previous === current) return streak;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(previous)) return 1;
-  const currentMs = Date.parse(current + "T00:00:00.000Z");
-  const previousMs = Date.parse(previous + "T00:00:00.000Z");
-  if (!Number.isFinite(currentMs) || !Number.isFinite(previousMs)) return 1;
+  const previousMs = toUtcDay(previous);
+  if (previousMs === null) return 1;
   return currentMs - previousMs === 86400000 ? streak + 1 : 1;
 }
 
