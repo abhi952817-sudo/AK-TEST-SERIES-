@@ -117,6 +117,33 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun explicitPaperScoringAndSubjectBreakdownApplyIntegerAnswerPolicy() {
+        val config = UniversalExamRegistry.getExamById("jee_main")!!
+        val explicit = ExamScoringEngine.calculateScore(
+            examConfig = config,
+            stageId = "jee_paper_1",
+            paperId = "jee_main_p1",
+            totalQuestions = 1,
+            userAnswers = mapOf("decimal" to "12.5"),
+            correctAnswers = mapOf("decimal" to "12.5"),
+            questionSections = mapOf("decimal" to "math_sec_b"),
+            timeSpentSeconds = 10
+        )
+        assertEquals(1, explicit.ungradedCount)
+        assertEquals(0, explicit.correctCount)
+        assertEquals(0.0, explicit.maxScore, 0.001)
+
+        val breakdown = ExamScoringEngine.evaluateSubjectBreakdown(
+            "JEE Main P1",
+            listOf(createQuestion("decimal", "12.5", "Mathematics", "math_sec_b", "NUMERICAL_VALUE")),
+            mapOf("decimal" to "12.5")
+        )
+        assertEquals(1, breakdown.single().ungraded)
+        assertEquals(0, breakdown.single().correct)
+        assertEquals(0.0, breakdown.single().score, 0.001)
+    }
+
+    @Test
     fun legacyOrAmbiguousSectionsAreUngradedAndNeverDefaultToSectionA() {
         val result = ExamScoringEngine.evaluateTestAttempt(
             "NEET UG",
