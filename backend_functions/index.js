@@ -1329,7 +1329,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
     const score = Number(row.rankingScore || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
+    const isPrivate = !isProfilePublic(row.profileVisibility);
     return {
       rank: competitionRank,
       userId: isPrivate ? null : (row.userId || doc.id),
@@ -1377,7 +1377,7 @@ exports.getXpLeaderboard = functions.https.onCall(async (data, context) => {
     const score = Number(mode === "ALL_TIME" ? row.xpTotal || 0 : row.xp || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
+    const isPrivate = !isProfilePublic(row.profileVisibility);
     return {
       rank: competitionRank, userId: isPrivate ? null : (row.userId || doc.id),
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
