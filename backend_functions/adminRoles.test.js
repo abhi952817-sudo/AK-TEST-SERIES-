@@ -97,3 +97,23 @@ test("invalid role assignment is rejected", () => {
     (error) => error.code === "invalid-argument"
   );
 });
+
+
+test("solution-review permission is available to Super Admin and Content Admin, never Support Admin", () => {
+  assert.equal(
+    hasAdminPermissionFromClaims({ adminRole: ADMIN_ROLES.SUPER_ADMIN }, ADMIN_PERMISSIONS.QUESTION_REVIEW),
+    true
+  );
+  assert.equal(
+    hasAdminPermissionFromClaims({ adminRole: ADMIN_ROLES.CONTENT_ADMIN }, ADMIN_PERMISSIONS.QUESTION_REVIEW),
+    true
+  );
+  assert.equal(
+    hasAdminPermissionFromClaims({ adminRole: ADMIN_ROLES.SUPPORT_ADMIN }, ADMIN_PERMISSIONS.QUESTION_REVIEW),
+    false
+  );
+  assert.equal(
+    hasAdminPermissionFromClaims({ adminRole: ADMIN_ROLES.SUPPORT_ADMIN }, ADMIN_PERMISSIONS.TEST_PUBLISH),
+    false
+  );
+});
