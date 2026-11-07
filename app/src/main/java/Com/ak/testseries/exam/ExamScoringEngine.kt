@@ -27,10 +27,10 @@ object ExamScoringEngine {
     fun isAnswerKeyVerified(key: String): Boolean {
         val clean = key.trim().uppercase()
         if (clean.isEmpty()) return false
-        if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull() != null) return true
+        if (clean in VALID_ANSWER_OPTIONS || clean.toDoubleOrNull()?.isFinite() == true) return true
         if (clean.contains(",")) {
             val parts = clean.split(",").map { it.trim() }
-            if (parts.isNotEmpty() && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull() != null }) {
+            if (parts.isNotEmpty() && parts.all { it in VALID_ANSWER_OPTIONS || it.toDoubleOrNull()?.isFinite() == true }) {
                 return true
             }
         }
@@ -204,8 +204,14 @@ object ExamScoringEngine {
             "Section IDs must be unique within a paper."
         }
         val sectionConfigMap = sections.associateBy { it.sectionId }
-        val defaultSection = sections.firstOrNull()
-            ?: throw IllegalArgumentException("Verified paper has no section policy.")
+        require(totalQuestions >= correctAnswers.size) {
+            "Correct-answer map contains more questions than the declared paper total."
+        }
+        val distinctMarkingSchemes = sections.map { it.positiveMarks to it.negativeMarks }.distinct()
+        require(distinctMarkingSchemes.size == 1) {
+            "A paper with section-specific marking requires per-question scoring."
+        }
+        val paperMarkingScheme = distinctMarkingSchemes.single()
 
         var correct = 0
         var wrong = 0
