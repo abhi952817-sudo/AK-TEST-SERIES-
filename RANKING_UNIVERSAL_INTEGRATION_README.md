@@ -992,3 +992,24 @@ Additional backend corrections:
 **Verification boundary:** the latest completed CI run `42364272119` was against the earlier commit `207c4c9...`, before these Android test and latest backend edits. In that run, backend unit tests and Firestore rules tests passed; Android compilation succeeded but its unit-test suite failed on the stale assertions listed above. The updated test suite and backend hardening require a fresh CI result. Do not treat this section as claiming the latest changes are already green.
 
 No production Firestore data, Cloud Functions or rules were deployed or modified. All edits remain isolated to `feature/ranking-universal-integration-v1`; `main` remains untouched.
+
+### 2.32 Full-paper integrity, scoring parity and concurrent migration checkpoint safety — 2026-11-07
+
+**Official JEE Main 2027 source re-check:** the NTA Information Bulletin 2027 confirms Paper 1 has 20 Section A MCQs + 5 Section B numerical questions for each of Mathematics, Physics and Chemistry (75 questions / 300 marks), 180 minutes, +4/-1, and Section B answers must be integer values rounded to the nearest integer. The official bulletin is available from the NTA JEE Main Documents page; the accessible bulletin was checked at Chapter 2, pages 16–20.
+
+**Scoring and ranking integrity changes:**
+- Android scoring now resolves the canonical `examId` first, cross-checks the display exam identity, and requires the exact verified `stageId` + `paperId` before duration, answer selection or score calculation. A generic/ambiguous JEE label cannot silently select Paper 1; an explicit `jee_main` ID plus the exact Paper 1 stage/paper is required.
+- Kotlin and backend scoring now treat explicit `SKIPPED` answers as unanswered, not wrong.
+- Kotlin and backend reject missing or duplicate question IDs before direct scoring. Trusted answer-key IDs must also be unique; ranking answer-key documents cannot contain keys for questions absent from the test.
+- JEE Section B now carries `integerAnswerRequired=true` in the Android section model and matching backend policy. Decimal answer keys are rejected during publication validation and become ungraded if encountered during direct evaluation. Integer-form values such as `12` and `12.0` remain numerically equivalent.
+- Numerical-value questions are rejected if they contain MCQ options in either the options array or legacy option fields.
+- Full-test ranking weight (1.0x) now requires the complete verified paper: NEET UG exactly 180 questions with 45 per subject; JEE Main Paper 1 exactly 75 questions with 20 MCQs + 5 numerical questions per subject. A complete full-paper composition cannot be mislabeled as a 0.2x part test.
+- Explicit `rankingWeight` can no longer override contradictory Full/Part flags or labels. Conflicting metadata fails closed.
+- The callable test-policy fixture now mirrors Firestore Rules exactly: only `APPROVED`, `PUBLISHED`, or `Published` plus explicit `isPublic=true` is accepted. Official status alone is not a public-read bypass.
+- Migration checkpoint writes now use a transaction compare-before-advance guard. If concurrent batches start from the same cursor, a later smaller batch cannot regress a cursor already advanced by another worker, and no worker can overwrite a completed checkpoint. Duplicate user materialization remains safe because writes are idempotent.
+
+**New regression coverage:** full-paper section distributions for NEET/JEE, full-vs-part weight conflicts, duplicate question IDs, JEE integer-only keys, numerical questions with hidden MCQ option fields, skipped-answer classification, exact exam identity, and concurrent migration checkpoint advancement.
+
+**CI status:** these newest commits have triggered fresh GitHub Actions runs, but the runner queue is still reporting them as `queued`. The last completed baseline run remains `42364272119`: backend and Firestore Rules passed, Android unit tests failed on the old test contracts before the corrections documented in sections 2.31–2.32. No green status is claimed for the latest code until its own workflow run completes.
+
+No production deployment or production data writes were performed. All changes remain on `feature/ranking-universal-integration-v1`; `main` remains untouched.
