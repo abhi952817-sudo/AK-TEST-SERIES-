@@ -241,11 +241,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   if (!questions || questions.length === 0) {
     const qSnap = await testDoc.ref.collection("questions").get();
     if (!qSnap.empty) {
-      questions = qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      questions = qSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
     } else {
       const qSnapUpper = await testDoc.ref.collection("Questions").get();
       if (!qSnapUpper.empty) {
-        questions = qSnapUpper.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        questions = qSnapUpper.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       }
     }
   }
@@ -1616,11 +1616,11 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   if (!questions || questions.length === 0) {
     const qSnap = await testDoc.ref.collection("questions").get();
     if (!qSnap.empty) {
-      questions = qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      questions = qSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
     } else {
       const qSnapUpper = await testDoc.ref.collection("Questions").get();
       if (!qSnapUpper.empty) {
-        questions = qSnapUpper.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        questions = qSnapUpper.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       }
     }
   }
