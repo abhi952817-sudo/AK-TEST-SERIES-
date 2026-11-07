@@ -5823,6 +5823,38 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         return try {
+            val suppliedExamIdentities = listOfNotNull(
+                newTest.examId?.takeIf { it.isNotBlank() },
+                newTest.targetExam.takeIf { it.isNotBlank() }
+            ).map { Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(it) }.distinct()
+            require(suppliedExamIdentities.size <= 1) {
+                "Test examId and targetExam conflict. Resolve the identity before uploading."
+            }
+            if (newTest.isOfficial || newTest.countsTowardRanking) {
+                require(suppliedExamIdentities.size == 1 &&
+                    suppliedExamIdentities.single() !in setOf("UNKNOWN", "ALL")) {
+                    "Official/ranking tests require one exact supported exam identity."
+                }
+                val examIdentity = newTest.examId?.takeIf { it.isNotBlank() } ?: newTest.targetExam
+                val verifiedExam = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examIdentity)
+                    ?: throw IllegalArgumentException("Official exam identity is not registered.")
+                require(verifiedExam.active && verifiedExam.verified) {
+                    "Official/ranking upload is blocked until the exam pattern is source-verified."
+                }
+                val stageId = newTest.stageId?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalArgumentException("Official/ranking test is missing stageId.")
+                val paperId = newTest.paperId?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalArgumentException("Official/ranking test is missing paperId.")
+                val stage = verifiedExam.stages.singleOrNull { it.stageId == stageId }
+                    ?: throw IllegalArgumentException("Official/ranking test has an unknown or ambiguous stageId.")
+                require(stage.papers.singleOrNull { it.paperId == paperId } != null) {
+                    "Official/ranking test has an unknown or ambiguous paperId."
+                }
+                require(newTest.durationMinutes > 0) {
+                    "Official/ranking test must have an explicit positive duration."
+                }
+            }
+
             val sanitizedQuestionsJson = sanitizeAndUploadQuestionImages(newTest.id, questionsJsonString)
             if (sanitizedQuestionsJson.isBlank()) {
                 throw IllegalStateException("Question sanitization returned an empty payload.")
