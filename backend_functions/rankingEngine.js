@@ -148,13 +148,13 @@ function getRankingPeriodIds(timestamp = Date.now()) {
 function isValidRankingPeriodId(periodType, periodId) {
   const type = String(periodType || "").toUpperCase();
   const id = String(periodId || "");
-  if (type === "HALF_MONTH") return /^\\d{4}-(0[1-9]|1[0-2])-H[12]$/.test(id);
-  if (type === "MONTH") return /^\\d{4}-(0[1-9]|1[0-2])$/.test(id);
+  if (type === "HALF_MONTH") return /^\d{4}-(0[1-9]|1[0-2])-H[12]$/.test(id);
+  if (type === "MONTH") return /^\d{4}-(0[1-9]|1[0-2])$/.test(id);
   return false;
 }
 
 function isValidRankingWeekId(weekId) {
-  return /^\\d{4}-W(?:0[1-9]|[1-4]\\d|5[0-3])$/.test(String(weekId || ""));
+  return /^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/.test(String(weekId || ""));
 }
 
 function resolveClassLevelFilter(value) {
