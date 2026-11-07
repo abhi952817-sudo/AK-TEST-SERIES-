@@ -122,7 +122,7 @@ class OfflineMarkdownQuestionParserTest {
             Ans: B
         """.trimIndent()
 
-        val examConfig = UniversalExamRegistry.findExamByNameOrShortName("UPSC CSE")!!
+        val examConfig = UniversalExamRegistry.getExamById("upsc_cse")!!
         val models = OfflineMarkdownQuestionParser.parseMarkdownToQuestions(
             markdown = text,
             examConfig = examConfig,
