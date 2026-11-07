@@ -200,7 +200,7 @@ object OfflineMarkdownQuestionParser {
         }
 
         val questionStem = stemLines.joinToString(" ").trim()
-        if (questionStem.isBlank() && optionsMap.isEmpty()) return null
+        if (questionStem.isBlank()) return null
 
         val optA = optionsMap["A"] ?: ""
         val optB = optionsMap["B"] ?: ""
@@ -208,11 +208,11 @@ object OfflineMarkdownQuestionParser {
         val optD = optionsMap["D"] ?: ""
 
         // Final answer resolution
-        val finalAnswer = inlineDetectedAnswer ?: "A"
+        val finalAnswer = inlineDetectedAnswer.orEmpty()
 
         return ParsedQuestion(
             questionNumber = qNum,
-            questionText = questionStem.ifBlank { "Question $qNum" },
+            questionText = questionStem,
             optionA = optA,
             optionB = optB,
             optionC = optC,
@@ -234,7 +234,7 @@ object OfflineMarkdownQuestionParser {
         examName: String
     ): List<QuestionEntity> {
         val parsedList = parseStructuredQuestions(text)
-        return parsedList.map { pq ->
+        return parsedList.mapNotNull { pq ->
             QuestionEntity(
                 id = "${testId}_q${pq.questionNumber}",
                 testId = testId,
@@ -246,9 +246,9 @@ object OfflineMarkdownQuestionParser {
                 correctAnswer = pq.correctAnswer,
                 explanation = pq.explanation,
                 subject = subject,
-                chapter = "Exam Test Paper",
-                questionType = "MCQ",
-                section = "SECTION_A"
+                chapter = "",
+                questionType = "",
+                section = ""
             )
         }
     }
@@ -266,7 +266,7 @@ object OfflineMarkdownQuestionParser {
         val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId }
             ?: examConfig.stages.singleOrNull()
         val selectedPaper = selectedStage?.papers?.singleOrNull()
-        val selectedSubject = selectedPaper?.subjects?.firstOrNull {
+        val selectedSubject = selectedPaper?.subjects?.singleOrNull {
             it.subjectId.equals(subjectId, ignoreCase = true) ||
                 it.subjectName.equals(subjectId, ignoreCase = true)
         }
@@ -283,29 +283,27 @@ object OfflineMarkdownQuestionParser {
             val resolvedSection = sections.firstOrNull { section ->
                 cumulativeQuestions += section.totalQuestions
                 pq.questionNumber <= cumulativeQuestions
-            }
-            val inferredType = if (optionsList.isEmpty()) QuestionType.NUMERICAL else QuestionType.DIRECT_MCQ
-            val questionType = resolvedSection?.questionType ?: inferredType
-            val configuredMarksVerified = examConfig.verified && resolvedSection != null
+            } ?: return@mapNotNull null
+            val questionType = resolvedSection.questionType
 
             UniversalQuestionModel(
-                questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${pq.questionNumber}",
+                questionId = "uq_${examConfig.examId}_${java.util.UUID.randomUUID()}",
                 examId = examConfig.examId,
                 stageId = selectedStage?.stageId ?: "",
                 paperId = selectedPaper?.paperId ?: "",
                 subjectId = subjectId,
-                sectionId = resolvedSection?.sectionId ?: "UNASSIGNED",
-                sectionName = resolvedSection?.sectionName ?: "Unassigned section",
+                sectionId = resolvedSection.sectionId,
+                sectionName = resolvedSection.sectionName,
                 questionType = questionType,
                 questionText = pq.questionText,
                 options = optionsList,
                 correctAnswer = pq.correctAnswer,
                 sourceAnswer = null,
                 explanation = pq.explanation,
-                positiveMarks = if (configuredMarksVerified) resolvedSection!!.positiveMarks else 0.0,
-                negativeMarks = if (configuredMarksVerified) resolvedSection!!.negativeMarks else 0.0,
+                positiveMarks = resolvedSection.positiveMarks,
+                negativeMarks = resolvedSection.negativeMarks,
                 difficulty = DifficultyLevel.MEDIUM,
-                qualityScore = 70,
+                qualityScore = 0,
                 validationStatus = ValidationStatus.NEEDS_REVIEW,
                 validationReasons = listOf(
                     "Extracted from an uploaded PDF; verify source provenance, question text, answer key, section and marking scheme before approval."
@@ -326,7 +324,7 @@ object OfflineMarkdownQuestionParser {
             "4", "द", "घ", "४" -> "D"
             "5", "य", "ङ", "५" -> "E"
             "A", "B", "C", "D", "E" -> raw.trim().uppercase()
-            else -> "A"
+            else -> ""
         }
     }
 
