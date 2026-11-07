@@ -187,6 +187,8 @@ object UniversalPdfPipeline {
                             examConfig = examConfig,
                             stageId = resolvedStageId,
                             subjectId = subjectId,
+                            paperId = selectedPaper.paperId,
+                            subjectConfig = selectedSubject,
                             batchIndex = batchIndex,
                             batchSize = batchSize,
                             existingHashes = existingHashes,
@@ -364,6 +366,8 @@ object UniversalPdfPipeline {
         examConfig: ExamConfig,
         stageId: String,
         subjectId: String,
+        paperId: String,
+        subjectConfig: SubjectConfig,
         batchIndex: Int,
         batchSize: Int,
         existingHashes: Map<String, String>,
@@ -398,9 +402,13 @@ object UniversalPdfPipeline {
                 val options = listOf(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
                 val qIndexInBatch = (batchIndex * batchSize) + i + 1
-                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch)
+                var sectionQuestionEnd = 0
+                val resolvedSection = subjectConfig.sections.firstOrNull { section ->
+                    sectionQuestionEnd += section.totalQuestions
+                    qIndexInBatch <= sectionQuestionEnd
+                }
                 val parsedSecId = item.optString("sectionId").takeIf { it.isNotBlank() } ?: resolvedSection?.sectionId ?: continue
-                val sectionConfig = selectedSubject.sections.singleOrNull { it.sectionId == parsedSecId } ?: continue
+                val sectionConfig = subjectConfig.sections.singleOrNull { it.sectionId == parsedSecId } ?: continue
                 val parsedSecName = item.optString("sectionName").takeIf { it.isNotBlank() } ?: sectionConfig.sectionName
                 val parsedPosMarks = if (item.has("positiveMarks")) item.optDouble("positiveMarks", Double.NaN) else sectionConfig.positiveMarks
                 val parsedNegMarks = if (item.has("negativeMarks")) item.optDouble("negativeMarks", Double.NaN) else sectionConfig.negativeMarks
