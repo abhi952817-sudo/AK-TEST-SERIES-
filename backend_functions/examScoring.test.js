@@ -131,6 +131,24 @@ test("JEE Main 2026 scores MCQ and compulsory numerical questions under exact se
   assert.equal(result.maxScore, 12);
 });
 
+test("JEE Main Paper 1 numerical answer keys must be integers", () => {
+  const valid = evaluateTestAttempt("JEE Main", [
+    { id: "integer", correctAnswer: "12", section: "math_sec_b", subject: "Mathematics", questionType: "NUMERICAL_VALUE" },
+    { id: "integer_decimal_format", correctAnswer: "12.0", section: "phy_sec_b", subject: "Physics", questionType: "NUMERICAL_VALUE" }
+  ], { integer: { ans: "12.0" }, integer_decimal_format: { ans: "12" } }, 30);
+  assert.equal(valid.correctCount, 2);
+  assert.equal(valid.ungradedCount, 0);
+  assert.equal(valid.finalScore, 8);
+
+  const invalid = evaluateTestAttempt("JEE Main", [
+    { id: "decimal", correctAnswer: "12.5", section: "math_sec_b", subject: "Mathematics", questionType: "NUMERICAL_VALUE" }
+  ], { decimal: { ans: "12.5" } }, 30);
+  assert.equal(invalid.correctCount, 0);
+  assert.equal(invalid.ungradedCount, 1);
+  assert.equal(invalid.finalScore, 0);
+  assert.equal(invalid.maxScore, 4);
+});
+
 test("old NEET Section A/B aliases and unsupported subjects fail closed instead of scoring", () => {
   const result = evaluateTestAttempt("NEET UG", [
     { id: "old", correctAnswer: "A", section: "SECTION_A", subject: "Physics", questionType: "MCQ_SINGLE" },
