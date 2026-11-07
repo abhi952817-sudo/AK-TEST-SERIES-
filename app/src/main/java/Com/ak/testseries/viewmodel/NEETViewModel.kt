@@ -2309,15 +2309,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                val targetExam = test.targetExam.takeIf { it.isNotBlank() }
+                val requestedExam = test.examId?.takeIf { it.isNotBlank() }
+                    ?: test.targetExam.takeIf { it.isNotBlank() }
                     ?: _userProfile.value.targetExam.takeIf { it.isNotBlank() }
-                    ?: "NEET"
-
-                val (defaultPosMark, defaultNegMark) = try {
-                    Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForExam(targetExam)
-                } catch (e: Exception) {
-                    Pair(4.0, 1.0)
-                }
+                    ?: throw IllegalArgumentException("Test has no explicit exam identity; sharing is blocked.")
+                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(requestedExam)
+                    ?: throw IllegalArgumentException("Unsupported exam identity '$requestedExam'; sharing is blocked.")
+                require(examConfig.verified) { "Exam scoring policy is not source-verified; sharing is blocked." }
+                val targetExam = examConfig.examId
 
                 // Standardize question data ensuring all required fields are present while excluding private user data
                 val rawArray = try {
@@ -2336,6 +2335,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qClean.put("testId", test.id)
 
                     val qText = qObj.optString("questionText", qObj.optString("questionTextEn", "")).trim()
+                    require(qText.isNotBlank()) { "Question ${i + 1} has no question text." }
                     qClean.put("questionText", qText)
 
                     val optA = qObj.optString("optionA", qObj.optString("optionAEn", "")).trim()
@@ -2362,35 +2362,32 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     qClean.put("options", optsList)
 
-                    val qType = qObj.optString("questionType", "MCQ")
+                    val qType = qObj.optString("questionType").trim()
+                    val secId = qObj.optString("section").trim()
+                    require(qText.isNotBlank() && qType.isNotBlank() && secId.isNotBlank()) {
+                        "Question ${i + 1} is missing text, question type or exact section identity."
+                    }
+                    val numerical = qType.equals("NUMERICAL", true) || qType.equals("NUMERICAL_VALUE", true) || qType.equals("TITA", true)
+                    val answer = qObj.optString("correctAnswer").trim()
+                    require(answer.isNotBlank()) { "Question ${i + 1} has no answer key." }
+                    if (!numerical) require(listOf(optA, optB, optC, optD).all { it.isNotBlank() }) {
+                        "Question ${i + 1} has incomplete MCQ options."
+                    }
                     qClean.put("questionType", qType)
-
-
-                    val secId = qObj.optString("section", "SECTION_A")
-                    val secName = qObj.optString("sectionName", "Section A")
+                    val secName = qObj.optString("sectionName").trim().ifBlank { secId }
                     qClean.put("section", secId)
                     qClean.put("sectionName", secName)
 
-                    val (calcPos, calcNeg) = try {
-                        if (Com.ak.testseries.exam.UniversalExamRegistry.hasMultipleMarkingSchemes(targetExam)) {
-                            Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(targetExam, secId, qObj.optString("subject", test.subject), qType)
-                        } else {
-                            Pair(defaultPosMark, defaultNegMark)
-                        }
-                    } catch (e: Exception) {
-                        Pair(defaultPosMark, defaultNegMark)
+                    val (calcPos, calcNeg) = Com.ak.testseries.exam.UniversalExamRegistry
+                        .getMarkingSchemeForQuestion(targetExam, secId, qObj.optString("subject", test.subject), qType)
+                    val suppliedPos = qObj.optDouble("positiveMarks", calcPos)
+                    val suppliedNeg = qObj.optDouble("negativeMarks", calcNeg)
+                    require(suppliedPos.isFinite() && suppliedNeg.isFinite() &&
+                        suppliedPos == calcPos && suppliedNeg == calcNeg) {
+                        "Question ${i + 1} marks conflict with the verified section policy."
                     }
-
-                    val finalPos = if (qObj.has("positiveMarks") && qObj.optDouble("positiveMarks", 0.0) > 0.0) {
-                        qObj.optDouble("positiveMarks", calcPos)
-                    } else {
-                        calcPos
-                    }
-                    val finalNeg = if (qObj.has("negativeMarks")) {
-                        qObj.optDouble("negativeMarks", calcNeg)
-                    } else {
-                        calcNeg
-                    }
+                    val finalPos = calcPos
+                    val finalNeg = calcNeg
                     qClean.put("positiveMarks", finalPos)
                     qClean.put("negativeMarks", finalNeg)
 
