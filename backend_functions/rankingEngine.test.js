@@ -11,6 +11,7 @@ const {
   calculateXpAward,
   calculateCompetitionRank,
   calculatePercentileFromCounts,
+  buildTestRankingSnapshot,
   getRankingStatus
 } = require("./rankingEngine");
 
