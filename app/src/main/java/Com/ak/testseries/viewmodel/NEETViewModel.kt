@@ -3558,19 +3558,26 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val optC = (map["optionC"] as? String)?.trim() ?: (rawOpts?.getOrNull(2) as? String)?.trim() ?: ""
                 val optD = (map["optionD"] as? String)?.trim() ?: (rawOpts?.getOrNull(3) as? String)?.trim() ?: ""
 
-                val qType = (map["questionType"] as? String)?.trim() ?: "MCQ"
-                val correctAns = (map["correctAnswer"] as? String)?.trim() ?: ""
+                val qType = (map["questionType"] as? String)?.trim() ?: return null
+                val correctAns = (map["correctAnswer"] as? String)?.trim() ?: return null
                 if (correctAns.isBlank()) return null
-
-                val isNumerical = qType.contains("NUMERICAL", ignoreCase = true) || qType.contains("NAT", ignoreCase = true)
-                if (!isNumerical && (optA.isBlank() || optB.isBlank())) {
-                    return null
-                }
-
-                val posMarks = (map["positiveMarks"] as? Number)?.toDouble() ?: 4.0
-                if (posMarks <= 0.0) return null
-                val negMarks = (map["negativeMarks"] as? Number)?.toDouble() ?: 1.0
-                if (negMarks < 0.0) return null
+                val qSubject = (map["subject"] as? String)?.trim()?.takeIf { it.isNotBlank() } ?: subject
+                val paperConfig = examConfig.stages.singleOrNull()?.papers?.singleOrNull() ?: return null
+                val subjectConfig = paperConfig.subjects.singleOrNull {
+                    it.subjectId.equals(qSubject, true) || it.subjectName.equals(qSubject, true)
+                } ?: return null
+                val sectionId = (map["section"] as? String)?.trim()?.takeIf { it.isNotBlank() } ?: return null
+                val sectionConfig = subjectConfig.sections.singleOrNull { it.sectionId == sectionId } ?: return null
+                val isNumerical = sectionConfig.questionType in setOf(
+                    Com.ak.testseries.exam.QuestionType.NUMERICAL_VALUE,
+                    Com.ak.testseries.exam.QuestionType.TITA
+                )
+                if (isNumerical != (qType.contains("NUMERICAL", true) || qType.contains("TITA", true) || qType == "NAT")) return null
+                if (!isNumerical && listOf(optA, optB, optC, optD).any { it.isBlank() }) return null
+                val posMarks = (map["positiveMarks"] as? Number)?.toDouble() ?: sectionConfig.positiveMarks
+                val negMarks = (map["negativeMarks"] as? Number)?.toDouble() ?: sectionConfig.negativeMarks
+                if (!posMarks.isFinite() || !negMarks.isFinite() ||
+                    posMarks != sectionConfig.positiveMarks || negMarks != sectionConfig.negativeMarks) return null
 
                 val imgUrl = (map["imageUrl"] as? String)?.trim()
                 if (!imgUrl.isNullOrEmpty()) {
@@ -3607,7 +3614,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionDHi = (map["optionDHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         explanationHi = (map["explanationHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         questionType = qType,
-                        section = (map["section"] as? String)?.trim().orEmpty(),
+                        section = sectionId,
                         imageUrl = imgUrl?.takeIf { it.isNotBlank() }
                     )
                 )
@@ -3777,19 +3784,27 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val optD = qObj.optString("optionD", qObj.optString("optionDEn", "")).trim()
                 val optE = qObj.optString("optionE", qObj.optString("optionEEn", "")).trim().takeIf { it.isNotBlank() }
 
-                val qType = qObj.optString("questionType", "MCQ")
-                val correctAns = qObj.optString("correctAnswer", "").trim()
-                if (correctAns.isBlank()) return null
-
-                val isNumerical = qType.contains("NUMERICAL", ignoreCase = true) || qType.contains("NAT", ignoreCase = true)
-                if (!isNumerical && (optA.isBlank() || optB.isBlank())) {
-                    return null
-                }
-
-                val posMarks = qObj.optDouble("positiveMarks", 4.0)
-                if (posMarks <= 0.0) return null
-                val negMarks = qObj.optDouble("negativeMarks", 1.0)
-                if (negMarks < 0.0) return null
+                val qType = qObj.optString("questionType").trim()
+                val correctAns = qObj.optString("correctAnswer").trim()
+                if (qType.isBlank() || correctAns.isBlank()) return null
+                val qSubject = qObj.optString("subject", subject).trim()
+                val paperConfig = examConfig.stages.singleOrNull()?.papers?.singleOrNull() ?: return null
+                val subjectConfig = paperConfig.subjects.singleOrNull {
+                    it.subjectId.equals(qSubject, true) || it.subjectName.equals(qSubject, true)
+                } ?: return null
+                val sectionId = qObj.optString("section").trim()
+                if (sectionId.isBlank()) return null
+                val sectionConfig = subjectConfig.sections.singleOrNull { it.sectionId == sectionId } ?: return null
+                val isNumerical = sectionConfig.questionType in setOf(
+                    Com.ak.testseries.exam.QuestionType.NUMERICAL_VALUE,
+                    Com.ak.testseries.exam.QuestionType.TITA
+                )
+                if (isNumerical != (qType.contains("NUMERICAL", true) || qType.contains("TITA", true) || qType == "NAT")) return null
+                if (!isNumerical && listOf(optA, optB, optC, optD).any { it.isBlank() }) return null
+                val posMarks = if (qObj.has("positiveMarks")) qObj.optDouble("positiveMarks", Double.NaN) else sectionConfig.positiveMarks
+                val negMarks = if (qObj.has("negativeMarks")) qObj.optDouble("negativeMarks", Double.NaN) else sectionConfig.negativeMarks
+                if (!posMarks.isFinite() || !negMarks.isFinite() ||
+                    posMarks != sectionConfig.positiveMarks || negMarks != sectionConfig.negativeMarks) return null
 
                 val imgUrl = qObj.optString("imageUrl", "").trim()
                 if (imgUrl.isNotEmpty()) {
@@ -4119,7 +4134,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                                 explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
                                 questionType = qObj.optString("questionType", "MCQ"),
-                                section = qObj.optString("section", "SECTION_A"),
+                                section = qObj.optString("section"),
                                 needsImage = qObj.optBoolean("needsImage", false),
                                 imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
                             )
