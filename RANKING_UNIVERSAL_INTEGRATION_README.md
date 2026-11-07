@@ -539,7 +539,7 @@ Development is not complete until all of these are true:
 |---|---|---|---|---|
 | 0 Baseline refresh | COMPLETE | `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22` | 2026-11-07 live branch comparisons; PR #3; workflow #183 all 3 jobs PASS | Latest code commits are newer than workflow #193; fresh CI is required |
 | 1 Overlap map | COMPLETE | `faf51cdb9778b3179dd3be47df12377688b264c9` | 15-file keep/port/reconcile matrix; branch compare and shared-file review | Individual commit SHA list not exposed by connector; only workflow file delta confirmed |
-| 2 Backend contract | IN PROGRESS | `40e8b9a7cd24a6e7eb62e7c99cc38ebe5a384773` | Added fail-closed official-only ranking, explicit 1.0x/0.2x classification, required exam identity, strict historical metadata handling, private leaderboard labels, canonical answer hashing; CI #221 queued on preceding commit `1b85adb` | Await CI for latest head; replace simulated callable test with production callable/emulator transaction tests; audit XP ledger/streak and concurrent first-attempt behavior |
+| 2 Backend contract | IN PROGRESS | `38985219336762884c81d20a8605fce14aba2a63` | CI #221: Firestore Emulator PASS; backend 73/74 PASS, one test exposed escaped-regex bug in classification; regex corrected at `2cbdc7f`; ambiguous JEE/NEET PG/RRB aliases now fail closed; latest changes still need fresh CI | Replace simulated callable test with production callable/emulator transaction tests; audit XP ledger/streak and concurrent first-attempt behavior; validate latest CI and Android result |
 | 3 Secure publishing | IN PROGRESS | `4a476d6b713593102ea38ccbe7660384e121faf5` | LiveTests public/private answer separation, Admin-only private_keys rule, emulator test added; generated live mocks no longer auto-rank | Historical LiveTests docs may still leak keys; dry-run + approved migration and remaining publish-path audit required |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
 | 5 Exam configuration | NOT STARTED | — | — | Year/stage/paper provenance |
@@ -570,6 +570,13 @@ Development is not complete until all of these are true:
 - Commits in this bounded subtask: `2898c671e07ba8d383575c44811d95fedd567051`, `a293304177b23bcafc48b09dafe86e4f03f7e211`, `e295427244dcaf0d0324fc20a30e6ee46932a4ee`, `8c35348b6bc45037b077957f70c251b4f37d659`, `d52dc102b6797c2020683589d4df00985ca6805d`, `12bbfc7cbceb3fca6048d4c41743f125860c6581`, `1b85adb6042091c8f8b6ef760188032f10a3aed6`, `e9ca5e793eaf2b7046161b5b9603e1843ab031bc`, `e7db2d707e3f7b76779b2e97e56957d90b24e5a4`, `40e8b9a7cd24a6e7eb62e7c99cc38ebe5a384773`.
 - Workflow #221 (`42324462584`) was queued for the earlier commit `1b85adb...`; backend and Firestore jobs were observed in progress, Android queued. This is not validation evidence for later canonical-hash commits. Fresh CI for the latest branch head is still required.
 - No production deployment, data migration, Firestore rules deployment, or main-branch change was performed.
+### 2.9 CI failure audit and exam alias isolation — 2026-11-07
+
+- Workflow #221 backend unit tests: 73 passed / 1 failed. Failure was `resolveRankingWeight` classifying `Chapter Test` as null because regex word boundaries were accidentally double-escaped in source. Corrected regex source in commit `2cbdc7ff6a7053fb47af687464be6b1f1cf8ed21`; the CI run itself remains failed and does not validate the correction.
+- Removed cross-exam alias collisions: generic `JEE` no longer maps to JEE Main; `NEET PG` no longer maps to NEET UG; generic `RRB`/`Railway` no longer maps to RRB NTPC. Their unsupported schemes now fail closed instead of scoring under another exam. Regression tests added in `caf86197796fa7f3583762150811ced4664aefc8`.
+- Ranking API exam validation now checks the scoring engine's supported exam policy before reading a board, preventing arbitrary unknown IDs from returning misleading empty leaderboards. Commit `38985219336762884c81d20a8605fce14aba2a63`.
+- The latest regex, alias, canonical answer hash, and API identity changes have not yet received a fresh CI run. Workflow #221 is pinned to the earlier commit and cannot be counted as validation of later changes.
+- Workflow #221 Firestore rules job passed. Android validation was still in progress at last inspection; no conclusion recorded.
 ### Session handoff rule
 At the start of every later session:
 1. Read this entire file from the integration branch.
