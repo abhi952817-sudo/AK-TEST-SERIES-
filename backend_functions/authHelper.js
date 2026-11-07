@@ -122,6 +122,49 @@ function getAdminPermissions(role) {
     : [];
 }
 
+/**
+ * Resolves a caller's canonical role from Firebase custom claims.
+ * Legacy admin:true claims are temporarily treated as Super Admin so existing
+ * deployments are not locked out during the controlled migration.
+ */
+function getAdminRoleFromClaims(claims) {
+  if (!claims || typeof claims !== "object") return "";
+  const explicitRole = normalizeAdminRole(claims.adminRole);
+  if (isKnownAdminRole(explicitRole)) return explicitRole;
+  if (claims.admin === true) return ADMIN_ROLES.SUPER_ADMIN;
+  return "";
+}
+
+function hasAdminPermissionFromClaims(claims, permission) {
+  return hasAdminPermission(getAdminRoleFromClaims(claims), permission);
+}
+
+/**
+ * Builds a replacement custom-claims object without discarding unrelated claims.
+ * requestedRole=null revokes administrative access; invalid roles fail closed.
+ */
+function buildAdminCustomClaims(existingClaims, requestedRole) {
+  const claims = existingClaims && typeof existingClaims === "object"
+    ? { ...existingClaims }
+    : {};
+  if (requestedRole === null || requestedRole === "") {
+    delete claims.adminRole;
+    delete claims.admin;
+    return claims;
+  }
+  const role = normalizeAdminRole(requestedRole);
+  if (!isKnownAdminRole(role)) {
+    const err = new Error("A valid Admin role is required.");
+    err.code = "invalid-argument";
+    throw err;
+  }
+  claims.adminRole = role;
+  // Preserve compatibility with existing app clients while role-aware
+  // authorization is rolled out. This legacy flag is not the role policy.
+  claims.admin = role === ADMIN_ROLES.SUPER_ADMIN;
+  return claims;
+}
+
 
 module.exports = {
   validateSetAdminRoleAuth,
@@ -133,4 +176,7 @@ module.exports = {
   isKnownAdminRole,
   hasAdminPermission,
   getAdminPermissions,
+  getAdminRoleFromClaims,
+  hasAdminPermissionFromClaims,
+  buildAdminCustomClaims,
 };
