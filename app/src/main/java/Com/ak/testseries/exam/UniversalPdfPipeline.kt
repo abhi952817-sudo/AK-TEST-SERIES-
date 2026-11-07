@@ -185,9 +185,10 @@ object UniversalPdfPipeline {
                         batchModels = parseGeminiResponse(
                             jsonString = apiResult.responseText,
                             examConfig = examConfig,
-                            stageId = stageId,
+                            stageId = resolvedStageId,
                             subjectId = subjectId,
                             batchIndex = batchIndex,
+                            batchSize = batchSize,
                             existingHashes = existingHashes,
                             actualModel = apiResult.modelVersion,
                             actualSource = source
@@ -231,9 +232,10 @@ object UniversalPdfPipeline {
                                 val regenQuestions = parseGeminiResponse(
                                     jsonString = regenResult.responseText,
                                     examConfig = examConfig,
-                                    stageId = stageId,
+                                    stageId = resolvedStageId,
                                     subjectId = subjectId,
                                     batchIndex = batchIndex,
+                                    batchSize = batchSize,
                                     existingHashes = existingHashes,
                                     actualModel = regenResult.modelVersion,
                                     actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
@@ -363,11 +365,13 @@ object UniversalPdfPipeline {
         stageId: String,
         subjectId: String,
         batchIndex: Int,
+        batchSize: Int,
         existingHashes: Map<String, String>,
         actualModel: String = "UNAVAILABLE",
         actualSource: String = "UNAVAILABLE"
     ): List<UniversalQuestionModel> {
         val resultList = mutableListOf<UniversalQuestionModel>()
+        val seenHashes = existingHashes.toMutableMap()
         try {
             val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
             val jsonArray = if (cleanJson.startsWith("[")) {
@@ -492,7 +496,8 @@ object UniversalPdfPipeline {
                     generationModel = actualModel,
                     generationTimestamp = System.currentTimeMillis()
                 )
-                resultList.add(model)\n                seenHashes[hash] = qText
+                resultList.add(model)
+                seenHashes[hash] = qText\n                seenHashes[hash] = qText
             }
         } catch (e: Exception) {
             e.printStackTrace()
