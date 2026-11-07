@@ -179,3 +179,45 @@ test("scoring result with any ungraded question cannot contribute to AIR", () =>
   assert.equal(fullyVerified.ungradedCount, 0);
   assert.equal(isEligibleScoringResult(fullyVerified), true);
 });
+
+
+test("per-test rank snapshot only ranks the canonical first qualifying board entry", () => {
+  const first = buildTestRankingSnapshot({
+    countsTowardRanking: true,
+    isFirstQualifyingAttempt: true,
+    canonicalEntry: { score: 80 },
+    higherCount: 1,
+    totalCount: 5
+  });
+  assert.deepEqual(first, {
+    rankStatus: "AVAILABLE", testRank: 2, testTotalCandidates: 5, percentile: 80
+  });
+  const repeat = buildTestRankingSnapshot({
+    countsTowardRanking: true,
+    isFirstQualifyingAttempt: false,
+    canonicalEntry: { score: 80 },
+    higherCount: 1,
+    totalCount: 5
+  });
+  assert.deepEqual(repeat, {
+    rankStatus: "NOT_RANKED_REPEAT_ATTEMPT", testRank: null,
+    testTotalCandidates: null, percentile: null
+  });
+});
+
+test("per-test rank snapshot fails closed for missing board entries and invalid populations", () => {
+  const unavailable = buildTestRankingSnapshot({
+    countsTowardRanking: true, isFirstQualifyingAttempt: true,
+    canonicalEntry: null, higherCount: 0, totalCount: 0
+  });
+  assert.equal(unavailable.rankStatus, "UNAVAILABLE");
+  assert.equal(unavailable.testRank, null);
+  const invalidPopulation = buildTestRankingSnapshot({
+    countsTowardRanking: true, isFirstQualifyingAttempt: true,
+    canonicalEntry: { score: 50 }, higherCount: 4, totalCount: 4
+  });
+  assert.equal(invalidPopulation.rankStatus, "UNAVAILABLE");
+  const notEligible = buildTestRankingSnapshot({ countsTowardRanking: false });
+  assert.equal(notEligible.rankStatus, "NOT_ELIGIBLE");
+  assert.equal(notEligible.percentile, null);
+});
