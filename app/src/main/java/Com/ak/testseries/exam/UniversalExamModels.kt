@@ -99,7 +99,8 @@ data class SectionConfig(
     val positiveMarks: Double,
     val negativeMarks: Double,
     val questionType: QuestionType = QuestionType.MCQ_SINGLE,
-    val optionsCount: Int = 4
+    val optionsCount: Int = 4,
+    val integerAnswerRequired: Boolean = false
 )
 
 data class SubjectConfig(
