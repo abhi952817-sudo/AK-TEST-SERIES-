@@ -55,7 +55,7 @@ test("canonical exam identity never infers an exam from a subject or ambiguous a
 test("only source-verified NEET UG 2026 and JEE Main 2026 scoring schemes are enabled", () => {
   assert.deepEqual(getMarkingSchemeForExam("NEET UG"), { pos: 4, neg: 1 });
   assert.deepEqual(getMarkingSchemeForExam("JEE Main"), { pos: 4, neg: 1 });
-  for (const exam of ["JEE", "JEE Advanced", "NEET PG", "UPSC CSE", "CAT", "IBPS PO", "RRB NTPC"]) {
+  for (const exam of ["JEE", "JEE Advanced", "NEET PG", "CUET UG", "UPSC CSE", "SSC CGL", "SSC CHSL", "SSC MTS", "SSC GD", "SSC CPO", "RRB NTPC", "RRB Group D", "RRB ALP", "RRB Technician", "RRB JE", "CTET", "UGC NET", "CAT", "IBPS PO", "IBPS Clerk", "SBI PO", "SBI Clerk", "NDA", "CDS", "GATE"]) {
     assert.throws(() => getMarkingSchemeForExam(exam), { code: "failed-precondition" });
   }
 });
