@@ -9,6 +9,7 @@ const {
   getRankingPeriodIds,
   isValidRankingPeriodId,
   clampRankingLimit,
+  canAdvanceRankingMigrationCheckpoint,
   isValidRankingWeekId,
   getLeagueForXp,
   calculateDailyStreak,
@@ -254,6 +255,13 @@ test("ranking period and weekly leaderboard identifiers reject malformed dates",
   assert.equal(isValidRankingWeekId("2026-W54"), false);
 });
 
+
+test("migration checkpoint only advances from the exact server cursor and never overwrites completion", () => {
+  assert.equal(canAdvanceRankingMigrationCheckpoint({}, null), true);
+  assert.equal(canAdvanceRankingMigrationCheckpoint({ lastProcessedUid: "user-10" }, "user-10"), true);
+  assert.equal(canAdvanceRankingMigrationCheckpoint({ lastProcessedUid: "user-20" }, "user-10"), false);
+  assert.equal(canAdvanceRankingMigrationCheckpoint({ completed: true, lastProcessedUid: "user-20" }, "user-20"), false);
+});
 
 test("ranking query limits are finite integers within endpoint bounds", () => {
   assert.equal(clampRankingLimit(undefined, 100, 1, 100), 100);
