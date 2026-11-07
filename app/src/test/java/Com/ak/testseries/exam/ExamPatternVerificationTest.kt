@@ -22,215 +22,142 @@ class ExamPatternVerificationTest {
 
     @Test
     fun verifyAllRegisteredExamsPatternIntegrity() {
+
         val allExams = UniversalExamRegistry.getAllExams()
-        assertEquals("All registered competitive exams should match registry size", 25, allExams.size)
+        assertEquals(25, allExams.size)
+        assertEquals(allExams.size, allExams.map { it.examId }.distinct().size)
 
-        val auditReports = ExamPatternValidator.auditAllRegisteredExams()
-        assertEquals(25, auditReports.size)
+        val verified = allExams.filter { it.active && it.verified }
+        assertEquals(setOf("neet_ug", "jee_main"), verified.map { it.examId }.toSet())
+        assertTrue(verified.isNotEmpty())
 
-        val failedExams = auditReports.filter { !it.isPatternValid }
-        if (failedExams.isNotEmpty()) {
-            val failureMessages = failedExams.joinToString("\n") { 
-                "${it.examName} (${it.examId}): ${it.errors.joinToString("; ")}" 
-            }
-            fail("The following exams failed pattern audit:\n$failureMessages")
-        }
-
-        // Verify every exam passed
+        val auditReports = verified.map { ExamPatternValidator.auditRegisteredExam(it) }
+        val failed = auditReports.filterNot { it.isPatternValid }
+        assertTrue(failed.joinToString("\\n") { "${it.examId}: ${it.errors}" }, failed.isEmpty())
         auditReports.forEach { report ->
-            assertTrue("Exam ${report.examName} must have a valid pattern", report.isPatternValid)
-            assertTrue("Exam ${report.examName} must be marked verified = true", report.verified)
-            assertTrue("Exam ${report.examName} must have language configured", report.language.isNotBlank())
-            assertTrue("Exam ${report.examName} must have at least 1 paper", report.papers.isNotEmpty())
+            assertTrue(report.verified)
+            assertTrue(report.papers.isNotEmpty())
             report.papers.forEach { paper ->
-                assertTrue("Paper ${paper.paperName} marks must be consistent", paper.isMarkingConsistent)
-                assertTrue("Paper ${paper.paperName} duration must be > 0", paper.durationMinutes > 0)
-                assertTrue("Paper ${paper.paperName} total questions must be > 0", paper.totalQuestions > 0)
-                assertTrue("Paper ${paper.paperName} compulsory questions must be <= total", paper.compulsoryQuestions <= paper.totalQuestions)
+                assertTrue(paper.isMarkingConsistent)
+                assertTrue(paper.durationMinutes > 0)
+                assertTrue(paper.totalQuestions > 0)
+                assertTrue(paper.compulsoryQuestions in 1..paper.totalQuestions)
             }
+        }
+        allExams.filterNot { it.verified }.forEach {
+            assertTrue("Unverified pattern must remain hidden: ${it.examId}", it.stages.isEmpty())
+            assertFalse(it.active)
         }
     }
 
     @Test
     fun verifyNeetUgConfiguredPattern() {
-        val neet = UniversalExamRegistry.getExamById("neet_ug")
-        assertNotNull("NEET UG must exist", neet)
-        neet!!
 
-        assertEquals("NEET UG", neet.examName)
-        assertEquals(4, neet.defaultOptionCount)
-        assertEquals("Bilingual (English & Hindi)", neet.language)
+        val neet = UniversalExamRegistry.getExamById("neet_ug")!!
         assertTrue(neet.verified)
-
-        val paper = neet.stages.first().papers.first()
-        assertEquals(200, paper.durationMinutes)
+        val paper = neet.stages.single().papers.single()
+        assertEquals(180, paper.durationMinutes)
         assertEquals(720.0, paper.totalMarks, 0.001)
-        assertEquals(4, paper.subjects.size) // Physics, Chemistry, Botany, Zoology
-
-        // Each subject: Section A (35 Qs, 35 comp, +4, -1), Section B (15 Qs, 10 comp, +4, -1)
-        paper.subjects.forEach { subj ->
-            assertEquals(2, subj.sections.size)
-            val secA = subj.sections[0]
-            val secB = subj.sections[1]
-
-            assertEquals(35, secA.totalQuestions)
-            assertEquals(35, secA.compulsoryQuestions)
-            assertEquals(4.0, secA.positiveMarks, 0.001)
-            assertEquals(1.0, secA.negativeMarks, 0.001)
-
-            assertEquals(15, secB.totalQuestions)
-            assertEquals(10, secB.compulsoryQuestions) // Attempt any 10 rule
-            assertEquals(4.0, secB.positiveMarks, 0.001)
-            assertEquals(1.0, secB.negativeMarks, 0.001)
-        }
-
-        val totalAttempted = paper.subjects.sumOf { s -> s.sections.sumOf { it.compulsoryQuestions } }
-        assertEquals(180, totalAttempted)
-        assertEquals(720.0, totalAttempted * 4.0, 0.001)
+        assertEquals(4, paper.subjects.size)
+        assertTrue(paper.subjects.all { subject ->
+            subject.sections.size == 1 &&
+                subject.sections.single().totalQuestions == 45 &&
+                subject.sections.single().compulsoryQuestions == 45 &&
+                subject.sections.single().positiveMarks == 4.0 &&
+                subject.sections.single().negativeMarks == 1.0
+        })
+        assertEquals(180, paper.subjects.sumOf { it.sections.sumOf { section -> section.compulsoryQuestions } })
     }
 
     @Test
     fun verifyJeeMainConfiguredPattern() {
-        val jee = UniversalExamRegistry.getExamById("jee_main")
-        assertNotNull("JEE Main must exist", jee)
-        jee!!
 
-        assertEquals("JEE Main", jee.examName)
-        assertEquals(4, jee.defaultOptionCount)
-        assertEquals("Bilingual (English & Hindi)", jee.language)
+        val jee = UniversalExamRegistry.getExamById("jee_main")!!
         assertTrue(jee.verified)
-
-        val paper = jee.stages.first().papers.first()
+        val paper = jee.stages.single().papers.single()
         assertEquals(180, paper.durationMinutes)
         assertEquals(300.0, paper.totalMarks, 0.001)
-        assertEquals(3, paper.subjects.size) // Physics, Chemistry, Mathematics
-
-        // Section A (20 MCQs, 20 comp, +4, -1, 4 options)
-        // Section B (10 NVQs, 5 comp, +4, -1, 0 options)
-        paper.subjects.forEach { subj ->
-            assertEquals(2, subj.sections.size)
-            val secA = subj.sections[0]
-            val secB = subj.sections[1]
-
-            assertEquals(20, secA.totalQuestions)
-            assertEquals(20, secA.compulsoryQuestions)
-            assertEquals(4, secA.optionsCount)
-            assertEquals(QuestionType.MCQ_SINGLE, secA.questionType)
-
-            assertEquals(10, secB.totalQuestions)
-            assertEquals(5, secB.compulsoryQuestions) // Attempt any 5 rule
-            assertEquals(0, secB.optionsCount) // Numerical value questions have 0 options
-            assertEquals(QuestionType.NUMERICAL_VALUE, secB.questionType)
+        assertEquals(3, paper.subjects.size)
+        paper.subjects.forEach { subject ->
+            assertEquals(2, subject.sections.size)
+            val mcq = subject.sections[0]
+            val numerical = subject.sections[1]
+            assertEquals(20, mcq.totalQuestions)
+            assertEquals(20, mcq.compulsoryQuestions)
+            assertEquals(4, mcq.optionsCount)
+            assertEquals(QuestionType.MCQ_SINGLE, mcq.questionType)
+            assertEquals(5, numerical.totalQuestions)
+            assertEquals(5, numerical.compulsoryQuestions)
+            assertEquals(0, numerical.optionsCount)
+            assertEquals(QuestionType.NUMERICAL_VALUE, numerical.questionType)
         }
-
-        val totalAttempted = paper.subjects.sumOf { s -> s.sections.sumOf { it.compulsoryQuestions } }
-        assertEquals(75, totalAttempted)
-        assertEquals(300.0, totalAttempted * 4.0, 0.001)
+        assertEquals(75, paper.subjects.sumOf { it.sections.sumOf { section -> section.compulsoryQuestions } })
     }
 
     @Test
     fun verifyBankingExams5OptionsPattern() {
-        val bankingIds = listOf("ibps_po", "ibps_clerk", "sbi_clerk", "sbi_po")
-        bankingIds.forEach { examId ->
-            val exam = UniversalExamRegistry.getExamById(examId)
-            assertNotNull("Banking exam $examId must exist", exam)
-            exam!!
 
-            assertEquals("Banking exam $examId must have defaultOptionCount = 5", 5, exam.defaultOptionCount)
-            assertEquals("Banking", exam.category)
-            assertTrue(exam.verified)
-
-            val paper = exam.stages.first().papers.first()
-            assertEquals(60, paper.durationMinutes)
-            assertEquals(100.0, paper.totalMarks, 0.001)
-
-            paper.subjects.forEach { subj ->
-                subj.sections.forEach { sec ->
-                    assertEquals("Banking section ${sec.sectionName} in $examId must have optionsCount = 5", 5, sec.optionsCount)
-                    assertEquals(1.0, sec.positiveMarks, 0.001)
-                    assertEquals(0.25, sec.negativeMarks, 0.001)
-                }
+        listOf("ibps_po", "ibps_clerk", "sbi_clerk", "sbi_po").forEach { id ->
+            val exam = UniversalExamRegistry.getExamById(id)!!
+            assertFalse("Banking scaffold must not be treated as verified", exam.verified)
+            assertTrue(exam.stages.isEmpty())
+            assertEquals(0, exam.defaultOptionCount)
+            try {
+                UniversalExamRegistry.getDefaultOptionCountForExam(exam.examName)
+                fail("Unverified option count must be blocked for $id")
+            } catch (expected: IllegalArgumentException) {
+                assertTrue(expected.message.orEmpty().contains("source-verified"))
             }
         }
     }
 
     @Test
     fun verifyEnglishMediumExams() {
-        val cat = UniversalExamRegistry.getExamById("cat")
-        assertNotNull(cat)
-        assertEquals("English", cat!!.language)
-        assertTrue(cat.verified)
-        assertEquals(120, cat.stages.first().papers.first().durationMinutes)
-        assertEquals(198.0, cat.stages.first().papers.first().totalMarks, 0.001)
 
-        val gate = UniversalExamRegistry.getExamById("gate")
-        assertNotNull(gate)
-        assertEquals("English", gate!!.language)
-        assertTrue(gate.verified)
-        assertEquals(180, gate.stages.first().papers.first().durationMinutes)
-        assertEquals(100.0, gate.stages.first().papers.first().totalMarks, 0.001)
+        listOf("cat", "gate").forEach { id ->
+            val exam = UniversalExamRegistry.getExamById(id)!!
+            assertFalse("Pattern must remain disabled until official source verification: $id", exam.verified)
+            assertTrue(exam.stages.isEmpty())
+            try {
+                UniversalExamRegistry.getDefaultDurationMinutesForExam(exam.examName)
+                fail("Unverified duration must be blocked for $id")
+            } catch (expected: IllegalArgumentException) {
+                assertTrue(expected.message.orEmpty().contains("source-verified"))
+            }
+        }
     }
 
     @Test
     fun verifyZeroNegativeMarkingExams() {
-        val ctet = UniversalExamRegistry.getExamById("ctet")
-        assertNotNull(ctet)
-        ctet!!.stages.first().papers.first().subjects.forEach { s ->
-            s.sections.forEach { sec ->
-                assertEquals("CTET section ${sec.sectionName} must have 0.0 negative marks", 0.0, sec.negativeMarks, 0.001)
+
+        listOf("ctet", "ugc_net", "ssc_mts").forEach { id ->
+            val exam = UniversalExamRegistry.getExamById(id)!!
+            assertFalse("Negative-marking policy must not be guessed for $id", exam.verified)
+            assertTrue(exam.stages.isEmpty())
+            try {
+                UniversalExamRegistry.getMarkingSchemeForExam(exam.examName)
+                fail("Unverified marking scheme must be blocked for $id")
+            } catch (expected: IllegalArgumentException) {
+                assertTrue(expected.message.orEmpty().contains("source-verified"))
             }
         }
-
-        val ugcNet = UniversalExamRegistry.getExamById("ugc_net")
-        assertNotNull(ugcNet)
-        ugcNet!!.stages.first().papers.first().subjects.forEach { s ->
-            s.sections.forEach { sec ->
-                assertEquals("UGC NET section ${sec.sectionName} must have 0.0 negative marks", 0.0, sec.negativeMarks, 0.001)
-            }
-        }
-
-        val sscMts = UniversalExamRegistry.getExamById("ssc_mts")
-        assertNotNull(sscMts)
-        val mtsSubjects = sscMts!!.stages.first().papers.first().subjects
-        // Session 1 Math & Reasoning must have 0.0 negative marks
-        val session1Math = mtsSubjects.find { it.subjectId == "session_1_math" }!!
-        assertEquals(0.0, session1Math.sections.first().negativeMarks, 0.001)
-        val session1Reason = mtsSubjects.find { it.subjectId == "session_1_reasoning" }!!
-        assertEquals(0.0, session1Reason.sections.first().negativeMarks, 0.001)
-        // Session 2 GA & English must have 1.0 negative mark
-        val session2Ga = mtsSubjects.find { it.subjectId == "session_2_ga" }!!
-        assertEquals(1.0, session2Ga.sections.first().negativeMarks, 0.001)
     }
 
     @Test
     fun verifyDynamicPatternSubtitleGenerationForAllExams() {
+
         val allExams = UniversalExamRegistry.getAllExams()
-        assertEquals(25, allExams.size)
-
-        allExams.forEach { exam ->
+        allExams.filterNot { it.verified }.forEach { exam ->
             val subtitle = UniversalExamRegistry.getExamDisplaySubtitle(exam)
-            assertTrue("Subtitle for ${exam.examName} must not be blank", subtitle.isNotBlank())
-            assertTrue("Subtitle for ${exam.examName} must contain Qs", subtitle.contains("Qs"))
-            assertTrue("Subtitle for ${exam.examName} must contain Marks", subtitle.contains("Marks"))
-            assertTrue("Subtitle for ${exam.examName} must contain Mins", subtitle.contains("Mins"))
-            assertTrue("Subtitle for ${exam.examName} must contain marking pattern", subtitle.contains("(+"))
+            assertTrue(subtitle.contains("not verified", ignoreCase = true))
         }
-
-        // Verify specific calculated subtitles come directly from registry
         val neetSub = UniversalExamRegistry.getExamDisplaySubtitleByName("NEET UG")
-        assertTrue("NEET subtitle should indicate 180/200 Qs and 720 Marks: $neetSub", neetSub.contains("180/200 Qs • 720 Marks • 200 Mins (+4, -1)"))
-
-        val jeeSub = UniversalExamRegistry.getExamDisplaySubtitleByName("JEE Main")
-        assertTrue("JEE subtitle should indicate 75/90 Qs and 300 Marks: $jeeSub", jeeSub.contains("75/90 Qs • 300 Marks • 180 Mins (+4, -1)"))
-
-        val cuetSub = UniversalExamRegistry.getExamDisplaySubtitleByName("CUET UG")
-        assertTrue("CUET subtitle should indicate 40/50 Qs and 200 Marks: $cuetSub", cuetSub.contains("40/50 Qs • 200 Marks • 45 Mins (+5, -1)"))
-
-        val gateSub = UniversalExamRegistry.getExamDisplaySubtitleByName("GATE")
-        assertTrue("GATE subtitle should indicate 65 Qs and 100 Marks: $gateSub", gateSub.contains("65 Qs • 100 Marks • 180 Mins (+1, -0.33)"))
-
-        val ctetSub = UniversalExamRegistry.getExamDisplaySubtitleByName("CTET")
-        assertTrue("CTET subtitle should indicate 0 negative marking: $ctetSub", ctetSub.contains("(+1, 0 -ve)"))
+        assertTrue(neetSub, neetSub.contains("180 Qs • 720 Marks • 180 Mins (+4, -1)"))
+        val jeeSub = UniversalExamRegistry.getExamDisplaySubtitleByName("JEE Main P1")
+        assertTrue(jeeSub, jeeSub.contains("75 Qs • 300 Marks • 180 Mins (+4, -1)"))
+        assertTrue(UniversalExamRegistry.getExamDisplaySubtitleByName("CUET UG").contains("not verified", true))
+        assertTrue(UniversalExamRegistry.getExamDisplaySubtitleByName("GATE").contains("not verified", true))
+        assertTrue(UniversalExamRegistry.getExamDisplaySubtitleByName("CTET").contains("not verified", true))
     }
 
     @Test
