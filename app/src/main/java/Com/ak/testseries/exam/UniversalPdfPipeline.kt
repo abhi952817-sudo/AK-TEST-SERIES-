@@ -410,7 +410,7 @@ object UniversalPdfPipeline {
 
                 val qIndexInBatch = (batchIndex * batchSize) + i + 1
                 var sectionQuestionEnd = 0
-                val resolvedSection = subjectConfig.sections.firstOrNull { section ->
+                val resolvedSection = subjectConfig.sections.singleOrNull { section ->
                     sectionQuestionEnd += section.totalQuestions
                     qIndexInBatch <= sectionQuestionEnd
                 }
