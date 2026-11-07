@@ -850,7 +850,7 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
 
 
 
-test("Ranking v2: public exam/XP boards are readable but client writes are denied", async () => {
+test("Ranking v2: raw ranking materializations are callable-only and private from direct client reads", async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await db.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).set({
@@ -862,6 +862,11 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
     await db.collection("XP_Leaderboard_Weekly").doc("2026-W45").collection("Entries").doc(ALICE_UID).set({
       userId: ALICE_UID, xp: 100
     });
+    await db.collection("Test_Leaderboards").doc("test_private").collection("Entries").doc(ALICE_UID).set({
+      userId: ALICE_UID, score: 80, isBanned: false
+    });
+    await db.collection("Ranking_Periods").doc("NEET").collection("Periods").doc("2026-11-H1")
+      .collection("Entries").doc(ALICE_UID).set({ userId: ALICE_UID, rankingScore: 9000 });
     await db.collection("XP_Transactions").doc("xp_alice").set({
       userId: ALICE_UID, xp: 100
     });
@@ -884,8 +889,15 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
   await assertFails(
     aliceDb.collection("Users_Data").doc(ALICE_UID).update({ classLevel: "University" })
   );
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).get()
+  );
+  await assertFails(
+    aliceDb.collection("Test_Leaderboards").doc("test_private").collection("Entries").doc(ALICE_UID).get()
+  );
+  await assertFails(
+    aliceDb.collection("Ranking_Periods").doc("NEET").collection("Periods").doc("2026-11-H1")
+      .collection("Entries").doc(ALICE_UID).get()
   );
   await assertFails(
     aliceDb.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).update({ score: 999999 })
@@ -896,7 +908,7 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
   await assertFails(
     bobDb.collection("User_Ranks").doc(ALICE_UID).collection("Exams").doc("NEET").get()
   );
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("XP_Leaderboard_Weekly").doc("2026-W45").collection("Entries").doc(ALICE_UID).get()
   );
   await assertFails(
