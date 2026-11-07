@@ -169,8 +169,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const isCreator = (testData.creatorId && testData.creatorId === userId) ||
                     (testData.uploaderId && testData.uploaderId === userId);
 
-  const testStatus = String(testData.status || "").trim().toUpperCase();
-  const isApprovedOrPublished = testStatus === "APPROVED" || testStatus === "PUBLISHED";
+  const testStatus = String(testData.status || "").trim();
+  // Match Firestore Rules exactly; lowercase or unknown status variants are not student-visible.
+  const isApprovedOrPublished = ["APPROVED", "PUBLISHED", "Published"].includes(testStatus);
   const isExplicitlyRestricted = testStatus === "UNDER REVIEW" || testStatus === "REJECTED" || testStatus === "DRAFT";
   // Official status is provenance, not visibility. A private official paper is not
   // publicly attemptable and must not award public XP or competitive ranking points.
