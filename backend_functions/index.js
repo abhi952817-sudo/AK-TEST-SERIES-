@@ -615,33 +615,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }, { merge: true });
     }
 
-    // Atomically maintain public Leaderboard using the consistent competitive score
-    // Only write to competitive Leaderboard if the attempt counts toward ranking or user is already ranked
-    if (isFirstQualifyingAttempt) {
-      const leaderboardRef = db.collection("Leaderboard").doc(`${canonicalExam}_${userId}`);
-      transaction.set(leaderboardRef, {
-        userId,
-        displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
-        targetExam: canonicalExam,
-        score: competitiveScore, // Consistent: ranking score is the cumulative competitive score!
-        maxSingleScore: updates.maxScore || currentMaxScore,
-        totalTestsAttempted: updates.totalTestsAttempted || totalTests + 1,
-        qualifyingTestsCount: qualifyingTests,
-        isEligibleForRanking: isEligible,
-        isBanned: userIsBanned,
-        scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
-        rankingWeightVersion: RANKING_CONFIG.version,
-        profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE",
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-    } else if (userData[examQCountKey] && userData[examQCountKey] >= 2) {
-      // User is already an eligible ranked participant for this canonicalExam; keep test count updated without altering score
-      const leaderboardRef = db.collection("Leaderboard").doc(`${canonicalExam}_${userId}`);
-      transaction.set(leaderboardRef, {
-        totalTestsAttempted: updates.totalTestsAttempted || totalTests + 1,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-    }
+    // Exam_Leaderboards is the sole canonical AIR source. Do not dual-write the legacy
+    // Leaderboard collection; stale legacy rows remain untouched until a separately approved migration.
 
     if (isFirstQualifyingAttempt) {
       const publicProfile = profileIsPublic;
@@ -661,14 +636,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      transaction.set(db.collection("User_Ranks").doc(userId)
-        .collection("Exams").doc(canonicalExam), {
-          userId, targetExam: canonicalExam, score: competitiveScore,
-          classLevel: normalizeClassLevel(userData.classLevel),
-          qualifyingTestsCount: qualifyingTests, isEligibleForRanking: isEligible, isBanned: userIsBanned,
-          scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+      // Per-user rank details are derived from the canonical Exam_Leaderboards entry.
     }
 
     return {
@@ -858,13 +826,7 @@ async function rebuildRankingV2ForUser(userId) {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
     }, { merge: true });
 
-    batch.set(db.collection("User_Ranks").doc(userId).collection("Exams").doc(examId), {
-      userId, targetExam: examId, score: aggregate.score, classLevel,
-      qualifyingTestsCount: aggregate.count, isEligibleForRanking: eligible && !userIsBanned,
-      isBanned: userIsBanned,
-      scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
-    }, { merge: true });
+    // User_Ranks is a legacy duplicate; the rebuilt Exam_Leaderboards entry is canonical.
   }
   userUpdates.totalCumulativeScoreV2 = totalCumulativeScore;
 
