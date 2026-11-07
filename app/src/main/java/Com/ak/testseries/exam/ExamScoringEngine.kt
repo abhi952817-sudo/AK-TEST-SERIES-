@@ -150,7 +150,7 @@ object ExamScoringEngine {
                 return@forEach
             }
 
-            if (userOpt.isNullOrEmpty()) {
+            if (userOpt.isNullOrEmpty() || userOpt == "SKIPPED") {
                 unanswered++
             } else if (isUserAnswerCorrect(userOpt, correctOpt, numerical)) {
                 correct++
@@ -247,7 +247,7 @@ object ExamScoringEngine {
             }
             totalMaxPossible += section.positiveMarks
             val userOpt = userAnswers[qid]?.trim()?.uppercase()
-            if (userOpt.isNullOrEmpty()) {
+            if (userOpt.isNullOrEmpty() || userOpt == "SKIPPED") {
                 unanswered++
             } else if (isUserAnswerCorrect(userOpt, cleanCorrect, numerical)) {
                 correct++
