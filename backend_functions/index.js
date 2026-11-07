@@ -8,7 +8,6 @@ const {
   evaluateTestAttempt,
   calculatePopulationPercentile,
   validateAndMergeAnswerKeys,
-  getExamEligibility,
   normalizeExamKey,
   resolveCanonicalExamIdentity,
   getMarkingSchemeForExam,
@@ -427,14 +426,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     }
 
     // Award ranking points only on FIRST valid attempt on QUALIFYING OFFICIAL tests
-    const examScoreKey = `cumulativeScore_${canonicalExam}`;
-    const examQCountKey = `qualifyingTestsCount_${canonicalExam}`;
-    // Never seed v2 ranking with legacy raw-mark aggregates. Only the v2 materialized
-    // entry is a valid base; the admin backfill rebuilds legacy attempts into this schema.
+    // Exam_Leaderboards is the single source of truth for v2 cumulative score/count.
+    // Legacy Users_Data score aggregates are intentionally not read or updated.
     const v2RankData = existingV2RankSnap.exists ? existingV2RankSnap.data() : {};
     const currentExamScore = Number(v2RankData.score || 0);
     const currentExamQCount = Number(v2RankData.qualifyingTestsCount || 0);
-    const currentTotalScore = Number(userData.totalCumulativeScoreV2 || 0);
     let newExamScore = currentExamScore;
 
     // Normalize to a common 10,000-point full-test scale before applying test weight.
@@ -444,10 +440,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     if (isFirstQualifyingAttempt) {
       newExamScore = currentExamScore + weightedScore;
-      updates[examQCountKey] = currentExamQCount + 1;
-      updates.qualifyingTestsCount = (userData.qualifyingTestsCount || 0) + 1;
-      updates[examScoreKey] = newExamScore;
-      updates.totalCumulativeScoreV2 = currentTotalScore + weightedScore;
     }
 
     // All transaction reads must happen before writes.
@@ -814,7 +806,8 @@ async function rebuildRankingV2ForUser(userId) {
   for (const [examId, aggregate] of exams.entries()) {
     const eligible = aggregate.count >= RANKING_CONFIG.minQualifyingTests;
     userUpdates["cumulativeScore_" + examId] = aggregate.score;
-    userUpdates["qualifyingTestsCount_" + examId] = aggregate.count;
+    // Exam_Leaderboards is the only canonical exam-score store. Do not mirror the
+    // same aggregate into Users_Data, which previously created a second source of truth.
     totalCumulativeScore += aggregate.score;
 
     batch.set(db.collection("Exam_Leaderboards").doc(examId).collection("Entries").doc(userId), {
@@ -964,26 +957,24 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
     };
   }
 
-  const eligibility = getExamEligibility(userData, canonicalExam);
-  const qualifyingCount = eligibility.qualifyingCount;
-  const competitiveScore = eligibility.competitiveScore;
-
-  if (qualifyingCount >= RANKING_CONFIG.minQualifyingTests) {
-    const materializedEntry = await db.collection("Exam_Leaderboards").doc(canonicalExam)
-      .collection("Entries").doc(userId).get();
-    if (!materializedEntry.exists) {
-      return {
-        isEligible: false, status: "Ranking Migration Pending",
-        rank: 0, rankString: "Pending", percentile: 0.0,
-        competitiveScore, qualifyingTestsCount: qualifyingCount,
-        minQualifyingTests: RANKING_CONFIG.minQualifyingTests,
-        totalEligible: 0, isOfficialAir: false, isOfficialAkAir: false,
-        rankingScope: "AK_TEST_SERIES",
-        message: "Your previous qualifying attempts are waiting for the v2 ranking migration. Your scores have not been discarded.",
-        targetExam: canonicalExam
-      };
-    }
+  const materializedEntry = await db.collection("Exam_Leaderboards").doc(canonicalExam)
+    .collection("Entries").doc(userId).get();
+  const entryData = materializedEntry.exists ? materializedEntry.data() : null;
+  const legacyQualifyingCount = Number(userData["qualifyingTestsCount_" + canonicalExam] || 0);
+  if (!entryData && legacyQualifyingCount > 0) {
+    return {
+      isEligible: false, status: "Ranking Migration Pending",
+      rank: 0, rankString: "Pending", percentile: 0.0,
+      competitiveScore: 0, qualifyingTestsCount: legacyQualifyingCount,
+      minQualifyingTests: RANKING_CONFIG.minQualifyingTests,
+      totalEligible: 0, isOfficialAir: false, isOfficialAkAir: false,
+      rankingScope: "AK_TEST_SERIES",
+      message: "Legacy ranking data is awaiting a verified v2 rebuild. Legacy score fields are not used as the new ranking source.",
+      targetExam: canonicalExam
+    };
   }
+  const qualifyingCount = entryData ? Number(entryData.qualifyingTestsCount || 0) : 0;
+  const competitiveScore = entryData ? Number(entryData.score || 0) : 0;
 
   // Query eligible participant population for this specific exam
   const eligibleQuery = applyClassFilter(
