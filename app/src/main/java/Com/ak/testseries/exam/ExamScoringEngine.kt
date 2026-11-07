@@ -186,58 +186,74 @@ object ExamScoringEngine {
         stageId: String,
         paperId: String,
         totalQuestions: Int,
-        userAnswers: Map<String, String>, // questionId -> selectedOption ("A", "B", "C", "D")
-        correctAnswers: Map<String, String>, // questionId -> actualCorrectOption
-        questionSections: Map<String, String>, // questionId -> sectionId
+        userAnswers: Map<String, String>,
+        correctAnswers: Map<String, String>,
+        questionSections: Map<String, String>,
         timeSpentSeconds: Long
     ): ScoreBreakdown {
+        require(examConfig.active && examConfig.verified) {
+            "Scoring is blocked for an unverified exam configuration."
+        }
+        val stage = examConfig.stages.singleOrNull { it.stageId == stageId }
+            ?: throw IllegalArgumentException("Exact exam stage is missing or ambiguous.")
+        val paper = stage.papers.singleOrNull { it.paperId == paperId }
+            ?: throw IllegalArgumentException("Exact exam paper is missing or ambiguous.")
+        val sections = paper.subjects.flatMap { it.sections }
+        require(sections.map { it.sectionId }.distinct().size == sections.size) {
+            "Section IDs must be unique within a paper."
+        }
+        val sectionConfigMap = sections.associateBy { it.sectionId }
+        val defaultSection = sections.firstOrNull()
+            ?: throw IllegalArgumentException("Verified paper has no section policy.")
+
         var correct = 0
         var wrong = 0
         var unanswered = 0
-        
+        var ungraded = (totalQuestions - correctAnswers.size).coerceAtLeast(0)
         var totalPositiveEarned = 0.0
         var totalNegativePenalty = 0.0
         var totalMaxPossible = 0.0
 
-        val paperConfig = examConfig.stages.find { it.stageId == stageId }?.papers?.find { it.paperId == paperId }
-        val sectionConfigMap = paperConfig?.subjects?.flatMap { it.sections }?.associateBy { it.sectionId } ?: emptyMap()
-
-        val defaultPos = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.positiveMarks ?: 4.0
-        val defaultNeg = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.negativeMarks ?: 1.0
-
         correctAnswers.forEach { (qid, correctOpt) ->
-            val userOpt = userAnswers[qid]?.trim()?.uppercase()
+            val sectionId = questionSections[qid]
+            val section = sectionId?.let { sectionConfigMap[it] }
+            if (section == null) {
+                ungraded++
+                return@forEach
+            }
+            val numerical = section.questionType in setOf(QuestionType.NUMERICAL_VALUE, QuestionType.TITA)
             val cleanCorrect = correctOpt.trim().uppercase()
-            val isKeyVerified = isAnswerKeyVerified(cleanCorrect)
-            val sectionId = questionSections[qid] ?: ""
-            val posMarks = sectionConfigMap[sectionId]?.positiveMarks ?: defaultPos
-            val negMarks = sectionConfigMap[sectionId]?.negativeMarks ?: defaultNeg
-            
-            totalMaxPossible += posMarks
-
-            val isNumerical = cleanCorrect.toDoubleOrNull() != null
-
+            val keyVerified = if (numerical) cleanCorrect.toDoubleOrNull()?.isFinite() == true
+                else cleanCorrect in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            if (!keyVerified) {
+                ungraded++
+                return@forEach
+            }
+            totalMaxPossible += section.positiveMarks
+            val userOpt = userAnswers[qid]?.trim()?.uppercase()
             if (userOpt.isNullOrEmpty()) {
                 unanswered++
-            } else if (!isKeyVerified) {
-                // Unknown/unverified answer key
-            } else if (isUserAnswerCorrect(userOpt, cleanCorrect, isNumerical)) {
+            } else if (isUserAnswerCorrect(userOpt, cleanCorrect, numerical)) {
                 correct++
-                totalPositiveEarned += posMarks
+                totalPositiveEarned += section.positiveMarks
             } else {
                 wrong++
-                totalNegativePenalty += negMarks
+                totalNegativePenalty += section.negativeMarks
             }
         }
 
         val rawScore = totalPositiveEarned - totalNegativePenalty
         val finalScore = rawScore.coerceAtLeast(0.0)
-        val attempted = correct + wrong
-        val accuracy = if (attempted > 0) (correct.toDouble() / attempted.toDouble()) * 100.0 else 0.0
+        val attempted = correct + wrong + ungraded
+        val accuracyDenominator = correct + wrong
+        val accuracy = if (accuracyDenominator > 0) {
+            (correct.toDouble() / accuracyDenominator.toDouble()) * 100.0
+        } else 0.0
 
         return ScoreBreakdown(
             totalQuestions = totalQuestions,
             attemptedCount = attempted,
+            ungradedCount = ungraded,
             correctCount = correct,
             wrongCount = wrong,
             unansweredCount = unanswered,
@@ -247,8 +263,8 @@ object ExamScoringEngine {
             maxScore = totalMaxPossible,
             accuracyPercent = Math.round(accuracy * 100.0) / 100.0,
             timeSpentSeconds = timeSpentSeconds,
-            correctMarksPerQuestion = defaultPos,
-            negativeMarksPerQuestion = defaultNeg,
+            correctMarksPerQuestion = defaultSection.positiveMarks,
+            negativeMarksPerQuestion = defaultSection.negativeMarks,
             rawScore = rawScore
         )
     }
