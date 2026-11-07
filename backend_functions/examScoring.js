@@ -530,6 +530,14 @@ function resolveCanonicalExamIdentity(testData = {}) {
     err.code = "failed-precondition";
     throw err;
   }
+  const suppliedIdentityText = [testData.examId, testData.targetExam]
+    .filter(value => typeof value === "string")
+    .join(" ").toLowerCase();
+  if (unique[0] === "JEE_MAIN" && /paper\\s*2[ab]|b\\.?\\s*arch|b\\.?\\s*planning/.test(suppliedIdentityText)) {
+    const err = new Error("JEE Main Paper 2A/2B is not part of the currently verified Paper 1 scoring configuration.");
+    err.code = "failed-precondition";
+    throw err;
+  }
   const paperIdentity = VERIFIED_PAPER_IDENTITIES[unique[0]];
   if (!paperIdentity ||
       String(testData.stageId || "").trim() !== paperIdentity.stageId ||
