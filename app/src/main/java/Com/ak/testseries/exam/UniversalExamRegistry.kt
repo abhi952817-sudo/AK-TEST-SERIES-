@@ -1323,6 +1323,16 @@ object UniversalExamRegistry {
         return null
     }
 
+    fun hasMultipleMarkingSchemes(examName: String): Boolean {
+        val config = findExamByNameOrShortName(examName) ?: return false
+        if (!config.active || !config.verified) return false
+        val paper = config.stages.singleOrNull()?.papers?.singleOrNull() ?: return false
+        val schemes = paper.subjects.flatMap { it.sections }
+            .map { it.positiveMarks to it.negativeMarks }
+            .distinct()
+        return schemes.size > 1
+    }
+
     fun updateExamStatus(examId: String, active: Boolean) {
         defaultExams[examId]?.let {
             defaultExams[examId] = it.copy(active = active)
