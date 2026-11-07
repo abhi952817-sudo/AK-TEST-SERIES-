@@ -539,7 +539,7 @@ Development is not complete until all of these are true:
 |---|---|---|---|---|
 | 0 Baseline refresh | COMPLETE | `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22` | 2026-11-07 live branch comparisons; PR #3; workflow #183 all 3 jobs PASS | Latest code commits are newer than workflow #193; fresh CI is required |
 | 1 Overlap map | COMPLETE | `faf51cdb9778b3179dd3be47df12377688b264c9` | 15-file keep/port/reconcile matrix; branch compare and shared-file review | Individual commit SHA list not exposed by connector; only workflow file delta confirmed |
-| 2 Backend contract | IN PROGRESS | `38985219336762884c81d20a8605fce14aba2a63` | CI #221: Firestore Emulator PASS; backend 73/74 PASS, one test exposed escaped-regex bug in classification; regex corrected at `2cbdc7f`; ambiguous JEE/NEET PG/RRB aliases now fail closed; latest changes still need fresh CI | Replace simulated callable test with production callable/emulator transaction tests; audit XP ledger/streak and concurrent first-attempt behavior; validate latest CI and Android result |
+| 2 Backend contract | IN PROGRESS | `b8585da1df56b7079c86f2366553dc16bc99e037` | CI #221: Firestore Emulator PASS; backend 73/74 on pre-fix SHA with regex failure; regex corrected, alias isolation and canonical answer hashing added; historical backfill now requires approved public official test metadata; no fresh CI for latest head | Replace simulated callable test with production callable/emulator transaction tests; audit XP ledger/streak and concurrent first-attempt behavior; verify latest CI and Android result |
 | 3 Secure publishing | IN PROGRESS | `4a476d6b713593102ea38ccbe7660384e121faf5` | LiveTests public/private answer separation, Admin-only private_keys rule, emulator test added; generated live mocks no longer auto-rank | Historical LiveTests docs may still leak keys; dry-run + approved migration and remaining publish-path audit required |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
 | 5 Exam configuration | NOT STARTED | — | — | Year/stage/paper provenance |
@@ -577,6 +577,13 @@ Development is not complete until all of these are true:
 - Ranking API exam validation now checks the scoring engine's supported exam policy before reading a board, preventing arbitrary unknown IDs from returning misleading empty leaderboards. Commit `38985219336762884c81d20a8605fce14aba2a63`.
 - The latest regex, alias, canonical answer hash, and API identity changes have not yet received a fresh CI run. Workflow #221 is pinned to the earlier commit and cannot be counted as validation of later changes.
 - Workflow #221 Firestore rules job passed. Android validation was still in progress at last inspection; no conclusion recorded.
+### 2.10 Historical migration safety and public-only XP/ranking — 2026-11-07
+
+- `isEligibleHistoricalRankingTest` is now a shared pure policy helper. Historical V2 backfill accepts only a test document that exists and is explicitly `isOfficial=true`, `isPublic=true`, `countsTowardRanking=true`, and status APPROVED/PUBLISHED. Orphaned/private/community/pending/rejected/ambiguous test attempts are skipped, not guessed into a board.
+- Backfill uses the test document's canonical `examId`/`targetExam`; if the historical attempt's recorded exam conflicts, it is skipped. Subject names are never used as exam identity. Missing or unsupported weights are skipped.
+- Competitive ranking now distinguishes official provenance from public visibility. `isOfficial=true` no longer makes a private test publicly attemptable or eligible for XP/AIR; `isPublic=true` is required.
+- Added pure unit tests for historical eligibility. Latest relevant commits: `aa2070ce0f15748926aabdabd916145c9b354a30`, `e1f0f6cbf71141e6ce9cdac242980bd73d49141c`, `5533500bce136132dada12076fca314acc7859bc`, `784c17cce130ced6cdc16366da4056fd1a623241`, `b8585da1df56b7079c86f2366553dc16bc99e037`.
+- Workflow #221 still validates an earlier commit. Its Firestore Emulator job passed; backend failed only the classification regex test before the regex fix; Android job was still running at last check. No fresh CI result exists for current code.
 ### Session handoff rule
 At the start of every later session:
 1. Read this entire file from the integration branch.
