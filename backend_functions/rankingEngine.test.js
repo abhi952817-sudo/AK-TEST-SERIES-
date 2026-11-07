@@ -35,6 +35,8 @@ test("ranking score normalizes different test maxima before weight", () => {
 test("ranking score rejects invalid maxima and unsupported weights", () => {
   assert.throws(() => calculateWeightedRankingScore(10, 0, 1), { code: "invalid-argument" });
   assert.throws(() => calculateWeightedRankingScore(10, 20, 0.5), { code: "invalid-argument" });
+  assert.throws(() => calculateWeightedRankingScore(21, 20, 1), { code: "invalid-argument" });
+  assert.throws(() => calculateWeightedRankingScore(-1, 20, 1), { code: "invalid-argument" });
 });
 
 test("test weight resolution recognizes part and chapter tests", () => {
