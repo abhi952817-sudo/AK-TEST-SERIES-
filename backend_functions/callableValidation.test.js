@@ -248,6 +248,8 @@ test("Authoritative evaluation uses protected private answer keys", () => {
     status: "Published",
     isPublic: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([
       { id: "q1", questionText: "Speed of light?", optionA: "3x10^8 m/s", optionB: "0", optionC: "1", optionD: "2", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE" },
       { id: "q2", questionText: "Unit of Force?", optionA: "Newton", optionB: "Joule", optionC: "Watt", optionD: "Pascal", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE" }
@@ -287,6 +289,8 @@ test("Callable rejects unexpected question IDs not in test questions", () => {
     status: "Published",
     isPublic: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([{ id: "q1", correctAnswer: "A" }])
   };
 
@@ -307,6 +311,8 @@ test("Callable idempotency: Identical retry returns canonical result without dup
     status: "Published",
     isPublic: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([{ id: "q1", correctAnswer: "A" }])
   };
 
@@ -336,6 +342,8 @@ test("Callable idempotency: Conflicting reuse of attempt ID is rejected", () => 
     status: "Published",
     isPublic: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([{ id: "q1", correctAnswer: "A" }])
   };
 
@@ -368,6 +376,8 @@ test("Non-qualifying practice test yields percentile: 0.0 and countsTowardRankin
     isOfficial: false,
     countsTowardRanking: false,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([{ id: "q1", correctAnswer: "A" }])
   };
 
@@ -393,6 +403,8 @@ test("Official ranking test calculates population percentile against candidate c
     isOfficial: true,
     countsTowardRanking: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([
       { id: "q1", questionText: "Question 1", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE", options: ["A option", "B option", "C option", "D option"] },
       { id: "q2", questionText: "Question 2", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE", options: ["A option", "B option", "C option", "D option"] },
@@ -453,6 +465,8 @@ test("Official ranking test: fails closed if private answer key is missing", () 
     isOfficial: true,
     countsTowardRanking: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([{ id: "q1", questionText: "Question 1" }])
   };
 
@@ -476,6 +490,8 @@ test("Official ranking test: fails closed if private answer key is incomplete (m
     isOfficial: true,
     countsTowardRanking: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([
       { id: "q1", questionText: "Question 1" },
       { id: "q2", questionText: "Question 2" }
@@ -509,6 +525,8 @@ test("Official ranking test: rejects public correctAnswer fallback when private 
     isOfficial: true,
     countsTowardRanking: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     // Attacker or unmigrated test has public correctAnswer
     questionsJson: JSON.stringify([{ id: "q1", questionText: "Question 1", correctAnswer: "A" }])
   };
@@ -652,6 +670,8 @@ test("Ban enforcement: Active non-banned student can submit valid test attempt",
     isOfficial: true,
     countsTowardRanking: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE", options: ["A option", "B option", "C option", "D option"] }])
   };
   const privateKeys = { questions: [{ id: "q1", correctAnswer: "A" }] };
@@ -681,6 +701,8 @@ test("Ban enforcement: Banned student (isBanned: true) is rejected with permissi
     isOfficial: true,
     countsTowardRanking: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     questionsJson: JSON.stringify([{ id: "q1", questionText: "Q1" }])
   };
   const privateKeys = { questions: [{ id: "q1", correctAnswer: "A" }] };
@@ -956,6 +978,8 @@ test("F-016: submitTestAttemptServerSide NEVER returns solutionKeys in submissio
     status: "Published",
     isPublic: true,
     targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
     countsTowardRanking: true,
     questionsJson: JSON.stringify([
       { id: "q1", questionText: "Speed of light?", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE" },
