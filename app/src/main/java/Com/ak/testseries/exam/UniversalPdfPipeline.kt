@@ -50,7 +50,7 @@ object UniversalPdfPipeline {
         subjectId: String,
         stageId: String,
         paperId: String,
-        expectedQuestions: Int = 20,
+        expectedQuestions: Int,
         batchSize: Int = 10,
         resumeFromBatch: Int = 1,
         existingQuestionsCache: List<UniversalQuestionModel> = emptyList(),
