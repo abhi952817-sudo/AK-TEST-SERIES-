@@ -907,3 +907,14 @@ The security-rule publication helper did not match the server callable: it accep
 **Changed files:** `firestore.rules`, `firestore.test.js`.
 
 **Verification:** current Firestore Emulator workflow must confirm the updated rules compile and tests pass. No production rules deployment was performed.
+
+
+### 2.27 Android rank fallback — remove legacy score source overlap — 2026-11-07
+
+The Android `fetchUserRank` fallback path still read `qualifyingTestsCount_{exam}` and `cumulativeScore_{exam}` from `Users_Data` when the callable was unavailable, then compared those legacy values against the v2 `Exam_Leaderboards` population. This could combine two different score systems and produce a rank that did not correspond to the canonical v2 entry. It also did not enforce the same selected-class/profile-class match as the callable.
+
+**Fix applied:** fallback now reads the student's own `Exam_Leaderboards/{examId}/Entries/{uid}` materialized record as the only source for qualifying count and normalized score. If no v2 entry exists, legacy count is used only to show `Ranking Migration Pending`; legacy score is never used to calculate a rank. It checks profile class against the selected cohort, excludes banned entries, uses v2 eligibility flags and computes the cohort rank from the same v2 board. The fallback no longer mixes raw/legacy totals with normalized v2 scores.
+
+**Changed file:** `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt`.
+
+**Verification:** Android CI must compile and run the ViewModel/unit tests. No Room schema change or production data update was needed.
