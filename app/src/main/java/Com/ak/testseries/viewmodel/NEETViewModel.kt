@@ -6164,29 +6164,53 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                 for (i in 0 until jsonArray.length()) {
                     val qObj = jsonArray.getJSONObject(i)
+                    val qText = qObj.optString("questionText", qObj.optString("questionTextEn", "")).trim()
+                    val qType = qObj.optString("questionType").trim().uppercase()
+                    val sectionId = qObj.optString("section").trim()
+                    val answer = qObj.optString("correctAnswer").trim()
+                    val opts = listOf("optionA", "optionB", "optionC", "optionD").map { key ->
+                        qObj.optString(key, qObj.optString(key + "En", "")).trim()
+                    }
+                    val numerical = qType in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT")
+                    require(qText.isNotBlank() && subject.isNotBlank() && sectionId.isNotBlank() && qType.isNotBlank() && answer.isNotBlank()) {
+                        "Question ${i + 1} is missing text, subject, section, type or answer key."
+                    }
+                    require(qObj.optString("chapter").isNotBlank() || qObj.optString("topic").isNotBlank()) {
+                        "Question ${i + 1} is missing chapter/topic metadata."
+                    }
+                    if (numerical) {
+                        require(answer.toDoubleOrNull()?.isFinite() == true) { "Question ${i + 1} has an invalid numerical answer." }
+                    } else {
+                        require(opts.all { it.isNotBlank() } && opts.distinct().size == 4) {
+                            "Question ${i + 1} must contain four distinct non-empty options."
+                        }
+                        require(answer.uppercase() in listOf("A", "B", "C", "D", "1", "2", "3", "4")) {
+                            "Question ${i + 1} has an invalid MCQ answer key."
+                        }
+                    }
                     questions.add(
                         QuestionEntity(
                             id = qObj.optString("id", "${testId}_q${i}"),
                             testId = testId,
-                            questionText = qObj.optString("questionText", qObj.optString("questionTextEn", "Question ${i + 1}")),
-                            optionA = qObj.optString("optionA", qObj.optString("optionAEn", "Option A")),
-                            optionB = qObj.optString("optionB", qObj.optString("optionBEn", "Option B")),
-                            optionC = qObj.optString("optionC", qObj.optString("optionCEn", "Option C")),
-                            optionD = qObj.optString("optionD", qObj.optString("optionDEn", "Option D")),
-                            correctAnswer = qObj.optString("correctAnswer", "").uppercase().take(1),
+                            questionText = qText,
+                            optionA = opts[0],
+                            optionB = opts[1],
+                            optionC = opts[2],
+                            optionD = opts[3],
+                            correctAnswer = answer,
                             explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")),
                             subject = qObj.optString("subject", subject),
-                            chapter = qObj.optString("chapter", "Local Practice"),
-                            topic = qObj.optString("topic", "Pre-formatted"),
-                            difficulty = qObj.optString("difficulty", "Medium"),
+                            chapter = qObj.optString("chapter", ""),
+                            topic = qObj.optString("topic", ""),
+                            difficulty = qObj.optString("difficulty", ""),
                             questionTextHi = qObj.optString("questionTextHi", "").takeIf { it.isNotEmpty() },
                             optionAHi = qObj.optString("optionAHi", "").takeIf { it.isNotEmpty() },
                             optionBHi = qObj.optString("optionBHi", "").takeIf { it.isNotEmpty() },
                             optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                             optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                             explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                            questionType = qObj.optString("questionType", "MCQ"),
-                            section = qObj.optString("section", "SECTION_A"),
+                            questionType = qType,
+                            section = sectionId,
                             needsImage = qObj.optBoolean("needsImage", false),
                             imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
                         )
