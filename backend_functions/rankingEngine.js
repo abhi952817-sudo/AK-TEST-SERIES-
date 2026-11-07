@@ -56,11 +56,11 @@ function resolveRankingWeight(testData = {}) {
   ).trim().toLowerCase();
   const isPart = testData.isPartTest === true ||
     testData.isChapterTest === true ||
-    /\\b(chapter|topic|subject|part)\\b/.test(category);
+    /\b(chapter|topic|subject|part)\b/.test(category);
   if (isPart) return RANKING_CONFIG.partTestWeight;
 
   const isFull = testData.isFullTest === true ||
-    /\\b(full|complete|grand)\\b/.test(category);
+    /\b(full|complete|grand)\b/.test(category);
   if (isFull) return RANKING_CONFIG.fullTestWeight;
 
   // Never guess that an ambiguous "mock test" is a full test. An admin must
