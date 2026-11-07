@@ -48,7 +48,8 @@ object UniversalPdfPipeline {
         pdfUri: Uri,
         examConfig: ExamConfig,
         subjectId: String,
-        stageId: String = "",
+        stageId: String,
+        paperId: String,
         expectedQuestions: Int = 20,
         batchSize: Int = 10,
         resumeFromBatch: Int = 1,
@@ -74,15 +75,13 @@ object UniversalPdfPipeline {
         require(expectedQuestions > 0 && batchSize > 0 && resumeFromBatch > 0) {
             "Expected question count, batch size and resume batch must be positive."
         }
-        val selectedStage = if (stageId.isNotBlank()) {
-            examConfig.stages.singleOrNull { it.stageId == stageId }
-                ?: throw IllegalArgumentException("Unknown or ambiguous stageId: $stageId")
-        } else {
-            examConfig.stages.singleOrNull()
-                ?: throw IllegalArgumentException("Select an exact exam stage; this exam has multiple stages.")
+        require(stageId.isNotBlank() && paperId.isNotBlank()) {
+            "Explicit stageId and paperId are required; implicit first-stage/paper selection is disabled."
         }
-        val selectedPaper = selectedStage.papers.singleOrNull()
-            ?: throw IllegalArgumentException("Select an exact paper; this stage has multiple papers.")
+        val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId }
+            ?: throw IllegalArgumentException("Unknown or ambiguous stageId: $stageId")
+        val selectedPaper = selectedStage.papers.singleOrNull { it.paperId == paperId }
+            ?: throw IllegalArgumentException("Unknown or ambiguous paperId: $paperId")
         require(subjectId.isNotBlank() && selectedPaper.subjects.any { it.subjectId == subjectId }) {
             "Select a subject belonging to the selected paper."
         }
