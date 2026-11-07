@@ -156,7 +156,7 @@ class UniversalRankingAndIdentityTest {
         }
         assertNull(
             UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                "JEE Main", "Section B", "Physics"
+                "JEE Main", "phy_sec_b", "Physics"
             )
         )
     }
