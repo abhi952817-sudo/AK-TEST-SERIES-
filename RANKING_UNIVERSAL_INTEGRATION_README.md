@@ -834,3 +834,32 @@ The Android job for workflow run `42354507259` completed with failure. Backend u
 **Verification state:** a new CI run must confirm Android compilation and tests. The previous run remains failed; do not mark Android validation green based on the source edit alone. The non-fatal missing `google-services.json` warning was not the cause of this failure. Gradle cache restore warnings were also not the cause.
 
 **Next backend blocker remains open:** `index.js` computes per-test rank and population before the transaction, catches query errors as rank/percentile zero, then only writes the canonical per-test leaderboard entry for the first qualifying attempt. Repeat attempts can therefore receive a rank computed from a score that is never represented in the canonical board. Keep this as the next backend implementation target; do not change the existing first-qualifying-attempt board policy without an explicit product decision.
+
+
+### 2.22 Per-test ranking defect — implementation pass 1 — 2026-11-07
+
+**Code change completed on this branch (not yet production-deployed):**
+- Removed the pre-transaction aggregation queries that ranked the incoming attempt score before the canonical first-attempt policy was decided.
+- The transaction continues to create exactly one canonical `Test_Leaderboards/{testId}/Entries/{userId}` row only for the first qualifying attempt. Repeat attempts remain history-only and do not overwrite this row.
+- The transaction no longer persists precomputed `percentile`, `testRank` or `testTotalCandidates` values on attempt documents. Existing legacy fields may remain in old records but are no longer trusted by the callable retry response.
+- After the transaction commits, the callable fetches the canonical board entry and computes a live rank snapshot from that entry's stored score. It uses strict-greater-than score count for competition rank and total canonical board population for percentile. Identical retries resolve the same canonical entry; repeat qualifying attempts return `NOT_RANKED_REPEAT_ATTEMPT` with nullable rank fields.
+- Rank lookup failures return `rankStatus: "UNAVAILABLE"` and null rank/percentile/population. They do not change or roll back the committed score, attempt history, XP, streak, or leaderboard entry. Non-qualifying attempts return `NOT_ELIGIBLE`.
+- Added pure helper `buildTestRankingSnapshot` and regression tests for canonical first attempt, repeat attempt, missing canonical entry, invalid population and non-eligible attempt.
+
+**Changed files:**
+- `backend_functions/index.js`
+- `backend_functions/rankingEngine.js`
+- `backend_functions/rankingEngine.test.js`
+
+**Relevant commits:**
+- `d69750a43f35ffa8d140ac21cd44cf364ec6ec95` — add rank snapshot helper.
+- `762b93c2b0f30f8222408209580aa5927613d361` — add rank snapshot tests.
+- `43143786c2f08218be9c7daf46efa6ed33dbcbb3` — resolve rank from canonical committed board entry.
+- `68a257c267f11985ea220bdcb2c68b4cb0088276` — fix/export helper.
+- `d947105c8c0f0001cb5f3e8c1db4e9f59847328c` — use shared helper in callable.
+- `606046087a29aec7b8056161ee0e7b609503fc1b` — test import correction.
+- `f50bbb1a4f3360814d0ba58a8d87cd99af308143` — remove obsolete pre-transaction percentile dependency.
+
+**Important verification limits:** this is a post-commit live snapshot, not an immutable historical rank. The higher-score count and total count are separate aggregation reads and may observe slightly different moments while other submissions are arriving; a population consistency/scale test is still required before claiming an exact serialized rank snapshot under heavy concurrency. The installed lockfile resolves `firebase-admin 12.7.0`; this implementation deliberately does not depend on transaction aggregation support. CI must run against the new code commits. No deployment, migration, main-branch update or production Firestore write was performed.
+
+**Next checks:** (1) inspect Android result handling and expose `rankStatus` without converting null/unavailable into rank zero; (2) test concurrent first submissions and retry semantics in Firestore Emulator or an isolated integration harness; (3) verify required indexes and aggregation behavior; (4) continue the full file-by-file integration audit for AIR, XP, periods, class cohorts, privacy/ban updates, migration and security.
