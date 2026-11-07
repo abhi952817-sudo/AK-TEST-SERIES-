@@ -72,6 +72,7 @@ object ExamScoringEngine {
     data class ScoreBreakdown(
         val totalQuestions: Int,
         val attemptedCount: Int,
+        val ungradedCount: Int = 0,
         val correctCount: Int,
         val wrongCount: Int,
         val unansweredCount: Int,
@@ -108,80 +109,63 @@ object ExamScoringEngine {
         var correct = 0
         var wrong = 0
         var unanswered = 0
-
+        var ungraded = 0
         var positiveMarksEarned = 0.0
         var negativeMarksPenalty = 0.0
-
-        val isMultiScheme = UniversalExamRegistry.hasMultipleMarkingSchemes(targetExam)
-        val isCat = targetExam.equals("CAT", ignoreCase = true) || targetExam.contains("CAT", ignoreCase = true)
         var maxPossible = 0.0
 
-        val sectionAttemptCounts = mutableMapOf<String, Int>()
-
         questions.forEach { question ->
-            val userOpt = userAnswers[question.id]?.trim()?.uppercase()
-            val correctOpt = question.correctAnswer.trim().uppercase()
-            val isKeyVerified = isAnswerKeyVerified(correctOpt)
-
-            val (qPosMark, qNegMark) = if (isMultiScheme) {
-                UniversalExamRegistry.getMarkingSchemeForQuestion(targetExam, question.section, question.subject, question.questionType)
-            } else {
-                Pair(posMark, negMark)
+            val policy = try {
+                UniversalExamRegistry.getMarkingSchemeForQuestion(
+                    targetExam, question.section, question.subject, question.questionType
+                )
+            } catch (_: IllegalArgumentException) {
+                ungraded++
+                return@forEach
             }
+            val qPosMark = policy.first
+            val qNegMark = policy.second
             maxPossible += qPosMark
 
-            val isTitaOrNumerical = question.questionType.equals("TITA", ignoreCase = true) ||
-                    question.questionType.equals("NUMERICAL", ignoreCase = true) ||
-                    question.questionType.equals("NUMERICAL_VALUE", ignoreCase = true)
-            val effectiveNegMark = if (isCat && isTitaOrNumerical) 0.0 else qNegMark
+            val userOpt = userAnswers[question.id]?.trim()?.uppercase()
+            val correctOpt = question.correctAnswer.trim().uppercase()
+            val numerical = question.questionType.equals("NUMERICAL_VALUE", true) ||
+                question.questionType.equals("NUMERICAL", true) ||
+                question.questionType.equals("TITA", true) ||
+                question.questionType.equals("NAT", true)
+            val keyVerified = if (numerical) {
+                correctOpt.toDoubleOrNull()?.isFinite() == true
+            } else {
+                correctOpt in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            }
+            if (!keyVerified) {
+                ungraded++
+                return@forEach
+            }
 
             if (userOpt.isNullOrEmpty()) {
                 unanswered++
+            } else if (isUserAnswerCorrect(userOpt, correctOpt, numerical)) {
+                correct++
+                positiveMarksEarned += qPosMark
             } else {
-                val secKey = "${question.subject.lowercase().trim()}_${question.section.lowercase().trim()}"
-                val secLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                    examName = targetExam,
-                    sectionNameOrId = question.section,
-                    subjectName = question.subject
-                )
-                val currentAttempts = sectionAttemptCounts.getOrDefault(secKey, 0)
-                if (secLimit != null && currentAttempts >= secLimit) {
-                    // Surplus question in optional section - ignored per official exam rules
-                    unanswered++
-                } else {
-                    if (secLimit != null) {
-                        sectionAttemptCounts[secKey] = currentAttempts + 1
-                    }
-                    if (!isKeyVerified) {
-                        // Unknown/unverified answer key: student choice cannot be scored; no penalty or accuracy skew
-                    } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
-                        correct++
-                        positiveMarksEarned += qPosMark
-                    } else {
-                        wrong++
-                        negativeMarksPenalty += effectiveNegMark
-                    }
-                }
+                wrong++
+                negativeMarksPenalty += qNegMark
             }
         }
 
-        if (!isMultiScheme) {
-            val maxAllowedQs = UniversalExamRegistry.getMaximumAttemptQuestionsCountForExam(targetExam)
-            val effectiveCount = if (maxAllowedQs != null && questions.size > maxAllowedQs) {
-                maxAllowedQs
-            } else {
-                questions.size
-            }
-            maxPossible = effectiveCount * posMark
-        }
         val rawScore = positiveMarksEarned - negativeMarksPenalty
-        val finalScore = rawScore.coerceAtLeast(0.0) // Non-negative final display boundary
-        val attempted = correct + wrong
-        val accuracy = if (attempted > 0) (correct.toDouble() / attempted.toDouble()) * 100.0 else 0.0
+        val finalScore = rawScore.coerceAtLeast(0.0)
+        val attempted = correct + wrong + ungraded
+        val accuracyDenominator = correct + wrong
+        val accuracy = if (accuracyDenominator > 0) {
+            (correct.toDouble() / accuracyDenominator.toDouble()) * 100.0
+        } else 0.0
 
         return ScoreBreakdown(
             totalQuestions = questions.size,
             attemptedCount = attempted,
+            ungradedCount = ungraded,
             correctCount = correct,
             wrongCount = wrong,
             unansweredCount = unanswered,
