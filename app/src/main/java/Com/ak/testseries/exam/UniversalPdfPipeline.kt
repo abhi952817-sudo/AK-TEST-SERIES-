@@ -229,7 +229,7 @@ object UniversalPdfPipeline {
                             examConfig = examConfig,
                             stageId = resolvedStageId,
                             subjectId = subjectId,
-                            paperId = selectedPaper.paperId,
+                            paperId = paperId,
                             subjectConfig = selectedSubject,
                             batchIndex = batchIndex,
                             batchSize = batchSize,
@@ -352,7 +352,7 @@ object UniversalPdfPipeline {
                                 candidate.options,
                                 existingHashes
                             )
-                            if (duplicate.isDuplicate) return@mapNotNull null
+                            if (duplicate.exactDuplicate || duplicate.nearDuplicate || duplicate.semanticDuplicate) return@mapNotNull null
                             val validation = QuestionValidationEngine.validateQuestion(
                                 questionText = candidate.questionText,
                                 options = candidate.options,
@@ -517,7 +517,7 @@ object UniversalPdfPipeline {
 
                 val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
                 val dupResult = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, seenHashes)
-                if (dupResult.isDuplicate) continue
+                if (dupResult.exactDuplicate || dupResult.nearDuplicate || dupResult.semanticDuplicate) continue
                 val validation = QuestionValidationEngine.validateQuestion(
                     questionText = qText,
                     options = finalOptions,
