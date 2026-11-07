@@ -143,6 +143,11 @@ function normalizeExamKey(examName) {
 
 // Only source-verified 2026 exam patterns may be scored server-side.
 // Keep this allowlist aligned with UniversalExamRegistry.kt. Unverified exams fail closed.
+const VERIFIED_PAPER_IDENTITIES = Object.freeze({
+  NEET: Object.freeze({ stageId: "neet_main", paperId: "neet_paper_1" }),
+  JEE_MAIN: Object.freeze({ stageId: "jee_paper_1", paperId: "jee_main_p1" })
+});
+
 const VERIFIED_SCORING_POLICIES = Object.freeze({
   NEET: Object.freeze({
     physics: Object.freeze({ phy_all: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }) }),
@@ -522,6 +527,14 @@ function resolveCanonicalExamIdentity(testData = {}) {
     getMarkingSchemeForExam(unique[0]);
   } catch (_) {
     const err = new Error("This exam has no source-verified scoring policy; scoring and ranking are disabled.");
+    err.code = "failed-precondition";
+    throw err;
+  }
+  const paperIdentity = VERIFIED_PAPER_IDENTITIES[unique[0]];
+  if (!paperIdentity ||
+      String(testData.stageId || "").trim() !== paperIdentity.stageId ||
+      String(testData.paperId || "").trim() !== paperIdentity.paperId) {
+    const err = new Error("The test stageId/paperId does not match the source-verified exam paper. Scoring and ranking are blocked.");
     err.code = "failed-precondition";
     throw err;
   }
