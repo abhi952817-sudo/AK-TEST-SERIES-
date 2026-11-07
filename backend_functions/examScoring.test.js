@@ -432,6 +432,15 @@ test("Phase 8.1: Normalization: Missing or unrecognized inputs do not silently b
   assert.strictEqual(normalizeExamKey("Special State Board Exam"), "SPECIAL_STATE_BOARD_EXAM");
 });
 
+test("Ambiguous exam aliases never collapse into another exam's ranking identity", () => {
+  assert.equal(normalizeExamKey("JEE"), "JEE");
+  assert.equal(normalizeExamKey("NEET PG"), "NEET_PG");
+  assert.equal(normalizeExamKey("RRB"), "RRB");
+  assert.throws(() => getMarkingSchemeForExam("JEE"), { code: "invalid-argument" });
+  assert.throws(() => getMarkingSchemeForExam("NEET PG"), { code: "invalid-argument" });
+  assert.throws(() => getMarkingSchemeForExam("RRB"), { code: "invalid-argument" });
+});
+
 test("Phase 8.1: Regression test for existing NEET, JEE Main, and UPSC marking schemes", () => {
   const neet = getMarkingSchemeForExam("NEET UG");
   assert.strictEqual(neet.pos, 4.0);
