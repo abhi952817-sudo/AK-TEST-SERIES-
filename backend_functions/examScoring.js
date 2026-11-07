@@ -303,6 +303,12 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     err.code = "invalid-argument";
     throw err;
   }
+  const questionIds = questions.map(question => String(question && question.id || "").trim());
+  if (questionIds.some(id => !id) || new Set(questionIds).size !== questionIds.length) {
+    const err = new Error("Question payload contains missing or duplicate question IDs.");
+    err.code = "invalid-argument";
+    throw err;
+  }
   const exam = targetExam.trim();
   const baseScheme = getMarkingSchemeForExam(exam);
 
