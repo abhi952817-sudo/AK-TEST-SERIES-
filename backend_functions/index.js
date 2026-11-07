@@ -487,7 +487,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const userIsBanned = userData.isBanned === true;
     const currentWeekXp = userData.xpWeekId === rankingWeekId ? Number(userData.xpThisWeek || 0) : 0;
     const previousActivityDate = String(userData.lastActivityDateIST || "");
-    const yesterdayDateKey = getIndiaDateKey(rankingNow - 86400000);
     const currentStreak = calculateDailyStreak(previousActivityDate, rankingDateKey, userData.currentStreak);
     const shouldRecordActivity = isPubliclyAvailable;
     const newXpTotal = currentXpTotal + xpAward;
