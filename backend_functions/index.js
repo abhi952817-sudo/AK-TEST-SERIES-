@@ -21,6 +21,11 @@ const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelp
 
 exports.normalizeExamKey = normalizeExamKey;
 
+// Unknown or malformed visibility values fail closed; only explicit PUBLIC is public.
+function isProfilePublic(value) {
+  return String(value || "").trim().toUpperCase() === "PUBLIC";
+}
+
 function requireCanonicalExamId(value, fieldName = "targetExam") {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new functions.https.HttpsError(
@@ -483,7 +488,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const shouldAwardXp = isFirstAttempt && !xpTransactionSnap.exists && isPubliclyAvailable;
     const xpAward = shouldAwardXp ? calculateXpAward(evalResult.correctCount) : 0;
     const currentXpTotal = Number(userData.xpTotal || 0);
-    const profileIsPublic = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
+    const profileIsPublic = isProfilePublic(userData.profileVisibility);
     const userIsBanned = userData.isBanned === true;
     const currentWeekXp = userData.xpWeekId === rankingWeekId ? Number(userData.xpThisWeek || 0) : 0;
     const previousActivityDate = String(userData.lastActivityDateIST || "");
@@ -750,8 +755,8 @@ exports.syncRankingProfileVisibility = functions.firestore
   .onUpdate(async (change, context) => {
     const before = change.before.data() || {};
     const after = change.after.data() || {};
-    const beforeVisibility = String(before.profileVisibility || "PUBLIC").toUpperCase();
-    const afterVisibility = String(after.profileVisibility || "PUBLIC").toUpperCase();
+    const beforeVisibility = String(before.profileVisibility || "PRIVATE").toUpperCase();
+    const afterVisibility = String(after.profileVisibility || "PRIVATE").toUpperCase();
     const beforeName = before.displayName || before.name || "Student";
     const afterName = after.displayName || after.name || "Student";
     const beforeBanned = before.isBanned === true;
@@ -896,9 +901,12 @@ async function rebuildRankingV2ForUser(userId) {
     aggregate.maxSingleScore = Math.max(aggregate.maxSingleScore, rawScore);
     exams.set(examId, aggregate);
 
-    const timestamp = attemptTime(attempt) || Date.now();
-    const periodIds = getRankingPeriodIds(timestamp);
-    for (const item of [
+    const timestamp = attemptTime(attempt);
+    // Missing/invalid historical timestamps must never be assigned to the migration day.
+    // Keep the exam aggregate, but omit period buckets whose source date cannot be proven.
+    if (timestamp > 0) {
+      const periodIds = getRankingPeriodIds(timestamp);
+      for (const item of [
       { type: "HALF_MONTH", id: periodIds.halfMonthId },
       { type: "MONTH", id: periodIds.monthId }
     ]) {
@@ -909,6 +917,7 @@ async function rebuildRankingV2ForUser(userId) {
       period.score += points;
       period.count += 1;
       periods.set(key, period);
+      }
     }
   }
 
@@ -1020,8 +1029,19 @@ exports.rebuildRankingV2Batch = functions.https.onCall(async (data, context) => 
   const limit = clampRankingLimit(input.limit, 10, 1, 20);
   const migrationStateRef = db.collection("Config").doc("Ranking_Migration_State");
   const migrationStateSnap = await migrationStateRef.get();
-  const savedCursor = migrationStateSnap.exists ? migrationStateSnap.data().lastProcessedUid : null;
-  const effectiveCursor = input.cursor || savedCursor || null;
+  const migrationState = migrationStateSnap.exists ? migrationStateSnap.data() : {};
+  const savedCursor = migrationState.lastProcessedUid || null;
+  const requestedCursor = input.cursor ? String(input.cursor) : null;
+  if (requestedCursor && requestedCursor !== savedCursor) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Migration cursor does not match the server checkpoint. Refresh migration status and continue from the saved cursor."
+    );
+  }
+  if (migrationState.completed === true) {
+    return { success: true, processed: 0, nextCursor: null, hasMore: false, alreadyCompleted: true, results: [] };
+  }
+  const effectiveCursor = savedCursor;
   let query = db.collection("Users_Data").orderBy(admin.firestore.FieldPath.documentId()).limit(limit);
   if (effectiveCursor) query = query.startAfter(String(effectiveCursor));
   const snapshot = await query.get();
@@ -1258,7 +1278,7 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
     const score = Number(row.score || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
+    const isPrivate = !isProfilePublic(row.profileVisibility);
     return {
       rank: competitionRank,
       userId: isPrivate ? null : row.userId,
