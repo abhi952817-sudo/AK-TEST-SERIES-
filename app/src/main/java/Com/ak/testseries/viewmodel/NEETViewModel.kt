@@ -786,10 +786,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
+        val selectedConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(rawExam)
         if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" ||
-            !Com.ak.testseries.exam.UniversalExamRegistry.isExamVerified(
-                canonicalExam.lowercase()
-            )
+            selectedConfig == null || !selectedConfig.active || !selectedConfig.verified
         ) {
             leaderboardExamFilter.value = rawExam
             leaderboardClassFilter.value = classFilter
