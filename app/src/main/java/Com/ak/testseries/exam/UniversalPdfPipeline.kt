@@ -236,6 +236,8 @@ object UniversalPdfPipeline {
                                     examConfig = examConfig,
                                     stageId = resolvedStageId,
                                     subjectId = subjectId,
+                                    paperId = selectedPaper.paperId,
+                                    subjectConfig = selectedSubject,
                                     batchIndex = batchIndex,
                                     batchSize = batchSize,
                                     existingHashes = existingHashes,
