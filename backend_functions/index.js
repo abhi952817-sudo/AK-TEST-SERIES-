@@ -26,6 +26,25 @@ function isProfilePublic(value) {
   return String(value || "").trim().toUpperCase() === "PUBLIC";
 }
 
+async function getCurrentPublicVisibilityByUid(userIds) {
+  const uniqueIds = [...new Set(userIds.map(uid => String(uid || "").trim()).filter(Boolean))];
+  const result = new Map();
+  if (uniqueIds.length === 0) return result;
+  try {
+    const refs = uniqueIds.map(uid => db.collection("Users_Data").doc(uid));
+    const snapshots = await db.getAll(...refs);
+    uniqueIds.forEach((uid, index) => {
+      const snapshot = snapshots[index];
+      result.set(uid, Boolean(snapshot && snapshot.exists &&
+        isProfilePublic(snapshot.data().profileVisibility)));
+    });
+  } catch (error) {
+    console.error("Failed to verify live profile visibility for leaderboard response; hiding all affected identities.", error);
+    uniqueIds.forEach(uid => result.set(uid, false));
+  }
+  return result;
+}
+
 function requireCanonicalExamId(value, fieldName = "targetExam") {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new functions.https.HttpsError(
@@ -756,8 +775,8 @@ exports.syncRankingProfileVisibility = functions.firestore
   .onUpdate(async (change, context) => {
     const before = change.before.data() || {};
     const after = change.after.data() || {};
-    const beforeVisibility = String(before.profileVisibility || "PRIVATE").toUpperCase();
-    const afterVisibility = String(after.profileVisibility || "PRIVATE").toUpperCase();
+    const beforeVisibility = String(before.profileVisibility || "").trim().toUpperCase();
+    const afterVisibility = String(after.profileVisibility || "").trim().toUpperCase();
     const beforeName = before.displayName || before.name || "Student";
     const afterName = after.displayName || after.name || "Student";
     const beforeBanned = before.isBanned === true;
@@ -1287,16 +1306,19 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   const totalEligible = totalSnap.data().count;
   const airStatus = getCohortRankingStatus(totalEligible, classLevel);
   const rows = snapshot.docs.map(doc => doc.data());
+  const rowUserIds = snapshot.docs.map((doc, index) => String(rows[index].userId || doc.id));
+  const currentVisibility = await getCurrentPublicVisibilityByUid(rowUserIds);
   let previousScore = null;
   let competitionRank = 0;
   const entries = rows.map((row, index) => {
     const score = Number(row.score || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = !isProfilePublic(row.profileVisibility);
+    const uid = rowUserIds[index];
+    const isPrivate = !isProfilePublic(row.profileVisibility) || currentVisibility.get(uid) !== true;
     return {
       rank: competitionRank,
-      userId: isPrivate ? null : row.userId,
+      userId: isPrivate ? null : uid,
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
       score,
       qualifyingTestsCount: Number(row.qualifyingTestsCount || 0),
@@ -1337,17 +1359,21 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
     .where("isEligibleForRanking", "==", true)
     .where("isBanned", "==", false))
     .orderBy("rankingScore", "desc").limit(limit).get();
+  const periodRows = snapshot.docs.map(doc => doc.data());
+  const periodUserIds = snapshot.docs.map((doc, index) => String(periodRows[index].userId || doc.id));
+  const currentVisibility = await getCurrentPublicVisibilityByUid(periodUserIds);
   let previousScore = null;
   let competitionRank = 0;
   const entries = snapshot.docs.map((doc, index) => {
-    const row = doc.data();
+    const row = periodRows[index];
     const score = Number(row.rankingScore || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = !isProfilePublic(row.profileVisibility);
+    const uid = periodUserIds[index];
+    const isPrivate = !isProfilePublic(row.profileVisibility) || currentVisibility.get(uid) !== true;
     return {
       rank: competitionRank,
-      userId: isPrivate ? null : (row.userId || doc.id),
+      userId: isPrivate ? null : uid,
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
       score,
       qualifyingTestsCount: Number(row.qualifyingTestsCount || 0)
@@ -1385,16 +1411,20 @@ exports.getXpLeaderboard = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("invalid-argument", "mode must be WEEKLY or ALL_TIME.");
   }
   const snapshot = await query.get();
+  const xpRows = snapshot.docs.map(doc => doc.data());
+  const xpUserIds = snapshot.docs.map((doc, index) => String(xpRows[index].userId || doc.id));
+  const currentVisibility = await getCurrentPublicVisibilityByUid(xpUserIds);
   let previousScore = null;
   let competitionRank = 0;
   const entries = snapshot.docs.map((doc, index) => {
-    const row = doc.data();
+    const row = xpRows[index];
     const score = Number(mode === "ALL_TIME" ? row.xpTotal || 0 : row.xp || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = !isProfilePublic(row.profileVisibility);
+    const uid = xpUserIds[index];
+    const isPrivate = !isProfilePublic(row.profileVisibility) || currentVisibility.get(uid) !== true;
     return {
-      rank: competitionRank, userId: isPrivate ? null : (row.userId || doc.id),
+      rank: competitionRank, userId: isPrivate ? null : uid,
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
       xp: score, league: row.xpLeague || null
     };
