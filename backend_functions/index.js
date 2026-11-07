@@ -168,7 +168,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const testStatus = String(testData.status || "").trim().toUpperCase();
   const isApprovedOrPublished = testStatus === "APPROVED" || testStatus === "PUBLISHED";
   const isExplicitlyRestricted = testStatus === "UNDER REVIEW" || testStatus === "REJECTED" || testStatus === "DRAFT";
-  const hasPublicFlag = testData.isPublic === true || testData.isOfficial === true;
+  // Official status is provenance, not visibility. A private official paper is not
+  // publicly attemptable and must not award public XP or competitive ranking points.
+  const hasPublicFlag = testData.isPublic === true;
 
   // A public flag alone MUST NOT allow a pending or rejected test to be treated as approved
   const isPubliclyAvailable = isApprovedOrPublished && !isExplicitlyRestricted && hasPublicFlag;
@@ -185,6 +187,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const testCountsTowardRanking =
     testData.countsTowardRanking === true &&
     testData.isOfficial === true &&
+    testData.isPublic === true &&
     isPubliclyAvailable;
   let canonicalExam;
   try {
