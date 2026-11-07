@@ -13,7 +13,7 @@ const {
   resolveCanonicalExamIdentity,
 } = require("./examScoring");
 const {
-  RANKING_CONFIG, resolveRankingWeight, calculateWeightedRankingScore, isEligibleScoringResult,
+  RANKING_CONFIG, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore, isEligibleScoringResult,
   getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel,
   getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
@@ -83,6 +83,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const answerKeysCount = Object.keys(answers).length;
+  const canonicalAnswersJson = canonicalizeAnswerPayload(answers);
+  const answersHash = crypto.createHash("sha256").update(canonicalAnswersJson).digest("hex");
   if (answerKeysCount > 1000) {
     throw new functions.https.HttpsError(
       "invalid-argument",
@@ -311,10 +313,20 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }
 
       // Check whether payload matches previous submission
-      const currentAnswersStr = typeof answers === "string" ? answers : JSON.stringify(answers);
-      const storedAnswersStr = typeof existing.answersJson === "string" ? existing.answersJson : JSON.stringify(existing.answersJson);
+      let storedAnswersHash = existing.answersHash || null;
+      if (!storedAnswersHash && existing.answersJson !== undefined) {
+        try {
+          const legacyAnswers = typeof existing.answersJson === "string"
+            ? JSON.parse(existing.answersJson)
+            : existing.answersJson;
+          storedAnswersHash = crypto.createHash("sha256")
+            .update(canonicalizeAnswerPayload(legacyAnswers)).digest("hex");
+        } catch (_) {
+          storedAnswersHash = null;
+        }
+      }
 
-      if (currentAnswersStr === storedAnswersStr) {
+      if (storedAnswersHash && storedAnswersHash === answersHash) {
         // Return existing canonical result without re-incrementing counters
         return {
           success: true,
@@ -552,7 +564,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
       timeSpentSeconds: cleanTimeSpent,
       dateTaken: clientTimestamp || Date.now(),
-      answersJson: typeof answers === "string" ? answers : JSON.stringify(answers),
+      answersJson: canonicalAnswersJson,
+      answersHash,
       attemptSessionToken: attemptDocId,
       isFirstAttempt,
       countsTowardRanking,
