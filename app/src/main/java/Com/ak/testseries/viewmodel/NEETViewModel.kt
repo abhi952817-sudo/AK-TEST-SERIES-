@@ -491,141 +491,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     if (!cloudRankSuccess) {
-                        val db = firestoreDb
-                        val userRef = db.collection("Users_Data").document(user.uid)
-                        val profileSnapshot = userRef.get().await()
-                        if (profileSnapshot.exists()) {
-                            val rawProfileClass = profileSnapshot.getString("classLevel").orEmpty().trim().lowercase()
-                            val profileClass = when (rawProfileClass) {
-                                "11", "11th", "class 11", "class 11th", "class_11" -> "11th"
-                                "12", "12th", "class 12", "class 12th", "class_12" -> "12th"
-                                "dropper", "repeater", "dropyear" -> "Dropper"
-                                else -> "All"
-                            }
-                            val normalizedClassFilter = when (classFilter.trim().lowercase()) {
-                                "11", "11th", "class 11", "class 11th", "class_11" -> "11th"
-                                "12", "12th", "class 12", "class 12th", "class_12" -> "12th"
-                                "dropper", "repeater", "dropyear" -> "Dropper"
-                                else -> "All"
-                            }
-
-                            if (normalizedClassFilter != "All" && profileClass != normalizedClassFilter) {
-                                _userQualifyingTestsCount.value = 0
-                                _userCompetitiveScore.value = 0
-                                _eligibleParticipantsCount.value = 0
-                                _isOfficialAirUnlocked.value = false
-                                _userRankStatus.value = "Not In Class Cohort"
-                                _userRank.value = "N/A"
-                                _userPercentile.value = 0.0
-                                _rankLastUpdatedTime.value = 0L
-                                _nextTargetMessage.value = "Your profile class does not match the selected class leaderboard."
-                            } else {
-                                // Exam_Leaderboards is the only canonical v2 score source.
-                                // Never fall back to legacy Users_Data aggregate fields.
-                                val entriesRef = db.collection("Exam_Leaderboards").document(canonicalExam)
-                                    .collection("Entries")
-                                val ownEntrySnapshot = entriesRef.document(user.uid).get().await()
-                                if (!ownEntrySnapshot.exists()) {
-                                    val legacyCount = (profileSnapshot.get("qualifyingTestsCount_$canonicalExam") as? Number)?.toInt() ?: 0
-                                    _userQualifyingTestsCount.value = legacyCount
-                                    _userCompetitiveScore.value = 0
-                                    _eligibleParticipantsCount.value = 0
-                                    _isOfficialAirUnlocked.value = false
-                                    _userRankStatus.value = if (legacyCount > 0) "Ranking Migration Pending" else "Rank Pending"
-                                    _userRank.value = "Pending"
-                                    _userPercentile.value = 0.0
-                                    _rankLastUpdatedTime.value = 0L
-                                    _nextTargetMessage.value = if (legacyCount > 0) {
-                                        "Legacy ranking data is awaiting a verified v2 rebuild. No legacy score is used for the current rank."
-                                    } else {
-                                        "Complete $minQualifyingTests qualifying tests to unlock your provisional ranking."
-                                    }
-                                } else {
-                                    val ownEntry = ownEntrySnapshot.data
-                                    val qualifyingTests = (ownEntry?.get("qualifyingTestsCount") as? Number)?.toInt() ?: 0
-                                    val competitiveScore = (ownEntry?.get("score") as? Number)?.toInt() ?: 0
-                                    val entryEligible = ownEntry?.get("isEligibleForRanking") == true &&
-                                        ownEntry?.get("isBanned") == false
-
-                                    _userQualifyingTestsCount.value = qualifyingTests
-                                    _userCompetitiveScore.value = competitiveScore
-
-                                    val eligibleQuery = entriesRef
-                                        .whereEqualTo("isEligibleForRanking", true)
-                                        .whereEqualTo("isBanned", false)
-                                        .let { query ->
-                                            if (normalizedClassFilter == "All") query
-                                            else query.whereEqualTo("classLevel", normalizedClassFilter)
-                                        }
-                                    val eligibleSnapshot = eligibleQuery.count()
-                                        .get(com.google.firebase.firestore.AggregateSource.SERVER).await()
-                                    val totalEligible = eligibleSnapshot.count.toInt()
-                                    _eligibleParticipantsCount.value = totalEligible
-                                    _isOfficialAirUnlocked.value = totalEligible >= airThreshold
-
-                                    if (!entryEligible || qualifyingTests < minQualifyingTests || competitiveScore <= 0 || totalEligible <= 0) {
-                                        _userRankStatus.value = "Rank Pending"
-                                        _userRank.value = "Pending"
-                                        _userPercentile.value = 0.0
-                                        _rankLastUpdatedTime.value = 0L
-                                        _nextTargetMessage.value = "Complete $minQualifyingTests qualifying tests to unlock your verified v2 ranking."
-                                    } else {
-                                        val higherQuery = eligibleQuery.whereGreaterThan("score", competitiveScore)
-                                        val higherSnapshot = higherQuery.count()
-                                            .get(com.google.firebase.firestore.AggregateSource.SERVER).await()
-                                        val higherCount = higherSnapshot.count.toInt()
-                                        val rank = higherCount + 1
-
-                                        if (rank > totalEligible) {
-                                            _userRankStatus.value = "Rank Pending"
-                                            _userRank.value = "Pending"
-                                            _userPercentile.value = 0.0
-                                            _rankLastUpdatedTime.value = 0L
-                                            _nextTargetMessage.value = "Ranking is being calculated against the current verified cohort."
-                                        } else {
-                                            val equalSnapshot = eligibleQuery.whereEqualTo("score", competitiveScore)
-                                                .count().get(com.google.firebase.firestore.AggregateSource.SERVER).await()
-                                            val equalCount = equalSnapshot.count.toInt()
-                                            val belowCount = (totalEligible - higherCount - equalCount).coerceAtLeast(0)
-                                            val percentile = if (totalEligible > 0) {
-                                                ((belowCount + equalCount).toDouble() / totalEligible.toDouble()) * 100.0
-                                            } else 0.0
-
-                                            _userRankStatus.value = if (totalEligible >= airThreshold) "Official AK AIR" else "Provisional Rank"
-                                            _userRank.value = "#$rank"
-                                            _userPercentile.value = Math.round(percentile.coerceIn(0.0, 100.0) * 100.0) / 100.0
-                                            _rankLastUpdatedTime.value = System.currentTimeMillis()
-
-                                            if (rank > 1) {
-                                                val higherDoc = eligibleQuery.whereGreaterThan("score", competitiveScore)
-                                                    .orderBy("score", com.google.firebase.firestore.Query.Direction.ASCENDING)
-                                                    .limit(1).get().await().documents.firstOrNull()
-                                                if (higherDoc != null) {
-                                                    val higherScore = (higherDoc.get("score") as? Number)?.toInt() ?: 0
-                                                    val pointsAway = (higherScore - competitiveScore).coerceAtLeast(0)
-                                                    val targetName = if ((higherDoc.getString("profileVisibility") ?: "PUBLIC").equals("PRIVATE", ignoreCase = true)) {
-                                                        "Private Student"
-                                                    } else {
-                                                        higherDoc.getString("displayName") ?: "Student"
-                                                    }
-                                                    _nextTargetMessage.value = "Next target: $targetName — You are $pointsAway normalized ranking points away."
-                                                } else {
-                                                    _nextTargetMessage.value = "Keep practicing to climb higher on the $rawExam leaderboard!"
-                                                }
-                                            } else {
-                                                _nextTargetMessage.value = "You are Rank #1 on the $rawExam leaderboard."
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            _userRank.value = "-"
-                            _userRankStatus.value = "Rank Pending"
-                            _userPercentile.value = 0.0
-                            _rankLastUpdatedTime.value = 0L
-                            _nextTargetMessage.value = "Complete $minQualifyingTests qualifying tests to unlock your ranking."
-                        }
+                        _userQualifyingTestsCount.value = 0
+                        _userCompetitiveScore.value = 0
+                        _eligibleParticipantsCount.value = 0
+                        _isOfficialAirUnlocked.value = false
+                        _userRank.value = "-"
+                        _userRankStatus.value = "Ranking Service Unavailable"
+                        _userPercentile.value = 0.0
+                        _rankLastUpdatedTime.value = 0L
+                        _nextTargetMessage.value = "The secure ranking service is unavailable. No raw leaderboard fallback was used."
                     }
                 } else {
                     _userRank.value = "-"
@@ -833,107 +707,45 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         leaderboardExamFilter.value = rawExam
         leaderboardClassFilter.value = classFilter
 
-        try {
-            val db = firestoreDb
-            
-            val baseQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
-                .collection("Entries")
-                .whereEqualTo("isEligibleForRanking", true)
-                .whereEqualTo("isBanned", false)
-            val classQuery = if (classFilter == "All") baseQuery else baseQuery.whereEqualTo("classLevel", classFilter)
-            leaderboardListener = classQuery
-                .orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .limit(100)
-                .addSnapshotListener { snapshot, e ->
-                    if (e != null || snapshot == null || snapshot.isEmpty) {
-                        fetchLeaderboardFallback(rawExam, classFilter)
-                        return@addSnapshotListener
-                    }
-                    val list = mutableListOf<Com.ak.testseries.domain.auth.LeaderboardEntry>()
-                    var prevScore: Int? = null
-                    var prevRank = 1
-                    for ((index, doc) in snapshot.documents.withIndex()) {
-                        val name = if ((doc.getString("profileVisibility") ?: "PUBLIC").equals("PRIVATE", ignoreCase = true)) "Private Student" else (doc.getString("displayName") ?: "Student")
-                        val score = (doc.getLong("score") ?: 0L).toInt()
-                        val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
-                        val qCount = (doc.getLong("totalTestsAttempted") ?: doc.getLong("qualifyingTestsCount") ?: 0L).toInt()
-                        val streakVal = (doc.getLong("streakDays") ?: doc.getLong("streak") ?: 0L).toInt()
-                        // Exam ranking score is not XP. League is deliberately not inferred from AIR points.
-                        val leagueVal = doc.getString("xpLeague") ?: "Exam Rank"
-                        val assignedRank = if (prevScore != null && score == prevScore) {
-                            prevRank
-                        } else {
-                            index + 1
-                        }
-                        prevScore = score
-                        prevRank = assignedRank
-
-                        list.add(
-                            Com.ak.testseries.domain.auth.LeaderboardEntry(
-                                rank = assignedRank,
-                                name = name,
-                                score = score,
-                                uid = uid,
-                                targetExam = canonicalExam,
-                                qualifyingTestsCount = qCount,
-                                streak = streakVal,
-                                league = leagueVal
-                            )
-                        )
-                    }
-                    _leaderboard.value = list
+        // Use the callable's privacy-filtered projection. Raw Firestore board documents
+        // contain internal user IDs and are intentionally not directly readable by clients.
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                    .getHttpsCallable("getExamLeaderboard")
+                    .call(mapOf(
+                        "targetExam" to canonicalExam,
+                        "classLevel" to classFilter,
+                        "limit" to 100
+                    )).await()
+                val response = result.data as? Map<*, *>
+                val rows = response?.get("entries") as? List<*> ?: emptyList<Any>()
+                val officialAir = response?.get("isOfficialAkAir") as? Boolean ?: false
+                val list = rows.mapNotNull { item ->
+                    val row = item as? Map<*, *> ?: return@mapNotNull null
+                    val rank = (row["rank"] as? Number)?.toInt() ?: return@mapNotNull null
+                    val score = (row["score"] as? Number)?.toInt() ?: 0
+                    val name = row["displayName"] as? String ?: "Student"
+                    val uid = row["userId"] as? String ?: ""
+                    val qualifyingCount = (row["qualifyingTestsCount"] as? Number)?.toInt() ?: 0
+                    Com.ak.testseries.domain.auth.LeaderboardEntry(
+                        rank = rank,
+                        name = name,
+                        score = score,
+                        uid = uid,
+                        targetExam = canonicalExam,
+                        qualifyingTestsCount = qualifyingCount,
+                        isOfficialAir = officialAir,
+                        league = "Exam Rank"
+                    )
                 }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            fetchLeaderboardFallback(rawExam, classFilter)
-        }
-    }
-
-    private fun fetchLeaderboardFallback(targetExam: String, classFilter: String = leaderboardClassFilter.value) {
-        try {
-            val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(targetExam)
-            if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || targetExam.equals("All", ignoreCase = true)) {
+                _leaderboard.value = list
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "Privacy-safe leaderboard fetch failed: ${e.message}", e)
                 _leaderboard.value = emptyList()
-                return
             }
-            val db = firestoreDb
-            val baseQuery = db.collection("Exam_Leaderboards").document(canonicalExam)
-                .collection("Entries")
-                .whereEqualTo("isEligibleForRanking", true)
-                .whereEqualTo("isBanned", false)
-            val classQuery = if (classFilter == "All") baseQuery else baseQuery.whereEqualTo("classLevel", classFilter)
-            classQuery.orderBy("score", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .limit(100)
-                .get()
-                .addOnSuccessListener { snapshot ->
-                    if (snapshot != null && !snapshot.isEmpty) {
-                        val list = mutableListOf<Com.ak.testseries.domain.auth.LeaderboardEntry>()
-                        var prevScore: Int? = null
-                        var prevRank = 1
-                        for ((index, doc) in snapshot.documents.withIndex()) {
-                            val name = if ((doc.getString("profileVisibility") ?: "PUBLIC").equals("PRIVATE", ignoreCase = true)) "Private Student" else (doc.getString("displayName") ?: "Student")
-                            val score = (doc.getLong("score") ?: 0L).toInt()
-                            val uid = doc.getString("userId") ?: doc.getString("uid") ?: doc.id
-                            val assignedRank = if (prevScore != null && score == prevScore) {
-                                prevRank
-                            } else {
-                                index + 1
-                            }
-                            prevScore = score
-                            prevRank = assignedRank
-                            list.add(Com.ak.testseries.domain.auth.LeaderboardEntry(assignedRank, name, score, uid, targetExam = canonicalExam))
-                        }
-                        _leaderboard.value = list
-                    }
-                }
-                .addOnFailureListener {
-                    // Non-blocking graceful fallback
-                }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
-
 
     // --- Test Folder organizing feature ---
     private val _folders = MutableStateFlow<List<TestFolder>>(emptyList())
@@ -6894,9 +6706,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
 
     private suspend fun requireNoExistingRankingContributionsBeforeVisibilityChange(testId: String) {
-        val rankingEntries = firestoreDb.collection("Test_Leaderboards")
-            .document(testId).collection("Entries").limit(1).get().await()
-        require(rankingEntries.isEmpty) {
+        val result = com.google.firebase.functions.FirebaseFunctions.getInstance()
+            .getHttpsCallable("hasTestRankingContributions")
+            .call(mapOf("testId" to testId)).await()
+        val response = result.data as? Map<*, *>
+        require(response?.get("hasContributions") != true) {
             "This test already has ranking contributions. Visibility changes are blocked until a reviewed ranking rebuild can remove or preserve those contributions safely."
         }
     }
