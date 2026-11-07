@@ -929,3 +929,19 @@ A behavior audit found that `currentStreak`, `longestStreak` and `lastActivityDa
 **Changed files:** `backend_functions/index.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`.
 
 **Verification:** waiting for backend CI on the latest branch head. No production user records were changed.
+
+
+### 2.29 Raw ranking-board privacy — callable-only client access — 2026-11-07
+
+A privacy audit found that the v2 materialized board documents stored internal `userId` values even when `profileVisibility == PRIVATE`. The callable leaderboard APIs already redact the user ID for private profiles, but Firestore rules still allowed any authenticated client to read raw Exam_Leaderboards, Test_Leaderboards, Ranking_Periods and XP leaderboard documents directly. The Android app also bypassed the sanitized callable in its leaderboard and rank fallback paths.
+
+**Fix applied:**
+- Added admin-only callable `hasTestRankingContributions` for the visibility-change preflight; Android no longer directly reads Test_Leaderboards.
+- Android exam leaderboard now uses `getExamLeaderboard` callable and maps the privacy-filtered projection. Direct Firestore listener/fallback reads were removed.
+- Android rank fallback no longer queries raw Exam_Leaderboards. If the secure callable is unavailable, the UI reports service unavailable instead of using raw materializations.
+- Firestore rules now deny direct client reads of Test_Leaderboards, Exam_Leaderboards, Ranking_Periods, XP_Leaderboard_AllTime and XP_Leaderboard_Weekly. Server/Admin SDK and callable APIs remain the access path. User_Ranks remains owner/admin-only; XP_Transactions remains owner/admin-only.
+- Firestore Emulator tests now assert raw ranking materializations cannot be read directly, while sanitized callable APIs remain the client interface.
+
+**Changed files:** `backend_functions/index.js`, `NEETViewModel.kt`, `firestore.rules`, `firestore.test.js`.
+
+**Compatibility and rollout:** Android and backend callable code must be deployed together with the new Firestore rules. Existing direct-read clients will receive permission-denied until updated. Do not deploy rules alone. The public legacy `Leaderboard` collection is still retained for legacy compatibility and requires a separate usage/privacy audit before removal.
