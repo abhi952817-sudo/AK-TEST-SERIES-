@@ -863,3 +863,16 @@ The Android job for workflow run `42354507259` completed with failure. Backend u
 **Important verification limits:** this is a post-commit live snapshot, not an immutable historical rank. The higher-score count and total count are separate aggregation reads and may observe slightly different moments while other submissions are arriving; a population consistency/scale test is still required before claiming an exact serialized rank snapshot under heavy concurrency. The installed lockfile resolves `firebase-admin 12.7.0`; this implementation deliberately does not depend on transaction aggregation support. CI must run against the new code commits. No deployment, migration, main-branch update or production Firestore write was performed.
 
 **Next checks:** (1) inspect Android result handling and expose `rankStatus` without converting null/unavailable into rank zero; (2) test concurrent first submissions and retry semantics in Firestore Emulator or an isolated integration harness; (3) verify required indexes and aggregation behavior; (4) continue the full file-by-file integration audit for AIR, XP, periods, class cohorts, privacy/ban updates, migration and security.
+
+
+### 2.23 Period and XP leaderboard input validation hardening — 2026-11-07
+
+A follow-up endpoint audit found two input-validation gaps:
+- `getRankingPeriodLeaderboard` accepted a malformed class cohort as a null filter and relied on a loose period-ID regex that allowed impossible month values such as month 00 or 13.
+- `getXpLeaderboard` accepted arbitrary weekly collection IDs instead of validating ISO week syntax and week range.
+
+**Fix applied:** added shared pure validators `isValidRankingPeriodId` and `isValidRankingWeekId`; the period endpoint now rejects invalid class levels and enforces month 01–12 plus the correct H1/H2 suffix for HALF_MONTH versus MONTH. Weekly XP now requires a valid `YYYY-W01..W53` identifier. Added deterministic unit tests for valid and invalid cases.
+
+**Changed files:** `backend_functions/index.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`.
+
+**Verification:** awaiting CI for the current branch head. No Firestore data was changed. The broader audit remains open, including period migration write batching, cross-query population consistency, Android rankStatus visibility, and all ranking/security edge cases.
