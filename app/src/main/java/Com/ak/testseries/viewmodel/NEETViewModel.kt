@@ -770,17 +770,33 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun fetchLeaderboard(selectedExam: String? = null, selectedClassLevel: String? = null) {
-        val rawExam = selectedExam ?: leaderboardExamFilter.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET" } }
+        val rawExam = selectedExam
+            ?: leaderboardExamFilter.value.takeIf { it.isNotBlank() }
+            ?: _userProfile.value.targetExam.takeIf { it.isNotBlank() }
+            ?: ""
         val classFilter = selectedClassLevel ?: leaderboardClassFilter.value
-        leaderboardExamFilter.value = rawExam
-        leaderboardClassFilter.value = classFilter
-        val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
         leaderboardListener?.remove()
+        leaderboardListener = null
+        _leaderboard.value = emptyList()
 
-        if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" || rawExam.equals("All", ignoreCase = true)) {
-            _leaderboard.value = emptyList()
+        // Never silently route an unset exam to NEET or another default board.
+        if (rawExam.isBlank() || rawExam.equals("All", ignoreCase = true)) {
+            leaderboardExamFilter.value = ""
+            leaderboardClassFilter.value = classFilter
             return
         }
+        val canonicalExam = Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(rawExam)
+        if (canonicalExam == "ALL" || canonicalExam == "UNKNOWN" ||
+            !Com.ak.testseries.exam.UniversalExamRegistry.isExamVerified(
+                canonicalExam.lowercase()
+            )
+        ) {
+            leaderboardExamFilter.value = rawExam
+            leaderboardClassFilter.value = classFilter
+            return
+        }
+        leaderboardExamFilter.value = rawExam
+        leaderboardClassFilter.value = classFilter
 
         try {
             val db = firestoreDb
