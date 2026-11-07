@@ -137,7 +137,7 @@ object UniversalPdfPipeline {
         } else ""
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
-        val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
+        val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }.toMutableMap()
         val effectiveApiKey = apiKey ?: BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
 
         // Process in controlled batches to save API tokens and maintain reliability
@@ -200,6 +200,7 @@ object UniversalPdfPipeline {
 
                 // Only call the model when actual PDF text was extracted; never invent a paper from an empty/unreadable PDF.
                 if (!batchModels.isNullOrEmpty()) {
+                    batchModels.forEach { existingHashes[it.duplicateHash] = it.questionText }
                     var finalBatch = batchModels
                     val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
 
@@ -256,6 +257,7 @@ object UniversalPdfPipeline {
                                         }
                                     }
                                     finalBatch = mutableBatch
+                                    regenQuestions.forEach { existingHashes[it.duplicateHash] = it.questionText }
                                 }
                             }
                         } catch (e: Exception) {
@@ -426,7 +428,7 @@ object UniversalPdfPipeline {
                 }
 
                 val qTypeStr = item.optString("questionType").uppercase()
-                val parsedQType = when {
+                val parsedQType = if (qTypeStr.isBlank()) sectionConfig.questionType else when {
                     qTypeStr.contains("STATEMENT_I") || qTypeStr.contains("STATEMENT_1") -> QuestionType.STATEMENT_I_II
                     qTypeStr.contains("ASSERTION") -> QuestionType.ASSERTION_REASON
                     qTypeStr.contains("MATCH") -> QuestionType.MATCH_LIST_I_II
@@ -435,7 +437,7 @@ object UniversalPdfPipeline {
                     qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
                     qTypeStr.contains("GRAPH") -> QuestionType.GRAPH
                     qTypeStr.contains("DIRECT") || qTypeStr.contains("MCQ") -> QuestionType.DIRECT_MCQ
-                    else -> sectionConfig.questionType
+                    else -> continue
                 }
                 if (parsedQType !in examConfig.supportedQuestionTypes) continue
                 if (parsedQType != sectionConfig.questionType &&
