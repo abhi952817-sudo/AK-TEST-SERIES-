@@ -53,9 +53,9 @@ function resolveRankingWeight(testData = {}) {
     .toLowerCase();
   const isPart = testData.isPartTest === true ||
     testData.isChapterTest === true ||
-    /\\b(chapter|topic|subject|part)\\b/.test(labels);
+    /\b(chapter|topic|subject|part)\b/.test(labels);
   const isFull = testData.isFullTest === true ||
-    /\\b(full|complete|grand)\\b/.test(labels);
+    /\b(full|complete|grand)\b/.test(labels);
 
   // A record cannot be both full and part. Explicit weights never override conflicting metadata.
   if (isPart && isFull) return null;
