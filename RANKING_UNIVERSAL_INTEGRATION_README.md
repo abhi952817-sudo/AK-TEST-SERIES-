@@ -637,3 +637,12 @@ At the start of every later session:
 - Live comparison at this checkpoint: `main` → integration reports 320 commits ahead / 0 behind. The integration branch contains main history; 0 behind means no main commits are missing, not that changed shared files have no semantic overlap. The changed-path diff still requires final review. PR #3 remains DRAFT; PRs #1 and #2 remain open. No merge, deployment, rules deployment, or production migration was performed.
 - Canonical v2 exam AIR remains `Exam_Leaderboards/{examId}/Entries/{uid}`; per-test ranking remains `Test_Leaderboards`; period boards remain `Ranking_Periods`; XP boards remain separate. Legacy `Leaderboard` / `User_Ranks` collections are not used as a second write target for new v2 AIR totals. Existing legacy records are not deleted or silently converted.
 - Remaining exit blockers are unchanged: emulator-backed production callable transaction/race tests, full official-source/year-stage-paper coverage, Kotlin/Node golden-vector parity, ranking history snapshots, privacy/ban retrieval audit, migration dry-run/rollback evidence, and a fully green latest-head CI run.
+
+
+### 2.15 CI failure triage — 2026-11-07
+
+- Workflow #578 / run `42346012660` backend job failed 1 test out of the scoring/callable/ranking suite. The failing test was `ranking-eligible tests require complete trusted private answer keys`; the production validator correctly rejected its fixture because the fixture omitted required canonical `stageId` and `paperId`.
+- Corrected the test fixture to use the verified NEET identity `neet_main / neet_paper_1` in commit `204f5e937d2518357343149f782f12169d948620`. Production validation was not weakened.
+- Run #578 is still not a green validation: backend is FAILED for the earlier fixture revision; Android and Firestore jobs remained IN PROGRESS at the last poll. The connector returned no new workflow run for the fixture-fix commit, so the correction remains unverified by CI.
+- Latest branch comparison: `main` → integration is 324 commits ahead / 0 behind. There are 38 changed paths relative to main. This is not a zero-overlap diff: many files intentionally reconcile shared features. The safety rule is to preserve main's current content and reconcile each changed shared file semantically; never blindly overwrite or cherry-pick the Universal branch wholesale.
+- No merge or production operation was performed. PR #3 remains a draft integration-validation PR, and main remains untouched.
