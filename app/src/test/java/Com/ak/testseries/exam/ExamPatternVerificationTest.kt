@@ -90,6 +90,7 @@ class ExamPatternVerificationTest {
             assertEquals(5, numerical.compulsoryQuestions)
             assertEquals(0, numerical.optionsCount)
             assertEquals(QuestionType.NUMERICAL_VALUE, numerical.questionType)
+            assertTrue("JEE numerical section must enforce integer answer format", numerical.integerAnswerRequired)
         }
         assertEquals(75, paper.subjects.sumOf { it.sections.sumOf { section -> section.compulsoryQuestions } })
     }
