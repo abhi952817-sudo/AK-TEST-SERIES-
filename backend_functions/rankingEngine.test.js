@@ -56,6 +56,10 @@ test("test weight resolution recognizes part and chapter tests", () => {
   assert.equal(resolveRankingWeight({ isChapterTest: true }), 0.2);
   assert.equal(resolveRankingWeight({ category: "Medical Entrance", testType: "Full Test" }), 1);
   assert.equal(resolveRankingWeight({ category: "Full Test", testType: "Chapter Test" }), null);
+  assert.equal(resolveRankingWeight({ rankingWeight: 1, isPartTest: true }), null);
+  assert.equal(resolveRankingWeight({ rankingWeight: 0.2, isFullTest: true }), null);
+  assert.equal(resolveRankingWeight({ rankingWeight: 1, category: "Full Test", testType: "Part Test" }), null);
+  assert.equal(resolveRankingWeight({ rankingWeight: 0.2, category: "Part Test", testType: "Full Test" }), null);
 });
 
 test("India date, weekly and half-month periods use Asia/Kolkata", () => {
