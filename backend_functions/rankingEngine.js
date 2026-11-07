@@ -145,6 +145,13 @@ function getRankingPeriodIds(timestamp = Date.now()) {
   };
 }
 
+function resolveClassLevelFilter(value) {
+  if (value === undefined || value === null || String(value).trim() === "") return "All";
+  const normalized = normalizeClassLevel(value);
+  if (normalized === "All" && String(value).trim().toLowerCase() !== "all") return null;
+  return normalized;
+}
+
 function normalizeClassLevel(value) {
   const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]/g, "");
   if (["11", "11th", "class11", "class11th"].includes(normalized)) return "11th";
@@ -234,6 +241,7 @@ module.exports = {
   getIndiaWeekId,
   getRankingPeriodIds,
   normalizeClassLevel,
+  resolveClassLevelFilter,
   getLeagueForXp,
   calculateXpAward,
   calculateCompetitionRank,
