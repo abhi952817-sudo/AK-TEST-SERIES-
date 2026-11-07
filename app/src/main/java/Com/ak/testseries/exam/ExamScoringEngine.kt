@@ -315,15 +315,22 @@ object ExamScoringEngine {
                 question.questionType.equals("NUMERICAL", true) ||
                 question.questionType.equals("TITA", true) ||
                 question.questionType.equals("NAT", true)
-            val keyVerified = if (numerical) correctOpt.toDoubleOrNull()?.isFinite() == true
-                else correctOpt in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            val integerAnswerRequired = numerical &&
+                UniversalExamRegistry.isIntegerAnswerRequiredForQuestion(
+                    targetExam, question.section, question.subject, question.questionType
+                )
+            val numericKey = correctOpt.toDoubleOrNull()
+            val keyVerified = if (numerical) {
+                numericKey?.isFinite() == true &&
+                    (!integerAnswerRequired || numericKey % 1.0 == 0.0)
+            } else correctOpt in setOf("A", "B", "C", "D", "1", "2", "3", "4")
             if (!keyVerified) {
                 stat.ungraded++
                 return@forEach
             }
 
             val userOpt = userAnswers[question.id]?.trim()?.uppercase()
-            if (userOpt.isNullOrEmpty()) return@forEach
+            if (userOpt.isNullOrEmpty() || userOpt == "SKIPPED") return@forEach
             if (isUserAnswerCorrect(userOpt, correctOpt, numerical)) {
                 stat.correct++
                 stat.score += qPosMark
