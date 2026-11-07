@@ -15,7 +15,7 @@ const {
   RANKING_CONFIG, clampRankingLimit, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
   isEligibleScoringResult, isEligibleHistoricalRankingTest,
   getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, isValidRankingPeriodId, isValidRankingWeekId, normalizeClassLevel, resolveClassLevelFilter,
-  getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, buildTestRankingSnapshot, getRankingStatus, getCohortRankingStatus
+  getLeagueForXp, calculateXpAward, calculateDailyStreak, calculatePercentileFromCounts, buildTestRankingSnapshot, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
@@ -488,9 +488,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const currentWeekXp = userData.xpWeekId === rankingWeekId ? Number(userData.xpThisWeek || 0) : 0;
     const previousActivityDate = String(userData.lastActivityDateIST || "");
     const yesterdayDateKey = getIndiaDateKey(rankingNow - 86400000);
-    const currentStreak = previousActivityDate === rankingDateKey
-      ? Number(userData.currentStreak || 0)
-      : (previousActivityDate === yesterdayDateKey ? Number(userData.currentStreak || 0) + 1 : 1);
+    const currentStreak = calculateDailyStreak(previousActivityDate, rankingDateKey, userData.currentStreak);
+    const shouldRecordActivity = isPubliclyAvailable;
     const newXpTotal = currentXpTotal + xpAward;
     const newWeekXp = currentWeekXp + xpAward;
 
@@ -509,13 +508,15 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       monthPeriodSnap = await transaction.get(monthPeriodRef);
     }
 
+    if (shouldRecordActivity) {
+      updates.currentStreak = currentStreak;
+      updates.longestStreak = Math.max(Number(userData.longestStreak || 0), currentStreak);
+      updates.lastActivityDateIST = rankingDateKey;
+    }
     if (shouldAwardXp) {
       updates.xpTotal = newXpTotal;
       updates.xpThisWeek = newWeekXp;
       updates.xpWeekId = rankingWeekId;
-      updates.currentStreak = currentStreak;
-      updates.longestStreak = Math.max(Number(userData.longestStreak || 0), currentStreak);
-      updates.lastActivityDateIST = rankingDateKey;
       updates.xpLeague = getLeagueForXp(newXpTotal);
     }
 
@@ -681,7 +682,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       xpTotal: newXpTotal,
       xpThisWeek: newWeekXp,
       xpLeague: getLeagueForXp(newXpTotal),
-      currentStreak: shouldAwardXp ? currentStreak : Number(userData.currentStreak || 0),
+      currentStreak: shouldRecordActivity ? currentStreak : Number(userData.currentStreak || 0),
       rankingPeriodIds: isFirstQualifyingAttempt ? rankingPeriodIds : null,
       isFirstQualifyingAttempt
     };
