@@ -488,6 +488,27 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
 }
 
 /**
+ * Resolve the test's canonical exam identity without guessing from its subject or defaulting to NEET.
+ * Prefer the explicit canonical examId, then the display targetExam for legacy records.
+ */
+function resolveCanonicalExamIdentity(testData = {}) {
+  const identity = [testData.examId, testData.targetExam]
+    .find(value => typeof value === "string" && value.trim().length > 0);
+  if (!identity) {
+    const err = new Error("Test is missing a canonical examId/targetExam; refusing to score or rank it under a guessed exam.");
+    err.code = "failed-precondition";
+    throw err;
+  }
+  const canonical = normalizeExamKey(identity);
+  if (!canonical || canonical === "UNKNOWN" || canonical === "ALL") {
+    const err = new Error("Test has an invalid or non-specific exam identity; refusing to score or rank it.");
+    err.code = "failed-precondition";
+    throw err;
+  }
+  return canonical;
+}
+
+/**
  * Calculates exam-specific eligibility and qualifying test counts.
  * Strictly guarantees that qualifying tests in one exam (e.g. NEET) do not unlock
  * eligibility or count towards another exam (e.g. JEE Main).
@@ -531,4 +552,5 @@ module.exports = {
   validateAndMergeAnswerKeys,
   getExamEligibility,
   normalizeExamKey,
+  resolveCanonicalExamIdentity,
 };
