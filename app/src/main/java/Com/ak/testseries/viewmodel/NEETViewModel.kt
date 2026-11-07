@@ -294,7 +294,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val _userRank = MutableStateFlow<String>("-")
     val userRank: StateFlow<String> = _userRank.asStateFlow()
 
-    val leaderboardExamFilter = MutableStateFlow("NEET")
+    val leaderboardExamFilter = MutableStateFlow("")
     val leaderboardClassFilter = MutableStateFlow("All")
 
     private val _rankingMigrationCursor = MutableStateFlow("")
@@ -1227,7 +1227,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             stateName = prefs.getString("stateName", "") ?: "",
             cityName = prefs.getString("cityName", "") ?: "",
             profileImageUri = prefs.getString("profileImageUri", "") ?: "",
-            targetExam = prefs.getString("targetExam", "NEET") ?: "NEET",
+            targetExam = prefs.getString("targetExam", "") ?: "",
             classLevel = prefs.getString("classLevel", "") ?: ""
         )
         
@@ -2128,7 +2128,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val genLanguage = MutableStateFlow("English")
     val genSubject = MutableStateFlow("Physics")
     val genType = MutableStateFlow("Chapter Test")
-    val genTargetExam = MutableStateFlow("NEET")
+    val genTargetExam = MutableStateFlow("")
     val genQuestionsCount = MutableStateFlow(5)
     val genIsLive = MutableStateFlow(false)
     val genIsPublic = MutableStateFlow(true)
@@ -2189,7 +2189,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val uid = doc.getString("uid") ?: doc.id
                     val name = doc.getString("name") ?: "Unknown User"
                     val email = doc.getString("email") ?: "No Email"
-                    val targetExam = doc.getString("targetExam") ?: "NEET"
+                    val targetExam = doc.getString("targetExam") ?: ""
                     val classLevel = doc.getString("classLevel") ?: ""
                     users.add(mapOf("uid" to uid, "name" to name, "email" to email, "targetExam" to targetExam, "classLevel" to classLevel))
                 }
@@ -3520,8 +3520,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val title = doc.getString("title")?.trim() ?: ""
         if (title.isBlank()) return null
 
-        val targetExam = doc.getString("targetExam")?.trim()?.ifBlank { "NEET" } ?: "NEET"
-        val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 180
+        val targetExam = doc.getString("examId")?.trim()?.takeIf { it.isNotBlank() }
+            ?: doc.getString("targetExam")?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+            ?.takeIf { it.active && it.verified } ?: return null
+        val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: return null
         if (durationMinutes <= 0) return null
 
         val totalMarksVal = (doc.get("totalMarks") as? Number)?.toDouble()
@@ -3739,8 +3743,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val questionsJson = doc.getString("questionsJson")?.trim() ?: ""
         if (questionsJson.isBlank()) return null
 
-        val targetExam = doc.getString("targetExam")?.trim()?.ifBlank { "NEET" } ?: "NEET"
-        val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 180
+        val targetExam = doc.getString("examId")?.trim()?.takeIf { it.isNotBlank() }
+            ?: doc.getString("targetExam")?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+            ?.takeIf { it.active && it.verified } ?: return null
+        val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: return null
         if (durationMinutes <= 0) return null
         val creatorId = doc.getString("uploaderId")?.trim() ?: "anonymous"
         val description = doc.getString("description")?.trim() ?: ""
@@ -3969,8 +3977,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                                 optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                                 explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                                questionType = qObj.optString("questionType", "MCQ"),
-                                section = qObj.optString("section", "SECTION_A"),
+                                questionType = qObj.optString("questionType"),
+                                section = qObj.optString("section"),
                                 needsImage = qObj.optBoolean("needsImage", false),
                                 imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
                             )
