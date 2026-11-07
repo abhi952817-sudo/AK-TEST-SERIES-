@@ -375,8 +375,11 @@ function calculateScorePercentileFromCounts(countBelow, countEqual, totalCount) 
  *    - Falls back to public question properties if private key is absent.
  */
 function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
-  const countsTowardRanking = (testData.countsTowardRanking === true || (testData.countsTowardRanking !== false && testData.isOfficial === true)) &&
-                              (testData.isOfficial === true || testData.isPublic === true);
+  const status = String(testData.status || "").trim().toUpperCase();
+  const countsTowardRanking = testData.isOfficial === true &&
+    testData.isPublic === true &&
+    testData.countsTowardRanking === true &&
+    ["APPROVED", "PUBLISHED"].includes(status);
 
   const keyMap = new Map();
   if (privateKeyData) {
@@ -416,6 +419,63 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
       };
     }
   });
+
+  if (countsTowardRanking) {
+    const examIdentity = resolveCanonicalExamIdentity(testData);
+    for (const q of mergedQuestions) {
+      const questionText = String(q.questionText || q.questionTextEn || q.question || "").trim();
+      if (!questionText) {
+        const err = new Error("Ranking-eligible question is missing question text.");
+        err.code = "failed-precondition";
+        throw err;
+      }
+      const policy = resolveVerifiedQuestionPolicy(examIdentity, q);
+      if (!policy) {
+        const err = new Error("Ranking-eligible question has an unsupported subject, section, or question type.");
+        err.code = "failed-precondition";
+        throw err;
+      }
+      const answer = String(q.correctAnswer || "").trim().toUpperCase();
+      const isNumerical = policy.questionType === "NUMERICAL_VALUE";
+      const validAnswer = isNumerical
+        ? isFiniteNumericAnswer(answer)
+        : ["A", "B", "C", "D"].includes(answer);
+      if (!validAnswer) {
+        const err = new Error("Ranking-eligible question has an invalid trusted answer key.");
+        err.code = "failed-precondition";
+        throw err;
+      }
+      if (policy.optionsCount > 0) {
+        let options = [];
+        if (Array.isArray(q.options)) {
+          options = q.options.map(option => String(
+            option && typeof option === "object" ? (option.text || option.value || option.label || "") : option || ""
+          ).trim());
+        } else {
+          options = ["A", "B", "C", "D", "E"].slice(0, policy.optionsCount).map((letter, index) => {
+            const suffix = letter;
+            return String(q[`option${suffix}En`] ?? q[`option${suffix}`] ?? "").trim();
+          });
+        }
+        if (options.length !== policy.optionsCount || options.some(option => !option) ||
+            new Set(options.map(option => option.toLowerCase())).size !== options.length) {
+          const err = new Error("Ranking-eligible MCQ has missing, duplicate, or incorrectly counted options.");
+          err.code = "failed-precondition";
+          throw err;
+        }
+      }
+      if (q.positiveMarks !== undefined && Number(q.positiveMarks) !== policy.pos) {
+        const err = new Error("Question positive marks conflict with the verified section policy.");
+        err.code = "failed-precondition";
+        throw err;
+      }
+      if (q.negativeMarks !== undefined && Number(q.negativeMarks) !== policy.neg) {
+        const err = new Error("Question negative marks conflict with the verified section policy.");
+        err.code = "failed-precondition";
+        throw err;
+      }
+    }
+  }
 
   const solutionKeys = {};
   for (const q of mergedQuestions) {
