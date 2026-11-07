@@ -5310,6 +5310,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 ?: currentTargetExam
                             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(examLookup)
                                 ?: throw IllegalArgumentException("No exact supported exam was identified. Select the exam manually; no NEET/default exam will be assumed.")
+                            val selectedExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
+                            require(selectedExamConfig == null || selectedExamConfig.examId == examConfig.examId) {
+                                "PDF exam identity conflicts with the selected exam. Resolve the conflict before continuing."
+                            }
                             require(examConfig.active && examConfig.verified) {
                                 "The identified exam pattern is not source-verified. Scoring metadata cannot be inferred."
                             }
@@ -5358,12 +5362,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val lowerText = extractedText.lowercase()
 
             // 1. Detect Target Exam from text across 20 exams
-            val detectedExamConfig = registeredExams.singleOrNull { exam ->
+            val textMatchedExams = registeredExams.filter { exam ->
                 lowerText.contains(exam.examName.lowercase()) ||
                 lowerText.contains(exam.shortName.lowercase()) ||
                 lowerText.contains(exam.examId.lowercase().replace("_", " "))
-            } ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
+            }
+            require(textMatchedExams.size <= 1) {
+                "PDF mentions multiple supported exam identities. Select and verify the correct exam before continuing."
+            }
+            val selectedExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
+            val detectedExamConfig = textMatchedExams.singleOrNull() ?: selectedExamConfig
                 ?: throw IllegalArgumentException("Could not identify one exact exam from the PDF. Select the exam manually; no default exam will be assigned.")
+            require(selectedExamConfig == null || selectedExamConfig.examId == detectedExamConfig.examId) {
+                "PDF exam identity conflicts with the selected exam. Resolve the conflict before continuing."
+            }
             require(detectedExamConfig.active && detectedExamConfig.verified) {
                 "The detected exam is not source-verified. No scoring or test metadata will be guessed."
             }
