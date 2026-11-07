@@ -154,8 +154,8 @@ function clampRankingLimit(value, fallback = 100, min = 1, max = 100) {
 function isValidRankingPeriodId(periodType, periodId) {
   const type = String(periodType || "").toUpperCase();
   const id = String(periodId || "");
-  if (type === "HALF_MONTH") return /^\\d{4}-(0[1-9]|1[0-2])-H[12]$/.test(id) && Number(id.slice(0, 4)) > 0;
-  if (type === "MONTH") return /^\\d{4}-(0[1-9]|1[0-2])$/.test(id) && Number(id.slice(0, 4)) > 0;
+  if (type === "HALF_MONTH") return /^\d{4}-(0[1-9]|1[0-2])-H[12]$/.test(id) && Number(id.slice(0, 4)) > 0;
+  if (type === "MONTH") return /^\d{4}-(0[1-9]|1[0-2])$/.test(id) && Number(id.slice(0, 4)) > 0;
   return false;
 }
 
