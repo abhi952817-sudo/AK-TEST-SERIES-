@@ -11,6 +11,7 @@ const {
   clampRankingLimit,
   isValidRankingWeekId,
   getLeagueForXp,
+  calculateDailyStreak,
   calculateXpAward,
   calculateCompetitionRank,
   calculatePercentileFromCounts,
@@ -261,4 +262,13 @@ test("per-test rank snapshot does not rank a banned canonical board entry", () =
   });
   assert.equal(result.rankStatus, "UNAVAILABLE");
   assert.equal(result.testRank, null);
+});
+
+
+test("daily streak updates on consecutive days and never increments twice in one day", () => {
+  assert.equal(calculateDailyStreak("2026-11-06", "2026-11-06", 4), 4);
+  assert.equal(calculateDailyStreak("2026-11-06", "2026-11-07", 4), 5);
+  assert.equal(calculateDailyStreak("2026-11-04", "2026-11-07", 4), 1);
+  assert.equal(calculateDailyStreak("", "2026-11-07", 0), 1);
+  assert.equal(calculateDailyStreak("invalid", "2026-11-07", 2), 1);
 });
