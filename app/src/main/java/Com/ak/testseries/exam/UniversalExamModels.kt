@@ -137,7 +137,10 @@ data class ExamConfig(
     val language: String = "Bilingual (English & Hindi)",
     val defaultOptionCount: Int = 4,
     val active: Boolean = true,
-    val verified: Boolean = false // Indicates if the configuration has been audited/verified
+    val verified: Boolean = false, // Indicates if the configuration has been audited/verified
+    val sourceYear: Int? = null,
+    val sourceTitle: String? = null,
+    val sourceUrl: String? = null
 )
 
 typealias ExamPatternConfig = ExamConfig
