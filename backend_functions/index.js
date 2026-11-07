@@ -21,6 +21,23 @@ const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelp
 
 exports.normalizeExamKey = normalizeExamKey;
 
+function requireCanonicalExamId(value, fieldName = "targetExam") {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      fieldName + " is required; the ranking API will not silently default to NEET."
+    );
+  }
+  const canonical = normalizeExamKey(value);
+  if (!canonical || canonical === "UNKNOWN" || canonical === "ALL") {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "A specific, supported exam identity is required for ranking."
+    );
+  }
+  return canonical;
+}
+
 /**
  * Cloud Function: submitTestAttemptServerSide
  * Authoritatively validates test answers against server-side official questions and protected answer keys,
@@ -905,7 +922,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   const userId = context.auth.uid;
   const { targetExam } = data || {};
-  const canonicalExam = normalizeExamKey(targetExam || "NEET");
+  const canonicalExam = requireCanonicalExamId(targetExam);
   const classLevel = normalizeClassLevel((data || {}).classLevel || "All");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
 
@@ -1077,7 +1094,7 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
   }
   const input = data || {};
-  const examId = normalizeExamKey(input.targetExam || "NEET");
+  const examId = requireCanonicalExamId(input.targetExam);
   const classLevel = normalizeClassLevel(input.classLevel || "All");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
