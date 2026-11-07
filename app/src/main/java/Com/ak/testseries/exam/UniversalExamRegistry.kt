@@ -29,6 +29,7 @@ object UniversalExamRegistry {
                 verified = true,
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 40, hardPercent = 15),
                 supportedQuestionTypes = listOf(
+                    QuestionType.MCQ_SINGLE,
                     QuestionType.DIRECT_MCQ,
                     QuestionType.STATEMENT_I_II,
                     QuestionType.ASSERTION_REASON,
@@ -106,6 +107,7 @@ object UniversalExamRegistry {
                 verified = true,
                 difficultyRatio = DifficultyRatio(easyPercent = 25, mediumPercent = 50, hardPercent = 25),
                 supportedQuestionTypes = listOf(
+                    QuestionType.MCQ_SINGLE,
                     QuestionType.DIRECT_MCQ,
                     QuestionType.NUMERICAL_VALUE,
                     QuestionType.ASSERTION_REASON,
