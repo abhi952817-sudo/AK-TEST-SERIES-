@@ -249,8 +249,8 @@ test("Authoritative evaluation uses protected private answer keys", () => {
     isPublic: true,
     targetExam: "NEET UG",
     questionsJson: JSON.stringify([
-      { id: "q1", questionText: "Speed of light?", optionA: "3x10^8 m/s", optionB: "0" },
-      { id: "q2", questionText: "Unit of Force?", optionA: "Newton", optionB: "Joule" }
+      { id: "q1", questionText: "Speed of light?", optionA: "3x10^8 m/s", optionB: "0", optionC: "1", optionD: "2", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE" },
+      { id: "q2", questionText: "Unit of Force?", optionA: "Newton", optionB: "Joule", optionC: "Watt", optionD: "Pascal", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE" }
     ])
   };
 
@@ -958,8 +958,8 @@ test("F-016: submitTestAttemptServerSide NEVER returns solutionKeys in submissio
     targetExam: "NEET UG",
     countsTowardRanking: true,
     questionsJson: JSON.stringify([
-      { id: "q1", questionText: "Speed of light?" },
-      { id: "q2", questionText: "Plank constant?" }
+      { id: "q1", questionText: "Speed of light?", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE" },
+      { id: "q2", questionText: "Plank constant?", subject: "Physics", section: "phy_all", questionType: "MCQ_SINGLE" }
     ])
   };
   const privateKeyData = {
