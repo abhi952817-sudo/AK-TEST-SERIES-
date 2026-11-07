@@ -73,6 +73,19 @@ function resolveRankingWeight(testData = {}) {
   return null;
 }
 
+function isEligibleScoringResult(result = {}) {
+  const score = finiteNumber(result.finalScore, NaN);
+  const maxScore = finiteNumber(result.maxScore, NaN);
+  const ungradedCount = finiteNumber(result.ungradedCount, NaN);
+  return Number.isFinite(score) &&
+    Number.isFinite(maxScore) &&
+    maxScore > 0 &&
+    score >= 0 &&
+    score <= maxScore + 0.000001 &&
+    Number.isFinite(ungradedCount) &&
+    ungradedCount === 0;
+}
+
 function calculateWeightedRankingScore(score, maxScore, weight = 1) {
   const raw = finiteNumber(score, NaN);
   const max = finiteNumber(maxScore, NaN);
