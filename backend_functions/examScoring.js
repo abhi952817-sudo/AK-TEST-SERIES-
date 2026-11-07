@@ -536,24 +536,27 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
         err.code = "failed-precondition";
         throw err;
       }
+      let options = [];
+      if (Array.isArray(q.options)) {
+        options = q.options.map(option => String(
+          option && typeof option === "object" ? (option.text || option.value || option.label || "") : option || ""
+        ).trim());
+      } else {
+        options = ["A", "B", "C", "D", "E"].slice(0, Math.max(4, policy.optionsCount)).map(letter =>
+          String(q[`option${letter}En`] ?? q[`option${letter}`] ?? "").trim()
+        );
+      }
       if (policy.optionsCount > 0) {
-        let options = [];
-        if (Array.isArray(q.options)) {
-          options = q.options.map(option => String(
-            option && typeof option === "object" ? (option.text || option.value || option.label || "") : option || ""
-          ).trim());
-        } else {
-          options = ["A", "B", "C", "D", "E"].slice(0, policy.optionsCount).map((letter, index) => {
-            const suffix = letter;
-            return String(q[`option${suffix}En`] ?? q[`option${suffix}`] ?? "").trim();
-          });
-        }
         if (options.length !== policy.optionsCount || options.some(option => !option) ||
             new Set(options.map(option => option.toLowerCase())).size !== options.length) {
           const err = new Error("Ranking-eligible MCQ has missing, duplicate, or incorrectly counted options.");
           err.code = "failed-precondition";
           throw err;
         }
+      } else if (options.some(option => option)) {
+        const err = new Error("Ranking-eligible numerical-value questions must not contain MCQ options.");
+        err.code = "failed-precondition";
+        throw err;
       }
       if (q.positiveMarks !== undefined && Number(q.positiveMarks) !== policy.pos) {
         const err = new Error("Question positive marks conflict with the verified section policy.");
