@@ -121,21 +121,21 @@ object UniversalExamRegistry {
                                         "physics", "Physics",
                                         listOf(
                                             SectionConfig("phy_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("phy_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("phy_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0, integerAnswerRequired = true)
                                         )
                                     ),
                                     SubjectConfig(
                                         "chemistry", "Chemistry",
                                         listOf(
                                             SectionConfig("chem_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("chem_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("chem_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0, integerAnswerRequired = true)
                                         )
                                     ),
                                     SubjectConfig(
                                         "mathematics", "Mathematics",
                                         listOf(
                                             SectionConfig("math_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("math_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("math_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0, integerAnswerRequired = true)
                                         )
                                     )
                                 )
