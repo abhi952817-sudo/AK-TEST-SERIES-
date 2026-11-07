@@ -14,7 +14,8 @@ const {
   getMarkingSchemeForExam,
 } = require("./examScoring");
 const {
-  RANKING_CONFIG, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore, isEligibleScoringResult,
+  RANKING_CONFIG, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
+  isEligibleScoringResult, isEligibleHistoricalRankingTest,
   getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel,
   getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
@@ -795,13 +796,7 @@ async function rebuildRankingV2ForUser(userId) {
     // Old attempt flags alone are not sufficient proof of official ranking eligibility.
     if (!testSnap.exists) continue;
     const testData = testSnap.data() || {};
-    const testStatus = String(testData.status || "").trim().toUpperCase();
-    if (
-      testData.isOfficial !== true ||
-      testData.isPublic !== true ||
-      testData.countsTowardRanking !== true ||
-      !["APPROVED", "PUBLISHED"].includes(testStatus)
-    ) continue;
+    if (!isEligibleHistoricalRankingTest(testData)) continue;
 
     // Historical ranking must use the test's explicit exam identity, never a subject
     // label or an attempt-supplied identity that could redirect it into another board.
