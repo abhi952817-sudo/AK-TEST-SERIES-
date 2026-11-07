@@ -51,16 +51,20 @@ function resolveRankingWeight(testData = {}) {
     return weight === 1 || weight === 0.2 ? weight : null;
   }
 
-  const category = String(
-    testData.category || testData.testCategory || testData.testType || ""
-  ).trim().toLowerCase();
+  const labels = [testData.category, testData.testCategory, testData.testType]
+    .filter(value => typeof value === "string")
+    .join(" ")
+    .trim()
+    .toLowerCase();
   const isPart = testData.isPartTest === true ||
     testData.isChapterTest === true ||
-    /\b(chapter|topic|subject|part)\b/.test(category);
-  if (isPart) return RANKING_CONFIG.partTestWeight;
-
+    /\b(chapter|topic|subject|part)\b/.test(labels);
   const isFull = testData.isFullTest === true ||
-    /\b(full|complete|grand)\b/.test(category);
+    /\b(full|complete|grand)\b/.test(labels);
+
+  // Conflicting or absent metadata is not safe to classify.
+  if (isPart && isFull) return null;
+  if (isPart) return RANKING_CONFIG.partTestWeight;
   if (isFull) return RANKING_CONFIG.fullTestWeight;
 
   // Never guess that an ambiguous "mock test" is a full test. An admin must
