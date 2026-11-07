@@ -190,7 +190,7 @@ test("per-test rank snapshot only ranks the canonical first qualifying board ent
   const first = buildTestRankingSnapshot({
     countsTowardRanking: true,
     isFirstQualifyingAttempt: true,
-    canonicalEntry: { score: 80 },
+    canonicalEntry: { score: 80, isBanned: false },
     higherCount: 1,
     totalCount: 5
   });
@@ -219,7 +219,7 @@ test("per-test rank snapshot fails closed for missing board entries and invalid 
   assert.equal(unavailable.testRank, null);
   const invalidPopulation = buildTestRankingSnapshot({
     countsTowardRanking: true, isFirstQualifyingAttempt: true,
-    canonicalEntry: { score: 50 }, higherCount: 4, totalCount: 4
+    canonicalEntry: { score: 50, isBanned: false }, higherCount: 4, totalCount: 4
   });
   assert.equal(invalidPopulation.rankStatus, "UNAVAILABLE");
   const notEligible = buildTestRankingSnapshot({ countsTowardRanking: false });
