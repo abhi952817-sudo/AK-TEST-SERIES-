@@ -163,13 +163,13 @@ class DatabaseRepository(private val db: AppDatabase) {
         return db.attemptDao().getPendingAttemptsForUser(userId)
     }
 
-    suspend fun insertAttempt(attempt: AttemptEntity) {
+    suspend fun insertAttempt(attempt: AttemptEntity) = db.withTransaction {
         if (attempt.attemptSessionToken.isNotBlank()) {
             val existing = db.attemptDao().getAttemptBySessionToken(attempt.userId, attempt.attemptSessionToken)
             if (existing != null) {
-                // Exact session already recorded: update in-place without duplicate count increment
+                // Retry-safe update: the lookup and write share one Room transaction.
                 db.attemptDao().insertAttempt(attempt.copy(id = existing.id))
-                return
+                return@withTransaction
             }
         }
         db.attemptDao().insertAttempt(attempt)
