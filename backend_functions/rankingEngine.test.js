@@ -252,3 +252,13 @@ test("ranking query limits are finite integers within endpoint bounds", () => {
   assert.equal(clampRankingLimit("not-a-number", 10, 1, 20), 10);
   assert.equal(clampRankingLimit(Infinity, 10, 1, 20), 10);
 });
+
+
+test("per-test rank snapshot does not rank a banned canonical board entry", () => {
+  const result = buildTestRankingSnapshot({
+    countsTowardRanking: true, isFirstQualifyingAttempt: true,
+    canonicalEntry: { score: 100, isBanned: true }, higherCount: 0, totalCount: 1
+  });
+  assert.equal(result.rankStatus, "UNAVAILABLE");
+  assert.equal(result.testRank, null);
+});
