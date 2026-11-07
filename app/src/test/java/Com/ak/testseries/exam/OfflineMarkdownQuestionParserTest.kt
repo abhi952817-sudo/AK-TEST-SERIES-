@@ -126,7 +126,9 @@ class OfflineMarkdownQuestionParserTest {
         val models = OfflineMarkdownQuestionParser.parseMarkdownToQuestions(
             markdown = text,
             examConfig = examConfig,
-            subjectId = "Indian Polity"
+            subjectId = "Indian Polity",
+            stageId = "unverified",
+            paperId = "unverified"
         )
         assertTrue("Unverified exam configs must not receive fabricated section/marks", models.isEmpty())
     }
@@ -148,7 +150,8 @@ class OfflineMarkdownQuestionParserTest {
             markdown = text,
             examConfig = config,
             subjectId = "physics",
-            stageId = "neet_main"
+            stageId = "neet_main",
+            paperId = "neet_paper_1"
         )
         assertEquals(1, models.size)
         assertEquals("phy_all", models.single().sectionId)
