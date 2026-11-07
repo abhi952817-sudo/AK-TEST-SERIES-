@@ -343,7 +343,9 @@ object UniversalPdfPipeline {
                                 duplicateHash = DuplicateDetectionEngine.generateNormalizedHash(candidate.questionText, candidate.options),
                                 sourceName = "Uploaded PDF (unverified provenance)",
                                 isOfficialPYQ = false
-                            )
+                            ).also { reviewed ->
+                                existingHashes[reviewed.duplicateHash] = reviewed.questionText
+                            }
                         }
                         require(reviewedBatch.size == questionsInThisBatch) {
                             "Source PDF batch $currentBatchNumber produced ${reviewedBatch.size} valid questions; expected $questionsInThisBatch. Partial batch is rejected."
