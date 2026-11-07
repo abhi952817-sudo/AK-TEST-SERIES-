@@ -102,6 +102,21 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun explicitSkippedAnswerIsUnansweredNotWrong() {
+        val result = ExamScoringEngine.evaluateTestAttempt(
+            "NEET UG",
+            listOf(createQuestion("skip", "A")),
+            mapOf("skip" to "SKIPPED"),
+            10
+        )
+        assertEquals(0, result.correctCount)
+        assertEquals(0, result.wrongCount)
+        assertEquals(1, result.unansweredCount)
+        assertEquals(0, result.ungradedCount)
+        assertEquals(0.0, result.finalScore, 0.001)
+    }
+
+    @Test
     fun legacyOrAmbiguousSectionsAreUngradedAndNeverDefaultToSectionA() {
         val result = ExamScoringEngine.evaluateTestAttempt(
             "NEET UG",
