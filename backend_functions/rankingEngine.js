@@ -183,9 +183,9 @@ function calculateDailyStreak(previousDate, currentDate, existingStreak) {
   const current = String(currentDate || "");
   const previous = String(previousDate || "");
   const streak = Math.max(0, Math.floor(Number(existingStreak) || 0));
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(current)) return streak;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(current)) return streak;
   if (previous === current) return streak;
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(previous)) return 1;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(previous)) return 1;
   const currentMs = Date.parse(current + "T00:00:00.000Z");
   const previousMs = Date.parse(previous + "T00:00:00.000Z");
   if (!Number.isFinite(currentMs) || !Number.isFinite(previousMs)) return 1;
