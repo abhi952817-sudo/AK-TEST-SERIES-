@@ -237,6 +237,8 @@ test("ranking period and weekly leaderboard identifiers reject malformed dates",
   }
   assert.equal(isValidRankingPeriodId("MONTH", "2026-11-H1"), false);
   assert.equal(isValidRankingPeriodId("MONTH", "2026-99"), false);
+  assert.equal(isValidRankingPeriodId("MONTH", "0000-11"), false);
+  assert.equal(isValidRankingPeriodId("HALF_MONTH", "0000-11-H1"), false);
   assert.equal(isValidRankingWeekId("2026-W01"), true);
   assert.equal(isValidRankingWeekId("2026-W53"), true);
   assert.equal(isValidRankingWeekId("2025-W53"), false);
