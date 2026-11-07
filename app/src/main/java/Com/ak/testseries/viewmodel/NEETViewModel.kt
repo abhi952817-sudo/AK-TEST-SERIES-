@@ -4304,33 +4304,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectAnswer(questionId: String, answer: String): Boolean {
         val questions = _activeQuestions.value
-        val question = questions.find { it.id == questionId }
-        val test = _activeTest.value
-        if (question != null && test != null) {
-            val limit = Com.ak.testseries.exam.UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                examName = test.targetExam,
+        val question = questions.find { it.id == questionId } ?: return false
+        val test = _activeTest.value ?: return false
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(test.targetExam)
+            ?.takeIf { it.active && it.verified } ?: return false
+        val limit = runCatching {
+            Com.ak.testseries.exam.UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+                examName = examConfig.examId,
                 sectionNameOrId = question.section,
                 subjectName = question.subject
             )
-            if (limit != null) {
-                val answeredInSectionCount = questions.count { q ->
-                    q.section.equals(question.section, ignoreCase = true) &&
-                    (question.subject.isBlank() || q.subject.equals(question.subject, ignoreCase = true)) &&
+        }.getOrElse { return false }
+        if (limit != null) {
+            val answeredInSectionCount = questions.count { q ->
+                q.section.equals(question.section, ignoreCase = true) &&
+                    q.subject.equals(question.subject, ignoreCase = true) &&
                     _userAnswers.value.containsKey(q.id) && q.id != questionId
-                }
-                if (answeredInSectionCount >= limit) {
-                    return false
-                }
             }
-        } else if (question != null && (question.section.equals("SECTION_B", ignoreCase = true) || question.section.contains("Section B", ignoreCase = true))) {
-            val answeredSectionBCount = questions.count { q ->
-                (q.section.equals("SECTION_B", ignoreCase = true) || q.section.contains("Section B", ignoreCase = true)) &&
-                (question.subject.isBlank() || q.subject.equals(question.subject, ignoreCase = true)) &&
-                _userAnswers.value.containsKey(q.id) && q.id != questionId
-            }
-            if (answeredSectionBCount >= 10) {
-                return false
-            }
+            if (answeredInSectionCount >= limit) return false
         }
         val answers = _userAnswers.value.toMutableMap()
         answers[questionId] = answer
