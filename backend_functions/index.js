@@ -1306,7 +1306,7 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   const totalEligible = totalSnap.data().count;
   const airStatus = getCohortRankingStatus(totalEligible, classLevel);
   const rows = snapshot.docs.map(doc => doc.data());
-  const rowUserIds = snapshot.docs.map((doc, index) => String(rows[index].userId || doc.id));
+  const rowUserIds = snapshot.docs.map(doc => doc.id);
   const currentVisibility = await getCurrentPublicVisibilityByUid(rowUserIds);
   let previousScore = null;
   let competitionRank = 0;
@@ -1360,7 +1360,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
     .where("isBanned", "==", false))
     .orderBy("rankingScore", "desc").limit(limit).get();
   const periodRows = snapshot.docs.map(doc => doc.data());
-  const periodUserIds = snapshot.docs.map((doc, index) => String(periodRows[index].userId || doc.id));
+  const periodUserIds = snapshot.docs.map(doc => doc.id);
   const currentVisibility = await getCurrentPublicVisibilityByUid(periodUserIds);
   let previousScore = null;
   let competitionRank = 0;
@@ -1412,7 +1412,7 @@ exports.getXpLeaderboard = functions.https.onCall(async (data, context) => {
   }
   const snapshot = await query.get();
   const xpRows = snapshot.docs.map(doc => doc.data());
-  const xpUserIds = snapshot.docs.map((doc, index) => String(xpRows[index].userId || doc.id));
+  const xpUserIds = snapshot.docs.map(doc => doc.id);
   const currentVisibility = await getCurrentPublicVisibilityByUid(xpUserIds);
   let previousScore = null;
   let competitionRank = 0;
