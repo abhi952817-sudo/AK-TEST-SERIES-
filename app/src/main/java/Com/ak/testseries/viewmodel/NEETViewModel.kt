@@ -6034,7 +6034,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             // are explicitly reviewed. Live mode alone must never grant Official or AIR eligibility.
             isOfficial = false,
             isVerifiedCommunity = false,
-            countsTowardRanking = false
+            countsTowardRanking = false,
             attemptsCount = 0,
             downloadsCount = 0,
             chapter = primaryChapter,
