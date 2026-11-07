@@ -953,7 +953,8 @@ async function rebuildRankingV2ForUser(userId) {
   for (const attempt of attempts) {
     const testId = String(attempt.testId || "");
     if (!testId || seenTests.has(testId)) continue;
-    if (attempt.verifiedServerSide !== true || attempt.countsTowardRanking !== true) continue;
+    if (attempt.verifiedServerSide !== true || attempt.countsTowardRanking !== true ||
+        attempt.isFirstQualifyingAttempt === false) continue;
     // Claim the canonical first qualifying attempt before revalidation. If its trusted
     // source data is missing/corrupt, never substitute a later repeat attempt.
     seenTests.add(testId);
