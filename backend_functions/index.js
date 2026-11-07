@@ -716,8 +716,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       const canonicalEntry = canonicalEntrySnap.data() || {};
       const testEntriesRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries");
       const [higherSnap, totalSnap] = await Promise.all([
-        testEntriesRef.where("score", ">", Number(canonicalEntry.score)).count().get(),
-        testEntriesRef.count().get()
+        testEntriesRef.where("isBanned", "==", false)
+          .where("score", ">", Number(canonicalEntry.score)).count().get(),
+        testEntriesRef.where("isBanned", "==", false).count().get()
       ]);
       testRankingSnapshot = buildTestRankingSnapshot({
         countsTowardRanking: true,
