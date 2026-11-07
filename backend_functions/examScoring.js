@@ -92,12 +92,13 @@ function normalizeExamKey(examName) {
   const name = examName.trim().toLowerCase();
   if (name === "all") return "ALL";
 
-  // Medical
-  if (name.includes("neet")) return "NEET";
+  // Medical: do not collapse NEET PG or other NEET variants into NEET UG.
+  if (name === "neet" || name === "neet ug" || name === "neet_ug") return "NEET";
+  if (name.includes("neet pg") || name.includes("neet_pg")) return "NEET_PG";
 
-  // Engineering
+  // Engineering: generic JEE is ambiguous between Main and Advanced.
   if (name.includes("jee adv") || name === "jee_advanced") return "JEE_ADVANCED";
-  if (name.includes("jee main") || name === "jee_main" || name.includes("jee")) return "JEE_MAIN";
+  if (name.includes("jee main") || name === "jee_main") return "JEE_MAIN";
   if (name.includes("gate")) return "GATE";
 
   // University
@@ -134,7 +135,7 @@ function normalizeExamKey(examName) {
   if (name.includes("technician") || name.includes("rrb_tech")) return "RRB_TECHNICIAN";
   if (name.includes("rrb_je") || name.includes("rrb je") || name.includes("junior engineer")) return "RRB_JE";
   if (name.includes("ntpc") || name.includes("rrb_ntpc")) return "RRB_NTPC";
-  if (name === "rrb" || name === "railways" || name === "railway") return "RRB_NTPC"; // Legacy fallback only for bare generic string
+  // Bare RRB/Railway is ambiguous; preserve it as an unsupported identity rather than guessing NTPC.
 
   // Preserve canonical string format without collapsing into NEET or RRB NTPC
   return examName.trim().toUpperCase().replace(/\s+/g, "_");
@@ -149,11 +150,11 @@ function getMarkingSchemeForExam(examName) {
   }
 
   // Medical
-  if (name.includes("neet")) return { pos: 4.0, neg: 1.0 };
+  if (name === "neet" || name === "neet ug" || name === "neet_ug") return { pos: 4.0, neg: 1.0 };
 
   // Engineering
   if (name.includes("jee adv") || name === "jee_advanced") return { pos: 4.0, neg: 2.0 };
-  if (name.includes("jee main") || name === "jee_main" || name === "jee") return { pos: 4.0, neg: 1.0 };
+  if (name.includes("jee main") || name === "jee_main") return { pos: 4.0, neg: 1.0 };
   if (name.includes("gate")) return { pos: 1.0, neg: 0.33 };
 
   // University
@@ -190,7 +191,7 @@ function getMarkingSchemeForExam(examName) {
   if (name.includes("technician")) return { pos: 1.0, neg: 0.33 };
   if (name.includes("group_d") || name.includes("group d")) return { pos: 1.0, neg: 0.33 };
   if (name.includes("rrb_je") || name.includes("rrb je") || name.includes("junior engineer")) return { pos: 1.0, neg: 0.33 };
-  if (name.includes("rrb") || name.includes("ntpc")) return { pos: 1.0, neg: 0.33 };
+  if (name.includes("ntpc")) return { pos: 1.0, neg: 0.33 };
 
   // Controlled error for unsupported/unrecognized exams (DO NOT SILENTLY RETURN NEET!)
   const err = new Error(`Unsupported or unrecognized exam scheme: "${examName}"`);
