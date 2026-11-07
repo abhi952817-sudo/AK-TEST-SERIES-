@@ -83,7 +83,7 @@ object UniversalExamRegistry {
             ExamConfig(
                 examId = "jee_main",
                 examName = "JEE Main",
-                shortName = "JEE",
+                shortName = "JEE Main",
                 category = "Engineering Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
