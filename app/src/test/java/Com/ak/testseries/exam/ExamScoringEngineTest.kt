@@ -171,7 +171,7 @@ class ExamScoringEngineTest {
 
     @Test
     fun unverifiedExamPatternsCannotBeScoredWithGuessedMarks() {
-        for (exam in listOf("CTET", "UPSC CSE", "CAT", "JEE Advanced", "NEET PG", "RRB NTPC")) {
+        for (exam in listOf("CTET", "UPSC Civil Services", "CAT", "JEE Advanced", "NEET PG", "RRB NTPC")) {
             try {
                 ExamScoringEngine.evaluateTestAttempt(
                     exam,
