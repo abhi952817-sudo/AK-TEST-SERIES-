@@ -11,6 +11,7 @@ const {
   getExamEligibility,
   normalizeExamKey,
   resolveCanonicalExamIdentity,
+  getMarkingSchemeForExam,
 } = require("./examScoring");
 const {
   RANKING_CONFIG, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore, isEligibleScoringResult,
@@ -33,6 +34,16 @@ function requireCanonicalExamId(value, fieldName = "targetExam") {
     throw new functions.https.HttpsError(
       "invalid-argument",
       "A specific, supported exam identity is required for ranking."
+    );
+  }
+  try {
+    // Reuse the scoring engine's supported-exam gate so unknown aliases cannot
+    // create empty or misleading boards under arbitrary canonical-looking IDs.
+    getMarkingSchemeForExam(canonical);
+  } catch (_) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "The requested exam does not have a supported scoring policy."
     );
   }
   return canonical;
