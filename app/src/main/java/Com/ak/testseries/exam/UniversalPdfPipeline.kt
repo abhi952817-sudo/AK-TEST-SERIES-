@@ -68,6 +68,9 @@ object UniversalPdfPipeline {
             )
             return@withContext emptyList()
         }
+        require(examConfig.active && examConfig.verified) {
+            "This exam configuration is not source-verified. PDF ingestion is blocked until official pattern evidence is reviewed."
+        }
         require(expectedQuestions > 0 && batchSize > 0 && resumeFromBatch > 0) {
             "Expected question count, batch size and resume batch must be positive."
         }
