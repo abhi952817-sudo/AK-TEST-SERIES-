@@ -4,6 +4,7 @@ const {
   RANKING_CONFIG,
   resolveRankingWeight,
   calculateWeightedRankingScore,
+  isEligibleScoringResult,
   getIndiaDateKey,
   getIndiaWeekId,
   getRankingPeriodIds,
@@ -30,6 +31,15 @@ test("answer payload canonicalization makes object key order irrelevant but pres
     canonicalizeAnswerPayload({ q1: "B" })
   );
   assert.throws(() => canonicalizeAnswerPayload([]), { code: "invalid-argument" });
+});
+
+test("scoring eligibility requires finite bounded score and zero ungraded questions", () => {
+  assert.equal(isEligibleScoringResult({ finalScore: 72, maxScore: 100, ungradedCount: 0 }), true);
+  assert.equal(isEligibleScoringResult({ finalScore: 72, maxScore: 100, ungradedCount: 1 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 72, maxScore: 100 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 101, maxScore: 100, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: -1, maxScore: 100, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 0, maxScore: 0, ungradedCount: 0 }), false);
 });
 
 test("ranking score normalizes different test maxima before weight", () => {
