@@ -101,6 +101,24 @@ object UniversalPdfPipeline {
             "Cached questions exceed the configured subject question count."
         }
         val resolvedStageId = selectedStage.stageId
+        val validSectionIds = selectedSubject.sections.map { it.sectionId }.toSet()
+        require(existingQuestionsCache.all { cached ->
+            cached.examId == examConfig.examId &&
+                cached.stageId == resolvedStageId &&
+                cached.paperId == selectedPaper.paperId &&
+                cached.subjectId == selectedSubject.subjectId &&
+                cached.sectionId in validSectionIds &&
+                cached.questionText.isNotBlank() &&
+                cached.correctAnswer.isNotBlank() &&
+                cached.questionId.isNotBlank() &&
+                cached.positiveMarks > 0.0
+        }) {
+            "Cached questions contain missing or cross-exam/stage/paper/subject identities."
+        }
+        require(existingQuestionsCache.map { it.questionId }.distinct().size == existingQuestionsCache.size &&
+            existingQuestionsCache.map { it.duplicateHash }.distinct().size == existingQuestionsCache.size) {
+            "Cached question IDs or normalized hashes overlap."
+        }
         val extractedQuestions = mutableListOf<UniversalQuestionModel>()
         extractedQuestions.addAll(existingQuestionsCache)
         
