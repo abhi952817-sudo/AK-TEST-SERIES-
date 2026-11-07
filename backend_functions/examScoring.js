@@ -173,6 +173,15 @@ const VERIFIED_FULL_TEST_PATTERNS = Object.freeze({
   })
 });
 
+function hasFullTestQuestionCoverage(examName, questions) {
+  try {
+    validateFullTestQuestionCoverage(examName, questions);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function validateFullTestQuestionCoverage(examName, questions) {
   const examKey = normalizeExamKey(examName);
   const pattern = VERIFIED_FULL_TEST_PATTERNS[examKey];
@@ -511,6 +520,10 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
         err.code = "failed-precondition";
         throw err;
       }
+    } else if (rankingWeight === 0.2 && hasFullTestQuestionCoverage(examIdentity, mergedQuestions)) {
+      const err = new Error("A complete verified full-paper composition cannot be classified as a part test.");
+      err.code = "failed-precondition";
+      throw err;
     }
     for (const q of mergedQuestions) {
       const questionText = String(q.questionText || q.questionTextEn || q.question || "").trim();
@@ -681,6 +694,7 @@ module.exports = {
   calculateScorePercentileFromCounts,
   validateAndMergeAnswerKeys,
   validateFullTestQuestionCoverage,
+  hasFullTestQuestionCoverage,
   getExamEligibility,
   normalizeExamKey,
   resolveCanonicalExamIdentity,
