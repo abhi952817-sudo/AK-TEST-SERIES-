@@ -1065,3 +1065,9 @@ Historical backfill now claims the first server-verified, ranking-eligible attem
 This preserves the live product rule: one canonical first qualifying attempt per user/test. It also avoids silently converting a repeat attempt into the canonical score when an earlier attempt's source evidence is incomplete.
 
 Latest code commit: `89da8e37264f89bc27a0dd699c7b3b1198149507`. GitHub Actions for this commit are still queued. The last completed CI run is an older baseline and does not verify these changes.
+
+### 2.37 Historical attempt ownership and timing checks — 2026-11-07
+
+Backfill now also requires the attempt's stored `userId` (when present) to match the user being rebuilt, and requires a finite `timeSpentSeconds` value between 0 and 86,400 seconds. Missing or invalid elapsed time is not inferred. These checks run before recalculation, alongside server-verification, first-qualifying-attempt, explicit ranking eligibility, canonical exam/stage/paper identity, current private answer-key validation, answer-ID validation, score/max reconciliation and zero-ungraded checks.
+
+Latest code commit: `94e6cdd8970047c872751572eec760f7d4fe64ba`. Current-head CI is still waiting in GitHub's queued runner backlog; no green result is claimed.
