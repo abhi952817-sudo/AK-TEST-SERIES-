@@ -124,6 +124,13 @@ function getRankingPeriodIds(timestamp = Date.now()) {
   };
 }
 
+function canAdvanceRankingMigrationCheckpoint(currentState = {}, expectedCursor = null) {
+  if (currentState.completed === true) return false;
+  const currentCursor = currentState.lastProcessedUid || null;
+  const expected = expectedCursor || null;
+  return currentCursor === expected;
+}
+
 function clampRankingLimit(value, fallback = 100, min = 1, max = 100) {
   if (value === undefined || value === null || value === "") return fallback;
   const parsed = Number(value);
@@ -306,6 +313,7 @@ module.exports = {
   getRankingPeriodIds,
   isValidRankingPeriodId,
   clampRankingLimit,
+  canAdvanceRankingMigrationCheckpoint,
   isValidRankingWeekId,
   getIsoWeeksInYear,
   normalizeClassLevel,
