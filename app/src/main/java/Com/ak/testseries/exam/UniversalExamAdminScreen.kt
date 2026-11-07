@@ -154,6 +154,13 @@ fun UniversalExamAdminScreen(
                             Toast.makeText(context, "Please select a PDF first", Toast.LENGTH_SHORT).show()
                             return@ProcessPdfTab
                         }
+                        val selectedSubject = selectedExam.stages.singleOrNull()?.papers?.singleOrNull()
+                            ?.subjects?.singleOrNull { it.subjectId == selectedSubjectId }
+                        val expectedQuestionCount = selectedSubject?.sections?.sumOf { it.totalQuestions } ?: 0
+                        if (expectedQuestionCount <= 0) {
+                            Toast.makeText(context, "Selected subject has no verified question-count configuration.", Toast.LENGTH_LONG).show()
+                            return@ProcessPdfTab
+                        }
                         isProcessing = true
                         scope.launch {
                             try {
@@ -162,7 +169,7 @@ fun UniversalExamAdminScreen(
                                     pdfUri = pdfUri!!,
                                     examConfig = selectedExam,
                                     subjectId = selectedSubjectId,
-                                    expectedQuestions = 20,
+                                    expectedQuestions = expectedQuestionCount,
                                     isAiEnabled = isAiEnabled,
                                     onProgress = { prog ->
                                         progressStatus = prog.statusMessage
