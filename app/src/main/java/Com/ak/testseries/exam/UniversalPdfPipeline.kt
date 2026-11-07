@@ -571,7 +571,7 @@ object UniversalPdfPipeline {
                     generationTimestamp = System.currentTimeMillis()
                 )
                 resultList.add(model)
-                seenHashes[hash] = qText\n                seenHashes[hash] = qText
+                seenHashes[hash] = qText
             }
         } catch (e: Exception) {
             e.printStackTrace()
