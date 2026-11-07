@@ -135,10 +135,28 @@ test("population and score percentiles handle ties and boundary cases", () => {
 });
 
 test("ranking-eligible tests require complete trusted private answer keys", () => {
-  const testData = { isOfficial: true, isPublic: true, countsTowardRanking: true };
-  const questions = [{ id: "q1", correctAnswer: "A" }];
-  assert.throws(() => validateAndMergeAnswerKeys(testData, questions, null), { code: "failed-precondition" });
-  const merged = validateAndMergeAnswerKeys(testData, [{ id: "q1" }], {
+  const testData = {
+    examId: "neet_ug",
+    status: "PUBLISHED",
+    isOfficial: true,
+    isPublic: true,
+    countsTowardRanking: true
+  };
+  const question = {
+    id: "q1",
+    questionText: "What is the SI unit of potential difference?",
+    subject: "Physics",
+    section: "phy_all",
+    questionType: "MCQ_SINGLE",
+    optionAEn: "Ampere",
+    optionBEn: "Volt",
+    optionCEn: "Ohm",
+    optionDEn: "Watt",
+    positiveMarks: 4,
+    negativeMarks: 1
+  };
+  assert.throws(() => validateAndMergeAnswerKeys(testData, [question], null), { code: "failed-precondition" });
+  const merged = validateAndMergeAnswerKeys(testData, [question], {
     questions: [{ id: "q1", correctAnswer: "B" }]
   });
   assert.equal(merged.questions[0].correctAnswer, "B");
