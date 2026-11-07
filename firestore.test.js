@@ -585,15 +585,32 @@ test("Leaderboard: Students CAN read public leaderboard, CANNOT write directly w
       displayName: "Bob",
       score: 710,
       targetExam: "NEET",
+      profileVisibility: "PUBLIC",
+    });
+    await ctx.firestore().collection("Leaderboard").doc("rank_private").set({
+      userId: "private_uid",
+      displayName: "Private Student",
+      score: 700,
+      targetExam: "NEET",
+      profileVisibility: "PRIVATE",
+    });
+    await ctx.firestore().collection("Leaderboard").doc("rank_legacy_missing_visibility").set({
+      userId: "legacy_uid",
+      displayName: "Legacy Student",
+      score: 690,
+      targetExam: "NEET",
     });
   });
 
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
 
-  // Alice can read public leaderboard rankings
+  // Only explicitly public rows can be read. Private and legacy rows without visibility fail closed.
   await assertSucceeds(aliceDb.collection("Leaderboard").doc("rank_1").get());
-  await assertSucceeds(aliceDb.collection("Leaderboard").get());
+  await assertFails(aliceDb.collection("Leaderboard").doc("rank_private").get());
+  await assertFails(aliceDb.collection("Leaderboard").doc("rank_legacy_missing_visibility").get());
+  await assertSucceeds(aliceDb.collection("Leaderboard").where("profileVisibility", "==", "PUBLIC").get());
+  await assertFails(aliceDb.collection("Leaderboard").get());
 
   // Alice CANNOT create or modify leaderboard rankings (anti-tamper)
   await assertFails(
