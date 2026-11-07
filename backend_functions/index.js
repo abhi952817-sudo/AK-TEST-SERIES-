@@ -1264,9 +1264,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
   }
   const currentPeriods = getRankingPeriodIds(Date.now());
   const periodId = String(input.periodId || (periodType === "MONTH" ? currentPeriods.monthId : currentPeriods.halfMonthId));
-  if (!/^\d{4}-\d{2}(-H[12])?$/.test(periodId) ||
-      (periodType === "HALF_MONTH" && !/-H[12]$/.test(periodId)) ||
-      (periodType === "MONTH" && /-H[12]$/.test(periodId))) {
+  if (!isValidRankingPeriodId(periodType, periodId)) {
     throw new functions.https.HttpsError("invalid-argument", "Invalid ranking period identifier.");
   }
   const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
