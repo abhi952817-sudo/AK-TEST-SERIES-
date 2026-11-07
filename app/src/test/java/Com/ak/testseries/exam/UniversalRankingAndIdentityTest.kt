@@ -125,6 +125,19 @@ class UniversalRankingAndIdentityTest {
             assertNull(UniversalExamRegistry.findExamByNameOrShortName(unverified.examName)?.stages?.firstOrNull())
         }
         assertTrue(UniversalExamRegistry.getActiveExams().all { it.verified })
+
+        val verifiedExams = UniversalExamRegistry.getAllExams().filter { it.verified }
+        assertTrue(verifiedExams.isNotEmpty())
+        verifiedExams.forEach { verified ->
+            assertTrue("Verified exam missing source year: ${verified.examId}", verified.sourceYear != null)
+            assertTrue("Verified exam missing source title: ${verified.examId}", !verified.sourceTitle.isNullOrBlank())
+            assertTrue("Verified exam missing official HTTPS source: ${verified.examId}", verified.sourceUrl?.startsWith("https://") == true)
+        }
+        UniversalExamRegistry.getAllExams().filter { !it.verified }.forEach { unverified ->
+            assertNull(unverified.sourceYear)
+            assertNull(unverified.sourceTitle)
+            assertNull(unverified.sourceUrl)
+        }
         try {
             UniversalExamRegistry.getDefaultQuestionsCountForExam("IBPS PO")
             throw AssertionError("Unverified question counts must not be exposed")
