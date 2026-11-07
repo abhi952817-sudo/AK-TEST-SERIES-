@@ -5983,7 +5983,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     explanation = expEn,
                     questionType = questionType,
                     section = sectionId,
-                    subject = genSubject.value,
+                    subject = qSubject,
                     chapter = qChapter,
                     topic = qTopic,
                     questionTextHi = qTextHi.takeIf { it.isNotEmpty() },
