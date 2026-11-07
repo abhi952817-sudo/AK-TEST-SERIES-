@@ -5891,8 +5891,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val testId = "ai_" + System.currentTimeMillis()
 
         val questions = mutableListOf<QuestionEntity>()
-        var primaryChapter = "All"
-        var primaryTopic = "All"
+        var primaryChapter = ""
+        var primaryTopic = ""
         
         for (i in 0 until jsonArray.length()) {
             val qObj = jsonArray.getJSONObject(i)
