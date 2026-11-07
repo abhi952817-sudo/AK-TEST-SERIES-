@@ -185,6 +185,40 @@ test("population and score percentiles handle ties and boundary cases", () => {
   assert.equal(calculateScorePercentileFromCounts(0, 0, 0), 0);
 });
 
+test("verified full tests require exact official question and section distribution", () => {
+  const { validateFullTestQuestionCoverage } = require("./examScoring");
+  const neetSections = [
+    ["Physics", "phy_all", 45],
+    ["Chemistry", "chem_all", 45],
+    ["Botany", "bot_all", 45],
+    ["Zoology", "zoo_all", 45]
+  ];
+  const neetQuestions = neetSections.flatMap(([subject, section, count]) =>
+    Array.from({ length: count }, (_, index) => ({ id: subject + index, subject, section }))
+  );
+  assert.equal(validateFullTestQuestionCoverage("NEET UG", neetQuestions), true);
+  assert.throws(() => validateFullTestQuestionCoverage("NEET UG", neetQuestions.slice(1)));
+
+  const jeeSections = [
+    ["Physics", "phy_sec_a", 20], ["Physics", "phy_sec_b", 5],
+    ["Chemistry", "chem_sec_a", 20], ["Chemistry", "chem_sec_b", 5],
+    ["Mathematics", "math_sec_a", 20], ["Mathematics", "math_sec_b", 5]
+  ];
+  const jeeQuestions = jeeSections.flatMap(([subject, section, count]) =>
+    Array.from({ length: count }, (_, index) => ({ id: subject + section + index, subject, section }))
+  );
+  assert.equal(validateFullTestQuestionCoverage("JEE Main", jeeQuestions), true);
+  assert.throws(() => validateFullTestQuestionCoverage("JEE Main", jeeQuestions.slice(1)));
+});
+
+test("test question IDs and private answer-key IDs must be unique", () => {
+  const testData = { status: "Published", isPublic: true, isOfficial: false, countsTowardRanking: false };
+  assert.throws(() => validateAndMergeAnswerKeys(testData, [
+    { id: "duplicate", questionText: "One" },
+    { id: "duplicate", questionText: "Two" }
+  ], null), { code: "failed-precondition" });
+});
+
 test("ranking publication rejects decimal JEE numerical answer keys", () => {
   const testData = {
     examId: "jee_main",
