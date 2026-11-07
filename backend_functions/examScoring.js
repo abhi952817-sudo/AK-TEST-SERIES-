@@ -516,6 +516,15 @@ function resolveCanonicalExamIdentity(testData = {}) {
     err.code = "failed-precondition";
     throw err;
   }
+  // Identity alone is insufficient: only exams with an enabled, source-verified
+  // scoring policy may be scored or rebuilt into ranking materializations.
+  try {
+    getMarkingSchemeForExam(unique[0]);
+  } catch (_) {
+    const err = new Error("This exam has no source-verified scoring policy; scoring and ranking are disabled.");
+    err.code = "failed-precondition";
+    throw err;
+  }
   return unique[0];
 }
 
