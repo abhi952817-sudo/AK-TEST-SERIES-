@@ -906,3 +906,18 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
   await assertFails(bobDb.collection("XP_Transactions").doc("xp_alice").get());
   await assertFails(aliceDb.collection("XP_Transactions").doc("xp_forged").set({ userId: ALICE_UID, xp: 999999 }));
 });
+
+
+test("Student: uppercase PUBLISHED is readable only when isPublic is explicitly true", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Tests").doc("published_uppercase").set({
+      status: "PUBLISHED", isPublic: true, isOfficial: true, creatorId: "admin"
+    });
+    await ctx.firestore().collection("Tests").doc("private_official").set({
+      status: "Published", isPublic: false, isOfficial: true, creatorId: "admin"
+    });
+  });
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(aliceDb.collection("Tests").doc("published_uppercase").get());
+  await assertFails(aliceDb.collection("Tests").doc("private_official").get());
+});
