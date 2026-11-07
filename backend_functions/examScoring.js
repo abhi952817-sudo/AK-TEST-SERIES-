@@ -141,137 +141,90 @@ function normalizeExamKey(examName) {
   return examName.trim().toUpperCase().replace(/\s+/g, "_");
 }
 
+// Only source-verified 2026 exam patterns may be scored server-side.
+// Keep this allowlist aligned with UniversalExamRegistry.kt. Unverified exams fail closed.
+const VERIFIED_SCORING_POLICIES = Object.freeze({
+  NEET: Object.freeze({
+    physics: Object.freeze({ phy_all: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }) }),
+    chemistry: Object.freeze({ chem_all: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }) }),
+    botany: Object.freeze({ bot_all: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }) }),
+    zoology: Object.freeze({ zoo_all: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }) })
+  }),
+  JEE_MAIN: Object.freeze({
+    physics: Object.freeze({
+      phy_sec_a: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }),
+      phy_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0 })
+    }),
+    chemistry: Object.freeze({
+      chem_sec_a: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }),
+      chem_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0 })
+    }),
+    mathematics: Object.freeze({
+      math_sec_a: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }),
+      math_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0 })
+    })
+  })
+});
+
+function normalizeScoringSubject(subjectName) {
+  const subject = String(subjectName || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+  if (subject === "physics" || subject === "phy") return "physics";
+  if (subject === "chemistry" || subject === "chem") return "chemistry";
+  if (subject === "botany") return "botany";
+  if (subject === "zoology") return "zoology";
+  if (subject === "mathematics" || subject === "math" || subject === "maths") return "mathematics";
+  return "";
+}
+
+function resolveVerifiedQuestionPolicy(examName, question = {}) {
+  const examKey = normalizeExamKey(examName);
+  const examPolicy = VERIFIED_SCORING_POLICIES[examKey];
+  if (!examPolicy) return null;
+  const subjectKey = normalizeScoringSubject(question.subject);
+  const sectionKey = String(question.section || "").trim().toLowerCase();
+  const subjectPolicy = examPolicy[subjectKey];
+  if (!subjectPolicy || !sectionKey || !subjectPolicy[sectionKey]) return null;
+  const policy = subjectPolicy[sectionKey];
+  const type = String(question.questionType || "").trim().toUpperCase();
+  const acceptedTypes = policy.questionType === "MCQ_SINGLE"
+    ? new Set(["MCQ_SINGLE", "MCQ", "DIRECT_MCQ"])
+    : new Set(["NUMERICAL_VALUE", "NUMERICAL", "TITA", "NAT"]);
+  if (!acceptedTypes.has(type)) return null;
+  return policy;
+}
+
 function getMarkingSchemeForExam(examName) {
-  const name = String(examName || "").trim().toLowerCase();
-  if (!name) {
-    const err = new Error("Exam name cannot be empty");
-    err.code = "invalid-argument";
+  const examKey = normalizeExamKey(examName);
+  if (!VERIFIED_SCORING_POLICIES[examKey]) {
+    const err = new Error(`Scoring pattern is not source-verified for exam "${examName}".`);
+    err.code = "failed-precondition";
     throw err;
   }
-
-  // Medical
-  if (name === "neet" || name === "neet ug" || name === "neet_ug") return { pos: 4.0, neg: 1.0 };
-
-  // Engineering
-  if (name.includes("jee adv") || name === "jee_advanced") return { pos: 4.0, neg: 2.0 };
-  if (name.includes("jee main") || name === "jee_main") return { pos: 4.0, neg: 1.0 };
-  if (name.includes("gate")) return { pos: 1.0, neg: 0.33 };
-
-  // University
-  if (name.includes("cuet")) return { pos: 5.0, neg: 1.0 };
-
-  // Civil Services & Defence
-  if (name.includes("upsc") || name.includes("civil services")) return { pos: 2.0, neg: 0.66 };
-  if (name.includes("nda")) return { pos: 4.0, neg: 1.33 };
-  if (name.includes("cds")) return { pos: 1.0, neg: 0.33 };
-
-  // SSC
-  if (name.includes("cgl") || name.includes("ssc_cgl")) return { pos: 2.0, neg: 0.50 };
-  if (name.includes("chsl") || name.includes("ssc_chsl")) return { pos: 2.0, neg: 0.50 };
-  if (name.includes("mts") || name.includes("ssc_mts")) return { pos: 3.0, neg: 1.0 };
-  if (name.includes("cpo") || name.includes("ssc_cpo")) return { pos: 1.0, neg: 0.25 };
-  if (name.includes("ssc_gd") || name.includes("ssc gd") || name === "gd") return { pos: 2.0, neg: 0.25 };
-
-  // Banking (Confirmed from UniversalExamRegistry.kt: +1.0 / -0.25)
-  if (name.includes("ibps_po") || name.includes("ibps po")) return { pos: 1.0, neg: 0.25 };
-  if (name.includes("ibps_clerk") || name.includes("ibps clerk")) return { pos: 1.0, neg: 0.25 };
-  if (name.includes("sbi_po") || name.includes("sbi po")) return { pos: 1.0, neg: 0.25 };
-  if (name.includes("sbi_clerk") || name.includes("sbi clerk")) return { pos: 1.0, neg: 0.25 };
-  if (name.includes("ibps") || name.includes("sbi") || name.includes("banking")) return { pos: 1.0, neg: 0.25 };
-
-  // Teaching
-  if (name.includes("ctet") || name.includes("uptet")) return { pos: 1.0, neg: 0.0 };
-  if (name.includes("ugc_net") || name.includes("ugc net") || name === "ugc" || (name.includes("net") && !name.includes("neet"))) return { pos: 2.0, neg: 0.0 };
-
-  // Management
-  if (name.includes("cat")) return { pos: 3.0, neg: 1.0 };
-
-  // Railways
-  if (name.includes("alp") || name.includes("loco pilot")) return { pos: 1.0, neg: 0.33 };
-  if (name.includes("technician")) return { pos: 1.0, neg: 0.33 };
-  if (name.includes("group_d") || name.includes("group d")) return { pos: 1.0, neg: 0.33 };
-  if (name.includes("rrb_je") || name.includes("rrb je") || name.includes("junior engineer")) return { pos: 1.0, neg: 0.33 };
-  if (name.includes("ntpc")) return { pos: 1.0, neg: 0.33 };
-
-  // Controlled error for unsupported/unrecognized exams (DO NOT SILENTLY RETURN NEET!)
-  const err = new Error(`Unsupported or unrecognized exam scheme: "${examName}"`);
-  err.code = "invalid-argument";
-  throw err;
+  return { pos: 4.0, neg: 1.0 };
 }
 
 function getMarkingSchemeForQuestion(examName, sectionIdOrName = "", subjectName = "", questionType = "") {
-  const name = String(examName || "").trim().toLowerCase();
-  const sec = String(sectionIdOrName || "").trim().toLowerCase();
-  const sub = String(subjectName || "").trim().toLowerCase();
-  const type = String(questionType || "").trim().toUpperCase();
-
-  // CAT
-  if (name.includes("cat")) {
-    const isTitaOrNumerical = type === "TITA" || type === "NUMERICAL" || type === "NUMERICAL_VALUE";
-    if (isTitaOrNumerical) return { pos: 3.0, neg: 0.0 };
-    return { pos: 3.0, neg: 1.0 };
+  const policy = resolveVerifiedQuestionPolicy(examName, {
+    section: sectionIdOrName,
+    subject: subjectName,
+    questionType
+  });
+  if (!policy) {
+    const err = new Error("Question subject, section, or type is not part of a source-verified exam pattern.");
+    err.code = "failed-precondition";
+    throw err;
   }
-
-  // JEE Advanced
-  if (name.includes("jee adv") || name === "jee_advanced") {
-    const isMulti = sec.includes("multi") || type === "MCQ_MULTIPLE" || type === "MULTIPLE";
-    const isNum = sec.includes("num") || sec.includes("nvq") || type === "NUMERICAL" || type === "NUMERICAL_VALUE" || type === "TITA";
-    const isSingle = sec.includes("single") || type === "MCQ_SINGLE" || type === "MCQ";
-    if (isMulti) return { pos: 4.0, neg: 2.0 };
-    if (isNum) return { pos: 3.0, neg: 0.0 };
-    if (isSingle) return { pos: 3.0, neg: 1.0 };
-  }
-
-  // NDA
-  if (name.includes("nda")) {
-    const isMath = sec.includes("math") || sub.includes("math");
-    const isGat = sec.includes("gat") || sec.includes("eng") || sec.includes("gk") || sub.includes("gat") || sub.includes("eng") || sub.includes("gk") || sub.includes("science");
-    if (isMath && !isGat) return { pos: 2.5, neg: 0.83 };
-    if (isGat) return { pos: 4.0, neg: 1.33 };
-  }
-
-  // CDS
-  if (name.includes("cds")) {
-    const isMath = sec.includes("math") || sub.includes("math");
-    if (isMath) return { pos: 1.0, neg: 0.33 };
-    return { pos: 0.83, neg: 0.27 };
-  }
-
-  // GATE
-  if (name.includes("gate")) {
-    const is2Mark = sec.includes("2m") || sec.includes("2-mark") || sec.includes("2_mark") || sec.includes("2 mark") || sub.includes("2m");
-    const isTechOrNum = sec.includes("tech") || type === "NUMERICAL_VALUE" || type === "NUMERICAL" || type === "TITA" || sub.includes("tech") || sub.includes("engineering");
-    if (isTechOrNum) {
-      return is2Mark ? { pos: 2.0, neg: 0.0 } : { pos: 1.0, neg: 0.0 };
-    } else {
-      return is2Mark ? { pos: 2.0, neg: 0.66 } : { pos: 1.0, neg: 0.33 };
-    }
-  }
-
-  // SSC MTS
-  if (name.includes("mts") || name.includes("ssc_mts")) {
-    const isSession1 = sec.includes("session_1") || sec.includes("math") || sec.includes("reason") || sub.includes("session_1") || sub.includes("math") || sub.includes("reason");
-    const isSession2 = sec.includes("session_2") || sec.includes("ga") || sec.includes("eng") || sub.includes("session_2") || sub.includes("awareness") || sub.includes("english");
-    if (isSession2 && !isSession1) return { pos: 3.0, neg: 1.0 };
-    if (isSession1) return { pos: 3.0, neg: 0.0 };
-  }
-
-  return getMarkingSchemeForExam(examName);
+  return { pos: policy.pos, neg: policy.neg };
 }
 
 function hasMultipleMarkingSchemes(examName) {
-  const name = String(examName || "").trim().toLowerCase();
-  return name.includes("nda") || name.includes("cds") || name.includes("gate") || name.includes("mts") || name.includes("jee adv") || name === "jee_advanced" || name.includes("cat");
+  // The two currently source-verified exams use the same +4/-1 marks in every section.
+  return false;
 }
 
 function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, subjectName = "") {
-  const name = String(examName || "").trim().toLowerCase();
-  const sec = String(sectionNameOrId || "").trim().toLowerCase();
-
-  if (sec === "section_b" || sec.includes("section b") || sec.includes("sec_b")) {
-    if (name.includes("neet")) return 10;
-    if (name.includes("jee")) return 5;
-  }
+  // NEET UG 2026 and JEE Main 2026 have no optional Section-B attempt cap.
+  // Other exam patterns are not enabled until official source verification is complete.
   return null;
 }
 
