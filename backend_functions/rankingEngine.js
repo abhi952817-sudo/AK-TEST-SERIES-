@@ -30,16 +30,24 @@ function resolveRankingWeight(testData = {}) {
   const explicit = testData.rankingWeight;
   if (explicit !== undefined && explicit !== null) {
     const weight = Number(explicit);
-    if (weight === 1 || weight === 0.2) return weight;
+    return weight === 1 || weight === 0.2 ? weight : null;
   }
-  const category = String(testData.category || testData.testType || testData.testCategory || "").toLowerCase();
+
+  const category = String(
+    testData.category || testData.testCategory || testData.testType || ""
+  ).trim().toLowerCase();
   const isPart = testData.isPartTest === true ||
     testData.isChapterTest === true ||
-    category.includes("chapter") ||
-    category.includes("topic") ||
-    category.includes("subject") ||
-    category.includes("part");
-  return isPart ? RANKING_CONFIG.partTestWeight : RANKING_CONFIG.fullTestWeight;
+    /\\b(chapter|topic|subject|part)\\b/.test(category);
+  if (isPart) return RANKING_CONFIG.partTestWeight;
+
+  const isFull = testData.isFullTest === true ||
+    /\\b(full|complete|grand)\\b/.test(category);
+  if (isFull) return RANKING_CONFIG.fullTestWeight;
+
+  // Never guess that an ambiguous "mock test" is a full test. An admin must
+  // explicitly classify it before it can contribute to competitive ranking.
+  return null;
 }
 
 /**
