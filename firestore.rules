@@ -16,7 +16,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.get('admin', false) == true
-        || (request.auth.token.get('email', '') == 'abhi952817@gmail.com' && request.auth.token.email_verified == true)
+        || (request.auth.token.get('email', '') == 'abhi952817@gmail.com' && request.auth.token.get('email_verified', false) == true)
       );
     }
 
@@ -61,13 +61,11 @@ service cloud.firestore {
       ]);
     }
 
-    // Helper: test publication policy requires explicit approved/published status and public/official flag
+    // Must match the server callable: explicitly approved/published AND public.
+    // isOfficial alone never makes a private test visible to ordinary students.
     function isTestPublishedAndApproved(data) {
-      return (data.get('status', '') in ['APPROVED', 'Published'])
-        && data.get('status', '') != 'Under Review'
-        && data.get('status', '') != 'REJECTED'
-        && data.get('status', '') != 'DRAFT'
-        && (data.get('isPublic', false) == true || data.get('isOfficial', false) == true);
+      return data.get('status', '') in ['APPROVED', 'PUBLISHED', 'Published']
+        && data.get('isPublic', false) == true;
     }
 
     // Helper: checks whether user account has been suspended by administration
