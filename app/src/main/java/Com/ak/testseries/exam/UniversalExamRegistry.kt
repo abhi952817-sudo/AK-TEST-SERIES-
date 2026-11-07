@@ -1107,77 +1107,79 @@ object UniversalExamRegistry {
 
     fun getCanonicalExamKey(query: String?): String {
         if (query.isNullOrBlank()) return "UNKNOWN"
-        if (query.equals("All", ignoreCase = true)) return "ALL"
-        val q = query.trim().lowercase()
+        val q = query.trim().lowercase().replace('-', ' ').replace('_', ' ').replace(Regex("\\s+"), " ")
+        if (q == "all") return "ALL"
         return when {
-            q.contains("neet") -> "NEET"
-            q.contains("jee adv") || q == "jee_advanced" -> "JEE_ADVANCED"
-            q.contains("jee main") || q == "jee_main" || q.contains("jee") -> "JEE_MAIN"
+            q == "jee" || q == "rrb" || q == "railway" || q == "railways" -> "UNKNOWN"
+            q.contains("jee advanced") || q == "jee adv" -> "JEE_ADVANCED"
+            q.contains("jee main") -> "JEE_MAIN"
+            q.contains("neet pg") -> "NEET_PG"
+            q == "neet" || q.contains("neet ug") -> "NEET"
             q.contains("gate") -> "GATE"
             q.contains("cuet") -> "CUET"
             q.contains("upsc") || q.contains("civil services") -> "UPSC"
             q.contains("nda") -> "NDA"
             q.contains("cds") -> "CDS"
-            q.contains("cgl") || q.contains("ssc_cgl") -> "SSC_CGL"
-            q.contains("chsl") || q.contains("ssc_chsl") -> "SSC_CHSL"
-            q.contains("mts") || q.contains("ssc_mts") -> "SSC_MTS"
-            q.contains("cpo") || q.contains("ssc_cpo") -> "SSC_CPO"
-            q.contains("ssc_gd") || q.contains("ssc gd") || q == "gd" -> "SSC_GD"
-            q.contains("ibps_po") || q.contains("ibps po") -> "IBPS_PO"
-            q.contains("ibps_clerk") || q.contains("ibps clerk") -> "IBPS_CLERK"
-            q.contains("sbi_po") || q.contains("sbi po") -> "SBI_PO"
-            q.contains("sbi_clerk") || q.contains("sbi clerk") -> "SBI_CLERK"
+            q.contains("ssc cgl") || q == "cgl" -> "SSC_CGL"
+            q.contains("ssc chsl") || q == "chsl" -> "SSC_CHSL"
+            q.contains("ssc mts") || q == "mts" -> "SSC_MTS"
+            q.contains("ssc cpo") || q == "cpo" -> "SSC_CPO"
+            q.contains("ssc gd") || q == "gd" -> "SSC_GD"
+            q.contains("ibps po") -> "IBPS_PO"
+            q.contains("ibps clerk") -> "IBPS_CLERK"
+            q.contains("sbi po") -> "SBI_PO"
+            q.contains("sbi clerk") -> "SBI_CLERK"
             q.contains("ctet") || q.contains("uptet") -> "CTET"
-            q.contains("ugc_net") || q.contains("ugc net") || q == "ugc" || (q.contains("net") && !q.contains("neet")) -> "UGC_NET"
-            q.contains("cat") -> "CAT"
-            q.contains("group_d") || q.contains("group d") || q.contains("level 1") -> "RRB_GROUP_D"
-            q.contains("alp") || q.contains("loco pilot") -> "RRB_ALP"
-            q.contains("technician") || q.contains("rrb_tech") -> "RRB_TECHNICIAN"
-            q.contains("rrb_je") || q.contains("rrb je") || q.contains("junior engineer") -> "RRB_JE"
-            q.contains("ntpc") || q.contains("rrb_ntpc") -> "RRB_NTPC"
-            q == "rrb" || q == "railways" || q == "railway" -> "RRB_NTPC"
-            else -> {
-                val config = findExamByNameOrShortName(query)
-                config?.shortName?.uppercase()?.replace(" ", "_") ?: query.trim().uppercase().replace(" ", "_")
-            }
+            q.contains("ugc net") -> "UGC_NET"
+            q == "cat" -> "CAT"
+            q.contains("rrb group d") || q == "group d" || q.contains("level 1") -> "RRB_GROUP_D"
+            q.contains("rrb alp") || q.contains("loco pilot") -> "RRB_ALP"
+            q.contains("rrb technician") -> "RRB_TECHNICIAN"
+            q.contains("rrb je") || q.contains("junior engineer") -> "RRB_JE"
+            q.contains("rrb ntpc") || q == "ntpc" -> "RRB_NTPC"
+            else -> findExamByNameOrShortName(query)?.examId?.uppercase()
+                ?: "UNKNOWN"
         }
     }
 
     fun findExamByNameOrShortName(query: String): ExamConfig? {
         val q = query.trim().lowercase()
-        val exact = defaultExams.values.find {
-            it.examName.lowercase() == q ||
-            it.shortName.lowercase() == q ||
-            it.examId.lowercase() == q
-        }
-        if (exact != null) return exact
-
-        return defaultExams.values.find {
-            it.examName.lowercase().contains(q) ||
-            q.contains(it.examName.lowercase()) ||
-            q.contains(it.shortName.lowercase())
+        if (q.isBlank() || q in setOf("jee", "rrb", "railway", "railways")) return null
+        return defaultExams.values.singleOrNull {
+            it.examName.trim().lowercase() == q ||
+                it.shortName.trim().lowercase() == q ||
+                it.examId.trim().lowercase() == q
         }
     }
 
     fun getDifficultyRatioForExam(examName: String): DifficultyRatio {
         val config = findExamByNameOrShortName(examName)
-        return config?.difficultyRatio ?: DifficultyRatio(40, 40, 20)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified) { "Difficulty policy is not source-verified for '$examName'." }
+        return config.difficultyRatio
     }
 
     fun getSupportedQuestionTypesForExam(examName: String): List<QuestionType> {
         val config = findExamByNameOrShortName(examName)
-        return config?.supportedQuestionTypes ?: listOf(QuestionType.MCQ_SINGLE)
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified) { "Question-type policy is not source-verified for '$examName'." }
+        return config.supportedQuestionTypes
     }
 
     fun getAiSystemInstructionForExam(examName: String): String {
         val config = findExamByNameOrShortName(examName)
-        return config?.aiSystemInstruction?.takeIf { it.isNotBlank() }
-            ?: "You are an expert academic examiner and question generator for $examName."
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified && config.aiSystemInstruction.isNotBlank()) {
+            "AI generation instructions are not source-verified for '$examName'."
+        }
+        return config.aiSystemInstruction
     }
 
     fun getPatternRulesForExam(examName: String): List<String> {
         val config = findExamByNameOrShortName(examName)
-        return config?.patternRules ?: emptyList()
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified) { "Pattern rules are not source-verified for '$examName'." }
+        return config.patternRules
     }
 
     fun getSubjectsForExamName(examName: String): List<String> {
@@ -1334,7 +1336,10 @@ object UniversalExamRegistry {
 
     fun getDefaultOptionCountForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
-        return config?.defaultOptionCount ?: 4
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.verified) { "Option count is not source-verified for '$examName'." }
+        require(config.defaultOptionCount > 0) { "Option count is not configured for '$examName'." }
+        return config.defaultOptionCount
     }
 
     fun isExamVerified(examId: String): Boolean {
@@ -1342,6 +1347,7 @@ object UniversalExamRegistry {
     }
 
     fun getExamDisplaySubtitle(config: ExamConfig): String {
+        if (!config.verified) return "Pattern not verified • scoring and publishing disabled"
         val allPapers = config.stages.flatMap { it.papers }
         val paper = allPapers.firstOrNull()
         val totalCompQs = allPapers.sumOf { p -> p.subjects.sumOf { s -> s.sections.sumOf { it.compulsoryQuestions } } }
@@ -1365,6 +1371,6 @@ object UniversalExamRegistry {
 
     fun getExamDisplaySubtitleByName(examName: String): String {
         val config = findExamByNameOrShortName(examName)
-        return if (config != null) getExamDisplaySubtitle(config) else "Pattern from Official Syllabus"
+        return if (config != null) getExamDisplaySubtitle(config) else "Exam pattern not configured"
     }
 }
