@@ -239,6 +239,20 @@ Universal-branch-specific changes observed:
 **Phase 3 status: IN PROGRESS.** New writes are being hardened; historical LiveTests documents and all other publishing paths still require audit.
 
 
+### 2.6 Backend contract hardening — 2026-11-07
+
+- Found a dangerous default in submitTestAttemptServerSide(): a test without targetExam/examId could be scored and grouped under NEET, or use its subject as an exam identity. This could contaminate the wrong exam leaderboard.
+- Added resolveCanonicalExamIdentity() in backend_functions/examScoring.js. It prefers explicit examId, then targetExam, rejects missing identity, and rejects the non-specific ALL identity.
+- Added regression tests for canonical NEET/JEE identity and missing/ALL rejection.
+- Updated backend_functions/index.js to call the fail-closed resolver and return a failed-precondition error rather than guessing an exam.
+- Commits: scoring helper `cf8c9cd4ec4d9522aa7929d3138e396f59a3d516`; tests `60add2776ee5ac2e3a2a5fdb2fe0e9a178ffb2a9`; callable integration `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22`.
+- This protects exam isolation, but does not yet make the year/stage/paper policy canonical. That remains Phase 5.
+
+**CI evidence:** Workflow #193 (`42322154778`) has backend and Firestore jobs PASS; Android was still running when last checked. That workflow started before commits `4a476d6b...`, `cf8c9cd4...`, `60add277...`, and `6afe7f40...`; it does not validate those later commits. Fresh CI evidence is required before these latest edits are considered verified.
+
+**Live branch snapshot after the latest code commits:** integration head `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22`; 132 commits ahead of main, 40 ahead of Ranking, and diverged from Universal (44 ahead / 45 behind). Main remains untouched.
+
+
 ---
 
 ## 3. Known audit findings to verify and fix
@@ -523,10 +537,10 @@ Development is not complete until all of these are true:
 
 | Phase | Status | Commit SHA | Tests/evidence | Notes |
 |---|---|---|---|---|
-| 0 Baseline refresh | COMPLETE | `4a476d6b713593102ea38ccbe7660384e121faf5` | 2026-11-07 live branch comparisons; PR #3; workflow #183 all 3 jobs PASS | Current integration branch is 128 ahead of main, 36 ahead of Ranking, and diverged from Universal (40 ahead / 45 behind) |
+| 0 Baseline refresh | COMPLETE | `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22` | 2026-11-07 live branch comparisons; PR #3; workflow #183 all 3 jobs PASS | Latest code commits are newer than workflow #193; fresh CI is required |
 | 1 Overlap map | COMPLETE | `faf51cdb9778b3179dd3be47df12377688b264c9` | 15-file keep/port/reconcile matrix; branch compare and shared-file review | Individual commit SHA list not exposed by connector; only workflow file delta confirmed |
-| 2 Backend contract | IN PROGRESS | `cd714bbc3c044f7e451db5798c7a20cfbeccc2b4` | Numeric-zero bug fixed with regression; backend job PASS in workflow #187 and #193 | Need dedicated callable scoring→ranking→XP idempotency contract tests; full jobs for latest commits still pending |
-| 3 Secure publishing | IN PROGRESS | `4a476d6b713593102ea38ccbe7660384e121faf5` | LiveTests public/private answer separation, Admin-only private_keys rule, emulator test added | Historical LiveTests docs may still leak keys; dry-run + approved migration and remaining publish-path audit required |
+| 2 Backend contract | IN PROGRESS | `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22` | Numeric-zero regression added; missing/ALL exam identity now fails closed with tests; prior backend CI PASS | Need fresh CI for latest helper/callable commits and dedicated scoring→ranking→XP idempotency contract tests |
+| 3 Secure publishing | IN PROGRESS | `4a476d6b713593102ea38ccbe7660384e121faf5` | LiveTests public/private answer separation, Admin-only private_keys rule, emulator test added; generated live mocks no longer auto-rank | Historical LiveTests docs may still leak keys; dry-run + approved migration and remaining publish-path audit required |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
 | 5 Exam configuration | NOT STARTED | — | — | Year/stage/paper provenance |
 | 6 Scoring parity | NOT STARTED | — | — | Kotlin/Node golden vectors |
