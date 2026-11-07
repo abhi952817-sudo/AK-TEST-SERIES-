@@ -73,6 +73,14 @@ function resolveRankingWeight(testData = {}) {
  * Full tests contribute 0..10,000 points; part/chapter tests contribute 0..2,000.
  * Returns an integer so existing Android clients reading Firestore Long values remain compatible.
  */
+function isEligibleHistoricalRankingTest(testData = {}) {
+  const status = String(testData.status || "").trim().toUpperCase();
+  return testData.isOfficial === true &&
+    testData.isPublic === true &&
+    testData.countsTowardRanking === true &&
+    (status === "APPROVED" || status === "PUBLISHED");
+}
+
 function isEligibleScoringResult(result = {}) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return false;
   const score = finiteNumber(result.finalScore, NaN);
@@ -215,6 +223,7 @@ module.exports = {
   resolveRankingWeight,
   calculateWeightedRankingScore,
   isEligibleScoringResult,
+  isEligibleHistoricalRankingTest,
   getIndiaDateParts,
   getIndiaDateKey,
   getIndiaWeekId,
