@@ -5025,13 +5025,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             delay(500)
 
             // Step 2 & 6: Persistent PDF Storage with atomic copy, SHA-256 hash & disk space check
+            val selectedExamName = genTargetExam.value.ifBlank { _userProfile.value.targetExam }
+            val selectedExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(selectedExamName)
+            if (selectedExamConfig == null || !selectedExamConfig.verified) {
+                _pdfAnalysisState.value = PdfAnalysisState.Error("Select a supported, source-verified exam before analyzing this PDF.")
+                return@launch
+            }
             val (pdfName, _) = Com.ak.testseries.data.pdf.PdfStorageManager.queryUriMetadata(context, uri)
             val storageResult = withContext(Dispatchers.IO) {
                 Com.ak.testseries.data.pdf.PdfStorageManager.storePdfSafely(
                     context = context,
                     inputStreamProvider = { context.contentResolver.openInputStream(uri) },
                     fileName = pdfName,
-                    targetExam = genTargetExam.value.ifBlank { "NEET UG" },
+                    targetExam = selectedExamConfig.examId,
                     existingSessionLookup = { hash -> db.pdfSessionDao().getSessionByHash(hash) }
                 )
             }
@@ -5169,7 +5175,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _pdfAnalysisState.value = PdfAnalysisState.AnalyzingWithAI
             
             // Look up current selected target exam or detect from text
-            val currentTargetExam = genTargetExam.value.ifBlank { "NEET UG" }
+            val currentTargetExam = selectedExamConfig.examId
             val registeredExams = Com.ak.testseries.exam.UniversalExamRegistry.getAllExams()
             val examNamesList = registeredExams.map { it.examName }.joinToString(", ")
 
@@ -5778,6 +5784,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun saveGeneratedTest(jsonString: String) = withContext(Dispatchers.IO) {
+        val requestedExam = genTargetExam.value.ifBlank { _userProfile.value.targetExam }
+        require(requestedExam.isNotBlank()) { "Select a target exam before saving generated questions." }
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(requestedExam)
+            ?: throw IllegalArgumentException("Unsupported exam identity: $requestedExam")
+        require(examConfig.active && examConfig.verified) { "Selected exam configuration is not source-verified." }
+        require(examConfig.stages.size == 1 && examConfig.stages.single().papers.size == 1) {
+            "Generated test saving requires an explicitly supported single-stage, single-paper exam."
+        }
+        val selectedStage = examConfig.stages.single()
+        val selectedPaper = selectedStage.papers.single()
+        val selectedSubjectName = genSubject.value.trim()
+        require(selectedSubjectName.isNotBlank()) { "Select a subject or All Subjects before saving." }
         val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val jsonArray = JSONArray(cleanJson)
         val testId = "ai_" + System.currentTimeMillis()
@@ -5945,7 +5963,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             questionsJson = questionsJsonString,
             uploaderId = authenticatedUid,
             isPublic = genIsPublic.value,
-            status = initialStatus
+            status = initialStatus,
+            targetExam = examConfig.examId,
+            durationMinutes = genLiveDurationMinutes.value.takeIf { it > 0 } ?: selectedPaper.durationMinutes,
+            examId = examConfig.examId,
+            stageId = selectedStage.stageId,
+            paperId = selectedPaper.paperId,
+            scoringVersion = 2
         )
 
         repository.insertTest(newTest)
@@ -5959,7 +5983,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             if (isLiveTest) {
                 try {
                     val db = firestoreDb
-                    val canonicalExam = genTargetExam.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET UG" } }
+                    val canonicalExam = examConfig.examId
                     val liveTestData = hashMapOf(
                         "id" to testId,
                         "title" to genTestName.value,
