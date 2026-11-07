@@ -222,6 +222,23 @@ Universal-branch-specific changes observed:
 **Phase 2 status remains IN PROGRESS.** The current workflow validates backend and Android builds, but callable scoring→eligibility→ranking→XP behavior still needs dedicated contract/idempotency regression coverage. Static exam-name marking rules are not yet the canonical year/stage/paper configuration; that is a later Phase 5/6 requirement.
 
 
+### 2.5 Live test answer-key exposure and auto-ranking audit — 2026-11-07
+
+**P0 confirmed:** The LiveTests collection is readable by every authenticated student. The previous scheduleLiveTest() path wrote the full questionsJson directly to LiveTests, including correctAnswer and explanations. A second generated-live-test path also set isOfficial/countsTowardRanking from the live-mode toggle. This was an answer-key exposure and false-official/ranking risk.
+
+**Changes committed on the integration branch:**
+- Commit `98c9432d51e1f92c5d37e5539f5faf43f99f30c4`: scheduleLiveTest() now separates public question content from answer keys before writing LiveTests. The public document receives sanitized questionsJson; private answer keys are written in the same Firestore batch to LiveTests/{testId}/private_keys/answerKey.
+- Commit `d6b0d9834962c87ac3e55e1170bc8abb9e5f5e76`: Firestore rules restrict LiveTests/{testId}/private_keys to Admin only.
+- Commit `6878113be6b19fdca1b97e3757df9ee3e8074e12`: emulator regression test verifies students can read the public LiveTests document but cannot read its private answer key; Admin can read it.
+- Commit `4a476d6b713593102ea38ccbe7660384e121faf5`: generated live mocks no longer automatically set isOfficial, isVerifiedCommunity, or countsTowardRanking. The scheduled-live creation path also explicitly keeps those flags false while retaining the published live-test experience.
+
+**Important residual risk:** Existing LiveTests documents written before this fix may still contain answer keys in their public questionsJson field. The code change does not retroactively sanitize Firestore production documents. Phase 3 cannot be marked complete until a read-only inventory/dry-run identifies affected documents, a backup/rollback plan exists, and an explicitly approved migration or safe cleanup is completed. Do not run that production migration automatically.
+
+**CI status:** Workflow #193 (`42322154778`) was observed running after the LiveTests sanitizer/rules/test changes: backend job PASS; Firestore Emulator and Android jobs were still in progress. The later generated-live flag correction commit `4a476d6b713593102ea38ccbe7660384e121faf5` was pushed after that run started and therefore needs a fresh CI result.
+
+**Phase 3 status: IN PROGRESS.** New writes are being hardened; historical LiveTests documents and all other publishing paths still require audit.
+
+
 ---
 
 ## 3. Known audit findings to verify and fix
@@ -506,10 +523,10 @@ Development is not complete until all of these are true:
 
 | Phase | Status | Commit SHA | Tests/evidence | Notes |
 |---|---|---|---|---|
-| 0 Baseline refresh | COMPLETE | `cd714bbc3c044f7e451db5798c7a20cfbeccc2b4` | 2026-11-07 live branch comparisons; PR #3; integration workflow #183 all 3 jobs PASS | Latest code-change workflow #187 was still running at this update; check before claiming green |
+| 0 Baseline refresh | COMPLETE | `4a476d6b713593102ea38ccbe7660384e121faf5` | 2026-11-07 live branch comparisons; PR #3; workflow #183 all 3 jobs PASS | Current integration branch is 128 ahead of main, 36 ahead of Ranking, and diverged from Universal (40 ahead / 45 behind) |
 | 1 Overlap map | COMPLETE | `faf51cdb9778b3179dd3be47df12377688b264c9` | 15-file keep/port/reconcile matrix; branch compare and shared-file review | Individual commit SHA list not exposed by connector; only workflow file delta confirmed |
-| 2 Backend contract | IN PROGRESS | `cd714bbc3c044f7e451db5798c7a20cfbeccc2b4` | Workflow #183 PASS; numeric-zero bug fixed and regression added; workflow #187 pending | Need dedicated callable scoring→ranking→XP idempotency contract tests; Phase 2 not complete |
-| 3 Secure publishing | NOT STARTED | — | — | P0 answer leak |
+| 2 Backend contract | IN PROGRESS | `cd714bbc3c044f7e451db5798c7a20cfbeccc2b4` | Numeric-zero bug fixed with regression; backend job PASS in workflow #187 and #193 | Need dedicated callable scoring→ranking→XP idempotency contract tests; full jobs for latest commits still pending |
+| 3 Secure publishing | IN PROGRESS | `4a476d6b713593102ea38ccbe7660384e121faf5` | LiveTests public/private answer separation, Admin-only private_keys rule, emulator test added | Historical LiveTests docs may still leak keys; dry-run + approved migration and remaining publish-path audit required |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
 | 5 Exam configuration | NOT STARTED | — | — | Year/stage/paper provenance |
 | 6 Scoring parity | NOT STARTED | — | — | Kotlin/Node golden vectors |
