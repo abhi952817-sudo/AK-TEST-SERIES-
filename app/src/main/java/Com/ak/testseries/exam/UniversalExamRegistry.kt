@@ -1205,36 +1205,44 @@ object UniversalExamRegistry {
             }.distinct()
             if (subjects.isNotEmpty()) return subjects
         }
-        return listOf("Physics", "Chemistry", "Biology", "Mathematics")
+        return emptyList()
     }
 
     fun getDefaultQuestionsCountForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
-        if (config != null) {
-            val paper = config.stages.firstOrNull()?.papers?.firstOrNull()
-            if (paper != null) {
-                val sum = paper.subjects.sumOf { subj ->
-                    subj.sections.sumOf { it.compulsoryQuestions }
-                }
-                if (sum > 0) return sum
-            }
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
+            "Select an exact stage and paper for '$examName'; implicit first-paper selection is disabled."
         }
-        return 180
+        val count = config.stages.single().papers.single().subjects.sumOf { subject ->
+            subject.sections.sumOf { it.compulsoryQuestions }
+        }
+        require(count > 0) { "Question count is not configured for '$examName'." }
+        return count
     }
 
     fun getDefaultDurationMinutesForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
-        return config?.stages?.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: 180
+            ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
+            "Select an exact stage and paper for '$examName'; implicit first-paper selection is disabled."
+        }
+        val duration = config.stages.single().papers.single().durationMinutes
+        require(duration > 0) { "Duration is not configured for '$examName'." }
+        return duration
     }
 
     fun getMarkingSchemeForExam(examName: String): Pair<Double, Double> {
         val config = findExamByNameOrShortName(examName)
-        val section = config?.stages?.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()
-        return if (section != null) {
-            Pair(section.positiveMarks, section.negativeMarks)
-        } else {
-            throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
+            ?: throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
+        require(config.verified) { "Scoring configuration for '$examName' is not source-verified." }
+        require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
+            "Select an exact stage and paper for '$examName'; a single exam-wide marking scheme is ambiguous."
         }
+        val schemes = config.stages.single().papers.single().subjects.flatMap { it.sections }
+            .map { it.positiveMarks to it.negativeMarks }.distinct()
+        require(schemes.size == 1) { "This paper has section-specific marking; provide an exact section." }
+        return schemes.single()
     }
 
     fun getMarkingSchemeForQuestion(
@@ -1245,6 +1253,7 @@ object UniversalExamRegistry {
     ): Pair<Double, Double> {
         val config = findExamByNameOrShortName(examName)
             ?: throw IllegalArgumentException("Unsupported or unknown exam scoring scheme: '$examName'")
+        require(config.verified) { "Scoring configuration for '$examName' is not source-verified." }
         val secQuery = sectionIdOrName?.trim()?.lowercase() ?: ""
         val subQuery = subjectName?.trim()?.lowercase() ?: ""
         val typeQuery = questionTypeStr?.trim()?.uppercase() ?: ""
