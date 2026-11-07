@@ -232,24 +232,38 @@ function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, su
  * Authoritative Evaluation of Test Attempt
  */
 function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0) {
-  const exam = String(targetExam || "NEET");
+  if (typeof targetExam !== "string" || targetExam.trim().length === 0) {
+    const err = new Error("An explicit supported exam identity is required for scoring.");
+    err.code = "invalid-argument";
+    throw err;
+  }
+  if (!Array.isArray(questions)) {
+    const err = new Error("Question payload must be an array.");
+    err.code = "invalid-argument";
+    throw err;
+  }
+  const exam = targetExam.trim();
   const baseScheme = getMarkingSchemeForExam(exam);
-  const isMultiScheme = hasMultipleMarkingSchemes(exam);
-  const isCat = exam.toLowerCase().includes("cat");
 
   let correctCount = 0;
   let wrongCount = 0;
   let unansweredCount = 0;
   let ungradedCount = 0;
-
   let positiveMarksEarned = 0.0;
   let negativeMarksPenalty = 0.0;
   let maxPossible = 0.0;
 
-  const sectionAttemptCounts = {};
-  const sectionQuestionCounts = {};
-
   for (const q of questions) {
+    const policy = resolveVerifiedQuestionPolicy(exam, q);
+    if (!policy) {
+      // Invalid/missing subject, section or question type invalidates the result even
+      // when the student left that question unanswered. Never score by a generic fallback.
+      ungradedCount++;
+      continue;
+    }
+
+    const scheme = { pos: policy.pos, neg: policy.neg };
+    maxPossible += scheme.pos;
     const qId = q.id;
     const answerValue = userAnswers && Object.prototype.hasOwnProperty.call(userAnswers, qId)
       ? userAnswers[qId]
@@ -257,66 +271,43 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     const rawUserOpt = answerValue !== null && typeof answerValue === "object"
       ? answerValue.ans
       : answerValue;
-    // Numeric zero is a valid numerical/TITA answer, not an empty response.
     const userOpt = rawUserOpt === null || rawUserOpt === undefined
       ? ""
       : String(rawUserOpt).trim().toUpperCase();
     const correctOpt = q.correctAnswer === null || q.correctAnswer === undefined
       ? ""
       : String(q.correctAnswer).trim().toUpperCase();
-    const isKeyVerified = isAnswerKeyVerified(correctOpt);
 
-    const scheme = isMultiScheme
-      ? getMarkingSchemeForQuestion(exam, q.section, q.subject, q.questionType)
-      : baseScheme;
-
-    const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
-    const secLimit = getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
-    const seenSectionQuestions = sectionQuestionCounts[secKey] || 0;
-    // Maximum marks must respect optional-section attempt caps, not every printed question.
-    if (secLimit === null || seenSectionQuestions < secLimit) {
-      maxPossible += scheme.pos;
+    const isNumerical = policy.questionType === "NUMERICAL_VALUE";
+    const isValidKey = isNumerical
+      ? isFiniteNumericAnswer(correctOpt)
+      : ["A", "B", "C", "D", "1", "2", "3", "4"].includes(correctOpt);
+    if (!isValidKey) {
+      ungradedCount++;
+      continue;
     }
-    sectionQuestionCounts[secKey] = seenSectionQuestions + 1;
-
-    const isTitaOrNumerical = (q.questionType || "").toUpperCase() === "TITA" ||
-      (q.questionType || "").toUpperCase() === "NUMERICAL" ||
-      (q.questionType || "").toUpperCase() === "NUMERICAL_VALUE";
-
-    const effectiveNegMark = (isCat && isTitaOrNumerical) ? 0.0 : scheme.neg;
 
     if (!userOpt || userOpt === "SKIPPED") {
       unansweredCount++;
+      continue;
+    }
+
+    if (isUserAnswerCorrect(userOpt, correctOpt, isNumerical, q.questionType)) {
+      correctCount++;
+      positiveMarksEarned += scheme.pos;
     } else {
-      const currentAttempts = sectionAttemptCounts[secKey] || 0;
-
-      if (secLimit !== null && currentAttempts >= secLimit) {
-        // Surplus question beyond section limit - ignored per exam rules
-        unansweredCount++;
-      } else {
-        if (secLimit !== null) {
-          sectionAttemptCounts[secKey] = currentAttempts + 1;
-        }
-
-        if (!isKeyVerified) {
-          ungradedCount++;
-        } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical, q.questionType)) {
-          correctCount++;
-          positiveMarksEarned += scheme.pos;
-        } else {
-          wrongCount++;
-          negativeMarksPenalty += effectiveNegMark;
-        }
-      }
+      wrongCount++;
+      negativeMarksPenalty += scheme.neg;
     }
   }
 
-  // Round maxPossible and calculate final scores
   const rawScore = positiveMarksEarned - negativeMarksPenalty;
   const finalScore = Math.max(0.0, rawScore);
   const attemptedCount = correctCount + wrongCount + ungradedCount;
   const accuracyDenominator = correctCount + wrongCount;
-  const accuracyPercent = accuracyDenominator > 0 ? Math.round((correctCount / accuracyDenominator) * 10000) / 100 : 0.0;
+  const accuracyPercent = accuracyDenominator > 0
+    ? Math.round((correctCount / accuracyDenominator) * 10000) / 100
+    : 0.0;
 
   return {
     totalQuestions: questions.length,
@@ -331,7 +322,7 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     finalScore: Math.round(finalScore * 100) / 100,
     maxScore: Math.round(maxPossible * 100) / 100,
     accuracyPercent,
-    percentile: 0.0, // Population-based percentile computed against candidate cohort
+    percentile: 0.0,
     timeSpentSeconds,
     correctMarksPerQuestion: baseScheme.pos,
     negativeMarksPerQuestion: baseScheme.neg,
