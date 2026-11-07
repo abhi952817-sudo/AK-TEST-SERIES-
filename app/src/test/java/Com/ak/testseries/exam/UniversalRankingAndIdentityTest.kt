@@ -27,7 +27,8 @@ class UniversalRankingAndIdentityTest {
     fun exactExamLookupRejectsGenericJeeAliasAndPartialMatches() {
         assertNull(UniversalExamRegistry.findExamByNameOrShortName("JEE"))
         assertNull(UniversalExamRegistry.findExamByNameOrShortName("JEE M"))
-        assertEquals("jee_main", UniversalExamRegistry.findExamByNameOrShortName("JEE Main")?.examId)
+        assertNull(UniversalExamRegistry.findExamByNameOrShortName("JEE Main"))
+        assertEquals("jee_main", UniversalExamRegistry.findExamByNameOrShortName("JEE Main P1")?.examId)
         assertEquals("neet_ug", UniversalExamRegistry.findExamByNameOrShortName("NEET UG")?.examId)
     }
 
@@ -50,7 +51,7 @@ class UniversalRankingAndIdentityTest {
         assertTrue(UniversalExamRegistry.isExamVerified("jee_main"))
         assertFalse(UniversalExamRegistry.isExamVerified("jee_advanced"))
         assertEquals(4.0 to 1.0, UniversalExamRegistry.getMarkingSchemeForExam("NEET UG"))
-        assertEquals(4.0 to 1.0, UniversalExamRegistry.getMarkingSchemeForExam("JEE Main"))
+        assertEquals(4.0 to 1.0, UniversalExamRegistry.getMarkingSchemeForExam("JEE Main P1"))
         for (exam in listOf("JEE Advanced", "CUET UG", "UPSC CSE", "SSC CGL", "SSC CHSL", "SSC MTS", "SSC GD", "SSC CPO", "RRB NTPC", "RRB Group D", "RRB ALP", "RRB Technician", "RRB JE", "CTET", "UGC NET", "CAT", "IBPS PO", "IBPS Clerk", "SBI PO", "SBI Clerk", "NDA", "CDS", "GATE")) {
             try {
                 UniversalExamRegistry.getMarkingSchemeForExam(exam)
@@ -96,7 +97,7 @@ class UniversalRankingAndIdentityTest {
     @Test
     fun verifiedOptionCountsAreExplicitAndUnverifiedCountsAreBlocked() {
         assertEquals(4, UniversalExamRegistry.getDefaultOptionCountForExam("NEET UG"))
-        assertEquals(4, UniversalExamRegistry.getDefaultOptionCountForExam("JEE Main"))
+        assertEquals(4, UniversalExamRegistry.getDefaultOptionCountForExam("JEE Main P1"))
         try {
             UniversalExamRegistry.getDefaultOptionCountForExam("IBPS PO")
             throw AssertionError("Unverified banking option count must not be assumed")
@@ -170,7 +171,7 @@ class UniversalRankingAndIdentityTest {
         assertTrue(neetSubjects.any { it.contains("zoology") })
         assertFalse(neetSubjects.any { it.contains("mathematics") })
 
-        val jeeSubjects = UniversalExamRegistry.getSubjectsForExamName("JEE Main").map { it.lowercase() }
+        val jeeSubjects = UniversalExamRegistry.getSubjectsForExamName("JEE Main P1").map { it.lowercase() }
         assertTrue(jeeSubjects.any { it.contains("physics") })
         assertTrue(jeeSubjects.any { it.contains("chemistry") })
         assertTrue(jeeSubjects.any { it.contains("mathematics") })
@@ -180,7 +181,7 @@ class UniversalRankingAndIdentityTest {
     @Test
     fun syllabusCatalogsDoNotCrossAssignBiologyAndMathematics() {
         val neet = SyllabusCatalog.getChapterDetailsForExam("NEET UG")
-        val jee = SyllabusCatalog.getChapterDetailsForExam("JEE Main")
+        val jee = SyllabusCatalog.getChapterDetailsForExam("JEE Main P1")
         val jeeAdvanced = SyllabusCatalog.getChapterDetailsForExam("JEE Advanced")
         assertTrue(neet.isNotEmpty())
         assertTrue(neet.any { it.subject.contains("Biology", true) || it.subject.contains("Botany", true) })
