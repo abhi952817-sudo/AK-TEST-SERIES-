@@ -158,15 +158,15 @@ const VERIFIED_SCORING_POLICIES = Object.freeze({
   JEE_MAIN: Object.freeze({
     physics: Object.freeze({
       phy_sec_a: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }),
-      phy_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0 })
+      phy_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0, integerAnswerRequired: true })
     }),
     chemistry: Object.freeze({
       chem_sec_a: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }),
-      chem_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0 })
+      chem_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0, integerAnswerRequired: true })
     }),
     mathematics: Object.freeze({
       math_sec_a: Object.freeze({ questionType: "MCQ_SINGLE", pos: 4.0, neg: 1.0, optionsCount: 4 }),
-      math_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0 })
+      math_sec_b: Object.freeze({ questionType: "NUMERICAL_VALUE", pos: 4.0, neg: 1.0, optionsCount: 0, integerAnswerRequired: true })
     })
   })
 });
@@ -285,7 +285,8 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
 
     const isNumerical = policy.questionType === "NUMERICAL_VALUE";
     const isValidKey = isNumerical
-      ? isFiniteNumericAnswer(correctOpt)
+      ? isFiniteNumericAnswer(correctOpt) &&
+        (!policy.integerAnswerRequired || Number.isInteger(Number(correctOpt)))
       : ["A", "B", "C", "D", "1", "2", "3", "4"].includes(correctOpt);
     if (!isValidKey) {
       ungradedCount++;
