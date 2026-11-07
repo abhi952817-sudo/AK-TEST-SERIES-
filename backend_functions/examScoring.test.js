@@ -10,7 +10,19 @@ const {
   calculatePopulationPercentile,
   calculateScorePercentileFromCounts,
   normalizeExamKey,
+  resolveCanonicalExamIdentity,
 } = require("./examScoring.js");
+
+test("Canonical exam identity must be explicit and cannot fall back to subject or NEET", () => {
+  assert.equal(resolveCanonicalExamIdentity({ examId: "neet_ug", targetExam: "NEET UG" }), "NEET");
+  assert.equal(resolveCanonicalExamIdentity({ targetExam: "JEE Main" }), "JEE_MAIN");
+  assert.throws(() => resolveCanonicalExamIdentity({ subject: "Biology" }), {
+    code: "failed-precondition"
+  });
+  assert.throws(() => resolveCanonicalExamIdentity({ examId: "ALL" }), {
+    code: "failed-precondition"
+  });
+});
 
 test("Answer verification: standard options, numbers, and multiple keys", () => {
   assert.strictEqual(isAnswerKeyVerified("A"), true);
