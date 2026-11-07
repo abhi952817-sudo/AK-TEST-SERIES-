@@ -823,3 +823,14 @@ Official Firestore documentation was checked before choosing the transaction des
 A. Read the relevant eligible Test_Leaderboards query through the transaction before any writes, derive the canonical first-attempt rank, then create the attempt and board row in the same transaction. Validate phantom/concurrent insert serialization and whether the aggregate count is transaction-readable in the installed SDK.
 B. If exact population serialization or transaction cost is not acceptable, atomically commit attempt + canonical board row first, then return a live rank snapshot via a separate resolver. In this design rank-query failure returns UNAVAILABLE and never rolls back or falsifies the committed score; response explicitly labels rank as a post-commit snapshot.
 The chosen approach must be justified by emulator tests, not preference. A normal count query outside the transaction followed by persisted rank fields remains prohibited.
+
+
+### 2.21 Android CI follow-up — malformed Kotlin test declaration fixed — 2026-11-07
+
+The Android job for workflow run `42354507259` completed with failure. Backend unit tests and Firestore rules tests passed, but Android unit-test compilation failed before tests could execute. The exact compiler diagnostics pointed to `app/src/test/java/Com/ak/testseries/exam/UniversalRankingAndIdentityTest.kt:195`: Kotlin function declarations cannot start with the numeric token in `fun 2026VerifiedPatternsHaveNoOptionalSectionAttemptCaps()`.
+
+**Fix applied on the integration branch:** renamed the test function to `verified2026PatternsHaveNoOptionalSectionAttemptCaps()`. Test body and assertions were not changed. Commit: `2fb8b45548da6f233e2ab723cf2df79ab3859c90`.
+
+**Verification state:** a new CI run must confirm Android compilation and tests. The previous run remains failed; do not mark Android validation green based on the source edit alone. The non-fatal missing `google-services.json` warning was not the cause of this failure. Gradle cache restore warnings were also not the cause.
+
+**Next backend blocker remains open:** `index.js` computes per-test rank and population before the transaction, catches query errors as rank/percentile zero, then only writes the canonical per-test leaderboard entry for the first qualifying attempt. Repeat attempts can therefore receive a rank computed from a score that is never represented in the canonical board. Keep this as the next backend implementation target; do not change the existing first-qualifying-attempt board policy without an explicit product decision.
