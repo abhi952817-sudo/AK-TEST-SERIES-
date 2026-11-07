@@ -5918,11 +5918,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             db.runTransaction { transaction ->
                 val existingTest = transaction.get(testDocRef)
                 val existingKeyDoc = transaction.get(answerKeyDocRef)
-                require(existingTest.exists == existingKeyDoc.exists) {
+                require(existingTest.exists() == existingKeyDoc.exists()) {
                     "Test document and private answer-key document are out of sync. Reconciliation is required."
                 }
 
-                if (!existingTest.exists) {
+                if (!existingTest.exists()) {
                     require(incomingKeysComplete) {
                         "A new public test must include a complete private answer key. No document was written."
                     }
