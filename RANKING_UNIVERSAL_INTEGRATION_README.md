@@ -896,3 +896,14 @@ The per-test rank resolver was further hardened so banned users cannot contribut
 **Changed files:** `backend_functions/index.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`, `firestore.indexes.json`.
 
 **Compatibility note:** pre-existing per-test leaderboard rows without an explicit `isBanned: false` are excluded from the new aggregation until reconciled/backfilled. Do not deploy the new query before the composite index is deployed and active. Existing board data has not been modified.
+
+
+### 2.26 Firestore test visibility parity with authoritative callable — 2026-11-07
+
+The security-rule publication helper did not match the server callable: it accepted `Published` and `APPROVED` but rejected uppercase `PUBLISHED`, while the callable normalizes status case-insensitively. It also allowed `isOfficial == true` to make a test readable even when `isPublic == false`, while the callable requires an explicit public flag for student submissions. This created a client/server access-policy mismatch.
+
+**Fix applied:** rules now permit only explicit approved/published status variants used by the app (`APPROVED`, `PUBLISHED`, `Published`) AND `isPublic == true`. Admin/creator/uploader ownership exceptions remain unchanged. The admin email fallback now safely reads the optional `email_verified` claim using `get(..., false)`. Added Firestore Emulator regression coverage for uppercase PUBLISHED and private official test denial.
+
+**Changed files:** `firestore.rules`, `firestore.test.js`.
+
+**Verification:** current Firestore Emulator workflow must confirm the updated rules compile and tests pass. No production rules deployment was performed.
