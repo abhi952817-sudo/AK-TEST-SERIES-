@@ -63,7 +63,7 @@ class ExamScoringEngineTest {
             )
         )
         val result = ExamScoringEngine.evaluateTestAttempt(
-            "JEE Main", questions,
+            "JEE Main P1", questions,
             mapOf("mcq" to "A", "numeric_zero" to "0"),
             90
         )
@@ -120,7 +120,7 @@ class ExamScoringEngineTest {
     @Test
     fun numericalZeroIsAValidJeeMainAnswer() {
         val result = ExamScoringEngine.evaluateTestAttempt(
-            "JEE Main",
+            "JEE Main P1",
             listOf(createQuestion("zero", "0", "Mathematics", "math_sec_b", "NUMERICAL_VALUE")),
             mapOf("zero" to "0"),
             5
