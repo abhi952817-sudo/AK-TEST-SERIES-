@@ -23,6 +23,18 @@ const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelp
 
 exports.normalizeExamKey = normalizeExamKey;
 
+function requireRankingClassLevel(value) {
+  if (value === undefined || value === null || String(value).trim() === "") return "All";
+  const normalized = normalizeClassLevel(value);
+  if (normalized === "All" && String(value).trim().toLowerCase() !== "all") {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "classLevel must be All, Class 11, Class 12, or Dropper."
+    );
+  }
+  return normalized;
+}
+
 function requireCanonicalExamId(value, fieldName = "targetExam") {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new functions.https.HttpsError(
@@ -960,7 +972,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   const userId = context.auth.uid;
   const { targetExam } = data || {};
   const canonicalExam = requireCanonicalExamId(targetExam);
-  const classLevel = normalizeClassLevel((data || {}).classLevel || "All");
+  const classLevel = requireRankingClassLevel((data || {}).classLevel);
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
 
   const userDoc = await db.collection("Users_Data").doc(userId).get();
@@ -1132,7 +1144,7 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   }
   const input = data || {};
   const examId = requireCanonicalExamId(input.targetExam);
-  const classLevel = normalizeClassLevel(input.classLevel || "All");
+  const classLevel = requireRankingClassLevel(input.classLevel);
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
   const snapshot = await applyClassFilter(db.collection("Exam_Leaderboards").doc(examId)
