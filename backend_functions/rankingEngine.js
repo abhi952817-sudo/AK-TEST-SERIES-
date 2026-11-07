@@ -307,6 +307,7 @@ module.exports = {
   isValidRankingPeriodId,
   clampRankingLimit,
   isValidRankingWeekId,
+  getIsoWeeksInYear,
   normalizeClassLevel,
   resolveClassLevelFilter,
   getLeagueForXp,
