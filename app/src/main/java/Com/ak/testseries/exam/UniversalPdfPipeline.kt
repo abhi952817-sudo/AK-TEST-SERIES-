@@ -103,15 +103,23 @@ object UniversalPdfPipeline {
         val resolvedStageId = selectedStage.stageId
         val validSectionIds = selectedSubject.sections.map { it.sectionId }.toSet()
         require(existingQuestionsCache.all { cached ->
+            val section = selectedSubject.sections.singleOrNull { it.sectionId == cached.sectionId }
+            val numerical = section?.questionType in setOf(QuestionType.NUMERICAL_VALUE, QuestionType.TITA)
+            val answer = cached.correctAnswer.trim().uppercase()
+            val answerValid = if (numerical) answer.toDoubleOrNull()?.isFinite() == true
+                else answer in setOf("A", "B", "C", "D", "1", "2", "3", "4")
             cached.examId == examConfig.examId &&
                 cached.stageId == resolvedStageId &&
                 cached.paperId == selectedPaper.paperId &&
                 cached.subjectId == selectedSubject.subjectId &&
                 cached.sectionId in validSectionIds &&
+                section != null &&
+                cached.questionType == section.questionType &&
+                cached.positiveMarks == section.positiveMarks &&
+                cached.negativeMarks == section.negativeMarks &&
                 cached.questionText.isNotBlank() &&
-                cached.correctAnswer.isNotBlank() &&
-                cached.questionId.isNotBlank() &&
-                cached.positiveMarks > 0.0
+                answerValid &&
+                cached.questionId.isNotBlank()
         }) {
             "Cached questions contain missing or cross-exam/stage/paper/subject identities."
         }
