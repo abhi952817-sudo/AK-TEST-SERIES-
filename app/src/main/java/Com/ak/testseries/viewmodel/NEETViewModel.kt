@@ -6863,11 +6863,22 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
+    private suspend fun requireNoExistingRankingContributionsBeforeVisibilityChange(testId: String) {
+        val rankingEntries = firestoreDb.collection("Test_Leaderboards")
+            .document(testId).collection("Entries").limit(1).get().await()
+        require(rankingEntries.isEmpty) {
+            "This test already has ranking contributions. Visibility changes are blocked until a reviewed ranking rebuild can remove or preserve those contributions safely."
+        }
+    }
+
     fun updateTestVisibility(testId: String, isPublic: Boolean) {
         if (!isAdmin) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val test = repository.getTestById(testId) ?: return@launch
+                if (test.isPublic != isPublic && (test.isOfficial || test.countsTowardRanking)) {
+                    requireNoExistingRankingContributionsBeforeVisibilityChange(testId)
+                }
                 if (isPublic) {
                     val rawJson = test.questionsJson ?: ""
                     if (rawJson.isBlank()) {
@@ -6925,6 +6936,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val test = repository.getTestById(testId)
                     ?: throw IllegalArgumentException("Test not found.")
+                if (!test.isPublic && (test.isOfficial || test.countsTowardRanking)) {
+                    requireNoExistingRankingContributionsBeforeVisibilityChange(testId)
+                }
                 val rawJson = test.questionsJson ?: ""
                 require(rawJson.isNotBlank()) { "Cannot publish a test without questions." }
                 val sanitized = sanitizeAndUploadQuestionImages(testId, rawJson)
