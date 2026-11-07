@@ -21,7 +21,7 @@ data class TestEntity(
     val isOfficial: Boolean, // Official Admin badge
     val isVerifiedCommunity: Boolean, // Verified Community badge
     val isPublic: Boolean = true, // Whether test is public or private
-    val countsTowardRanking: Boolean = true, // Qualifying test for competitive ranking
+    val countsTowardRanking: Boolean = false, // Opt-in only after official source review and admin approval
     val rating: Float = 4.5f,
     val rating1Count: Int = 0,
     val rating2Count: Int = 0,
@@ -38,7 +38,7 @@ data class TestEntity(
     val uploaderId: String = "anonymous", // e.g. 98%
 
     // Deep Mapping Extensions
-    val targetExam: String = "NEET",
+    val targetExam: String = "", // Never infer an exam identity for a new test
     val durationMinutes: Int = 0,
     val classLevel: String = "All", // "11th", "12th", "Dropper", "All"
     val chapter: String = "All",
@@ -75,8 +75,8 @@ data class QuestionEntity(
     val optionCHi: String? = null,
     val optionDHi: String? = null,
     val explanationHi: String? = null,
-    val questionType: String = "MCQ", // "MCQ" or "NUMERICAL"
-    val section: String = "SECTION_A", // "SECTION_A" or "SECTION_B"
+    val questionType: String = "", // Must be supplied by the verified exam/section configuration
+    val section: String = "", // Must be supplied explicitly; never infer Section A
     val needsImage: Boolean = false,
     val imageUrl: String? = null,
 
