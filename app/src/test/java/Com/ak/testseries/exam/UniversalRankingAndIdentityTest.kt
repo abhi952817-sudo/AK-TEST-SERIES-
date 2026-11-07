@@ -106,6 +106,28 @@ class UniversalRankingAndIdentityTest {
     }
 
     @Test
+    fun unverifiedExamScaffoldingIsNotExposedAsAUsablePattern() {
+        val ibps = UniversalExamRegistry.getAllExams().single { it.examId == "ibps_po" }
+        assertFalse(ibps.verified)
+        assertTrue(ibps.stages.isEmpty())
+        assertTrue(ibps.supportedQuestionTypes.isEmpty())
+        assertEquals(0, ibps.defaultOptionCount)
+        assertTrue(UniversalExamRegistry.getSubjectsForExamName("IBPS PO").isEmpty())
+        try {
+            UniversalExamRegistry.getDefaultQuestionsCountForExam("IBPS PO")
+            throw AssertionError("Unverified question counts must not be exposed")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("source-verified"))
+        }
+        try {
+            UniversalExamRegistry.getDefaultDurationMinutesForExam("IBPS PO")
+            throw AssertionError("Unverified durations must not be exposed")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("source-verified"))
+        }
+    }
+
+    @Test
     fun privateTestsNeverCountTowardCompetitiveRanking() {
         val isPublic = false
         val isOfficial = false
