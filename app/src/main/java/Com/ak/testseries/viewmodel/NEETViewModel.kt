@@ -1625,6 +1625,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
+            qObj.put("questionType", q.questionType)
+            qObj.put("section", q.section)
+            val questionSubjectConfig = selectedPaper.subjects.singleOrNull {
+                it.subjectId.equals(q.subject, true) || it.subjectName.equals(q.subject, true)
+            } ?: throw IllegalArgumentException("Question has an invalid subject identity.")
+            val questionSectionConfig = questionSubjectConfig.sections.singleOrNull { it.sectionId == q.section }
+                ?: throw IllegalArgumentException("Question has an invalid section identity.")
+            qObj.put("positiveMarks", questionSectionConfig.positiveMarks)
+            qObj.put("negativeMarks", questionSectionConfig.negativeMarks)
             qObj.put("subject", q.subject)
             qObj.put("chapter", q.chapter)
             qObj.put("topic", q.topic)
@@ -5862,7 +5871,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         require(selectedSubjectName.isNotBlank()) { "Select a subject or All Subjects before saving." }
         val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val jsonArray = JSONArray(cleanJson)
-        val testId = "ai_" + System.currentTimeMillis()
+        require(jsonArray.length() > 0) { "AI returned no questions; no test was saved." }
+        val testId = "ai_" + java.util.UUID.randomUUID()
 
         val questions = mutableListOf<QuestionEntity>()
         var primaryChapter = ""
@@ -5911,6 +5921,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             )
             require(isNumericalQuestion == sectionIsNumerical) {
                 "Question ${i + 1} type conflicts with the selected section configuration."
+            }
+            require(if (sectionIsNumerical) questionType in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT")
+                else questionType in setOf("MCQ", "MCQ_SINGLE", "DIRECT_MCQ")) {
+                "Question ${i + 1} uses a question type not supported by the selected section."
             }
             val suppliedPositive = if (qObj.has("positiveMarks")) qObj.optDouble("positiveMarks", Double.NaN) else sectionConfig.positiveMarks
             val suppliedNegative = if (qObj.has("negativeMarks")) qObj.optDouble("negativeMarks", Double.NaN) else sectionConfig.negativeMarks
@@ -5985,6 +5999,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
+        require(questions.size == jsonArray.length()) { "Some generated questions were not validated; partial test saving is blocked." }
         // Serialize questions to JSON array string
         val qJsonArray = JSONArray()
         for (q in questions) {
