@@ -16,24 +16,12 @@ const {
 const {
   RANKING_CONFIG, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
   isEligibleScoringResult, isEligibleHistoricalRankingTest,
-  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel,
+  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel, resolveClassLevelFilter,
   getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
 exports.normalizeExamKey = normalizeExamKey;
-
-function requireRankingClassLevel(value) {
-  if (value === undefined || value === null || String(value).trim() === "") return "All";
-  const normalized = normalizeClassLevel(value);
-  if (normalized === "All" && String(value).trim().toLowerCase() !== "all") {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "classLevel must be All, Class 11, Class 12, or Dropper."
-    );
-  }
-  return normalized;
-}
 
 function requireCanonicalExamId(value, fieldName = "targetExam") {
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -972,7 +960,8 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   const userId = context.auth.uid;
   const { targetExam } = data || {};
   const canonicalExam = requireCanonicalExamId(targetExam);
-  const classLevel = requireRankingClassLevel((data || {}).classLevel);
+  const classLevel = resolveClassLevelFilter((data || {}).classLevel);
+  if (classLevel === null) throw new functions.https.HttpsError("invalid-argument", "classLevel must be All, Class 11, Class 12, or Dropper.");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
 
   const userDoc = await db.collection("Users_Data").doc(userId).get();
@@ -1144,7 +1133,8 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   }
   const input = data || {};
   const examId = requireCanonicalExamId(input.targetExam);
-  const classLevel = requireRankingClassLevel(input.classLevel);
+  const classLevel = resolveClassLevelFilter(input.classLevel);
+  if (classLevel === null) throw new functions.https.HttpsError("invalid-argument", "classLevel must be All, Class 11, Class 12, or Dropper.");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
   const snapshot = await applyClassFilter(db.collection("Exam_Leaderboards").doc(examId)
@@ -1189,7 +1179,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
   }
   const input = data || {};
   const examId = requireCanonicalExamId(input.targetExam);
-  const classLevel = requireRankingClassLevel(input.classLevel);
+  const classLevel = resolveClassLevelFilter(input.classLevel);
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const periodType = String(input.periodType || "HALF_MONTH").toUpperCase();
   if (!["HALF_MONTH", "MONTH"].includes(periodType)) {
