@@ -918,3 +918,14 @@ The Android `fetchUserRank` fallback path still read `qualifyingTestsCount_{exam
 **Changed file:** `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt`.
 
 **Verification:** Android CI must compile and run the ViewModel/unit tests. No Room schema change or production data update was needed.
+
+
+### 2.28 Daily streak tracking decoupled from one-time XP awards — 2026-11-07
+
+A behavior audit found that `currentStreak`, `longestStreak` and `lastActivityDateIST` were updated only inside `shouldAwardXp`. Because XP is awarded only once per test, a student who completed another valid public attempt on a later day could fail to advance their daily streak if the XP ledger for that test already existed.
+
+**Fix applied:** added pure `calculateDailyStreak` with same-day idempotency, consecutive-IST-day increment and gap reset behavior. Every new valid publicly available attempt now updates daily activity/streak fields, while XP totals, weekly XP and XP ledger/leaderboard writes remain restricted to the existing one-time first-test award rule. Callable retries still return before any counters or streaks are incremented.
+
+**Changed files:** `backend_functions/index.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`.
+
+**Verification:** waiting for backend CI on the latest branch head. No production user records were changed.
