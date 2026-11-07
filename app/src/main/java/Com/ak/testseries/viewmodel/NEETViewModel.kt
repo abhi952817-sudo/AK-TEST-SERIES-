@@ -4874,9 +4874,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 "AI processing Pages $startPage-$endPage (Chunk ${chunkIndex + 1}/$totalPageChunks)..."
                             }
 
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
+                            val targetExamName = genTargetExam.value.ifBlank { _userProfile.value.targetExam }
+                            require(targetExamName.isNotBlank()) { "Select the target exam before generating questions." }
                             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                                ?: throw IllegalArgumentException("Unsupported exam identity: $targetExamName")
+                            require(examConfig.verified) { "The selected exam pattern is not source-verified. Question generation is blocked." }
+                            require(examConfig.stages.size == 1 && examConfig.stages.single().papers.size == 1) {
+                                "Select an exact stage and paper before question generation."
+                            }
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
@@ -4949,9 +4954,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 val endIdx = if (chunkIndex == totalChunks - 1) fullSourceText.length else ((chunkIndex + 1) * sliceLen).coerceAtMost(fullSourceText.length)
                                 fullSourceText.substring(startIdx, endIdx)
                             }
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
+                            val targetExamName = genTargetExam.value.ifBlank { _userProfile.value.targetExam }
+                            require(targetExamName.isNotBlank()) { "Select the target exam before generating questions." }
                             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                                ?: throw IllegalArgumentException("Unsupported exam identity: $targetExamName")
+                            require(examConfig.verified) { "The selected exam pattern is not source-verified. Question generation is blocked." }
+                            require(examConfig.stages.size == 1 && examConfig.stages.single().papers.size == 1) {
+                                "Select an exact stage and paper before question generation."
+                            }
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
