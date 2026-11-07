@@ -113,6 +113,18 @@ class UniversalRankingAndIdentityTest {
         assertTrue(ibps.supportedQuestionTypes.isEmpty())
         assertEquals(0, ibps.defaultOptionCount)
         assertTrue(UniversalExamRegistry.getSubjectsForExamName("IBPS PO").isEmpty())
+
+        // Every unverified scaffold must be sanitized on every public registry lookup.
+        UniversalExamRegistry.getAllExams().filter { !it.verified }.forEach { unverified ->
+            assertTrue("Unverified exam leaked stages: ${unverified.examId}", unverified.stages.isEmpty())
+            assertTrue("Unverified exam leaked question types: ${unverified.examId}", unverified.supportedQuestionTypes.isEmpty())
+            assertEquals("Unverified exam leaked option count: ${unverified.examId}", 0, unverified.defaultOptionCount)
+            assertTrue("Unverified exam leaked a pattern: ${unverified.examId}", unverified.patternRules.all {
+                it.contains("verification pending", ignoreCase = true)
+            })
+            assertNull(UniversalExamRegistry.findExamByNameOrShortName(unverified.examName)?.stages?.firstOrNull())
+        }
+        assertTrue(UniversalExamRegistry.getActiveExams().all { it.verified })
         try {
             UniversalExamRegistry.getDefaultQuestionsCountForExam("IBPS PO")
             throw AssertionError("Unverified question counts must not be exposed")
