@@ -1284,7 +1284,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
   if (!isValidRankingPeriodId(periodType, periodId)) {
     throw new functions.https.HttpsError("invalid-argument", "Invalid ranking period identifier.");
   }
-  const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
+  const limit = clampRankingLimit(input.limit, 100, 1, 100);
   const snapshot = await applyClassFilter(db.collection("Ranking_Periods").doc(examId)
     .collection("Periods").doc(periodId).collection("Entries")
     .where("isEligibleForRanking", "==", true)
@@ -1322,7 +1322,7 @@ exports.getXpLeaderboard = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
   }
   const mode = String((data || {}).mode || "WEEKLY").toUpperCase();
-  const limit = Math.min(100, Math.max(1, Number((data || {}).limit) || 100));
+  const limit = clampRankingLimit((data || {}).limit, 100, 1, 100);
   let query;
   if (mode === "ALL_TIME") {
     query = db.collection("XP_Leaderboard_AllTime").doc("Entries")
