@@ -46,11 +46,6 @@ function finiteNumber(value, fallback = 0) {
 
 function resolveRankingWeight(testData = {}) {
   const explicit = testData.rankingWeight;
-  if (explicit !== undefined && explicit !== null) {
-    const weight = Number(explicit);
-    return weight === 1 || weight === 0.2 ? weight : null;
-  }
-
   const labels = [testData.category, testData.testCategory, testData.testType]
     .filter(value => typeof value === "string")
     .join(" ")
@@ -58,40 +53,24 @@ function resolveRankingWeight(testData = {}) {
     .toLowerCase();
   const isPart = testData.isPartTest === true ||
     testData.isChapterTest === true ||
-    /\b(chapter|topic|subject|part)\b/.test(labels);
+    /\\b(chapter|topic|subject|part)\\b/.test(labels);
   const isFull = testData.isFullTest === true ||
-    /\b(full|complete|grand)\b/.test(labels);
+    /\\b(full|complete|grand)\\b/.test(labels);
 
-  // Conflicting or absent metadata is not safe to classify.
+  // A record cannot be both full and part. Explicit weights never override conflicting metadata.
   if (isPart && isFull) return null;
+  if (explicit !== undefined && explicit !== null) {
+    const weight = Number(explicit);
+    if (weight !== 1 && weight !== RANKING_CONFIG.partTestWeight) return null;
+    if (isPart && weight !== RANKING_CONFIG.partTestWeight) return null;
+    if (isFull && weight !== RANKING_CONFIG.fullTestWeight) return null;
+    return weight;
+  }
+
   if (isPart) return RANKING_CONFIG.partTestWeight;
   if (isFull) return RANKING_CONFIG.fullTestWeight;
-
-  // Never guess that an ambiguous "mock test" is a full test. An admin must
-  // explicitly classify it before it can contribute to competitive ranking.
+  // Ambiguous "mock test" metadata is not enough to award full-test weight.
   return null;
-}
-
-/**
- * Normalizes each test against its own maximum marks, then applies weight.
- * Full tests contribute 0..10,000 points; part/chapter tests contribute 0..2,000.
- * Returns an integer so existing Android clients reading Firestore Long values remain compatible.
- */
-function isEligibleHistoricalRankingTest(testData = {}) {
-  const status = String(testData.status || "").trim();
-  return testData.isOfficial === true &&
-    testData.isPublic === true &&
-    testData.countsTowardRanking === true &&
-    ["APPROVED", "PUBLISHED", "Published"].includes(status);
-}
-
-function isEligibleScoringResult(result = {}) {
-  if (!result || typeof result !== "object" || Array.isArray(result)) return false;
-  const score = finiteNumber(result.finalScore, NaN);
-  const max = finiteNumber(result.maxScore, NaN);
-  const ungraded = finiteNumber(result.ungradedCount, NaN);
-  return Number.isFinite(score) && Number.isFinite(max) && Number.isInteger(ungraded) &&
-    score >= 0 && max > 0 && score <= max + 0.000001 && ungraded === 0;
 }
 
 function calculateWeightedRankingScore(score, maxScore, weight = 1) {
