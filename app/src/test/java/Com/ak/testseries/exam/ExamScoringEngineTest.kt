@@ -102,6 +102,31 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun directScoringRejectsMissingOrDuplicateQuestionIds() {
+        val duplicate = listOf(
+            createQuestion("same", "A"),
+            createQuestion("same", "B")
+        )
+        try {
+            ExamScoringEngine.evaluateTestAttempt("NEET UG", duplicate, emptyMap(), 10)
+            fail("Duplicate question IDs must be rejected.")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("unique"))
+        }
+        try {
+            ExamScoringEngine.evaluateTestAttempt(
+                "NEET UG",
+                listOf(createQuestion("", "A")),
+                emptyMap(),
+                10
+            )
+            fail("Missing question IDs must be rejected.")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("unique"))
+        }
+    }
+
+    @Test
     fun explicitSkippedAnswerIsUnansweredNotWrong() {
         val result = ExamScoringEngine.evaluateTestAttempt(
             "NEET UG",
