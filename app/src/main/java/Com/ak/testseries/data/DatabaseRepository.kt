@@ -167,6 +167,9 @@ class DatabaseRepository(private val db: AppDatabase) {
         if (attempt.attemptSessionToken.isNotBlank()) {
             val existing = db.attemptDao().getAttemptBySessionToken(attempt.userId, attempt.attemptSessionToken)
             if (existing != null) {
+                require(existing.testId == attempt.testId) {
+                    "Attempt session token is already bound to a different test."
+                }
                 // Retry-safe update: the lookup and write share one Room transaction.
                 db.attemptDao().insertAttempt(attempt.copy(id = existing.id))
                 return@withTransaction
