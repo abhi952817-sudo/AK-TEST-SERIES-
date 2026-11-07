@@ -185,6 +185,35 @@ test("population and score percentiles handle ties and boundary cases", () => {
   assert.equal(calculateScorePercentileFromCounts(0, 0, 0), 0);
 });
 
+test("ranking publication rejects decimal JEE numerical answer keys", () => {
+  const testData = {
+    examId: "jee_main",
+    targetExam: "JEE Main Paper 1",
+    stageId: "jee_paper_1",
+    paperId: "jee_main_p1",
+    status: "PUBLISHED",
+    isOfficial: true,
+    isPublic: true,
+    countsTowardRanking: true
+  };
+  const question = {
+    id: "numeric",
+    questionText: "Find the integer value.",
+    subject: "Mathematics",
+    section: "math_sec_b",
+    questionType: "NUMERICAL_VALUE",
+    positiveMarks: 4,
+    negativeMarks: 1
+  };
+  assert.throws(() => validateAndMergeAnswerKeys(testData, [question], {
+    questions: [{ id: "numeric", correctAnswer: "12.5" }]
+  }), { code: "failed-precondition" });
+  const valid = validateAndMergeAnswerKeys(testData, [question], {
+    questions: [{ id: "numeric", correctAnswer: "12" }]
+  });
+  assert.equal(valid.questions[0].correctAnswer, "12");
+});
+
 test("ranking-eligible tests require complete trusted private answer keys", () => {
   const testData = {
     examId: "neet_ug",
