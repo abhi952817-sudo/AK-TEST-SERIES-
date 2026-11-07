@@ -5352,10 +5352,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             require(textMatchedExams.size <= 1) {
                 "PDF mentions multiple supported exam identities. Select and verify the correct exam before continuing."
             }
-            val selectedExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
             val detectedExamConfig = textMatchedExams.singleOrNull() ?: selectedExamConfig
-                ?: throw IllegalArgumentException("Could not identify one exact exam from the PDF. Select the exam manually; no default exam will be assigned.")
-            require(selectedExamConfig == null || selectedExamConfig.examId == detectedExamConfig.examId) {
+            require(selectedExamConfig.examId == detectedExamConfig.examId) {
                 "PDF exam identity conflicts with the selected exam. Resolve the conflict before continuing."
             }
             require(detectedExamConfig.active && detectedExamConfig.verified) {
