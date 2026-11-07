@@ -443,7 +443,7 @@ fun QuestionReviewTab(
 ) {
     val approvedCount = questions.count { it.validationStatus == ValidationStatus.APPROVED }
     
-    val tableDuration = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: (if (approvedCount > 0) approvedCount else 60)
+    val tableDuration = examConfig.stages.singleOrNull()?.papers?.singleOrNull()?.durationMinutes ?: 0
     var durationMinutes by remember(examConfig) { mutableStateOf(tableDuration.toString()) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
