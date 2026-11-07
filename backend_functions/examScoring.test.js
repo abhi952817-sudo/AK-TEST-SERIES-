@@ -259,6 +259,11 @@ test("ranking numerical questions reject MCQ options", () => {
   assert.throws(() => validateAndMergeAnswerKeys(testData, [question], {
     questions: [{ id: "q1", correctAnswer: "12" }]
   }), { code: "failed-precondition" });
+  assert.throws(() => validateAndMergeAnswerKeys(testData, [{
+    ...question, options: [], optionAEn: "unexpected option"
+  }], {
+    questions: [{ id: "q1", correctAnswer: "12" }]
+  }), { code: "failed-precondition" });
 });
 
 test("test question IDs and private answer-key IDs must be unique", () => {
