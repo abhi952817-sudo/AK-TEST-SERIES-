@@ -260,12 +260,12 @@ object OfflineMarkdownQuestionParser {
         markdown: String,
         examConfig: ExamConfig,
         subjectId: String,
-        stageId: String = ""
+        stageId: String,
+        paperId: String
     ): List<UniversalQuestionModel> {
         val parsedList = parseStructuredQuestions(markdown)
-        val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId }
-            ?: examConfig.stages.singleOrNull()
-        val selectedPaper = selectedStage?.papers?.singleOrNull()
+        val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId } ?: return emptyList()
+        val selectedPaper = selectedStage.papers.singleOrNull { it.paperId == paperId } ?: return emptyList()
         val selectedSubject = selectedPaper?.subjects?.singleOrNull {
             it.subjectId.equals(subjectId, ignoreCase = true) ||
                 it.subjectName.equals(subjectId, ignoreCase = true)
@@ -289,8 +289,8 @@ object OfflineMarkdownQuestionParser {
             UniversalQuestionModel(
                 questionId = "uq_${examConfig.examId}_${java.util.UUID.randomUUID()}",
                 examId = examConfig.examId,
-                stageId = selectedStage?.stageId ?: "",
-                paperId = selectedPaper?.paperId ?: "",
+                stageId = selectedStage.stageId,
+                paperId = selectedPaper.paperId,
                 subjectId = subjectId,
                 sectionId = resolvedSection.sectionId,
                 sectionName = resolvedSection.sectionName,
