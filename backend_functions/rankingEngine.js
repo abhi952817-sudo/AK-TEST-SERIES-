@@ -160,8 +160,22 @@ function isValidRankingPeriodId(periodType, periodId) {
   return false;
 }
 
+function getIsoWeeksInYear(year) {
+  if (!Number.isInteger(year) || year < 1 || year > 9999) return 0;
+  const dec28 = new Date(Date.UTC(year, 11, 28));
+  const weekday = dec28.getUTCDay() || 7;
+  const thursday = new Date(dec28);
+  thursday.setUTCDate(dec28.getUTCDate() + 4 - weekday);
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  return Math.ceil((((thursday - yearStart) / 86400000) + 1) / 7);
+}
+
 function isValidRankingWeekId(weekId) {
-  return /^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/.test(String(weekId || ""));
+  const match = /^(\\d{4})-W(0[1-9]|[1-4]\\d|5[0-3])$/.exec(String(weekId || ""));
+  if (!match) return false;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  return year >= 1 && week <= getIsoWeeksInYear(year);
 }
 
 function resolveClassLevelFilter(value) {
