@@ -887,3 +887,12 @@ The admin migration and leaderboard endpoints also accepted fractional limits, w
 **Changed files:** `backend_functions/index.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`.
 
 **Verification:** CI for the latest commits is pending. Emulator testing of a synthetic user with more than 450 materialization writes remains required; no production migration was run.
+
+
+### 2.25 Per-test leaderboard ban filtering and index — 2026-11-07
+
+The per-test rank resolver was further hardened so banned users cannot contribute to the candidate population. Both higher-score and total-population aggregation queries now require `isBanned == false`; the canonical entry must explicitly carry `isBanned: false`, otherwise the rank is returned as unavailable rather than guessed. Added the required collection-group composite index on `Entries(isBanned ASC, score ASC)` and a regression test for banned/missing active-state rows.
+
+**Changed files:** `backend_functions/index.js`, `backend_functions/rankingEngine.js`, `backend_functions/rankingEngine.test.js`, `firestore.indexes.json`.
+
+**Compatibility note:** pre-existing per-test leaderboard rows without an explicit `isBanned: false` are excluded from the new aggregation until reconciled/backfilled. Do not deploy the new query before the composite index is deployed and active. Existing board data has not been modified.
