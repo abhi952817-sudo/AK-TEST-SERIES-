@@ -1636,6 +1636,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("optionCHi", q.optionCHi ?: "")
             qObj.put("optionDHi", q.optionDHi ?: "")
             qObj.put("optionEHi", q.optionEHi ?: "")
+            qObj.put("questionType", q.questionType)
+            qObj.put("section", q.section)
             qObj.put("explanationHi", q.explanationHi ?: "")
             qObj.put("questionType", q.questionType)
             qObj.put("section", q.section)
@@ -5894,16 +5896,42 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         
         for (i in 0 until jsonArray.length()) {
             val qObj = jsonArray.getJSONObject(i)
-            val qChapter = qObj.optString("chapter", "General Dynamics")
-            val qTopic = qObj.optString("topic", "General Topic")
+            val qChapter = qObj.optString("chapter").trim()
+            val qTopic = qObj.optString("topic").trim()
             
             if (i == 0) {
-                primaryChapter = qChapter
-                primaryTopic = qTopic
+                primaryChapter = qChapter.ifBlank { qTopic }
+                primaryTopic = qTopic.ifBlank { qChapter }
             }
             
-            val qTextEn = qObj.optString("questionTextEn", "Question Text")
-            val qTextHi = qObj.optString("questionTextHi", "")
+            val qTextEn = qObj.optString("questionTextEn").trim()
+            val qTextHi = qObj.optString("questionTextHi", "").trim()
+            val questionType = qObj.optString("questionType").trim().uppercase()
+            val sectionId = qObj.optString("section").trim()
+            val answerKey = qObj.optString("correctAnswer").trim()
+            val isNumericalQuestion = questionType in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT")
+            val rawOptions = listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn").map { qObj.optString(it).trim() }
+            require(qTextEn.isNotBlank() && answerKey.isNotBlank() && genSubject.value.isNotBlank()) {
+                "Question ${i + 1} is missing text, answer key or subject."
+            }
+            require(qChapter.isNotBlank() || qTopic.isNotBlank()) {
+                "Question ${i + 1} is missing chapter/topic metadata."
+            }
+            require(questionType.isNotBlank() && sectionId.isNotBlank()) {
+                "Question ${i + 1} is missing question type or section identity."
+            }
+            if (isNumericalQuestion) {
+                require(answerKey.toDoubleOrNull()?.isFinite() == true) {
+                    "Question ${i + 1} has an invalid numerical answer key."
+                }
+            } else {
+                require(rawOptions.all { it.isNotBlank() } && rawOptions.distinct().size == 4) {
+                    "Question ${i + 1} must contain four distinct non-empty options."
+                }
+                require(answerKey.uppercase() in listOf("A", "B", "C", "D", "1", "2", "3", "4")) {
+                    "Question ${i + 1} has an invalid MCQ answer key."
+                }
+            }
             val reasoning = qObj.optString("reasoning", "")
             val expEn = qObj.optString("explanationEn", "").ifBlank { reasoning }
             val combinedText = "$qTextEn $qTextHi $expEn".lowercase()
@@ -5934,13 +5962,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     id = "${testId}_q${i}",
                     testId = testId,
                     questionText = qTextEn,
-                    optionA = qObj.optString("optionAEn", "Option A"),
-                    optionB = qObj.optString("optionBEn", "Option B"),
-                    optionC = qObj.optString("optionCEn", "Option C"),
-                    optionD = qObj.optString("optionDEn", "Option D"),
+                    optionA = rawOptions.getOrNull(0).orEmpty(),
+                    optionB = rawOptions.getOrNull(1).orEmpty(),
+                    optionC = rawOptions.getOrNull(2).orEmpty(),
+                    optionD = rawOptions.getOrNull(3).orEmpty(),
                     optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
-                    correctAnswer = qObj.optString("correctAnswer", ""),
+                    correctAnswer = answerKey,
                     explanation = expEn,
+                    questionType = questionType,
+                    section = sectionId,
                     subject = genSubject.value,
                     chapter = qChapter,
                     topic = qTopic,
