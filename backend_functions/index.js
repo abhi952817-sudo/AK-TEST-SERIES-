@@ -884,6 +884,8 @@ async function rebuildRankingV2ForUser(userId) {
     if (aTime === 0 && bTime !== 0) return 1;
     if (bTime === 0 && aTime !== 0) return -1;
     return aTime - bTime ||
+      (a.isFirstQualifyingAttempt === true ? -1 : 0) -
+        (b.isFirstQualifyingAttempt === true ? -1 : 0) ||
       String(a.attemptSessionToken || "").localeCompare(String(b.attemptSessionToken || ""));
   });
   const seenTests = new Set();
@@ -952,6 +954,9 @@ async function rebuildRankingV2ForUser(userId) {
     const testId = String(attempt.testId || "");
     if (!testId || seenTests.has(testId)) continue;
     if (attempt.verifiedServerSide !== true || attempt.countsTowardRanking !== true) continue;
+    // Claim the canonical first qualifying attempt before revalidation. If its trusted
+    // source data is missing/corrupt, never substitute a later repeat attempt.
+    seenTests.add(testId);
 
     const rawScore = Number(attempt.authoritativeScore !== undefined ? attempt.authoritativeScore : attempt.score);
     const maxScore = Number(attempt.maxScore);
@@ -997,7 +1002,6 @@ async function rebuildRankingV2ForUser(userId) {
         Math.abs(recalculated.finalScore - rawScore) > 0.001 ||
         Math.abs(recalculated.maxScore - maxScore) > 0.001) continue;
 
-    seenTests.add(testId);
     const weight = testContext.weight;
     const points = calculateWeightedRankingScore(rawScore, maxScore, weight);
     const aggregate = exams.get(testContext.examId) || { score: 0, count: 0, maxSingleScore: 0 };
