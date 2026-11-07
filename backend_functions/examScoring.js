@@ -497,20 +497,26 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
  * Prefer the explicit canonical examId, then the display targetExam for legacy records.
  */
 function resolveCanonicalExamIdentity(testData = {}) {
-  const identity = [testData.examId, testData.targetExam]
-    .find(value => typeof value === "string" && value.trim().length > 0);
-  if (!identity) {
+  const supplied = [testData.examId, testData.targetExam]
+    .filter(value => typeof value === "string" && value.trim().length > 0)
+    .map(value => normalizeExamKey(value));
+  if (supplied.length === 0) {
     const err = new Error("Test is missing a canonical examId/targetExam; refusing to score or rank it under a guessed exam.");
     err.code = "failed-precondition";
     throw err;
   }
-  const canonical = normalizeExamKey(identity);
-  if (!canonical || canonical === "UNKNOWN" || canonical === "ALL") {
+  if (supplied.some(value => !value || value === "UNKNOWN" || value === "ALL")) {
     const err = new Error("Test has an invalid or non-specific exam identity; refusing to score or rank it.");
     err.code = "failed-precondition";
     throw err;
   }
-  return canonical;
+  const unique = [...new Set(supplied)];
+  if (unique.length !== 1) {
+    const err = new Error("Conflicting examId and targetExam values; refusing to route this test into either exam leaderboard.");
+    err.code = "failed-precondition";
+    throw err;
+  }
+  return unique[0];
 }
 
 /**
