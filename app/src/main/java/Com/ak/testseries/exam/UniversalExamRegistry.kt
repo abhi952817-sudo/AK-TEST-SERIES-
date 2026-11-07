@@ -85,8 +85,8 @@ object UniversalExamRegistry {
         register(
             ExamConfig(
                 examId = "jee_main",
-                examName = "JEE Main",
-                shortName = "JEE Main",
+                examName = "JEE Main Paper 1 (B.E./B.Tech only)",
+                shortName = "JEE Main P1",
                 category = "Engineering Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
