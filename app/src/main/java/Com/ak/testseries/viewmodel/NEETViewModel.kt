@@ -4864,7 +4864,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = genSubject.value.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects" },
+                                subject = genSubject.value.ifBlank { "All Subjects" },
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = chunkMarkdown, // Send current page chunk with answer key reference
                                 currentChunkSize = currentChunkQuestions,
@@ -4944,7 +4944,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = genSubject.value.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects" },
+                                subject = genSubject.value.ifBlank { "All Subjects" },
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = rawSourceText,
                                 currentChunkSize = currentChunkSize,
@@ -7039,8 +7039,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "Publishing blocked. Correct question metadata first: ${invalidQuestions.take(10).joinToString("; ")}"
                 }
                 val testId = "universal_${java.util.UUID.randomUUID()}"
-                val subjectStr = questions.first().subjectId.replaceFirstChar { it.uppercase() }
-                val diffStr = questions.first().difficulty.name
+                val distinctSubjects = questions.map { it.subjectId.trim() }.filter { it.isNotBlank() }.distinct()
+                val subjectStr = if (distinctSubjects.size == 1) {
+                    distinctSubjects.single().replaceFirstChar { it.uppercase() }
+                } else {
+                    "Full Syllabus"
+                }
+                val distinctDifficulties = questions.map { it.difficulty.name }.distinct()
+                val diffStr = if (distinctDifficulties.size == 1) distinctDifficulties.single() else "Mixed"
 
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
@@ -7283,8 +7289,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     uploaderId = currentUid,
                     targetExam = canonicalExam?.examId ?: resolvedExam,
                     examId = canonicalExam?.examId ?: resolvedExam,
-                    stageId = canonicalExam?.stages?.firstOrNull()?.stageId,
-                    paperId = canonicalExam?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
+                    stageId = canonicalExam?.stages?.singleOrNull()?.stageId,
+                    paperId = canonicalExam?.stages?.singleOrNull()?.papers?.singleOrNull()?.paperId,
                     scoringVersion = 1,
                     durationMinutes = questionEntities.size,
                     questionsJson = questionsJsonArray.toString()
