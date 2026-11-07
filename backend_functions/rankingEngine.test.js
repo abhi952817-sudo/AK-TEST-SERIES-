@@ -239,6 +239,9 @@ test("ranking period and weekly leaderboard identifiers reject malformed dates",
   assert.equal(isValidRankingPeriodId("MONTH", "2026-99"), false);
   assert.equal(isValidRankingWeekId("2026-W01"), true);
   assert.equal(isValidRankingWeekId("2026-W53"), true);
+  assert.equal(isValidRankingWeekId("2025-W53"), false);
+  assert.equal(isValidRankingWeekId("2020-W53"), true);
+  assert.equal(isValidRankingWeekId("2021-W53"), false);
   assert.equal(isValidRankingWeekId("2026-W00"), false);
   assert.equal(isValidRankingWeekId("2026-W54"), false);
 });
@@ -271,4 +274,6 @@ test("daily streak updates on consecutive days and never increments twice in one
   assert.equal(calculateDailyStreak("2026-11-04", "2026-11-07", 4), 1);
   assert.equal(calculateDailyStreak("", "2026-11-07", 0), 1);
   assert.equal(calculateDailyStreak("invalid", "2026-11-07", 2), 1);
+  assert.equal(calculateDailyStreak("2026-11-06", "2026-02-30", 4), 4);
+  assert.equal(calculateDailyStreak("2026-02-30", "2026-11-07", 2), 1);
 });
