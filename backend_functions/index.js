@@ -559,7 +559,10 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       const testEntryRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries").doc(userId);
       transaction.set(testEntryRef, {
         userId,
-        displayName: userData.name || "Student",
+        displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
+        profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE",
+        isBanned: userIsBanned,
+        isEligibleForRanking: isEligible,
         score: evalResult.finalScore,
         rawScore: evalResult.rawScore,
         accuracy: evalResult.accuracyPercent,
@@ -573,16 +576,17 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       const leaderboardRef = db.collection("Leaderboard").doc(`${canonicalExam}_${userId}`);
       transaction.set(leaderboardRef, {
         userId,
-        displayName: userData.name || "Student",
+        displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
         targetExam: canonicalExam,
         score: competitiveScore, // Consistent: ranking score is the cumulative competitive score!
         maxSingleScore: updates.maxScore || currentMaxScore,
         totalTestsAttempted: updates.totalTestsAttempted || totalTests + 1,
         qualifyingTestsCount: qualifyingTests,
         isEligibleForRanking: isEligible,
+        isBanned: userIsBanned,
         scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
         rankingWeightVersion: RANKING_CONFIG.version,
-        profileVisibility: userData.profileVisibility || "PUBLIC",
+        profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
     } else if (userData[examQCountKey] && userData[examQCountKey] >= 2) {
