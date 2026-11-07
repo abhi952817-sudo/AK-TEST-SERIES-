@@ -68,6 +68,29 @@ object UniversalPdfPipeline {
             )
             return@withContext emptyList()
         }
+        require(expectedQuestions > 0 && batchSize > 0 && resumeFromBatch > 0) {
+            "Expected question count, batch size and resume batch must be positive."
+        }
+        val selectedStage = if (stageId.isNotBlank()) {
+            examConfig.stages.singleOrNull { it.stageId == stageId }
+                ?: throw IllegalArgumentException("Unknown or ambiguous stageId: $stageId")
+        } else {
+            examConfig.stages.singleOrNull()
+                ?: throw IllegalArgumentException("Select an exact exam stage; this exam has multiple stages.")
+        }
+        val selectedPaper = selectedStage.papers.singleOrNull()
+            ?: throw IllegalArgumentException("Select an exact paper; this stage has multiple papers.")
+        require(subjectId.isNotBlank() && selectedPaper.subjects.any { it.subjectId == subjectId }) {
+            "Select a subject belonging to the selected paper."
+        }
+        require(selectedPaper.durationMinutes > 0 && selectedPaper.totalMarks > 0.0) {
+            "Selected paper has incomplete duration or maximum marks configuration."
+        }
+        val selectedSubject = selectedPaper.subjects.single { it.subjectId == subjectId }
+        require(selectedSubject.sections.isNotEmpty()) {
+            "Selected subject has no verified section/marking configuration."
+        }
+        val resolvedStageId = selectedStage.stageId
         val extractedQuestions = mutableListOf<UniversalQuestionModel>()
         extractedQuestions.addAll(existingQuestionsCache)
         
@@ -250,7 +273,7 @@ object UniversalPdfPipeline {
                     extractedQuestions.addAll(finalBatch)
                 } else {
                     val parsedFromSourcePdf = if (compactMarkdown.isNotBlank()) {
-                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, stageId)
+                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, resolvedStageId)
                     } else {
                         emptyList()
                     }
@@ -279,7 +302,7 @@ object UniversalPdfPipeline {
                                 hasDiagramAttached = !candidate.diagramUrl.isNullOrBlank(),
                                 duplicateResult = duplicate,
                                 questionType = candidate.questionType,
-                                expectedOptionCount = examConfig.defaultOptionCount
+                                expectedOptionCount = sectionConfig.optionsCount
                             )
                             candidate.copy(
                                 validationStatus = ValidationStatus.NEEDS_REVIEW,
@@ -370,18 +393,22 @@ object UniversalPdfPipeline {
                 val optE = item.optString("optionEEn").ifBlank { item.optString("optionE") }
                 val options = listOf(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
-                val qIndexInBatch = (batchIndex * 10) + i + 1
+                val qIndexInBatch = (batchIndex * batchSize) + i + 1
                 val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch)
-                val parsedSecId = item.optString("sectionId").ifBlank { resolvedSection?.sectionId ?: "SECTION_A" }
-                val parsedSecName = item.optString("sectionName").ifBlank { resolvedSection?.sectionName ?: "Section A" }
-                val parsedPosMarks = if (item.has("positiveMarks")) item.optDouble("positiveMarks", 4.0) else (resolvedSection?.positiveMarks ?: 4.0)
-                val parsedNegMarks = if (item.has("negativeMarks")) item.optDouble("negativeMarks", 1.0) else (resolvedSection?.negativeMarks ?: 1.0)
+                val parsedSecId = item.optString("sectionId").takeIf { it.isNotBlank() } ?: resolvedSection?.sectionId ?: continue
+                val sectionConfig = selectedSubject.sections.singleOrNull { it.sectionId == parsedSecId } ?: continue
+                val parsedSecName = item.optString("sectionName").takeIf { it.isNotBlank() } ?: sectionConfig.sectionName
+                val parsedPosMarks = if (item.has("positiveMarks")) item.optDouble("positiveMarks", Double.NaN) else sectionConfig.positiveMarks
+                val parsedNegMarks = if (item.has("negativeMarks")) item.optDouble("negativeMarks", Double.NaN) else sectionConfig.negativeMarks
+                if (!parsedPosMarks.isFinite() || parsedPosMarks <= 0.0 || !parsedNegMarks.isFinite() || parsedNegMarks < 0.0) continue
+                if (parsedPosMarks != sectionConfig.positiveMarks || parsedNegMarks != sectionConfig.negativeMarks) continue
 
-                val diffStr = item.optString("difficulty", "MEDIUM").uppercase()
-                val diffLevel = when {
-                    diffStr.contains("EASY") -> DifficultyLevel.EASY
-                    diffStr.contains("HARD") -> DifficultyLevel.HARD
-                    else -> DifficultyLevel.MEDIUM
+                val diffStr = item.optString("difficulty").uppercase()
+                val diffLevel = when (diffStr) {
+                    "EASY" -> DifficultyLevel.EASY
+                    "MEDIUM" -> DifficultyLevel.MEDIUM
+                    "HARD" -> DifficultyLevel.HARD
+                    else -> continue
                 }
 
                 val qTypeStr = item.optString("questionType").uppercase()
@@ -394,8 +421,12 @@ object UniversalPdfPipeline {
                     qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
                     qTypeStr.contains("GRAPH") -> QuestionType.GRAPH
                     qTypeStr.contains("DIRECT") || qTypeStr.contains("MCQ") -> QuestionType.DIRECT_MCQ
-                    else -> resolvedSection?.questionType ?: examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
+                    else -> sectionConfig.questionType
                 }
+                if (parsedQType !in examConfig.supportedQuestionTypes) continue
+                if (parsedQType != sectionConfig.questionType &&
+                    !(sectionConfig.questionType in setOf(QuestionType.MCQ_SINGLE, QuestionType.DIRECT_MCQ) &&
+                      parsedQType in setOf(QuestionType.MCQ_SINGLE, QuestionType.DIRECT_MCQ))) continue
 
                 val isNumerical = (parsedQType == QuestionType.NUMERICAL_VALUE || parsedQType == QuestionType.NUMERICAL || parsedQType == QuestionType.TITA)
                 val finalOptions = if (isNumerical) emptyList() else options
@@ -425,7 +456,7 @@ object UniversalPdfPipeline {
                     questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${batchIndex}_$i",
                     examId = examConfig.examId,
                     stageId = stageId,
-                    paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
+                    paperId = selectedPaper.paperId,
                     sectionId = parsedSecId,
                     sectionName = parsedSecName,
                     subjectId = subjectId,
