@@ -171,7 +171,7 @@ function getIsoWeeksInYear(year) {
 }
 
 function isValidRankingWeekId(weekId) {
-  const match = /^(\\d{4})-W(0[1-9]|[1-4]\\d|5[0-3])$/.exec(String(weekId || ""));
+  const match = /^(\d{4})-W(0[1-9]|[1-4]\d|5[0-3])$/.exec(String(weekId || ""));
   if (!match) return false;
   const year = Number(match[1]);
   const week = Number(match[2]);
@@ -198,7 +198,7 @@ function calculateDailyStreak(previousDate, currentDate, existingStreak) {
   const previous = String(previousDate || "");
   const streak = Math.max(0, Math.floor(Number(existingStreak) || 0));
   const toUtcDay = value => {
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
     const [year, month, day] = value.split("-").map(Number);
     const date = new Date(Date.UTC(year, month - 1, day));
     if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 ||
