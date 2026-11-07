@@ -3520,11 +3520,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val title = doc.getString("title")?.trim() ?: ""
         if (title.isBlank()) return null
 
-        val targetExam = doc.getString("examId")?.trim()?.takeIf { it.isNotBlank() }
+        val requestedTargetExam = doc.getString("examId")?.trim()?.takeIf { it.isNotBlank() }
             ?: doc.getString("targetExam")?.trim()?.takeIf { it.isNotBlank() }
             ?: return null
-        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(requestedTargetExam)
             ?.takeIf { it.active && it.verified } ?: return null
+        val targetExam = examConfig.examId
         val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: return null
         if (durationMinutes <= 0) return null
 
@@ -3718,7 +3719,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             status = "Published",
             uploaderId = creatorId,
             targetExam = targetExam,
-            examId = doc.getString("examId") ?: targetExam,
+            examId = doc.getString("examId"),
             stageId = doc.getString("stageId"),
             paperId = doc.getString("paperId"),
             scoringVersion = doc.getLong("scoringVersion")?.toInt() ?: 1,
@@ -3743,11 +3744,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val questionsJson = doc.getString("questionsJson")?.trim() ?: ""
         if (questionsJson.isBlank()) return null
 
-        val targetExam = doc.getString("examId")?.trim()?.takeIf { it.isNotBlank() }
+        val requestedTargetExam = doc.getString("examId")?.trim()?.takeIf { it.isNotBlank() }
             ?: doc.getString("targetExam")?.trim()?.takeIf { it.isNotBlank() }
             ?: return null
-        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(requestedTargetExam)
             ?.takeIf { it.active && it.verified } ?: return null
+        val targetExam = examConfig.examId
         val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: return null
         if (durationMinutes <= 0) return null
         val creatorId = doc.getString("uploaderId")?.trim() ?: "anonymous"
