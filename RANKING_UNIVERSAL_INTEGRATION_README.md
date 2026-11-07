@@ -1013,3 +1013,18 @@ No production Firestore data, Cloud Functions or rules were deployed or modified
 **CI status:** these newest commits have triggered fresh GitHub Actions runs, but the runner queue is still reporting them as `queued`. The last completed baseline run remains `42364272119`: backend and Firestore Rules passed, Android unit tests failed on the old test contracts before the corrections documented in sections 2.31–2.32. No green status is claimed for the latest code until its own workflow run completes.
 
 No production deployment or production data writes were performed. All changes remain on `feature/ranking-universal-integration-v1`; `main` remains untouched.
+
+### 2.33 Live privacy verification and identity synchronization — 2026-11-07
+
+The callable leaderboard responses now verify each returned identity against the current `Users_Data/{uid}.profileVisibility` document, not only the cached `profileVisibility` value in the leaderboard row. A user is named/linked only when both the materialized row and the current user document explicitly say `PUBLIC`. Missing user documents, missing/malformed visibility values, stale row values, or a failed profile lookup all fail closed to `Private Student` with a null user ID.
+
+This check is applied to:
+- All-time exam leaderboard.
+- Half-month/month ranking leaderboard.
+- Weekly and all-time XP leaderboard.
+
+The profile-visibility synchronization trigger now compares raw normalized values rather than defaulting both missing and `PRIVATE` to the same value. Therefore a transition from a missing/legacy value to explicit `PRIVATE` or `PUBLIC` is no longer skipped; the trigger updates exam, period, XP and legacy materializations in 450-write batches. If live visibility reads fail, the callable hides identities instead of exposing stale names.
+
+Android score calculation now consistently uses the canonical exam ID resolved from the test's explicit exam ID and exact stage/paper. It no longer passes an ambiguous display label directly to the scoring engine. Answer selection, timer validation, offline score calculation and post-submit leaderboard refresh share this exact identity resolver.
+
+**Current verification:** latest code commit is `6744b09cd136eb42dd59f9a21a75e7b8a6627bef`. GitHub Actions has created workflows for this branch, but the latest runs remain queued; no latest-commit CI pass is claimed. The previous completed baseline `42364272119` predates the current test and code corrections. No production deployment, Firestore migration or main-branch modification has occurred.
