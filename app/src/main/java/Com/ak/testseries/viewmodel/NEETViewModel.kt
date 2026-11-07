@@ -8038,7 +8038,7 @@ data class UserProfileData(
     val stateName: String = "",
     val cityName: String = "",
     val profileImageUri: String = "",
-    val targetExam: String = "NEET",
+    val targetExam: String = "",
     val classLevel: String = ""
 )
 
@@ -8053,14 +8053,14 @@ sealed class PdfAnalysisState {
 data class AnalyzedTestResult(
     val title: String,
     val institute: String,
-    val targetExam: String = "NEET UG",
+    val targetExam: String = "",
     val subject: String,
     val classLevel: String,
     val testType: String,
     val chapter: String,
     val timerMinutes: Int,
     val questionsCount: Int,
-    val totalMarks: Double = 720.0,
+    val totalMarks: Double = 0.0,
     val language: String,
     val confidence: Int,
     val detectedQuestionsCount: Int = 0,
