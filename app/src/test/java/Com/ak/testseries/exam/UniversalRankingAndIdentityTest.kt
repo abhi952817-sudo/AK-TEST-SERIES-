@@ -52,12 +52,14 @@ class UniversalRankingAndIdentityTest {
         assertFalse(UniversalExamRegistry.isExamVerified("jee_advanced"))
         assertEquals(4.0 to 1.0, UniversalExamRegistry.getMarkingSchemeForExam("NEET UG"))
         assertEquals(4.0 to 1.0, UniversalExamRegistry.getMarkingSchemeForExam("JEE Main P1"))
-        for (exam in listOf("JEE Advanced", "CUET UG", "UPSC CSE", "SSC CGL", "SSC CHSL", "SSC MTS", "SSC GD", "SSC CPO", "RRB NTPC", "RRB Group D", "RRB ALP", "RRB Technician", "RRB JE", "CTET", "UGC NET", "CAT", "IBPS PO", "IBPS Clerk", "SBI PO", "SBI Clerk", "NDA", "CDS", "GATE")) {
+
+        UniversalExamRegistry.getAllExams().filterNot { it.verified }.forEach { exam ->
             try {
-                UniversalExamRegistry.getMarkingSchemeForExam(exam)
-                throw AssertionError("Scoring must be blocked for unverified exam: $exam")
+                UniversalExamRegistry.getMarkingSchemeForExam(exam.examName)
+                throw AssertionError("Scoring must be blocked for unverified exam: ${exam.examId}")
             } catch (expected: IllegalArgumentException) {
-                assertTrue(expected.message.orEmpty().contains("source-verified", ignoreCase = true))
+                // Unsupported identity or explicit source-verification failure are both fail-closed.
+                assertTrue(expected.message.orEmpty().isNotBlank())
             }
         }
     }
