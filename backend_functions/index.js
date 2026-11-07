@@ -813,10 +813,13 @@ async function rebuildRankingV2ForUser(userId) {
 
     // Historical ranking must use the test's explicit exam identity, never a subject
     // label or an attempt-supplied identity that could redirect it into another board.
-    const identity = testData.examId || testData.targetExam;
-    if (typeof identity !== "string" || identity.trim().length === 0) continue;
-    const examId = normalizeExamKey(identity);
-    if (examId === "UNKNOWN" || examId === "ALL") continue;
+    let examId;
+    try {
+      // The same strict resolver used for live submissions rejects examId/targetExam conflicts.
+      examId = resolveCanonicalExamIdentity(testData);
+    } catch (_) {
+      continue;
+    }
     if (attempt.targetExam && normalizeExamKey(attempt.targetExam) !== examId) continue;
     const storedWeight = Number(attempt.rankingWeight);
     const weight = storedWeight === 1 || storedWeight === 0.2 ? storedWeight : resolveRankingWeight(testData);
