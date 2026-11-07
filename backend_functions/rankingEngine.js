@@ -99,12 +99,13 @@ function calculateWeightedRankingScore(score, maxScore, weight = 1) {
   const max = finiteNumber(maxScore, NaN);
   const w = finiteNumber(weight, NaN);
   if (!Number.isFinite(raw) || !Number.isFinite(max) || max <= 0 ||
+      raw < 0 || raw > max + 0.000001 ||
       !Number.isFinite(w) || (w !== 1 && w !== 0.2)) {
     const err = new Error("Invalid score, maximum score, or ranking weight.");
     err.code = "invalid-argument";
     throw err;
   }
-  const normalized = Math.min(1, Math.max(0, raw / max));
+  const normalized = raw / max;
   return Math.round(normalized * RANKING_CONFIG.scoreScale * w);
 }
 
