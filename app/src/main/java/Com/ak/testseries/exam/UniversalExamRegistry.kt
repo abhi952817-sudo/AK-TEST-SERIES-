@@ -27,6 +27,9 @@ object UniversalExamRegistry {
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
                 verified = true,
+                sourceYear = 2026,
+                sourceTitle = "NEET (UG)-2026 Information Bulletin",
+                sourceUrl = "https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/02/202602231394640855.pdf",
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 40, hardPercent = 15),
                 supportedQuestionTypes = listOf(
                     QuestionType.MCQ_SINGLE,
@@ -88,22 +91,22 @@ object UniversalExamRegistry {
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
                 verified = true,
+                sourceYear = 2027,
+                sourceTitle = "JEE (Main)-2027 Information Bulletin",
+                sourceUrl = "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/10/202610241890224107.pdf",
                 difficultyRatio = DifficultyRatio(easyPercent = 25, mediumPercent = 50, hardPercent = 25),
                 supportedQuestionTypes = listOf(
                     QuestionType.MCQ_SINGLE,
-                    QuestionType.DIRECT_MCQ,
-                    QuestionType.NUMERICAL_VALUE,
-                    QuestionType.ASSERTION_REASON,
-                    QuestionType.MULTI_STATEMENT,
-                    QuestionType.GRAPH
+                    QuestionType.NUMERICAL_VALUE
                 ),
-                aiSystemInstruction = "You are the Chief Academic Examiner for JEE Main. Generate rigorous analytical questions for Physics, Chemistry, and Mathematics. Focus on multi-concept synthesis, calculus-based derivations, vector algebra, organic reaction mechanisms, and physical chemistry stoichiometry. Numerical value questions require exact integer or rounded values.",
+                aiSystemInstruction = "You are the Chief Academic Examiner for JEE Main Paper 1 (B.E./B.Tech), 2027. Generate only single-correct MCQs and numerical-value questions for Mathematics, Physics, and Chemistry. Numerical responses must follow the official integer-answer rule. Do not generate unsupported assertion-reason, multi-select, or graph-only formats.",
                 patternRules = listOf(
-                    "+4 marks for correct, -1 mark penalty for incorrect",
-                    "Section A: 20 Multiple Choice Questions per subject (compulsory)",
-                    "Section B: 5 Numerical Value Questions per subject (all compulsory)",
-                    "Total 300 marks (75 compulsory questions)",
-                    "Duration 180 minutes (3 hours)"
+                    "2027 NTA Bulletin: +4 marks for correct, -1 for incorrect, 0 for unanswered in both Section A and Section B",
+                    "Section A: 20 compulsory single-correct MCQs per subject",
+                    "Section B: 5 compulsory numerical-value questions per subject",
+                    "Total 75 questions and 300 marks",
+                    "Duration 180 minutes (3 hours)",
+                    "Paper 1 covers Mathematics, Physics and Chemistry only"
                 ),
                 stages = listOf(
                     StageConfig(
@@ -1094,6 +1097,13 @@ object UniversalExamRegistry {
     }
 
     fun register(config: ExamConfig) {
+        require(config.examId.isNotBlank()) { "Exam configuration requires a stable examId." }
+        if (config.verified) {
+            require(config.sourceYear != null && !config.sourceTitle.isNullOrBlank() &&
+                config.sourceUrl?.startsWith("https://") == true) {
+                "A verified exam configuration must include its official source year, title, and HTTPS URL."
+            }
+        }
         defaultExams[config.examId] = config
     }
 
@@ -1105,7 +1115,10 @@ object UniversalExamRegistry {
             supportedQuestionTypes = emptyList(),
             aiSystemInstruction = "",
             patternRules = listOf("Official source verification pending"),
-            stages = emptyList()
+            stages = emptyList(),
+            sourceYear = null,
+            sourceTitle = null,
+            sourceUrl = null
         )
     }
 
