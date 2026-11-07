@@ -688,7 +688,10 @@ exports.syncRankingProfileVisibility = functions.firestore
     const allTimeSnapshot = await db.collection("XP_Leaderboard_AllTime")
       .doc("Entries").collection("Students")
       .where("userId", "==", context.params.userId).get();
-    const docs = [...entrySnapshot.docs, ...allTimeSnapshot.docs];
+    // Legacy rows are updated only for privacy/ban hygiene; no new score writes target this collection.
+    const legacyLeaderboardSnapshot = await db.collection("Leaderboard")
+      .where("userId", "==", context.params.userId).get();
+    const docs = [...entrySnapshot.docs, ...allTimeSnapshot.docs, ...legacyLeaderboardSnapshot.docs];
     for (let offset = 0; offset < docs.length; offset += 450) {
       const batch = db.batch();
       docs.slice(offset, offset + 450).forEach(doc => {
