@@ -40,7 +40,7 @@ object UniversalPdfPipeline {
                 return sec
             }
         }
-        return sections.lastOrNull()
+        return null
     }
 
     suspend fun processPdfForExam(
@@ -165,7 +165,7 @@ object UniversalPdfPipeline {
                 // Dynamically build the prompt injecting aiSystemInstruction, pattern rules, and compact Markdown
                 val prompt = UniversalAIContext.buildDynamicGenerationPrompt(
                     examConfig = examConfig,
-                    subject = subjectId.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "Core Domain" },
+                    subject = selectedSubject.subjectName,
                     testTitle = "${examConfig.shortName} Diagnostic Paper",
                     compactMarkdownPayload = compactMarkdown,
                     currentChunkSize = questionsInThisBatch,
@@ -440,7 +440,7 @@ object UniversalPdfPipeline {
                 val explanation = item.optString("explanationEn").ifBlank { item.optString("explanation") }
 
                 val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
-                val dupResult = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, existingHashes)
+                val dupResult = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, seenHashes)
                 val validation = QuestionValidationEngine.validateQuestion(
                     questionText = qText,
                     options = finalOptions,
@@ -453,7 +453,7 @@ object UniversalPdfPipeline {
                 )
 
                 val model = UniversalQuestionModel(
-                    questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${batchIndex}_$i",
+                    questionId = "uq_${examConfig.examId}_${java.util.UUID.randomUUID()}",
                     examId = examConfig.examId,
                     stageId = stageId,
                     paperId = selectedPaper.paperId,
@@ -492,7 +492,7 @@ object UniversalPdfPipeline {
                     generationModel = actualModel,
                     generationTimestamp = System.currentTimeMillis()
                 )
-                resultList.add(model)
+                resultList.add(model)\n                seenHashes[hash] = qText
             }
         } catch (e: Exception) {
             e.printStackTrace()
