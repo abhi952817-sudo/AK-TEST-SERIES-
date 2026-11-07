@@ -16,7 +16,7 @@ const {
   RANKING_CONFIG, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
   isEligibleScoringResult, isEligibleHistoricalRankingTest,
   getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel, resolveClassLevelFilter,
-  getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus, getCohortRankingStatus
+  getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, buildTestRankingSnapshot, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
@@ -720,7 +720,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         testEntriesRef.where("score", ">", Number(canonicalEntry.score)).count().get(),
         testEntriesRef.count().get()
       ]);
-      testRankingSnapshot = require("./rankingEngine").buildTestRankingSnapshot({
+      testRankingSnapshot = buildTestRankingSnapshot({
         countsTowardRanking: true,
         isFirstQualifyingAttempt: true,
         canonicalEntry,
