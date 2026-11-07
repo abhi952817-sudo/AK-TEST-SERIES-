@@ -154,8 +154,13 @@ fun UniversalExamAdminScreen(
                             Toast.makeText(context, "Please select a PDF first", Toast.LENGTH_SHORT).show()
                             return@ProcessPdfTab
                         }
-                        val selectedSubject = selectedExam.stages.singleOrNull()?.papers?.singleOrNull()
-                            ?.subjects?.singleOrNull { it.subjectId == selectedSubjectId }
+                        val selectedStage = selectedExam.stages.singleOrNull()
+                        val selectedPaper = selectedStage?.papers?.singleOrNull()
+                        if (selectedStage == null || selectedPaper == null) {
+                            Toast.makeText(context, "This exam requires an explicit stage and paper selector before PDF processing. No default stage/paper will be guessed.", Toast.LENGTH_LONG).show()
+                            return@ProcessPdfTab
+                        }
+                        val selectedSubject = selectedPaper.subjects.singleOrNull { it.subjectId == selectedSubjectId }
                         val expectedQuestionCount = selectedSubject?.sections?.sumOf { it.totalQuestions } ?: 0
                         if (expectedQuestionCount <= 0) {
                             Toast.makeText(context, "Selected subject has no verified question-count configuration.", Toast.LENGTH_LONG).show()
@@ -169,6 +174,8 @@ fun UniversalExamAdminScreen(
                                     pdfUri = pdfUri!!,
                                     examConfig = selectedExam,
                                     subjectId = selectedSubjectId,
+                                    stageId = selectedStage.stageId,
+                                    paperId = selectedPaper.paperId,
                                     expectedQuestions = expectedQuestionCount,
                                     isAiEnabled = isAiEnabled,
                                     onProgress = { prog ->
