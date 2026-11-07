@@ -632,3 +632,12 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Commits: `8e22547bbf220607a12d83e373118107f3f61adb`, `2e6a64a905c25b40dbb9a6ae6b112c14988befd3`, `22e216e099ba93f0dc2bc3df5278d33a325330bb`.
 - **Status: PARTIAL — source changes committed; tests NOT EXECUTED.** This is not yet end-to-end role enforcement. Existing Firestore/Storage rules, callable authorization checks, Android Admin UI, and legacy `admin: true` access still need a coordinated migration and emulator/device verification. Do not treat Content Admin or Support Admin as safely isolated in production until those layers are updated and tested.
 - Next: inventory each Admin callable and each Firestore/Storage rule path, map it to the least-privilege permission constant, then integrate role-aware authorization at those existing boundaries without removing the verified owner recovery path.
+
+### Admin role enforcement — solution-review callable boundary — 2026-11-07
+- Updated the existing `getTestAttemptSolutions` callable to use the shared role permission policy for its administrative review bypass.
+- Super Admin and Content Admin have the `questions.review` permission; Support Admin is denied that bypass and therefore cannot use this route to obtain answer keys as an administrator.
+- The verified primary owner recovery path remains supported.
+- Added regression coverage for the role-to-solution-review permission boundary.
+- Commits: `6980cdc80bd1f41767e9080467ff0e22e9847dab`, `7eebb36f9fdb73fc310ff807368ef860fbd54856`.
+- **Status: source-level integration only; tests NOT EXECUTED.** This does not yet secure every answer-key read path or every admin callable. Firestore/Storage rules and remaining callable/UI authorization paths are still open.
+- Next: inspect every server callable and Firestore rule path that reads or mutates test content, private keys, student records, limits, publishing state, storage, and alerts; apply the same permission map to existing code paths and add deny tests.
