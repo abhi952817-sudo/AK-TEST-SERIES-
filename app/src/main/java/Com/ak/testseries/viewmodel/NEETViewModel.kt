@@ -6876,7 +6876,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val test = repository.getTestById(testId) ?: return@launch
-                if (test.isPublic != isPublic && (test.isOfficial || test.countsTowardRanking)) {
+                if (test.isPublic != isPublic) {
                     requireNoExistingRankingContributionsBeforeVisibilityChange(testId)
                 }
                 if (isPublic) {
@@ -6936,7 +6936,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val test = repository.getTestById(testId)
                     ?: throw IllegalArgumentException("Test not found.")
-                if (!test.isPublic && (test.isOfficial || test.countsTowardRanking)) {
+                if (!test.isPublic) {
                     requireNoExistingRankingContributionsBeforeVisibilityChange(testId)
                 }
                 val rawJson = test.questionsJson ?: ""
