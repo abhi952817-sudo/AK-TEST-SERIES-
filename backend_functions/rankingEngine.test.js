@@ -161,8 +161,8 @@ test("scoring result with any ungraded question cannot contribute to AIR", () =>
   const result = evaluateTestAttempt(
     "NEET UG",
     [
-      { id: "q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" },
-      { id: "q2", correctAnswer: "", section: "SECTION_A", subject: "Physics" }
+      { id: "q1", correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" },
+      { id: "q2", correctAnswer: "", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" }
     ],
     { q1: { ans: "A" }, q2: { ans: "B" } },
     60
@@ -172,7 +172,7 @@ test("scoring result with any ungraded question cannot contribute to AIR", () =>
 
   const fullyVerified = evaluateTestAttempt(
     "NEET UG",
-    [{ id: "q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" }],
+    [{ id: "q1", correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" }],
     { q1: { ans: "A" } },
     30
   );
