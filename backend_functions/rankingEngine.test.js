@@ -8,6 +8,7 @@ const {
   getIndiaWeekId,
   getRankingPeriodIds,
   isValidRankingPeriodId,
+  clampRankingLimit,
   isValidRankingWeekId,
   getLeagueForXp,
   calculateXpAward,
@@ -239,4 +240,15 @@ test("ranking period and weekly leaderboard identifiers reject malformed dates",
   assert.equal(isValidRankingWeekId("2026-W53"), true);
   assert.equal(isValidRankingWeekId("2026-W00"), false);
   assert.equal(isValidRankingWeekId("2026-W54"), false);
+});
+
+
+test("ranking query limits are finite integers within endpoint bounds", () => {
+  assert.equal(clampRankingLimit(undefined, 100, 1, 100), 100);
+  assert.equal(clampRankingLimit(2.9, 100, 1, 100), 2);
+  assert.equal(clampRankingLimit(0, 100, 1, 100), 1);
+  assert.equal(clampRankingLimit(-5, 100, 1, 100), 1);
+  assert.equal(clampRankingLimit(1000, 10, 1, 20), 20);
+  assert.equal(clampRankingLimit("not-a-number", 10, 1, 20), 10);
+  assert.equal(clampRankingLimit(Infinity, 10, 1, 20), 10);
 });
