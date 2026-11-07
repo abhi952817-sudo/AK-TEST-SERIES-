@@ -1097,13 +1097,26 @@ object UniversalExamRegistry {
         defaultExams[config.examId] = config
     }
 
-    fun getAllExams(): List<ExamConfig> = defaultExams.values.toList()
+    private fun publicExamConfig(config: ExamConfig): ExamConfig {
+        if (config.verified) return config
+        return config.copy(
+            defaultOptionCount = 0,
+            difficultyRatio = DifficultyRatio(0, 0, 0),
+            supportedQuestionTypes = emptyList(),
+            aiSystemInstruction = "",
+            patternRules = listOf("Official source verification pending"),
+            stages = emptyList()
+        )
+    }
 
-    fun getActiveExams(): List<ExamConfig> = defaultExams.values.filter { it.active }
+    fun getAllExams(): List<ExamConfig> = defaultExams.values.map(::publicExamConfig)
 
-    fun getExamById(examId: String): ExamConfig? = defaultExams[examId]
+    fun getActiveExams(): List<ExamConfig> = defaultExams.values.filter { it.active }.map(::publicExamConfig)
 
-    fun getExam(query: String): ExamConfig? = getExamById(query) ?: findExamByNameOrShortName(query)
+    fun getExamById(examId: String): ExamConfig? = defaultExams[examId]?.let(::publicExamConfig)
+
+    fun getExam(query: String): ExamConfig? =
+        getExamById(query) ?: findExamByNameOrShortName(query)?.let(::publicExamConfig)
 
     fun getCanonicalExamKey(query: String?): String {
         if (query.isNullOrBlank()) return "UNKNOWN"
