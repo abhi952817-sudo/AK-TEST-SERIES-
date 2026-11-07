@@ -106,6 +106,10 @@ object ExamScoringEngine {
         userAnswers: Map<String, String>,
         timeSpentSeconds: Long
     ): ScoreBreakdown {
+        require(questions.all { it.id.isNotBlank() } &&
+            questions.map { it.id }.distinct().size == questions.size) {
+            "Question IDs must be present and unique before scoring."
+        }
         val (posMark, negMark) = getMarkingScheme(targetExam)
         var correct = 0
         var wrong = 0
@@ -290,6 +294,10 @@ object ExamScoringEngine {
         questions: List<QuestionEntity>,
         userAnswers: Map<String, String>
     ): List<SubjectStatData> {
+        require(questions.all { it.id.isNotBlank() } &&
+            questions.map { it.id }.distinct().size == questions.size) {
+            "Question IDs must be present and unique before scoring."
+        }
         getMarkingScheme(targetExam)
         val statsMap = linkedMapOf<String, SubjectStatData>()
 
