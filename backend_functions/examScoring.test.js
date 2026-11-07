@@ -186,7 +186,7 @@ test("population and score percentiles handle ties and boundary cases", () => {
 });
 
 test("verified full tests require exact official question and section distribution", () => {
-  const { validateFullTestQuestionCoverage } = require("./examScoring");
+  const { validateFullTestQuestionCoverage, hasFullTestQuestionCoverage } = require("./examScoring");
   const neetSections = [
     ["Physics", "phy_all", 45],
     ["Chemistry", "chem_all", 45],
@@ -197,6 +197,8 @@ test("verified full tests require exact official question and section distributi
     Array.from({ length: count }, (_, index) => ({ id: subject + index, subject, section }))
   );
   assert.equal(validateFullTestQuestionCoverage("NEET UG", neetQuestions), true);
+  assert.equal(hasFullTestQuestionCoverage("NEET UG", neetQuestions), true);
+  assert.equal(hasFullTestQuestionCoverage("NEET UG", neetQuestions.slice(1)), false);
   assert.throws(() => validateFullTestQuestionCoverage("NEET UG", neetQuestions.slice(1)));
 
   const jeeSections = [
@@ -208,6 +210,8 @@ test("verified full tests require exact official question and section distributi
     Array.from({ length: count }, (_, index) => ({ id: subject + section + index, subject, section }))
   );
   assert.equal(validateFullTestQuestionCoverage("JEE Main", jeeQuestions), true);
+  assert.equal(hasFullTestQuestionCoverage("JEE Main", jeeQuestions), true);
+  assert.equal(hasFullTestQuestionCoverage("JEE Main", jeeQuestions.slice(1)), false);
   assert.throws(() => validateFullTestQuestionCoverage("JEE Main", jeeQuestions.slice(1)));
 });
 
