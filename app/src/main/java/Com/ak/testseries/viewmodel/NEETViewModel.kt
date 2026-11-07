@@ -4037,10 +4037,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     // --- Exam Engine ---
 
     private fun calculateExamDurationSeconds(test: TestEntity): Long {
-        if (test.durationMinutes > 0) return test.durationMinutes * 60L
-
-        // No exam-name heuristics or first-stage defaults: resolve only the exact
-        // persisted exam/stage/paper identity. Missing metadata blocks a timed attempt.
+        // Validate identity before accepting even a custom timer. A positive duration
+        // must never allow a Paper 2 test to run under a Paper 1 scoring scheme.
         val examIdentity = test.examId?.takeIf { it.isNotBlank() } ?: test.targetExam
         val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examIdentity)
             ?: return 0L
@@ -4049,6 +4047,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val paperId = test.paperId?.takeIf { it.isNotBlank() } ?: return 0L
         val stage = examConfig.stages.singleOrNull { it.stageId == stageId } ?: return 0L
         val paper = stage.papers.singleOrNull { it.paperId == paperId } ?: return 0L
+        if (test.durationMinutes > 0) return test.durationMinutes * 60L
         return paper.durationMinutes.takeIf { it > 0 }?.times(60L) ?: 0L
     }
 
