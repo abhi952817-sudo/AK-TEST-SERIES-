@@ -766,7 +766,7 @@ exports.syncRankingProfileVisibility = functions.firestore
     if (beforeVisibility === afterVisibility && beforeName === afterName &&
         beforeBanned === afterBanned && beforeClassLevel === afterClassLevel) return null;
 
-    const isPublic = afterVisibility !== "PRIVATE";
+    const isPublic = isProfilePublic(after.profileVisibility);
     const displayName = isPublic ? afterName : "Private Student";
     const entrySnapshot = await db.collectionGroup("Entries")
       .where("userId", "==", context.params.userId).get();
@@ -922,7 +922,7 @@ async function rebuildRankingV2ForUser(userId) {
   }
 
   const userData = userSnap.data();
-  const isPublic = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
+  const isPublic = isProfilePublic(userData.profileVisibility);
   const displayName = isPublic ? (userData.displayName || userData.name || "Student") : "Private Student";
   const classLevel = normalizeClassLevel(userData.classLevel);
   const userIsBanned = userData.isBanned === true;
