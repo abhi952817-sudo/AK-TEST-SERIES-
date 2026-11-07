@@ -272,7 +272,7 @@ object OfflineMarkdownQuestionParser {
         }
         val sections = selectedSubject?.sections.orEmpty()
 
-        return parsedList.map { pq ->
+        return parsedList.mapNotNull { pq ->
             val optionsList = listOfNotNull(
                 pq.optionA.takeIf { it.isNotBlank() },
                 pq.optionB.takeIf { it.isNotBlank() },
