@@ -7507,15 +7507,63 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!isAdmin || questions.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val testId = "universal_${System.currentTimeMillis()}"
-                val subjectStr = questions.firstOrNull()?.subjectId?.replaceFirstChar { it.uppercase() } ?: "General"
-                val diffStr = questions.firstOrNull()?.difficulty?.name ?: "Medium"
                 val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examName)
-
-                // Do not silently choose the first stage or paper when an exam has multiple paths.
-                val selectedStage = examConfig?.stages?.singleOrNull()
-                val selectedPaper = selectedStage?.papers?.singleOrNull()
-                val resolvedDuration = durationMinutes.takeIf { it > 0 } ?: selectedPaper?.durationMinutes ?: 0
+                    ?: throw IllegalArgumentException("Unsupported exam identity: $examName")
+                require(examConfig.active && examConfig.verified) {
+                    "Exam configuration is not source-verified and cannot be published."
+                }
+                // A stage/paper must be unambiguous. Multi-stage exams require an explicit selection upstream.
+                val selectedStage = examConfig.stages.singleOrNull()
+                    ?: throw IllegalArgumentException("Select an exact exam stage before publishing.")
+                val selectedPaper = selectedStage.papers.singleOrNull()
+                    ?: throw IllegalArgumentException("Select an exact paper before publishing.")
+                require(durationMinutes >= 0) { "Duration cannot be negative." }
+                val resolvedDuration = durationMinutes.takeIf { it > 0 } ?: selectedPaper.durationMinutes
+                require(resolvedDuration > 0) { "A valid paper duration is required." }
+                val subjectConfigs = selectedPaper.subjects.associateBy { it.subjectId }
+                val sectionConfigs = selectedPaper.subjects.flatMap { subject ->
+                    subject.sections.map { section -> (subject.subjectId to section.sectionId) to section }
+                }.toMap()
+                val invalidQuestions = questions.mapIndexedNotNull { index, q ->
+                    val qNumber = index + 1
+                    val subject = subjectConfigs[q.subjectId]
+                    val section = sectionConfigs[q.subjectId to q.sectionId]
+                    val numerical = q.questionType in setOf(
+                        Com.ak.testseries.exam.QuestionType.NUMERICAL,
+                        Com.ak.testseries.exam.QuestionType.NUMERICAL_VALUE,
+                        Com.ak.testseries.exam.QuestionType.TITA
+                    )
+                    val issues = mutableListOf<String>()
+                    if (q.examId != examConfig.examId) issues += "examId mismatch"
+                    if (q.stageId != selectedStage.stageId) issues += "stageId mismatch or missing"
+                    if (q.paperId != selectedPaper.paperId) issues += "paperId mismatch or missing"
+                    if (q.questionText.isBlank()) issues += "question text missing"
+                    if (subject == null) issues += "unknown subjectId"
+                    if (q.topicId.isBlank() && q.chapterId.isBlank() && q.chapterName.isBlank()) issues += "chapter/topic missing"
+                    if (section == null) issues += "unknown sectionId"
+                    if (q.correctAnswer.isBlank()) issues += "answer key missing"
+                    if (!q.positiveMarks.isFinite() || q.positiveMarks <= 0.0) issues += "invalid positive marks"
+                    if (!q.negativeMarks.isFinite() || q.negativeMarks < 0.0) issues += "invalid negative marks"
+                    if (section != null && (q.positiveMarks != section.positiveMarks || q.negativeMarks != section.negativeMarks)) {
+                        issues += "marks do not match selected section policy"
+                    }
+                    if (!numerical && q.options.size != (section?.optionsCount ?: examConfig.defaultOptionCount)) {
+                        issues += "option count does not match exam section"
+                    }
+                    if (q.options.any { it.isBlank() } || q.options.distinct().size != q.options.size) issues += "blank or duplicate options"
+                    if (!numerical && q.options.isNotEmpty() && q.correctAnswer !in q.options.indices.map { it.toString() } &&
+                        q.correctAnswer.uppercase() !in listOf("A", "B", "C", "D", "E").take(q.options.size)) {
+                        issues += "answer key is outside the option set"
+                    }
+                    if (q.sectionId.isBlank() || q.subjectId.isBlank()) issues += "section/subject identity missing"
+                    if (issues.isEmpty()) null else "Q$qNumber: ${issues.joinToString()}"
+                }
+                require(invalidQuestions.isEmpty()) {
+                    "Publishing blocked. Correct question metadata first: ${invalidQuestions.take(10).joinToString("; ")}"
+                }
+                val testId = "universal_${java.util.UUID.randomUUID()}"
+                val subjectStr = questions.first().subjectId.replaceFirstChar { it.uppercase() }
+                val diffStr = questions.first().difficulty.name
 
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
@@ -7547,10 +7595,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qObj = org.json.JSONObject()
                     qObj.put("id", qId)
                     qObj.put("questionTextEn", uq.questionText)
-                    qObj.put("optionAEn", uq.options.getOrElse(0) { "Option A" })
-                    qObj.put("optionBEn", uq.options.getOrElse(1) { "Option B" })
-                    qObj.put("optionCEn", uq.options.getOrElse(2) { "Option C" })
-                    qObj.put("optionDEn", uq.options.getOrElse(3) { "Option D" })
+                    qObj.put("optionAEn", uq.options[0])
+                    qObj.put("optionBEn", uq.options[1])
+                    qObj.put("optionCEn", uq.options[2])
+                    qObj.put("optionDEn", uq.options[3])
                     uq.options.getOrNull(4)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionEEn", it) }
                     if (!uq.questionTextHi.isNullOrBlank()) qObj.put("questionTextHi", uq.questionTextHi)
                     uq.optionsHi?.getOrNull(0)?.let { qObj.put("optionAHi", it) }
@@ -7562,9 +7610,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("explanationEn", uq.explanation)
                     if (!uq.explanationHi.isNullOrBlank()) qObj.put("explanationHi", uq.explanationHi)
                     qObj.put("subject", uq.subjectId)
-                    qObj.put("chapter", uq.topicId.ifBlank { "Chapter 1" })
+                    qObj.put("chapter", uq.topicId.ifBlank { uq.chapterName.ifBlank { uq.chapterId } })
                     qObj.put("questionType", uq.questionType.name)
-                    qObj.put("section", uq.sectionId.ifBlank { "SECTION_A" })
+                    qObj.put("section", uq.sectionId)
                     qObj.put("sectionName", uq.sectionName)
                     qObj.put("positiveMarks", uq.positiveMarks)
                     qObj.put("negativeMarks", uq.negativeMarks)
