@@ -74,6 +74,7 @@ function resolveRankingWeight(testData = {}) {
 }
 
 function isEligibleScoringResult(result = {}) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return false;
   const score = finiteNumber(result.finalScore, NaN);
   const maxScore = finiteNumber(result.maxScore, NaN);
   const ungradedCount = finiteNumber(result.ungradedCount, NaN);
@@ -263,7 +264,7 @@ function buildTestRankingSnapshot({
   });
   if (!countsTowardRanking) return unavailable("NOT_ELIGIBLE");
   if (!isFirstQualifyingAttempt) return unavailable("NOT_RANKED_REPEAT_ATTEMPT");
-  if (!canonicalEntry || canonicalEntry.isBanned !== false || !Number.isFinite(Number(canonicalEntry.score))) {
+  if (!canonicalEntry || canonicalEntry.isBanned !== false || !Number.isFinite(Number(canonicalEntry.score)) || Number(canonicalEntry.score) < 0) {
     return unavailable("UNAVAILABLE");
   }
   const higher = Number(higherCount);
