@@ -1714,6 +1714,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     emptyList()
                 }
                 val questionsJsonString = serializeQuestionsToJson(questions)
+                // LiveTests documents are readable by every authenticated student. Never place
+                // correct answers or explanations in that public document.
+                val separatedLiveQuestions = if (questions.isNotEmpty()) {
+                    Com.ak.testseries.exam.SecureQuestionPayloadSanitizer.separate(questionsJsonString)
+                } else {
+                    null
+                }
+                val publicLiveQuestionsJson = separatedLiveQuestions?.publicJson ?: "[]"
                 val effectiveQCount = if (questions.isNotEmpty()) questions.size else questionsCount
 
                 val testData = hashMapOf(
@@ -1728,7 +1736,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "questionsCount" to effectiveQCount,
                     "isLive" to true,
                     "timestamp" to System.currentTimeMillis(),
-                    "questionsJson" to questionsJsonString
+                    "questionsJson" to publicLiveQuestionsJson
                 )
 
                 var finalPdfUrl = ""
@@ -1745,7 +1753,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                db.collection("LiveTests").document(testId).set(testData).await()
+                val liveTestRef = db.collection("LiveTests").document(testId)
+                val liveTestBatch = db.batch()
+                liveTestBatch.set(liveTestRef, testData)
+                separatedLiveQuestions?.let { separated ->
+                    liveTestBatch.set(
+                        liveTestRef.collection("private_keys").document("answerKey"),
+                        mapOf(
+                            "testId" to testId,
+                            "questions" to separated.answerKeys,
+                            "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                        )
+                    )
+                }
+                liveTestBatch.commit().await()
 
                 // Broadcast Live Test Notification to UserNotifications in Firestore
                 try {
@@ -1789,8 +1810,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     difficulty = "Medium",
                     testType = "Live",
                     questionsCount = effectiveQCount,
-                    isOfficial = true,
-                    isVerifiedCommunity = true,
+                    // A scheduled live test is not automatically an Official/PYQ source.
+                    // Ranking eligibility is granted only after explicit source verification.
+                    isOfficial = false,
+                    isVerifiedCommunity = false,
+                    countsTowardRanking = false,
+                    status = "Published",
                     classLevel = classLevel,
                     targetExam = targetExam,
                     chapter = chapter,
