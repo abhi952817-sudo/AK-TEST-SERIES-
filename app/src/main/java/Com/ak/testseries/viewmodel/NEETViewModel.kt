@@ -6030,9 +6030,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             difficulty = "Medium",
             testType = if (isLiveTest) "Live" else genType.value,
             questionsCount = jsonArray.length(),
-            isOfficial = isLiveTest,
-            isVerifiedCommunity = isLiveTest || isAdmin,
-            countsTowardRanking = isLiveTest, // Only official Admin live tests count toward competitive ranking
+            // A generated/scheduled live mock is practice content until its source and answer key
+            // are explicitly reviewed. Live mode alone must never grant Official or AIR eligibility.
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            countsTowardRanking = false
             attemptsCount = 0,
             downloadsCount = 0,
             chapter = primaryChapter,
