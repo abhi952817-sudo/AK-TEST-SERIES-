@@ -196,6 +196,38 @@ function calculateCompetitionRank(entries, targetUserId) {
   };
 }
 
+function buildTestRankingSnapshot({
+  countsTowardRanking,
+  isFirstQualifyingAttempt,
+  canonicalEntry,
+  higherCount,
+  totalCount
+} = {}) {
+  const unavailable = (status) => ({
+    rankStatus: status,
+    testRank: null,
+    testTotalCandidates: null,
+    percentile: null
+  });
+  if (!countsTowardRanking) return unavailable("NOT_ELIGIBLE");
+  if (!isFirstQualifyingAttempt) return unavailable("NOT_RANKED_REPEAT_ATTEMPT");
+  if (!canonicalEntry || !Number.isFinite(Number(canonicalEntry.score))) {
+    return unavailable("UNAVAILABLE");
+  }
+  const higher = Number(higherCount);
+  const total = Number(totalCount);
+  if (!Number.isInteger(higher) || !Number.isInteger(total) || higher < 0 || total < 1 || higher >= total) {
+    return unavailable("UNAVAILABLE");
+  }
+  const rank = higher + 1;
+  return {
+    rankStatus: "AVAILABLE",
+    testRank: rank,
+    testTotalCandidates: total,
+    percentile: calculatePopulationPercentile(rank, total)
+  };
+}
+
 function calculatePercentileFromCounts(countBelow, countEqual, totalCount) {
   const total = Math.max(0, Math.floor(finiteNumber(totalCount, 0)));
   if (total === 0) return 0;
