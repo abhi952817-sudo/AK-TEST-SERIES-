@@ -1309,7 +1309,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         "stateName" to stateName,
                         "cityName" to cityName,
                         "profileImageUri" to profileImageUri,
-                        "targetExam" to targetExam,
+                        "targetExam" to examConfig.examId,
                         "classLevel" to classLevel
                     )
                     userRef.set(userData, com.google.firebase.firestore.SetOptions.merge()).await()
@@ -1664,7 +1664,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         durationMinutes: Int,
         questionsCount: Int,
         pdfUri: Uri? = null,
-        targetExam: String = "NEET UG",
+        targetExam: String = "",
         customQuestions: List<QuestionEntity>? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -1682,8 +1682,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     require(q.questionText.isNotBlank() && q.correctAnswer.isNotBlank()) {
                         "Question ${idx + 1} is missing question text or answer key."
                     }
-                    require(q.optionA.isNotBlank() && q.optionB.isNotBlank() && q.optionC.isNotBlank() && q.optionD.isNotBlank()) {
-                        "Question ${idx + 1} has missing options. Numerical questions must use a separate validated ingestion path."
+                    val numerical = q.questionType.equals("NUMERICAL", true) ||
+                        q.questionType.equals("NUMERICAL_VALUE", true) || q.questionType.equals("TITA", true)
+                    if (!numerical) {
+                        require(q.optionA.isNotBlank() && q.optionB.isNotBlank() && q.optionC.isNotBlank() && q.optionD.isNotBlank()) {
+                            "Question ${idx + 1} has missing options."
+                        }
                     }
                     q.copy(id = "${testId}_q${idx + 1}", testId = testId)
                 }
