@@ -14,7 +14,7 @@ const {
 const {
   RANKING_CONFIG, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
   isEligibleScoringResult, isEligibleHistoricalRankingTest,
-  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel, resolveClassLevelFilter,
+  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, isValidRankingPeriodId, isValidRankingWeekId, normalizeClassLevel, resolveClassLevelFilter,
   getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, buildTestRankingSnapshot, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
@@ -1256,6 +1256,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
   const input = data || {};
   const examId = requireCanonicalExamId(input.targetExam);
   const classLevel = resolveClassLevelFilter(input.classLevel);
+  if (classLevel === null) throw new functions.https.HttpsError("invalid-argument", "classLevel must be All, Class 11, Class 12, or Dropper.");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const periodType = String(input.periodType || "HALF_MONTH").toUpperCase();
   if (!["HALF_MONTH", "MONTH"].includes(periodType)) {
@@ -1313,6 +1314,9 @@ exports.getXpLeaderboard = functions.https.onCall(async (data, context) => {
       .collection("Students").where("isBanned", "==", false).orderBy("xpTotal", "desc").limit(limit);
   } else if (mode === "WEEKLY") {
     const weekId = String((data || {}).weekId || getIndiaWeekId(Date.now()));
+    if (!isValidRankingWeekId(weekId)) {
+      throw new functions.https.HttpsError("invalid-argument", "weekId must be a valid ISO week identifier (YYYY-Www).");
+    }
     query = db.collection("XP_Leaderboard_Weekly").doc(weekId)
       .collection("Entries").where("isBanned", "==", false).orderBy("xp", "desc").limit(limit);
   } else {
