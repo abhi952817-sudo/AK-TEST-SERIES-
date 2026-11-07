@@ -10,6 +10,7 @@ const {
   validateAndMergeAnswerKeys,
   getExamEligibility,
   normalizeExamKey,
+  resolveCanonicalExamIdentity,
 } = require("./examScoring");
 const {
   RANKING_CONFIG, resolveRankingWeight, calculateWeightedRankingScore, isEligibleScoringResult,
@@ -150,7 +151,12 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const testCountsTowardRanking = testData.countsTowardRanking === true && isPubliclyAvailable;
-  const canonicalExam = normalizeExamKey(testData.targetExam || testData.subject || "NEET");
+  let canonicalExam;
+  try {
+    canonicalExam = resolveCanonicalExamIdentity(testData);
+  } catch (err) {
+    throw new functions.https.HttpsError(err.code || "failed-precondition", err.message);
+  }
   const rankingWeight = resolveRankingWeight(testData);
 
   // 4. Load questions and trusted answer keys (Protected Separation)
