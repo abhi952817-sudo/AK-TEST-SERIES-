@@ -211,6 +211,42 @@ test("verified full tests require exact official question and section distributi
   assert.throws(() => validateFullTestQuestionCoverage("JEE Main", jeeQuestions.slice(1)));
 });
 
+test("full-test classification cannot rank an incomplete paper at full weight", () => {
+  const testData = {
+    examId: "neet_ug",
+    targetExam: "NEET UG",
+    stageId: "neet_main",
+    paperId: "neet_paper_1",
+    status: "PUBLISHED",
+    isOfficial: true,
+    isPublic: true,
+    countsTowardRanking: true,
+    testType: "Full Test"
+  };
+  const question = {
+    id: "q1", questionText: "Question", subject: "Physics", section: "phy_all",
+    questionType: "MCQ_SINGLE", options: ["A", "B", "C", "D"], positiveMarks: 4, negativeMarks: 1
+  };
+  assert.throws(() => validateAndMergeAnswerKeys(testData, [question], {
+    questions: [{ id: "q1", correctAnswer: "A" }]
+  }), { code: "failed-precondition" });
+});
+
+test("ranking numerical questions reject MCQ options", () => {
+  const testData = {
+    examId: "jee_main", targetExam: "JEE Main Paper 1", stageId: "jee_paper_1",
+    paperId: "jee_main_p1", status: "PUBLISHED", isOfficial: true, isPublic: true,
+    countsTowardRanking: true, testType: "Part Test"
+  };
+  const question = {
+    id: "q1", questionText: "Integer answer", subject: "Mathematics", section: "math_sec_b",
+    questionType: "NUMERICAL_VALUE", options: ["A", "B", "C", "D"], positiveMarks: 4, negativeMarks: 1
+  };
+  assert.throws(() => validateAndMergeAnswerKeys(testData, [question], {
+    questions: [{ id: "q1", correctAnswer: "12" }]
+  }), { code: "failed-precondition" });
+});
+
 test("test question IDs and private answer-key IDs must be unique", () => {
   const testData = { status: "Published", isPublic: true, isOfficial: false, countsTowardRanking: false };
   assert.throws(() => validateAndMergeAnswerKeys(testData, [
