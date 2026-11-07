@@ -93,6 +93,13 @@ object UniversalPdfPipeline {
         require(selectedSubject.sections.isNotEmpty()) {
             "Selected subject has no verified section/marking configuration."
         }
+        val maxSubjectQuestions = selectedSubject.sections.sumOf { it.totalQuestions }
+        require(expectedQuestions <= maxSubjectQuestions) {
+            "Expected question count $expectedQuestions exceeds the verified subject maximum $maxSubjectQuestions."
+        }
+        require(existingQuestionsCache.size <= expectedQuestions) {
+            "Cached questions exceed the configured subject question count."
+        }
         val resolvedStageId = selectedStage.stageId
         val extractedQuestions = mutableListOf<UniversalQuestionModel>()
         extractedQuestions.addAll(existingQuestionsCache)
@@ -203,6 +210,9 @@ object UniversalPdfPipeline {
 
                 // Only call the model when actual PDF text was extracted; never invent a paper from an empty/unreadable PDF.
                 if (!batchModels.isNullOrEmpty()) {
+                    require(batchModels.size == questionsInThisBatch) {
+                        "Batch $currentBatchNumber returned ${batchModels.size} valid questions; expected $questionsInThisBatch. Partial batch is rejected."
+                    }
                     batchModels.forEach { existingHashes[it.duplicateHash] = it.questionText }
                     var finalBatch = batchModels
                     val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
@@ -299,7 +309,12 @@ object UniversalPdfPipeline {
                             )
                         )
                     } else {
-                        val reviewedBatch = parsedFromSourcePdf.take(questionsInThisBatch).map { candidate ->
+                        val reviewedBatch = parsedFromSourcePdf
+                            .drop(batchIndex * batchSize)
+                            .take(questionsInThisBatch)
+                            .mapNotNull { candidate ->
+                            val candidateSection = selectedSubject.sections.singleOrNull { it.sectionId == candidate.sectionId }
+                                ?: return@mapNotNull null
                             val duplicate = DuplicateDetectionEngine.checkDuplicate(
                                 candidate.questionText,
                                 candidate.options,
@@ -313,7 +328,7 @@ object UniversalPdfPipeline {
                                 hasDiagramAttached = !candidate.diagramUrl.isNullOrBlank(),
                                 duplicateResult = duplicate,
                                 questionType = candidate.questionType,
-                                expectedOptionCount = sectionConfig.optionsCount
+                                expectedOptionCount = candidateSection.optionsCount
                             )
                             candidate.copy(
                                 validationStatus = ValidationStatus.NEEDS_REVIEW,
@@ -328,6 +343,9 @@ object UniversalPdfPipeline {
                                 sourceName = "Uploaded PDF (unverified provenance)",
                                 isOfficialPYQ = false
                             )
+                        }
+                        require(reviewedBatch.size == questionsInThisBatch) {
+                            "Source PDF batch $currentBatchNumber produced ${reviewedBatch.size} valid questions; expected $questionsInThisBatch. Partial batch is rejected."
                         }
                         extractedQuestions.addAll(reviewedBatch)
                         onProgress(
@@ -354,16 +372,17 @@ object UniversalPdfPipeline {
             delay(500)
         }
 
-        if (extractedQuestions.size >= expectedQuestions) {
-            onProgress(
-                BatchProgress(
-                    totalBatches = totalBatches,
-                    currentBatch = totalBatches,
-                    processedQuestions = extractedQuestions.size,
-                    statusMessage = "Extraction Complete! ${extractedQuestions.size} questions ready for Review."
-                )
-            )
+        require(extractedQuestions.size == expectedQuestions) {
+            "Incomplete extraction: expected $expectedQuestions questions but validated ${extractedQuestions.size}. No partial test is returned."
         }
+        onProgress(
+            BatchProgress(
+                totalBatches = totalBatches,
+                currentBatch = totalBatches,
+                processedQuestions = extractedQuestions.size,
+                statusMessage = "Extraction Complete! ${extractedQuestions.size} validated questions ready for Review."
+            )
+        )
 
         return@withContext extractedQuestions
     }
