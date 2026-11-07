@@ -233,6 +233,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+  const initialAnswerKeyPayload = privateKeyData && privateKeyData.questions !== undefined
+    ? privateKeyData.questions
+    : null;
+  const initialAnswerKeyHash = crypto.createHash("sha256")
+    .update(canonicalizeAnswerPayload(initialAnswerKeyPayload)).digest("hex");
   let solutionKeys = {};
   try {
     const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
@@ -316,6 +321,41 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const rankingDateKey = getIndiaDateKey(rankingNow);
     const rankingWeekId = getIndiaWeekId(rankingNow);
     const rankingPeriodIds = getRankingPeriodIds(rankingNow);
+
+    // Re-read the exact test and answer-key documents inside the transaction.
+    // If an admin edits visibility, identity, scoring metadata, or keys while this
+    // submission is being evaluated, abort instead of persisting a stale score.
+    const currentTestSnap = await transaction.get(testDoc.ref);
+    const currentPrivateKeySnap = await transaction.get(privateKeyDoc.ref);
+    if (!currentTestSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Test was removed during submission.");
+    }
+    const currentTestData = currentTestSnap.data() || {};
+    const immutableSubmissionFields = [
+      "isPublic", "isOfficial", "countsTowardRanking", "status", "examId",
+      "targetExam", "stageId", "paperId", "testType", "testCategory", "category",
+      "durationMinutes", "questionsJson"
+    ];
+    for (const field of immutableSubmissionFields) {
+      if (currentTestData[field] !== testData[field]) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Test configuration changed during submission. Refresh the test and submit again."
+        );
+      }
+    }
+    const currentAnswerKeyPayload = currentPrivateKeySnap.exists
+      ? (currentPrivateKeySnap.get("questions") ?? null)
+      : null;
+    const currentAnswerKeyHash = crypto.createHash("sha256")
+      .update(canonicalizeAnswerPayload(currentAnswerKeyPayload)).digest("hex");
+    if (currentAnswerKeyHash !== initialAnswerKeyHash) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "The answer key changed during submission. Refresh the test before retrying."
+      );
+    }
+
     const attemptDocRef = attemptsRef.doc(attemptDocId);
     const legacyAttemptDocRef = legacyAttemptsRef.doc(attemptDocId);
     const existingAttemptSnap = await transaction.get(attemptDocRef);
