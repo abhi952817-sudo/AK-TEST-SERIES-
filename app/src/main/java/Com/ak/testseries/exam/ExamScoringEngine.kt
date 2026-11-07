@@ -134,8 +134,17 @@ object ExamScoringEngine {
                 question.questionType.equals("NUMERICAL", true) ||
                 question.questionType.equals("TITA", true) ||
                 question.questionType.equals("NAT", true)
+            val integerAnswerRequired = if (numerical) {
+                runCatching {
+                    UniversalExamRegistry.isIntegerAnswerRequiredForQuestion(
+                        targetExam, question.section, question.subject, question.questionType
+                    )
+                }.getOrDefault(false)
+            } else false
+            val numericKey = correctOpt.toDoubleOrNull()
             val keyVerified = if (numerical) {
-                correctOpt.toDoubleOrNull()?.isFinite() == true
+                numericKey?.isFinite() == true &&
+                    (!integerAnswerRequired || numericKey % 1.0 == 0.0)
             } else {
                 correctOpt in setOf("A", "B", "C", "D", "1", "2", "3", "4")
             }
@@ -230,8 +239,11 @@ object ExamScoringEngine {
             }
             val numerical = section.questionType in setOf(QuestionType.NUMERICAL_VALUE, QuestionType.TITA)
             val cleanCorrect = correctOpt.trim().uppercase()
-            val keyVerified = if (numerical) cleanCorrect.toDoubleOrNull()?.isFinite() == true
-                else cleanCorrect in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            val numericKey = cleanCorrect.toDoubleOrNull()
+            val keyVerified = if (numerical) {
+                numericKey?.isFinite() == true &&
+                    (!section.integerAnswerRequired || numericKey % 1.0 == 0.0)
+            } else cleanCorrect in setOf("A", "B", "C", "D", "1", "2", "3", "4")
             if (!keyVerified) {
                 ungraded++
                 return@forEach
