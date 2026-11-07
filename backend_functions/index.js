@@ -10,7 +10,7 @@ const {
   getExamEligibility,
   normalizeExamKey,
 } = require("./examScoring");
-const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const { validateSetAdminRoleAuth, assertActiveUserStatus, ADMIN_ROLES, buildAdminCustomClaims } = require("./authHelper");
 
 exports.normalizeExamKey = normalizeExamKey;
 
@@ -597,33 +597,56 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 });
 
 /**
- * Cloud Function: setAdminRole
- * Callable function to assign the 'admin' custom claim to a target UID.
- * Restricted to existing super-admins or verified primary owner (abhi952817@gmail.com).
+ * Assign or revoke one of the three canonical Admin roles.
+ * Existing callers using isAdmin=true/false remain supported during migration:
+ * true maps to Super Admin; false revokes Admin claims.
  */
 exports.setAdminRole = functions.https.onCall(async (data, context) => {
   try {
     validateSetAdminRoleAuth(context);
   } catch (err) {
-    throw new functions.https.HttpsError(
-      err.code || "permission-denied",
-      err.message
-    );
+    throw new functions.https.HttpsError(err.code || "permission-denied", err.message);
   }
 
-  const { targetUid, isAdmin: grantAdmin } = data || {};
+  const { targetUid, role, isAdmin: legacyGrantAdmin } = data || {};
   let uidToPromote = targetUid;
   if (!uidToPromote && data && data.email) {
     const userRecord = await admin.auth().getUserByEmail(data.email);
     uidToPromote = userRecord.uid;
   }
-
-  if (!uidToPromote) {
+  if (!uidToPromote || typeof uidToPromote !== "string" || !uidToPromote.trim()) {
     throw new functions.https.HttpsError("invalid-argument", "Missing targetUid or email.");
   }
 
-  await admin.auth().setCustomUserClaims(uidToPromote, { admin: grantAdmin !== false });
-  return { success: true, targetUid: uidToPromote, admin: grantAdmin !== false };
+  let requestedRole = role;
+  if (requestedRole === undefined && typeof legacyGrantAdmin === "boolean") {
+    requestedRole = legacyGrantAdmin ? ADMIN_ROLES.SUPER_ADMIN : null;
+  }
+  if (requestedRole !== null && requestedRole !== ADMIN_ROLES.SUPER_ADMIN &&
+      requestedRole !== ADMIN_ROLES.CONTENT_ADMIN && requestedRole !== ADMIN_ROLES.SUPPORT_ADMIN) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "role must be super_admin, content_admin, support_admin, or null to revoke."
+    );
+  }
+
+  try {
+    const targetUser = await admin.auth().getUser(uidToPromote.trim());
+    const updatedClaims = buildAdminCustomClaims(targetUser.customClaims || {}, requestedRole);
+    await admin.auth().setCustomUserClaims(uidToPromote.trim(), updatedClaims);
+    return {
+      success: true,
+      targetUid: uidToPromote.trim(),
+      role: requestedRole,
+      admin: requestedRole === ADMIN_ROLES.SUPER_ADMIN
+    };
+  } catch (err) {
+    if (err instanceof functions.https.HttpsError) throw err;
+    throw new functions.https.HttpsError(
+      err.code === "auth/user-not-found" ? "not-found" : (err.code || "internal"),
+      err.message || "Unable to update Admin role."
+    );
+  }
 });
 
 /**
