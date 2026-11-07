@@ -134,13 +134,10 @@ object ExamScoringEngine {
                 question.questionType.equals("NUMERICAL", true) ||
                 question.questionType.equals("TITA", true) ||
                 question.questionType.equals("NAT", true)
-            val integerAnswerRequired = if (numerical) {
-                runCatching {
-                    UniversalExamRegistry.isIntegerAnswerRequiredForQuestion(
-                        targetExam, question.section, question.subject, question.questionType
-                    )
-                }.getOrDefault(false)
-            } else false
+            val integerAnswerRequired = numerical &&
+                UniversalExamRegistry.isIntegerAnswerRequiredForQuestion(
+                    targetExam, question.section, question.subject, question.questionType
+                )
             val numericKey = correctOpt.toDoubleOrNull()
             val keyVerified = if (numerical) {
                 numericKey?.isFinite() == true &&
