@@ -808,3 +808,18 @@ This is a continuation of Pass 1, not a declaration that Pass 1 is complete.
 - Preserve backward compatibility deliberately: introduce nullable rank fields and `rankStatus` additively; inspect Android parsing before changing response shape.
 
 **Next execution order:** finish the shared-file semantic matrix (including MainActivity, NEETViewModel, Firestore rules/indexes and backend submission), add emulator regression tests for concurrent first submissions + repeat attempts + failed rank reads, then implement the per-test contract on this branch. After that proceed subsystem-by-subsystem through scoring parity, AIR/XP, Android integration, migration, PDF provenance, and security. Pass 1 remains IN PROGRESS; Pass 2 remains NOT STARTED as a complete implementation pass.
+
+
+### 2.20 Firestore transaction/query research — per-test rank implementation decision — 2026-11-07
+
+Official Firestore documentation was checked before choosing the transaction design:
+- Firestore transactions require all reads before writes; the transaction callback may be retried, and read documents must remain unchanged for the transaction to commit. urlFirebase transactions and batched writeshttps://firebase.google.com/docs/firestore/manage-data/transactions
+- The Node.js Firestore transaction API documents `transaction.get(refOrQuery)` for a DocumentReference or Query, returning a document or query snapshot. urlNode.js Firestore Transaction APIhttps://googleapis.dev/nodejs/firestore/latest/Transaction.html
+- Firestore read-time aggregation documentation describes count/sum/average and their trade-offs; query/index cost and result size still need to be validated for the actual ranking board. urlFirestore aggregation solutionshttps://firebase.google.com/docs/firestore/solutions/aggregation
+
+**Implementation consequence:** a transaction query is a valid option to investigate; it must not be rejected based on an assumption that Firestore transactions only read document references. However, a count aggregation's exact compatibility with the repository's installed `firebase-admin` version, the serializable behavior for concurrent inserts/score changes, transaction contention, query limits and required indexes must be proven in the emulator and dependency version before use. Do not substitute an ordinary pre-transaction count query.
+
+**Candidate implementation paths to benchmark/test:**
+A. Read the relevant eligible Test_Leaderboards query through the transaction before any writes, derive the canonical first-attempt rank, then create the attempt and board row in the same transaction. Validate phantom/concurrent insert serialization and whether the aggregate count is transaction-readable in the installed SDK.
+B. If exact population serialization or transaction cost is not acceptable, atomically commit attempt + canonical board row first, then return a live rank snapshot via a separate resolver. In this design rank-query failure returns UNAVAILABLE and never rolls back or falsifies the committed score; response explicitly labels rank as a post-commit snapshot.
+The chosen approach must be justified by emulator tests, not preference. A normal count query outside the transaction followed by persisted rank fields remains prohibited.
