@@ -247,68 +247,8 @@ object UniversalPdfPipeline {
                     }
                     batchModels.forEach { existingHashes[it.duplicateHash] = it.questionText }
                     var finalBatch = batchModels
-                    val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
-
-                    if (!initialValidation.isCompliant && !effectiveApiKey.isNullOrBlank() && initialValidation.deficientLevels.isNotEmpty()) {
-                        // Attempt targeted regeneration for deficient difficulty types
-                        val deficientLevel = initialValidation.deficientLevels.first()
-                        val neededCount = when (deficientLevel) {
-                            DifficultyLevel.EASY -> (initialValidation.targetEasyCount - initialValidation.easyCount).coerceIn(1, 3)
-                            DifficultyLevel.MEDIUM -> (initialValidation.targetMediumCount - initialValidation.mediumCount).coerceIn(1, 3)
-                            DifficultyLevel.HARD -> (initialValidation.targetHardCount - initialValidation.hardCount).coerceIn(1, 3)
-                        }
-
-                        onProgress(
-                            BatchProgress(
-                                totalBatches = totalBatches,
-                                currentBatch = currentBatchNumber,
-                                processedQuestions = extractedQuestions.size,
-                                statusMessage = "Batch $currentBatchNumber: Rebalancing difficulty (${deficientLevel.name} deficient)..."
-                            )
-                        )
-
-                        val targetedPrompt = """
-                            ${UniversalAIContext.buildSystemInstruction(examConfig)}
-                            Generate exactly $neededCount high-quality ${deficientLevel.name} difficulty questions for ${examConfig.examName} ($subjectId).
-                            Difficulty requirement: Strictly ${deficientLevel.name} level questions only.
-                            Output strictly a valid JSON array of questions matching schema.
-                        """.trimIndent()
-
-                        try {
-                            val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null)
-                            if (regenResult != null) {
-                                val regenQuestions = parseGeminiResponse(
-                                    jsonString = regenResult.responseText,
-                                    examConfig = examConfig,
-                                    stageId = resolvedStageId,
-                                    subjectId = subjectId,
-                                    paperId = selectedPaper.paperId,
-                                    subjectConfig = selectedSubject,
-                                    batchIndex = batchIndex,
-                                    batchSize = batchSize,
-                                    existingHashes = existingHashes,
-                                    actualModel = regenResult.modelVersion,
-                                    actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
-                                ).filter { it.difficulty == deficientLevel }
-
-                                if (regenQuestions.isNotEmpty()) {
-                                    val excessLevel = initialValidation.excessLevels.firstOrNull()
-                                    val mutableBatch = finalBatch.toMutableList()
-                                    var replaced = 0
-                                    for (idx in mutableBatch.indices) {
-                                        if (replaced < regenQuestions.size && (excessLevel == null || mutableBatch[idx].difficulty == excessLevel)) {
-                                            mutableBatch[idx] = regenQuestions[replaced]
-                                            replaced++
-                                        }
-                                    }
-                                    finalBatch = mutableBatch
-                                    regenQuestions.forEach { existingHashes[it.duplicateHash] = it.questionText }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            // Targeted regeneration error fallback to status tagging
-                        }
-                    }
+                    // Imported PDF batches are never supplemented with generated replacement questions.
+                    // Difficulty imbalance is flagged for review below; source fidelity takes priority.
 
                     // Post-check: Never silently accept incorrect ratios!
                     val postValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
@@ -326,7 +266,7 @@ object UniversalPdfPipeline {
                     extractedQuestions.addAll(finalBatch)
                 } else {
                     val parsedFromSourcePdf = if (compactMarkdown.isNotBlank()) {
-                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, resolvedStageId)
+                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, resolvedStageId, paperId)
                     } else {
                         emptyList()
                     }
