@@ -5827,10 +5827,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             if (sanitizedQuestionsJson.isBlank()) {
                 throw IllegalStateException("Question sanitization returned an empty payload.")
             }
-            if (sanitizedQuestionsJson != questionsJsonString) {
-                repository.updateTest(newTest.copy(questionsJson = sanitizedQuestionsJson))
-            }
-
             val (publicQuestionsJson, answerKeys) = separatePublicAndSecretQuestions(sanitizedQuestionsJson)
             val sourceQuestionCount = org.json.JSONArray(sanitizedQuestionsJson).length()
             require(sourceQuestionCount > 0 && answerKeys.size == sourceQuestionCount) {
@@ -5853,7 +5849,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "isOfficial" to newTest.isOfficial,
                 "isVerifiedCommunity" to newTest.isVerifiedCommunity,
                 "isPublic" to newTest.isPublic,
-                "countsTowardRanking" to (newTest.countsTowardRanking && newTest.isOfficial && newTest.isPublic),
+                "countsTowardRanking" to (
+                    newTest.countsTowardRanking && newTest.isOfficial && newTest.isPublic &&
+                        (newTest.status.equals("Published", true) || newTest.status.equals("APPROVED", true))
+                    ),
                 "status" to newTest.status,
                 "uploaderId" to newTest.uploaderId,
                 "targetExam" to newTest.targetExam,
@@ -5875,12 +5874,76 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "questions" to answerKeys,
                 "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
             )
+            val incomingKeysComplete = answerKeys.all {
+                (it["correctAnswer"]?.toString()?.trim().orEmpty()).isNotBlank()
+            }
+            fun keySignature(rows: List<Map<String, Any>>): Map<String, List<String>> =
+                rows.associate { row ->
+                    row["id"].toString() to listOf(
+                        row["correctAnswer"]?.toString().orEmpty(),
+                        row["explanation"]?.toString().orEmpty(),
+                        row["explanationHi"]?.toString().orEmpty()
+                    )
+                }
 
-            // Publish the public paper and private key atomically. Rules keep private_keys admin-only.
-            val batch = db.batch()
-            batch.set(testDocRef, testData)
-            batch.set(answerKeyDocRef, answerKeyData)
-            batch.commit().await()
+            // A testId is an immutable paper identity. Existing content/answer keys may not
+            // be overwritten by a different paper. Approval updates metadata only and preserves
+            // the already secured private answer key if the local public JSON is sanitized.
+            db.runTransaction { transaction ->
+                val existingTest = transaction.get(testDocRef)
+                val existingKeyDoc = transaction.get(answerKeyDocRef)
+                require(existingTest.exists == existingKeyDoc.exists) {
+                    "Test document and private answer-key document are out of sync. Reconciliation is required."
+                }
+
+                if (!existingTest.exists) {
+                    require(incomingKeysComplete) {
+                        "A new public test must include a complete private answer key. No document was written."
+                    }
+                    transaction.set(testDocRef, testData)
+                    transaction.set(answerKeyDocRef, answerKeyData)
+                } else {
+                    val existingPublicJson = existingTest.getString("questionsJson")
+                    require(existingPublicJson == publicQuestionsJson) {
+                        "This testId already belongs to different question content. Create a new testId; existing paper history is immutable."
+                    }
+                    val existingRowsRaw = existingKeyDoc.get("questions") as? List<*>
+                        ?: throw IllegalStateException("Existing private answer key is malformed.")
+                    val existingRows = existingRowsRaw.mapNotNull { raw ->
+                        val row = raw as? Map<*, *> ?: return@mapNotNull null
+                        row.entries.associate { it.key.toString() to (it.value?.toString() ?: "") }
+                    }
+                    require(existingRows.size == sourceQuestionCount && existingRows.all {
+                        it["correctAnswer"].orEmpty().isNotBlank()
+                    }) {
+                        "Existing private answer key is incomplete. No overwrite was performed."
+                    }
+                    if (incomingKeysComplete) {
+                        require(keySignature(existingRows) == keySignature(answerKeys)) {
+                            "This testId already has a different answer key. Create a new testId; historical scoring cannot be rewritten."
+                        }
+                    }
+
+                    val existingStatus = existingTest.getString("status").orEmpty()
+                    if (existingStatus.equals("Published", true) || existingStatus.equals("APPROVED", true)) {
+                        val immutableFields = listOf(
+                            "examId", "targetExam", "stageId", "paperId", "durationMinutes",
+                            "questionsCount", "testType", "subject", "isOfficial", "countsTowardRanking"
+                        )
+                        immutableFields.forEach { field ->
+                            require(existingTest.get(field) == testData[field]) {
+                                "Published test metadata '$field' is immutable. Create a new test version instead."
+                            }
+                        }
+                    }
+                    transaction.set(testDocRef, testData)
+                    // Do not rewrite the existing private key document on metadata-only updates.
+                }
+            }.await()
+
+            if (sanitizedQuestionsJson != questionsJsonString) {
+                repository.updateTest(newTest.copy(questionsJson = sanitizedQuestionsJson))
+            }
             true
         } catch (e: Exception) {
             android.util.Log.e("NEETViewModel", "Secure Firestore publish failed for test ${newTest.id}; no public success reported.", e)
