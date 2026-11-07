@@ -980,6 +980,17 @@ async function rebuildRankingV2ForUser(userId) {
   };
 }
 
+exports.hasTestRankingContributions = functions.https.onCall(async (data, context) => {
+  try { validateSetAdminRoleAuth(context); }
+  catch (err) {
+    throw new functions.https.HttpsError(err.code || "permission-denied", err.message);
+  }
+  const testId = String((data || {}).testId || "").trim();
+  if (!testId) throw new functions.https.HttpsError("invalid-argument", "testId is required.");
+  const entries = await db.collection("Test_Leaderboards").doc(testId).collection("Entries").limit(1).get();
+  return { success: true, hasContributions: !entries.empty };
+});
+
 exports.getRankingMigrationStatus = functions.https.onCall(async (data, context) => {
   try { validateSetAdminRoleAuth(context); }
   catch (err) {
