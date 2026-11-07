@@ -1638,6 +1638,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("optionEHi", q.optionEHi ?: "")
             qObj.put("questionType", q.questionType)
             qObj.put("section", q.section)
+            val questionSubjectConfig = selectedPaper.subjects.singleOrNull {
+                it.subjectId.equals(q.subject, true) || it.subjectName.equals(q.subject, true)
+            } ?: throw IllegalArgumentException("Question has an invalid subject identity.")
+            val questionSectionConfig = questionSubjectConfig.sections.singleOrNull { it.sectionId == q.section }
+                ?: throw IllegalArgumentException("Question has an invalid section identity.")
+            qObj.put("positiveMarks", questionSectionConfig.positiveMarks)
+            qObj.put("negativeMarks", questionSectionConfig.negativeMarks)
             qObj.put("explanationHi", q.explanationHi ?: "")
             qObj.put("questionType", q.questionType)
             qObj.put("section", q.section)
@@ -5819,6 +5826,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val questionType = qObj.optString("questionType").trim().uppercase()
             val sectionId = qObj.optString("section").trim()
             val answerKey = qObj.optString("correctAnswer").trim()
+            val qSubject = qObj.optString("subject", selectedSubjectName).trim()
+            require(selectedSubjectName.equals("All Subjects", true) ||
+                qSubject.equals(selectedSubjectName, true) ||
+                selectedPaper.subjects.any { it.subjectId.equals(selectedSubjectName, true) && it.subjectName.equals(qSubject, true) }) {
+                "Question ${i + 1} subject does not match the selected subject."
+            }
+            val subjectConfig = selectedPaper.subjects.singleOrNull {
+                it.subjectId.equals(qSubject, true) || it.subjectName.equals(qSubject, true)
+            } ?: throw IllegalArgumentException("Question ${i + 1} has unknown or ambiguous subject '$qSubject'.")
+            val sectionConfig = subjectConfig.sections.singleOrNull { it.sectionId == sectionId }
+                ?: throw IllegalArgumentException("Question ${i + 1} has unknown or ambiguous section '$sectionId'.")
             val isNumericalQuestion = questionType in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT")
             val rawOptions = listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn").map { qObj.optString(it).trim() }
             require(qTextEn.isNotBlank() && answerKey.isNotBlank() && genSubject.value.isNotBlank()) {
@@ -5830,12 +5848,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             require(questionType.isNotBlank() && sectionId.isNotBlank()) {
                 "Question ${i + 1} is missing question type or section identity."
             }
+            val sectionIsNumerical = sectionConfig.questionType in setOf(
+                Com.ak.testseries.exam.QuestionType.NUMERICAL_VALUE,
+                Com.ak.testseries.exam.QuestionType.TITA
+            )
+            require(isNumericalQuestion == sectionIsNumerical) {
+                "Question ${i + 1} type conflicts with the selected section configuration."
+            }
+            val suppliedPositive = if (qObj.has("positiveMarks")) qObj.optDouble("positiveMarks", Double.NaN) else sectionConfig.positiveMarks
+            val suppliedNegative = if (qObj.has("negativeMarks")) qObj.optDouble("negativeMarks", Double.NaN) else sectionConfig.negativeMarks
+            require(suppliedPositive.isFinite() && suppliedNegative.isFinite() &&
+                suppliedPositive == sectionConfig.positiveMarks && suppliedNegative == sectionConfig.negativeMarks) {
+                "Question ${i + 1} marks conflict with the verified section policy."
+            }
             if (isNumericalQuestion) {
                 require(answerKey.toDoubleOrNull()?.isFinite() == true) {
                     "Question ${i + 1} has an invalid numerical answer key."
                 }
             } else {
-                require(rawOptions.all { it.isNotBlank() } && rawOptions.distinct().size == 4) {
+                require(sectionConfig.optionsCount == 4 && rawOptions.all { it.isNotBlank() } && rawOptions.distinct().size == 4) {
                     "Question ${i + 1} must contain four distinct non-empty options."
                 }
                 require(answerKey.uppercase() in listOf("A", "B", "C", "D", "1", "2", "3", "4")) {
