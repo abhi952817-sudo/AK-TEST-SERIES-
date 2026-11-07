@@ -272,6 +272,11 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         allow write: if (isOwner(userId) && !isUserBanned(userId)) || isAdmin();
       }
+
+      // Live-test answer keys are never readable by students.
+      match /private_keys/{docId} {
+        allow read, write: if isAdmin();
+      }
     }
 
     // =========================================================================
