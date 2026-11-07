@@ -1189,7 +1189,7 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
   }
   const input = data || {};
   const examId = requireCanonicalExamId(input.targetExam);
-  const classLevel = normalizeClassLevel(input.classLevel || "All");
+  const classLevel = requireRankingClassLevel(input.classLevel);
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const periodType = String(input.periodType || "HALF_MONTH").toUpperCase();
   if (!["HALF_MONTH", "MONTH"].includes(periodType)) {
