@@ -4378,12 +4378,35 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val timeSpentTotal = questions.size * 45L
-            val breakdown = Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
-                targetExam = test.targetExam,
-                questions = questions,
-                userAnswers = answersMap,
-                timeSpentSeconds = timeSpentTotal
-            )
+            val breakdown = try {
+                Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
+                    targetExam = test.targetExam,
+                    questions = questions,
+                    userAnswers = answersMap,
+                    timeSpentSeconds = timeSpentTotal
+                )
+            } catch (error: IllegalArgumentException) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        getApplication<Application>(),
+                        "Scoring is disabled: exam pattern or question sections are not verified.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    onComplete()
+                }
+                return@launch
+            }
+            if (breakdown.ungradedCount > 0) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        getApplication<Application>(),
+                        "Attempt was not saved because one or more questions have unverified scoring metadata.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    onComplete()
+                }
+                return@launch
+            }
 
             val correct = breakdown.correctCount
             val incorrect = breakdown.wrongCount
