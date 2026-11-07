@@ -473,7 +473,7 @@ object UniversalPdfPipeline {
                     questionId = "uq_${examConfig.examId}_${java.util.UUID.randomUUID()}",
                     examId = examConfig.examId,
                     stageId = stageId,
-                    paperId = selectedPaper.paperId,
+                    paperId = paperId,
                     sectionId = parsedSecId,
                     sectionName = parsedSecName,
                     subjectId = subjectId,
