@@ -145,6 +145,13 @@ function getRankingPeriodIds(timestamp = Date.now()) {
   };
 }
 
+function clampRankingLimit(value, fallback = 100, min = 1, max = 100) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(parsed)));
+}
+
 function isValidRankingPeriodId(periodType, periodId) {
   const type = String(periodType || "").toUpperCase();
   const id = String(periodId || "");
@@ -285,6 +292,7 @@ module.exports = {
   getIndiaWeekId,
   getRankingPeriodIds,
   isValidRankingPeriodId,
+  clampRankingLimit,
   isValidRankingWeekId,
   normalizeClassLevel,
   resolveClassLevelFilter,
