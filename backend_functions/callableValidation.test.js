@@ -69,9 +69,9 @@ function validateCallableSubmission(
                     (testDocData.uploaderId && testDocData.uploaderId === userId);
 
   const testStatus = String(testDocData.status || "").trim();
-  const isApprovedOrPublished = testStatus === "APPROVED" || testStatus === "Published";
+  const isApprovedOrPublished = ["APPROVED", "PUBLISHED", "Published"].includes(testStatus);
   const isExplicitlyRestricted = testStatus === "Under Review" || testStatus === "REJECTED" || testStatus === "DRAFT";
-  const hasPublicFlag = testDocData.isPublic === true || testDocData.isOfficial === true;
+  const hasPublicFlag = testDocData.isPublic === true;
 
   // A public flag alone MUST NOT allow a pending or rejected test to be treated as approved
   const isPubliclyAvailable = isApprovedOrPublished && !isExplicitlyRestricted && hasPublicFlag;
@@ -82,8 +82,11 @@ function validateCallableSubmission(
     throw err;
   }
 
-  const countsTowardRanking = (testDocData.countsTowardRanking === true || (testDocData.countsTowardRanking !== false && testDocData.isOfficial === true)) &&
-                              (testDocData.isOfficial === true || testDocData.isPublic === true);
+  const countsTowardRanking =
+    testDocData.countsTowardRanking === true &&
+    testDocData.isOfficial === true &&
+    testDocData.isPublic === true &&
+    isPubliclyAvailable;
 
   // 4. Questions & answer key loading
   let questions = [];
@@ -144,7 +147,7 @@ function validateCallableSubmission(
   }
 
   // 6. Authoritative evaluation
-  const targetExam = testDocData.targetExam || "NEET";
+  const targetExam = testDocData.targetExam;
   const evalResult = evaluateTestAttempt(targetExam, questions, answers, cleanTimeSpent);
 
 
@@ -209,6 +212,26 @@ test("Callable rejects malformed answers payload", () => {
     () => validateCallableSubmission({ testId: "t1", attemptSessionToken: "att_1", answers: [1, 2, 3] }, context, {}),
     { code: "invalid-argument" }
   );
+});
+
+test("Callable publication policy rejects lowercase status and official-only public bypass", () => {
+  const context = { auth: { uid: "student_policy" } };
+  const base = {
+    status: "published",
+    isPublic: true,
+    isOfficial: true,
+    countsTowardRanking: true,
+    creatorId: "other_user"
+  };
+  assert.throws(() => validateCallableSubmission(
+    { testId: "lowercase", attemptSessionToken: "att_lower", answers: {}, timeSpentSeconds: 10 },
+    context, base
+  ), { code: "permission-denied" });
+
+  assert.throws(() => validateCallableSubmission(
+    { testId: "official_only", attemptSessionToken: "att_official", answers: {}, timeSpentSeconds: 10 },
+    context, { ...base, status: "PUBLISHED", isPublic: false }
+  ), { code: "permission-denied" });
 });
 
 test("Callable rejects unpublished or rejected tests even if isPublic=true", () => {
