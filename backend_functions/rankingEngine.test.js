@@ -144,6 +144,8 @@ test("historical ranking backfill accepts only approved public official ranking 
   assert.equal(isEligibleHistoricalRankingTest({ ...base, isOfficial: false }), false);
   assert.equal(isEligibleHistoricalRankingTest({ ...base, countsTowardRanking: false }), false);
   assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "Under Review" }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "published" }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "approved" }), false);
   assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "Rejected" }), false);
   assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "" }), false);
 });
