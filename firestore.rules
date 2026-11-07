@@ -155,15 +155,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Per-Test Competitive Leaderboard & Rankings
-    // Read: Authenticated students
-    // Write: Verified Admins & Server Functions only
+    // Raw per-test ranking rows contain internal user IDs. Students receive only
+    // the sanitized rank snapshot from submitTestAttemptServerSide; admins use callables.
     match /Test_Leaderboards/{testId} {
-      allow read: if isAuthenticated();
+      allow read: if false;
       allow write: if isAdmin();
 
       match /Entries/{entryDoc} {
-        allow read: if isAuthenticated();
+        allow read: if false;
         allow write: if isAdmin();
       }
     }
@@ -382,11 +381,11 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // AK RANKING ENGINE V2: isolated exam boards, periods, user ranks and XP.
-    // Clients may read public leaderboards; all writes remain Admin SDK only.
+    // AK RANKING ENGINE V2 raw materializations contain internal user IDs.
+    // Clients must use callable APIs, which redact IDs for private profiles.
     // =========================================================================
     match /Exam_Leaderboards/{examId}/Entries/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if false;
       allow write: if isAdmin();
     }
 
@@ -396,7 +395,7 @@ service cloud.firestore {
     }
 
     match /Ranking_Periods/{examId}/Periods/{periodId}/Entries/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if false;
       allow write: if isAdmin();
     }
 
@@ -411,12 +410,12 @@ service cloud.firestore {
     }
 
     match /XP_Leaderboard_AllTime/{entryDoc}/Students/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if false;
       allow write: if isAdmin();
     }
 
     match /XP_Leaderboard_Weekly/{weekId}/Entries/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if false;
       allow write: if isAdmin();
     }
   }
