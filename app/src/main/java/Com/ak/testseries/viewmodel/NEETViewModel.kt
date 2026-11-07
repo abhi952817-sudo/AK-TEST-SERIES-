@@ -2445,9 +2445,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         "optionC" to q.optString("optionC", ""),
                         "optionD" to q.optString("optionD", ""),
                         "questionType" to q.optString("questionType", "MCQ"),
-                        "positiveMarks" to q.optDouble("positiveMarks", defaultPosMark),
-                        "negativeMarks" to q.optDouble("negativeMarks", defaultNegMark),
-                        "section" to q.optString("section", "SECTION_A"),
+                        "positiveMarks" to q.optDouble("positiveMarks", 0.0),
+                        "negativeMarks" to q.optDouble("negativeMarks", 0.0),
+                        "section" to q.optString("section"),
                         "sectionName" to q.optString("sectionName", "Section A"),
                         "subject" to q.optString("subject", test.subject),
                         "chapter" to q.optString("chapter", test.chapter),
@@ -3700,7 +3700,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionDHi = (map["optionDHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         explanationHi = (map["explanationHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         questionType = qType,
-                        section = (map["section"] as? String)?.trim() ?: "SECTION_A",
+                        section = (map["section"] as? String)?.trim().orEmpty(),
                         imageUrl = imgUrl?.takeIf { it.isNotBlank() }
                     )
                 )
@@ -3775,7 +3775,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             optionEHi = qObj.optString("optionEHi").trim().takeIf { it.isNotBlank() },
                             explanationHi = qObj.optString("explanationHi").trim().takeIf { it.isNotBlank() },
                             questionType = qType,
-                            section = qObj.optString("section", "SECTION_A"),
+                            section = qObj.optString("section"),
                             imageUrl = imgUrl.takeIf { it.isNotBlank() }
                         )
                     )
@@ -3914,7 +3914,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionEHi = qObj.optString("optionEHi").trim().takeIf { it.isNotBlank() },
                         explanationHi = qObj.optString("explanationHi").trim().takeIf { it.isNotBlank() },
                         questionType = qType,
-                        section = qObj.optString("section", "SECTION_A"),
+                        section = qObj.optString("section"),
                         imageUrl = imgUrl.takeIf { it.isNotBlank() }
                     )
                 )
