@@ -800,6 +800,9 @@ async function rebuildRankingV2ForUser(userId) {
   };
   [...upperSnap.docs, ...lowerSnap.docs].forEach(doc => {
     const record = doc.data();
+    // Offline/local backup records are history only, never ranking inputs and never
+    // candidates for reconciliation against the server-authoritative attempt copy.
+    if (record.verifiedServerSide !== true || record.countsTowardRanking !== true) return;
     const key = String(record.attemptSessionToken || doc.id);
     const previous = byAttemptId.get(key);
     if (previous) {
