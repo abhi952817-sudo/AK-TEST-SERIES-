@@ -274,7 +274,10 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const countsTowardRanking = testCountsTowardRanking && isEligibleScoringResult(evalResult);
 
   const attemptDocId = attemptSessionToken.trim();
-  const attemptsRef = userRef.collection("Attempts");
+  // Lowercase `attempts` is the app repository’s canonical history path.
+  // Uppercase `Attempts` is read-only legacy compatibility; new attempts are not mirrored there.
+  const attemptsRef = userRef.collection("attempts");
+  const legacyAttemptsRef = userRef.collection("Attempts");
   const stableUserTestKey = userId + ":" + cleanTestId;
   const stableKeyHash = crypto.createHash("sha256").update(stableUserTestKey).digest("hex");
   const firstAttemptLockRef = db.collection("Ranking_Attempt_Locks").doc(stableKeyHash);
@@ -314,11 +317,42 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const rankingWeekId = getIndiaWeekId(rankingNow);
     const rankingPeriodIds = getRankingPeriodIds(rankingNow);
     const attemptDocRef = attemptsRef.doc(attemptDocId);
+    const legacyAttemptDocRef = legacyAttemptsRef.doc(attemptDocId);
     const existingAttemptSnap = await transaction.get(attemptDocRef);
+    const legacyAttemptDocSnap = await transaction.get(legacyAttemptDocRef);
+
+    // Idempotency check across canonical and legacy locations. If both copies exist,
+    // they must describe the same logical attempt; never silently pick conflicting data.
+    const storedHashFor = (record) => {
+      if (record && record.answersHash) return record.answersHash;
+      if (!record || record.answersJson === undefined) return null;
+      try {
+        const legacyAnswers = typeof record.answersJson === "string"
+          ? JSON.parse(record.answersJson)
+          : record.answersJson;
+        return crypto.createHash("sha256").update(canonicalizeAnswerPayload(legacyAnswers)).digest("hex");
+      } catch (_) {
+        return null;
+      }
+    };
+    if (existingAttemptSnap.exists && legacyAttemptDocSnap.exists) {
+      const canonical = existingAttemptSnap.data();
+      const legacy = legacyAttemptDocSnap.data();
+      if (canonical.userId !== legacy.userId || canonical.testId !== legacy.testId ||
+          storedHashFor(canonical) !== storedHashFor(legacy)) {
+        throw new functions.https.HttpsError(
+          "data-loss",
+          "Conflicting canonical and legacy copies exist for this attempt. Manual reconciliation is required."
+        );
+      }
+    }
+    const existingRecord = existingAttemptSnap.exists
+      ? existingAttemptSnap.data()
+      : (legacyAttemptDocSnap.exists ? legacyAttemptDocSnap.data() : null);
 
     // Idempotency check: handle identical retries vs conflicting reuse
-    if (existingAttemptSnap.exists) {
-      const existing = existingAttemptSnap.data();
+    if (existingRecord) {
+      const existing = existingRecord;
       if (existing.userId !== userId || existing.testId !== cleanTestId) {
         throw new functions.https.HttpsError(
           "already-exists",
@@ -327,18 +361,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }
 
       // Check whether payload matches previous submission
-      let storedAnswersHash = existing.answersHash || null;
-      if (!storedAnswersHash && existing.answersJson !== undefined) {
-        try {
-          const legacyAnswers = typeof existing.answersJson === "string"
-            ? JSON.parse(existing.answersJson)
-            : existing.answersJson;
-          storedAnswersHash = crypto.createHash("sha256")
-            .update(canonicalizeAnswerPayload(legacyAnswers)).digest("hex");
-        } catch (_) {
-          storedAnswersHash = null;
-        }
-      }
+      const storedAnswersHash = storedHashFor(existing);
 
       if (storedAnswersHash && storedAnswersHash === answersHash) {
         // Return existing canonical result without re-incrementing counters
@@ -381,7 +404,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       attemptsRef.where("testId", "==", cleanTestId).limit(1)
     );
     const legacyExistingAttemptsSnap = await transaction.get(
-      userRef.collection("attempts").where("testId", "==", cleanTestId).limit(1)
+      legacyAttemptsRef.where("testId", "==", cleanTestId).limit(1)
     );
     const isFirstAttempt = existingAttemptsSnap.empty && legacyExistingAttemptsSnap.empty;
     const priorQualifyingAttemptsSnap = countsTowardRanking ? await transaction.get(
@@ -390,7 +413,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         .where("verifiedServerSide", "==", true).limit(1)
     ) : null;
     const legacyPriorQualifyingAttemptsSnap = countsTowardRanking ? await transaction.get(
-      userRef.collection("attempts").where("testId", "==", cleanTestId)
+      legacyAttemptsRef.where("testId", "==", cleanTestId)
         .where("countsTowardRanking", "==", true)
         .where("verifiedServerSide", "==", true).limit(1)
     ) : null;
@@ -547,7 +570,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }, { merge: true });
     }
 
-    // Persist detailed authoritative attempt record in Attempts collection
+    // Persist the single canonical authoritative attempt record in the app history collection.
     const attemptRecord = {
       userId,
       testId: cleanTestId,
@@ -583,10 +606,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     };
 
     transaction.set(attemptDocRef, attemptRecord, { merge: true });
-
-    // Mirror to legacy lowercase attempts subcollection for backwards compatibility
-    const legacyAttemptRef = userRef.collection("attempts").doc(attemptDocId);
-    transaction.set(legacyAttemptRef, attemptRecord, { merge: true });
 
     // Atomically maintain per-test leaderboard entry for qualifying first attempts
     if (isFirstQualifyingAttempt) {
