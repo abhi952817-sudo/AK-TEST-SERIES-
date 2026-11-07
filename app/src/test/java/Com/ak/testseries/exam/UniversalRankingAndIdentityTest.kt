@@ -51,7 +51,7 @@ class UniversalRankingAndIdentityTest {
         assertFalse(UniversalExamRegistry.isExamVerified("jee_advanced"))
         assertEquals(4.0 to 1.0, UniversalExamRegistry.getMarkingSchemeForExam("NEET UG"))
         assertEquals(4.0 to 1.0, UniversalExamRegistry.getMarkingSchemeForExam("JEE Main"))
-        for (exam in listOf("JEE Advanced", "UPSC CSE", "CAT", "IBPS PO", "RRB NTPC", "CTET")) {
+        for (exam in listOf("JEE Advanced", "CUET UG", "UPSC CSE", "SSC CGL", "SSC CHSL", "SSC MTS", "SSC GD", "SSC CPO", "RRB NTPC", "RRB Group D", "RRB ALP", "RRB Technician", "RRB JE", "CTET", "UGC NET", "CAT", "IBPS PO", "IBPS Clerk", "SBI PO", "SBI Clerk", "NDA", "CDS", "GATE")) {
             try {
                 UniversalExamRegistry.getMarkingSchemeForExam(exam)
                 throw AssertionError("Scoring must be blocked for unverified exam: $exam")
