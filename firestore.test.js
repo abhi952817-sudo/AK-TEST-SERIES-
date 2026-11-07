@@ -368,6 +368,30 @@ test("F-016: Student CANNOT read private_keys subcollection or TestAnswerKeys di
   );
 });
 
+test("LiveTests: students can read the public live test but cannot read its private answer key", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const liveRef = ctx.firestore().collection("LiveTests").doc("live_secure_1");
+    await liveRef.set({
+      title: "Live Practice Test",
+      questionsJson: JSON.stringify([{ id: "q1", questionText: "2+2?" }])
+    });
+    await liveRef.collection("private_keys").doc("answerKey").set({
+      questions: [{ id: "q1", correctAnswer: "A", explanation: "Private explanation" }]
+    });
+  });
+
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(aliceDb.collection("LiveTests").doc("live_secure_1").get());
+  await assertFails(
+    aliceDb.collection("LiveTests").doc("live_secure_1").collection("private_keys").doc("answerKey").get()
+  );
+
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await assertSucceeds(
+    adminDb.collection("LiveTests").doc("live_secure_1").collection("private_keys").doc("answerKey").get()
+  );
+});
+
 // =========================================================================
 // 5. COMMUNITY POSTS AND DISCUSSIONS SECURITY
 // =========================================================================
