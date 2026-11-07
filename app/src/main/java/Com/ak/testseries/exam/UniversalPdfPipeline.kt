@@ -320,6 +320,7 @@ object UniversalPdfPipeline {
                                 candidate.options,
                                 existingHashes
                             )
+                            if (duplicate.isDuplicate) return@mapNotNull null
                             val validation = QuestionValidationEngine.validateQuestion(
                                 questionText = candidate.questionText,
                                 options = candidate.options,
