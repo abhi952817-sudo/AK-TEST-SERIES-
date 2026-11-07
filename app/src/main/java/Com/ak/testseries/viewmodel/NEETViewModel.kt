@@ -3899,15 +3899,50 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Exam Engine ---
 
+    private fun resolveVerifiedScoringExamId(test: TestEntity): String {
+        val explicitExamId = test.examId?.trim()?.takeIf { it.isNotEmpty() }
+        val requestedIdentity = explicitExamId ?: test.targetExam.trim().takeIf { it.isNotEmpty() }
+            ?: throw IllegalArgumentException("Test has no explicit exam identity.")
+
+        val config = Com.ak.testseries.exam.UniversalExamRegistry.getExam(requestedIdentity)
+            ?: throw IllegalArgumentException("Unsupported or ambiguous exam identity '$requestedIdentity'.")
+        require(config.active && config.verified) {
+            "Scoring is blocked for an unverified exam configuration."
+        }
+
+        val displayIdentity = test.targetExam.trim()
+        if (displayIdentity.isNotEmpty()) {
+            val displayConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(displayIdentity)
+            if (displayConfig != null) {
+                require(displayConfig.examId == config.examId) {
+                    "Test examId and display exam identity do not match."
+                }
+            } else {
+                require(
+                    Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(displayIdentity) ==
+                        Com.ak.testseries.exam.UniversalExamRegistry.getCanonicalExamKey(config.examId)
+                ) { "Display exam identity is ambiguous or conflicts with the canonical exam ID." }
+            }
+        }
+
+        val stageId = test.stageId?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("Exact exam stage is required for scoring.")
+        val paperId = test.paperId?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("Exact exam paper is required for scoring.")
+        val stage = config.stages.singleOrNull { it.stageId == stageId }
+            ?: throw IllegalArgumentException("Exam stage is missing, unsupported, or ambiguous.")
+        stage.papers.singleOrNull { it.paperId == paperId }
+            ?: throw IllegalArgumentException("Exam paper is missing, unsupported, or ambiguous.")
+        return config.examId
+    }
+
     private fun calculateExamDurationSeconds(test: TestEntity): Long {
         // Validate identity before accepting even a custom timer. A positive duration
         // must never allow a Paper 2 test to run under a Paper 1 scoring scheme.
-        val examIdentity = test.examId?.takeIf { it.isNotBlank() } ?: test.targetExam
-        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examIdentity)
-            ?: return 0L
-        if (!examConfig.active || !examConfig.verified) return 0L
-        val stageId = test.stageId?.takeIf { it.isNotBlank() } ?: return 0L
-        val paperId = test.paperId?.takeIf { it.isNotBlank() } ?: return 0L
+        val examId = runCatching { resolveVerifiedScoringExamId(test) }.getOrNull() ?: return 0L
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExamById(examId) ?: return 0L
+        val stageId = test.stageId ?: return 0L
+        val paperId = test.paperId ?: return 0L
         val stage = examConfig.stages.singleOrNull { it.stageId == stageId } ?: return 0L
         val paper = stage.papers.singleOrNull { it.paperId == paperId } ?: return 0L
         if (test.durationMinutes > 0) return test.durationMinutes * 60L
@@ -4148,8 +4183,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val questions = _activeQuestions.value
         val question = questions.find { it.id == questionId } ?: return false
         val test = _activeTest.value ?: return false
-        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(test.targetExam)
-            ?.takeIf { it.active && it.verified } ?: return false
+        val examId = runCatching { resolveVerifiedScoringExamId(test) }.getOrNull() ?: return false
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExamById(examId) ?: return false
         val limit = runCatching {
             Com.ak.testseries.exam.UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
                 examName = examConfig.examId,
@@ -4222,7 +4257,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val timeSpentTotal = questions.size * 45L
             val breakdown = try {
                 Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
-                    targetExam = test.targetExam,
+                    targetExam = resolveVerifiedScoringExamId(test),
                     questions = questions,
                     userAnswers = answersMap,
                     timeSpentSeconds = timeSpentTotal
@@ -4468,7 +4503,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Dynamic scoring evaluation engine for local/offline preview
                 val breakdown = Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
-                    targetExam = test.targetExam,
+                    targetExam = resolveVerifiedScoringExamId(test),
                     questions = questions,
                     userAnswers = answers,
                     timeSpentSeconds = timeSpentTotal
@@ -4571,8 +4606,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             fetchTestSolutions(test.id, sessionToken)
 
                             // Refresh public leaderboard & rank
-                            fetchLeaderboard(test.targetExam)
-                            fetchUserRank(test.targetExam)
+                            fetchLeaderboard(resolveVerifiedScoringExamId(test))
+                            fetchUserRank(resolveVerifiedScoringExamId(test))
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("NEETViewModel", "Server submission failed; stored locally as pending: ${e.message}", e)
