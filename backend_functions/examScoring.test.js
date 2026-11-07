@@ -194,7 +194,8 @@ test("ranking publication rejects decimal JEE numerical answer keys", () => {
     status: "PUBLISHED",
     isOfficial: true,
     isPublic: true,
-    countsTowardRanking: true
+    countsTowardRanking: true,
+    testType: "Part Test"
   };
   const question = {
     id: "numeric",
@@ -222,7 +223,8 @@ test("ranking-eligible tests require complete trusted private answer keys", () =
     status: "PUBLISHED",
     isOfficial: true,
     isPublic: true,
-    countsTowardRanking: true
+    countsTowardRanking: true,
+    testType: "Part Test"
   };
   const question = {
     id: "q1",
