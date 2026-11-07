@@ -1183,7 +1183,7 @@ object UniversalExamRegistry {
     }
 
     fun getSubjectsForExamName(examName: String): List<String> {
-        val config = findExamByNameOrShortName(examName)
+        val config = findExamByNameOrShortName(examName)?.takeIf { it.active && it.verified }
         if (config != null) {
             val subjects = config.stages.flatMap { stage ->
                 stage.papers.flatMap { paper ->
@@ -1198,6 +1198,7 @@ object UniversalExamRegistry {
     fun getDefaultQuestionsCountForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
             ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) { "Question-count policy is not source-verified for '$examName'." }
         require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
             "Select an exact stage and paper for '$examName'; implicit first-paper selection is disabled."
         }
@@ -1211,6 +1212,7 @@ object UniversalExamRegistry {
     fun getDefaultDurationMinutesForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
             ?: throw IllegalArgumentException("Unsupported exam identity: '$examName'")
+        require(config.active && config.verified) { "Duration policy is not source-verified for '$examName'." }
         require(config.stages.size == 1 && config.stages.single().papers.size == 1) {
             "Select an exact stage and paper for '$examName'; implicit first-paper selection is disabled."
         }
@@ -1341,7 +1343,7 @@ object UniversalExamRegistry {
 
     fun getLanguageForExam(examName: String): String {
         val config = findExamByNameOrShortName(examName)
-        return config?.language ?: "Bilingual (English & Hindi)"
+        return config?.takeIf { it.verified }?.language ?: "Not verified"
     }
 
     fun getDefaultOptionCountForExam(examName: String): Int {
@@ -1357,25 +1359,31 @@ object UniversalExamRegistry {
     }
 
     fun getExamDisplaySubtitle(config: ExamConfig): String {
-        if (!config.verified) return "Pattern not verified • scoring and publishing disabled"
-        val allPapers = config.stages.flatMap { it.papers }
-        val paper = allPapers.firstOrNull()
-        val totalCompQs = allPapers.sumOf { p -> p.subjects.sumOf { s -> s.sections.sumOf { it.compulsoryQuestions } } }
-        val totalPaperQs = allPapers.sumOf { p -> p.subjects.sumOf { s -> s.sections.sumOf { it.totalQuestions } } }
-        val totalMarks = allPapers.sumOf { it.totalMarks }
-        val duration = allPapers.sumOf { it.durationMinutes }
-
-        val firstSec = paper?.subjects?.firstOrNull()?.sections?.firstOrNull()
-        val pos = firstSec?.positiveMarks ?: 4.0
-        val neg = firstSec?.negativeMarks ?: 1.0
-
+        if (!config.active || !config.verified) {
+            return "Pattern not verified • scoring and publishing disabled"
+        }
+        val paper = config.stages.singleOrNull()?.papers?.singleOrNull()
+            ?: return "Verified pattern metadata is incomplete"
+        val marking = runCatching { getMarkingSchemeForExam(config.examName) }.getOrNull()
+            ?: return "Verified scoring metadata is incomplete"
+        val totalCompQs = paper.subjects.sumOf { subject ->
+            subject.sections.sumOf { it.compulsoryQuestions }
+        }
+        val totalPaperQs = paper.subjects.sumOf { subject ->
+            subject.sections.sumOf { it.totalQuestions }
+        }
         val qText = if (totalCompQs < totalPaperQs) "$totalCompQs/$totalPaperQs Qs" else "$totalCompQs Qs"
-        val marksText = if (totalMarks == totalMarks.toLong().toDouble()) "${totalMarks.toLong()} Marks" else "$totalMarks Marks"
-        val durationText = "${duration} Mins"
-        val posText = if (pos == pos.toLong().toDouble()) pos.toLong().toString() else String.format(java.util.Locale.US, "%.2f", pos).trimEnd('0').trimEnd('.')
-        val negText = if (neg == neg.toLong().toDouble()) neg.toLong().toString() else String.format(java.util.Locale.US, "%.2f", neg).trimEnd('0').trimEnd('.')
-        val markingText = if (neg == 0.0) "(+$posText, 0 -ve)" else "(+$posText, -$negText)"
-
+        val marksText = if (paper.totalMarks == paper.totalMarks.toLong().toDouble()) {
+            "${paper.totalMarks.toLong()} Marks"
+        } else "${paper.totalMarks} Marks"
+        val durationText = "${paper.durationMinutes} Mins"
+        val posText = if (marking.first == marking.first.toLong().toDouble()) {
+            marking.first.toLong().toString()
+        } else String.format(java.util.Locale.US, "%.2f", marking.first).trimEnd('0').trimEnd('.')
+        val negText = if (marking.second == marking.second.toLong().toDouble()) {
+            marking.second.toLong().toString()
+        } else String.format(java.util.Locale.US, "%.2f", marking.second).trimEnd('0').trimEnd('.')
+        val markingText = if (marking.second == 0.0) "(+$posText, 0 -ve)" else "(+$posText, -$negText)"
         return "$qText • $marksText • $durationText $markingText"
     }
 
