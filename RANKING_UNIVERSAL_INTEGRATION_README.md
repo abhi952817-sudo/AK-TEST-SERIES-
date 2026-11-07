@@ -539,7 +539,7 @@ Development is not complete until all of these are true:
 |---|---|---|---|---|
 | 0 Baseline refresh | COMPLETE | `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22` | 2026-11-07 live branch comparisons; PR #3; workflow #183 all 3 jobs PASS | Latest code commits are newer than workflow #193; fresh CI is required |
 | 1 Overlap map | COMPLETE | `faf51cdb9778b3179dd3be47df12377688b264c9` | 15-file keep/port/reconcile matrix; branch compare and shared-file review | Individual commit SHA list not exposed by connector; only workflow file delta confirmed |
-| 2 Backend contract | IN PROGRESS | `6afe7f40ca79b7ffa5169849eb8150b4f46a4f22` | Numeric-zero regression added; missing/ALL exam identity now fails closed with tests; prior backend CI PASS | Need fresh CI for latest helper/callable commits and dedicated scoring→ranking→XP idempotency contract tests |
+| 2 Backend contract | IN PROGRESS | `da98ae7aaf9acc93a8ebf475ad54d8948018391a` | Backend/Firestore PASS on prior head; latest Android compile failure fixed in source, fresh CI pending; simulated callable test identified as non-authoritative | Add shared production policy helpers and real transaction contract/idempotency coverage; verify fresh CI |
 | 3 Secure publishing | IN PROGRESS | `4a476d6b713593102ea38ccbe7660384e121faf5` | LiveTests public/private answer separation, Admin-only private_keys rule, emulator test added; generated live mocks no longer auto-rank | Historical LiveTests docs may still leak keys; dry-run + approved migration and remaining publish-path audit required |
 | 4 PDF pipeline | NOT STARTED | — | — | P0 synthetic fallback |
 | 5 Exam configuration | NOT STARTED | — | — | Year/stage/paper provenance |
@@ -552,6 +552,13 @@ Development is not complete until all of these are true:
 | 12 Full regression | NOT STARTED | — | — | Full CI |
 | 13 Release/retirement | BLOCKED | — | — | Explicit approval required |
 
+### 2.7 Android compile blocker found and corrected — 2026-11-07
+
+- Fresh live CI run #201 (42322347443) on the previous integration head failed in :app:compileDebugKotlin at NEETViewModel.kt:6038: the generated-live TestEntity constructor was missing a comma after countsTowardRanking = false. Backend unit/syntax and Firestore Emulator jobs passed; Android did not reach unit tests or APK assembly.
+- Corrected only the Kotlin named-argument separator on the integration branch. Commit: da98ae7aaf9acc93a8ebf475ad54d8948018391a.
+- This is a source-level correction, not a passing validation result. A fresh workflow for the corrected head is still required before the fix is marked verified.
+- Further Phase 2 audit: callableValidation.test.js is a hand-written simulation, not an invocation of the production callable/Firestore transaction. It still contains legacy default-to-NEET and legacy ranking-eligibility logic that diverges from the current callable. It cannot serve as proof of scoring→eligibility→ranking→XP transactional correctness. Replace/augment it with shared production policy helpers and emulator-backed transaction contract tests before closing Phase 2.
+- No production data, Firebase deployment, rules deployment, or main branch was changed.
 ### Session handoff rule
 At the start of every later session:
 1. Read this entire file from the integration branch.
