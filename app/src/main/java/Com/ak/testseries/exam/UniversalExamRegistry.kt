@@ -15,6 +15,8 @@ object UniversalExamRegistry {
     }
 
     private fun registerDefaultExams() {
+        // Source: NTA NEET (UG)-2026 Information Bulletin, official NTA document.
+        // https://neet.nta.nic.in/documents/page/4/
         // 1. NEET UG (Medical Entrance)
         register(
             ExamConfig(
@@ -37,10 +39,10 @@ object UniversalExamRegistry {
                 aiSystemInstruction = "You are the Chief Academic Examiner for NEET UG. Strictly adhere to NCERT Class 11 & 12 curriculum for Physics, Chemistry, and Biology (Botany & Zoology). Emphasize NCERT factual accuracy, biochemical cycles, diagrammatic interpretations, genetics crosses, and conceptual numericals. Eliminate out-of-syllabus graduate concepts.",
                 patternRules = listOf(
                     "+4 marks for correct answer, -1 mark penalty for incorrect answer",
-                    "Section A: 35 compulsory questions per subject",
-                    "Section B: 15 questions per subject (students attempt any 10)",
-                    "Total 720 marks (180 questions attempted out of 200)",
-                    "Duration 200 minutes (3 hours 20 minutes)",
+                    "2026 pattern: 45 compulsory single-correct MCQs in Physics, 45 in Chemistry, and 90 in Biology (Botany + Zoology)",
+                    "No optional Section B in the 2026 bulletin",
+                    "Total 720 marks (180 compulsory questions)",
+                    "Duration 180 minutes (3 hours)",
                     "Strict bilingual formatting in English and Hindi"
                 ),
                 stages = listOf(
@@ -51,35 +53,35 @@ object UniversalExamRegistry {
                             PaperConfig(
                                 paperId = "neet_paper_1",
                                 paperName = "NEET Single Paper",
-                                durationMinutes = 200,
+                                durationMinutes = 180,
                                 totalMarks = 720.0,
                                 subjects = listOf(
                                     SubjectConfig(
                                         "physics", "Physics",
                                         listOf(
-                                            SectionConfig("phy_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("phy_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
+                                            SectionConfig("phy_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE),
+                                            
                                         )
                                     ),
                                     SubjectConfig(
                                         "chemistry", "Chemistry",
                                         listOf(
-                                            SectionConfig("chem_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("chem_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
+                                            SectionConfig("chem_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE),
+                                            
                                         )
                                     ),
                                     SubjectConfig(
                                         "botany", "Botany",
                                         listOf(
-                                            SectionConfig("bot_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("bot_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
+                                            SectionConfig("bot_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE),
+                                            
                                         )
                                     ),
                                     SubjectConfig(
                                         "zoology", "Zoology",
                                         listOf(
-                                            SectionConfig("zoo_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("zoo_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
+                                            SectionConfig("zoo_all", "All Questions", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE),
+                                            
                             )
                         )
                     )
@@ -90,6 +92,8 @@ object UniversalExamRegistry {
             )
         )
 
+        // Source: NTA JEE (Main)-2026 Information Bulletin, official NTA document.
+        // https://jeemain.nta.nic.in/information-bulletin/
         // 2. JEE Main (Engineering Entrance)
         register(
             ExamConfig(
@@ -111,9 +115,9 @@ object UniversalExamRegistry {
                 aiSystemInstruction = "You are the Chief Academic Examiner for JEE Main. Generate rigorous analytical questions for Physics, Chemistry, and Mathematics. Focus on multi-concept synthesis, calculus-based derivations, vector algebra, organic reaction mechanisms, and physical chemistry stoichiometry. Numerical value questions require exact integer or rounded values.",
                 patternRules = listOf(
                     "+4 marks for correct, -1 mark penalty for incorrect",
-                    "Section A: 20 Multiple Choice Questions (compulsory)",
-                    "Section B: 10 Numerical value questions (attempt any 5)",
-                    "Total 300 marks (75 questions attempted out of 90)",
+                    "Section A: 20 Multiple Choice Questions per subject (compulsory)",
+                    "Section B: 5 Numerical Value Questions per subject (all compulsory)",
+                    "Total 300 marks (75 compulsory questions)",
                     "Duration 180 minutes (3 hours)"
                 ),
                 stages = listOf(
@@ -129,21 +133,21 @@ object UniversalExamRegistry {
                                         "physics", "Physics",
                                         listOf(
                                             SectionConfig("phy_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("phy_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("phy_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
                                         )
                                     ),
                                     SubjectConfig(
                                         "chemistry", "Chemistry",
                                         listOf(
                                             SectionConfig("chem_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("chem_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("chem_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
                                         )
                                     ),
                                     SubjectConfig(
                                         "mathematics", "Mathematics",
                                         listOf(
                                             SectionConfig("math_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("math_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("math_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
                                         )
                                     )
                                 )
@@ -163,7 +167,7 @@ object UniversalExamRegistry {
                 category = "Engineering Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 10, mediumPercent = 45, hardPercent = 45),
                 supportedQuestionTypes = listOf(
                     QuestionType.MCQ_SINGLE,
@@ -228,7 +232,7 @@ object UniversalExamRegistry {
                 category = "University Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 50, mediumPercent = 40, hardPercent = 10),
                 supportedQuestionTypes = listOf(
                     QuestionType.DIRECT_MCQ,
@@ -270,7 +274,7 @@ object UniversalExamRegistry {
                 category = "Civil Services",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 20, mediumPercent = 50, hardPercent = 30),
                 supportedQuestionTypes = listOf(
                     QuestionType.MULTI_STATEMENT,
@@ -317,7 +321,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 35, mediumPercent = 50, hardPercent = 15),
                 supportedQuestionTypes = listOf(
                     QuestionType.DIRECT_MCQ,
@@ -362,7 +366,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 45, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.GRAPH),
                 aiSystemInstruction = "You are an examiner for SSC CHSL (10+2 Level). Formulate balanced questions in quantitative aptitude (basic arithmetic and geometry), logical reasoning, English grammar & vocabulary, and general awareness.",
@@ -400,7 +404,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 60, mediumPercent = 35, hardPercent = 5),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for SSC MTS (Matriculation Level). Test foundational numerical abilities, basic reasoning, core general knowledge (history, geography, science), and elementary English grammar.",
@@ -439,7 +443,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 60, mediumPercent = 35, hardPercent = 5),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for SSC GD Constable. Craft practical, high-clarity questions testing basic intelligence, elementary math, general knowledge, and language comprehension for constable recruits.",
@@ -478,7 +482,7 @@ object UniversalExamRegistry {
                 category = "SSC",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 35, mediumPercent = 50, hardPercent = 15),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for SSC CPO. Generate comprehensive questions testing analytical reasoning, General Knowledge/Science, quantitative arithmetic & algebra, and English language comprehension.",
@@ -516,7 +520,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 40, mediumPercent = 45, hardPercent = 15),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.TABLE_BASED),
                 aiSystemInstruction = "You are an examiner for RRB NTPC CBT-1 & CBT-2. Prioritize General Awareness (Indian Railways history, science, geography, constitution), Mathematics (percentages, ratio, time & work), and General Intelligence.",
@@ -553,7 +557,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 50, mediumPercent = 40, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for Railway RRB Group D (Level 1). Prioritize General Science (Class 10 CBSE physics, chemistry, biology), Basic Mathematics, General Intelligence, and Current Affairs.",
@@ -591,7 +595,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 35, mediumPercent = 50, hardPercent = 15),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.NUMERICAL_VALUE, QuestionType.DIAGRAM_LABELING),
                 aiSystemInstruction = "You are an examiner for RRB ALP CBT-1. Focus on Basic Science & Engineering (Units, Measurements, Work Energy & Power, Heat, Electricity, Levers), Technical Mathematics, and General Intelligence.",
@@ -629,7 +633,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 40, mediumPercent = 45, hardPercent = 15),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.NUMERICAL_VALUE),
                 aiSystemInstruction = "You are an examiner for RRB Technician. Emphasize Basic Science & Engineering applications, technical trade fundamentals, Mathematics, and General Awareness.",
@@ -667,7 +671,7 @@ object UniversalExamRegistry {
                 category = "Railways",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 30, mediumPercent = 50, hardPercent = 20),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.NUMERICAL_VALUE, QuestionType.DIAGRAM_LABELING),
                 aiSystemInstruction = "You are an examiner for RRB Junior Engineer (CBT 1). Test Mathematics (algebra, calculus, trigonometry), General Science, General Intelligence, and General Awareness for diploma/degree engineering candidates.",
@@ -705,7 +709,7 @@ object UniversalExamRegistry {
                 category = "Teaching",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 50, mediumPercent = 40, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.CASE_BASED, QuestionType.STATEMENT_I_II),
                 aiSystemInstruction = "You are an examiner for CTET Paper 1 & 2. Formulate pedagogy-centric questions on Child Development and Pedagogy (CDP), inclusive education, learning theories of Piaget, Vygotsky, and Kohlberg, language learning pedagogy, and pedagogical content knowledge.",
@@ -744,7 +748,7 @@ object UniversalExamRegistry {
                 category = "Teaching",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 25, mediumPercent = 50, hardPercent = 25),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.ASSERTION_REASON, QuestionType.MATCH_LIST_I_II, QuestionType.STATEMENT_I_II),
                 aiSystemInstruction = "You are an examiner for UGC NET Paper 1. Focus on Teaching Aptitude, Research Aptitude & Methodology, Communication, Mathematical Reasoning & Aptitude, Logical Reasoning, Data Interpretation, Information & Communication Technology (ICT), and Higher Education System in India.",
@@ -779,7 +783,7 @@ object UniversalExamRegistry {
                 category = "Management",
                 language = "English",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 15, mediumPercent = 50, hardPercent = 35),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.NUMERICAL_VALUE, QuestionType.TITA, QuestionType.PASSAGE_BASED, QuestionType.CASE_BASED),
                 aiSystemInstruction = "You are the Chief Academic Examiner for CAT (IIMs). Design high-difficulty Data Interpretation & Logical Reasoning (DILR) caselets, complex Reading Comprehension with deep philosophical/analytical inferences (VARC), and rigorous Quantitative Aptitude (Algebra, Modern Math, Number Theory, Geometry).",
@@ -817,7 +821,7 @@ object UniversalExamRegistry {
                 category = "Banking",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 5,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 20, mediumPercent = 50, hardPercent = 30),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.CASE_BASED, QuestionType.PASSAGE_BASED),
                 aiSystemInstruction = "You are an examiner for IBPS PO Prelims. Formulate multi-attribute seating arrangement puzzles, Data Interpretation sets (pie charts, tables, missing DI), quadratic equations, approximation, and advanced English cloze tests.",
@@ -855,7 +859,7 @@ object UniversalExamRegistry {
                 category = "Banking",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 5,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 45, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for IBPS Clerk Prelims. Emphasize fast mental calculations, simplification, arithmetic word problems, standard blood relations, direction sense, syllogisms, and vocabulary.",
@@ -892,7 +896,7 @@ object UniversalExamRegistry {
                 category = "Banking",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 5,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 40, mediumPercent = 50, hardPercent = 10),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ),
                 aiSystemInstruction = "You are an examiner for SBI Clerk (Junior Associates). Focus on high-speed Quantitative Aptitude (simplification, number series, quadratic equations), Reasoning puzzles, and English comprehension.",
@@ -929,7 +933,7 @@ object UniversalExamRegistry {
                 category = "Banking",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 5,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 15, mediumPercent = 50, hardPercent = 35),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.CASE_BASED, QuestionType.PASSAGE_BASED),
                 aiSystemInstruction = "You are an examiner for SBI PO. Frame intricate reasoning puzzles, novel-pattern critical reasoning, advanced data sufficiency, high-level DI sets, and rigorous English vocabulary in context.",
@@ -966,7 +970,7 @@ object UniversalExamRegistry {
                 category = "Defence",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 30, mediumPercent = 50, hardPercent = 20),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.ASSERTION_REASON, QuestionType.GRAPH),
                 aiSystemInstruction = "You are an examiner for UPSC NDA & NA. Formulate Mathematics questions (Class 11-12 Trigonometry, Matrices, Calculus, Vectors, Probability) and General Ability Test (GAT) questions in English, Physics, Chemistry, History, Geography, and Current Events.",
@@ -1011,7 +1015,7 @@ object UniversalExamRegistry {
                 category = "Defence",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 30, mediumPercent = 50, hardPercent = 20),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.ASSERTION_REASON, QuestionType.STATEMENT_I_II),
                 aiSystemInstruction = "You are an examiner for UPSC Combined Defence Services (CDS). Formulate questions for English, General Knowledge, and Elementary Mathematics according to UPSC CDS standards.",
@@ -1063,7 +1067,7 @@ object UniversalExamRegistry {
                 category = "Engineering",
                 language = "English",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 20, mediumPercent = 45, hardPercent = 35),
                 supportedQuestionTypes = listOf(QuestionType.DIRECT_MCQ, QuestionType.MCQ_MULTIPLE, QuestionType.NUMERICAL_VALUE, QuestionType.GRAPH),
                 aiSystemInstruction = "You are the Chief Examiner for GATE. Frame rigorous engineering and general aptitude problems. Include Multiple Choice (MCQ), Multiple Select (MSQ), and Numerical Answer Type (NAT) problems requiring numerical precision.",
