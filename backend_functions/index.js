@@ -12,7 +12,7 @@ const {
   getMarkingSchemeForExam,
 } = require("./examScoring");
 const {
-  RANKING_CONFIG, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
+  RANKING_CONFIG, clampRankingLimit, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
   isEligibleScoringResult, isEligibleHistoricalRankingTest,
   getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, isValidRankingPeriodId, isValidRankingWeekId, normalizeClassLevel, resolveClassLevelFilter,
   getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, buildTestRankingSnapshot, getRankingStatus, getCohortRankingStatus
@@ -1005,7 +1005,7 @@ exports.rebuildRankingV2Batch = functions.https.onCall(async (data, context) => 
     throw new functions.https.HttpsError(err.code || "permission-denied", err.message);
   }
   const input = data || {};
-  const limit = Math.min(20, Math.max(1, Number(input.limit) || 10));
+  const limit = clampRankingLimit(input.limit, 10, 1, 20);
   const migrationStateRef = db.collection("Config").doc("Ranking_Migration_State");
   const migrationStateSnap = await migrationStateRef.get();
   const savedCursor = migrationStateSnap.exists ? migrationStateSnap.data().lastProcessedUid : null;
@@ -1229,7 +1229,7 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   const classLevel = resolveClassLevelFilter(input.classLevel);
   if (classLevel === null) throw new functions.https.HttpsError("invalid-argument", "classLevel must be All, Class 11, Class 12, or Dropper.");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
-  const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
+  const limit = clampRankingLimit(input.limit, 100, 1, 100);
   const snapshot = await applyClassFilter(db.collection("Exam_Leaderboards").doc(examId)
     .collection("Entries").where("isEligibleForRanking", "==", true)
     .where("isBanned", "==", false))
