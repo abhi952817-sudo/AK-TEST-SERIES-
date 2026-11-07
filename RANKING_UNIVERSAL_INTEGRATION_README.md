@@ -748,3 +748,63 @@ Merge is prohibited until all three passes are complete, all blocking findings a
 - Validation status: awaiting the CI run for this exact commit. This fix is not marked verified until Kotlin compile, Android tests, and debug build complete successfully.
 
 **Next required work remains:** finish Pass 1's full latest-main/shared-file semantic matrix and then proceed through Pass 2 subsystem implementation in the order defined above. The per-test rank/percentile concurrency and fake-zero fallback defects remain open; no production rank contract has been silently chosen.
+
+
+### 2.19 Continued integration audit — file matrix and per-test rank contract — 2026-11-07
+
+This is a continuation of Pass 1, not a declaration that Pass 1 is complete.
+
+**Fresh compare after the isolated compile fix:**
+- `main` → `feature/ranking-universal-integration-v1`: 329 commits ahead / 0 behind at the audit snapshot.
+- Changed-file set includes the shared/high-risk files listed below plus Universal-only Android files.
+- Zero commits behind is ancestry information only. It is not semantic compatibility proof.
+- CI for compile-fix commit `8e998722a412dfdf3af0cd3e5c26e1b08a6d3e19`: backend unit tests PASS; Firestore rules tests PASS; Android validation was still IN PROGRESS at the last poll. No green overall CI claim.
+
+**File-by-file integration matrix (initial classification; every row remains open until the stated behavior-level comparison and tests are complete):**
+
+| Path | Main baseline / integration concern | Impact and required merge strategy | Status |
+|---|---|---|---|
+| `.github/workflows/ranking-v2-validation.yml` | Integration-only validation workflow | Preserve required gates; confirm secrets/config handling and exact tested SHA | AUDIT |
+| `MainActivity.kt` | Main contains active app shell/navigation; integration adds exam/admin routes | Symbol-level route and state reconciliation; no duplicate tabs or removed main routes | BLOCKED |
+| `NEETViewModel.kt` | Main test flows plus integration universal identity, secure publishing, ranking calls | Preserve main test/community flows; isolate Universal changes; compile and ViewModel regression tests | BLOCKED |
+| `backend_functions/index.js` | Main callable/submission behavior plus integration ranking transaction | Reconcile callable contract, auth, scoring, idempotency, transactions, legacy reads; no wholesale replacement | BLOCKED |
+| `backend_functions/examScoring.js` | Integration verified scoring policy | Confirm main consumers and API contract; Kotlin/Node golden-vector parity | AUDIT |
+| `backend_functions/examScoring.test.js` | Integration scoring regression suite | Preserve existing tests; add cross-engine vectors and optional/ungraded/decimal boundaries | AUDIT |
+| `backend_functions/rankingEngine.js` | Integration ranking calculations and thresholds | Validate every threshold/weight/tie/period rule against product contract; no unsupported defaults | AUDIT |
+| `backend_functions/rankingEngine.test.js` | Integration ranking unit tests | Expand with duplicate, concurrency, reattempt, class/privacy and boundary tests | AUDIT |
+| `firestore.rules` | Main authorization plus ranking collection rules | Preserve all existing access paths; emulator-test every changed match and banned/private cases | BLOCKED |
+| `firestore.test.js` | Main security regression suite plus ranking coverage | Keep all prior cases; add v2 collection and privacy/ban regression tests | AUDIT |
+| `firestore.indexes.json` | Main query indexes plus ranking indexes | Validate each actual query and emulator/deployment index requirements; remove only proven-unused duplicates | AUDIT |
+| `AppDatabase.kt` | Main Room schema and existing data | Preserve schema history; verify every supported migration path and export schema diff | BLOCKED |
+| `DatabaseRepository.kt`, `Entities.kt` | Main local test/user/attempt data models | Ensure public rank cache is non-authoritative and no entity identity collision | AUDIT |
+| `FirebaseUserRepositoryImpl.kt` | Main profile repository | Keep profile privacy/class/ban propagation consistent with ranking queries | AUDIT |
+| `ExamScoringEngine.kt`, `ExamFormatStandardizer.kt` | Universal client scoring and normalization | Must match server engine exactly for enabled exam policies | AUDIT |
+| `UniversalExamRegistry.kt`, `UniversalExamModels.kt` | Universal identity and policy source | Enable only verified exam/stage/paper configurations; unknown exams fail closed | AUDIT |
+| `UniversalPdfPipeline.kt`, `OfflineMarkdownQuestionParser.kt`, `SecureQuestionPayloadSanitizer.kt` | Import, parsing and answer-key security | Preserve provenance; uncertain OCR never grants official/ranking eligibility | AUDIT |
+| `UniversalExamAdminScreen.kt`, `AdminPanelScreen.kt`, `UploadAiTabScreen.kt` | Existing admin/upload UI and new Universal workflows | Reuse current admin shell; verify role checks, no disconnected duplicate screens | AUDIT |
+| `ExamSimulationScreen.kt`, `SyllabusPdfModal.kt` | Existing test UI and Universal exam formats | Preserve timer, navigation, language, question palette and attempt behavior | AUDIT |
+| `CrashResilienceTest.kt` and Universal exam tests | Integration regression tests | Determine exact intended behavior; do not weaken or delete tests to obtain green CI | AUDIT |
+
+**Confirmed code-level per-test ranking defect (re-read at this audit):**
+- `index.js` lines around the submission handler calculate `Test_Leaderboards/{testId}/Entries` population and higher-score counts before entering `db.runTransaction`.
+- The catch block converts query failure to zeros and those values are later stored on the attempt.
+- The transaction only creates the canonical per-test board entry when `isFirstQualifyingAttempt` is true. Therefore the pre-transaction query incorrectly uses the current submission score for a reattempt even though that score is not the board's canonical score.
+- The canonical board entry currently stores the first qualifying attempt's score. This is the product behavior already encoded by the lock and `isFirstQualifyingAttempt` gate; do not silently change it to best-score or latest-score semantics.
+
+**Frozen contract proposed for implementation (requires regression tests):**
+1. Per-test leaderboard rank is based only on the canonical first qualifying attempt currently written to `Test_Leaderboards/{testId}/Entries/{userId}`. Reattempts remain in private attempt history but do not alter that board entry or receive a rank calculated from their new score.
+2. The authoritative attempt and board entry are committed atomically. The response rank is a live snapshot derived from that committed canonical board score and the exact eligible board population, not from an uncommitted submission score.
+3. If the post-commit rank query fails, preserve the valid score/attempt/board entry and return explicit `rankStatus: "UNAVAILABLE"` with nullable rank/percentile/population fields. Never store zero as a substitute for infrastructure failure.
+4. For a repeat qualifying attempt, return `rankStatus: "NOT_RANKED_REPEAT_ATTEMPT"`; return the canonical first qualifying score/attempt reference if the existing API needs to show the user's board position. Do not fabricate a position for the repeat score.
+5. A retry with the same attempt token and same answers returns the same canonical attempt outcome and does not increment counters, XP, streak, period totals or board rows. Reuse with different answers fails closed.
+6. Rank/percentile are explicitly documented as live snapshots, so later submissions may change them. Stored attempt score and canonical board score remain immutable. A separate immutable historical rank snapshot is not claimed unless a future product decision explicitly adds it.
+
+**Implementation design to validate before coding:**
+- Remove pre-transaction count/rank queries and the catch-to-zero branch.
+- Keep first qualifying attempt, lock, attempt history, XP and board writes within the existing idempotent transaction.
+- After the transaction commits, derive the per-test rank from the canonical board entry's stored score and a bounded eligible-board query. Return an unavailable status on query/index failure without changing the committed score.
+- Make idempotent retry responses use the same rank resolver and canonical board score; never trust stale rank fields on a legacy attempt record.
+- Validate query filters, pagination/aggregation semantics, index requirements and concurrent submissions in Firestore Emulator before marking this defect fixed.
+- Preserve backward compatibility deliberately: introduce nullable rank fields and `rankStatus` additively; inspect Android parsing before changing response shape.
+
+**Next execution order:** finish the shared-file semantic matrix (including MainActivity, NEETViewModel, Firestore rules/indexes and backend submission), add emulator regression tests for concurrent first submissions + repeat attempts + failed rank reads, then implement the per-test contract on this branch. After that proceed subsystem-by-subsystem through scoring parity, AIR/XP, Android integration, migration, PDF provenance, and security. Pass 1 remains IN PROGRESS; Pass 2 remains NOT STARTED as a complete implementation pass.
