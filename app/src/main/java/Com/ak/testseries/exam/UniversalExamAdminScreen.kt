@@ -57,7 +57,9 @@ fun UniversalExamAdminScreen(
     var selectedTab by remember { mutableStateOf(0) } // 0: 20 Exams, 1: Process PDF, 2: Review Questions
     val allExams = remember { mutableStateListOf(*UniversalExamRegistry.getAllExams().toTypedArray()) }
     var selectedExam by remember { mutableStateOf(allExams.firstOrNull { it.verified && it.active } ?: allExams.first()) }
-    var selectedSubjectId by remember { mutableStateOf(selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectId ?: "") }
+    var hasExplicitExamSelection by remember { mutableStateOf(false) }
+    var selectedSubjectId by remember { mutableStateOf("") }
+    var hasExplicitSubjectSelection by remember { mutableStateOf(false) }
 
     var pdfUri by remember { mutableStateOf<Uri?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
@@ -135,17 +137,32 @@ fun UniversalExamAdminScreen(
                 1 -> ProcessPdfTab(
                     exams = allExams.filter { it.active && it.verified },
                     selectedExam = selectedExam,
+                    hasExplicitExamSelection = hasExplicitExamSelection,
                     onSelectExam = {
                         selectedExam = it
-                        selectedSubjectId = it.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectId ?: ""
+                        hasExplicitExamSelection = true
+                        selectedSubjectId = ""
+                        hasExplicitSubjectSelection = false
                     },
                     selectedSubjectId = selectedSubjectId,
-                    onSelectSubject = { selectedSubjectId = it },
+                    hasExplicitSubjectSelection = hasExplicitSubjectSelection,
+                    onSelectSubject = {
+                        selectedSubjectId = it
+                        hasExplicitSubjectSelection = true
+                    },
                     pdfUri = pdfUri,
                     onPickPdf = { pdfPickerLauncher.launch("application/pdf") },
                     isProcessing = isProcessing,
                     progressStatus = progressStatus,
                     onStartProcessing = {
+                        if (!hasExplicitExamSelection) {
+                            Toast.makeText(context, "Select the target exam explicitly before processing this PDF.", Toast.LENGTH_LONG).show()
+                            return@ProcessPdfTab
+                        }
+                        if (!hasExplicitSubjectSelection || selectedSubjectId.isBlank()) {
+                            Toast.makeText(context, "Select the exact subject explicitly before processing this PDF.", Toast.LENGTH_LONG).show()
+                            return@ProcessPdfTab
+                        }
                         if (!isAiEnabled) {
                             Toast.makeText(context, "AI processing is disabled by Admin (Global Killswitch active).", Toast.LENGTH_LONG).show()
                             return@ProcessPdfTab
@@ -344,8 +361,10 @@ fun ExamListTab(
 fun ProcessPdfTab(
     exams: List<ExamConfig>,
     selectedExam: ExamConfig,
+    hasExplicitExamSelection: Boolean,
     onSelectExam: (ExamConfig) -> Unit,
     selectedSubjectId: String,
+    hasExplicitSubjectSelection: Boolean,
     onSelectSubject: (String) -> Unit,
     pdfUri: Uri?,
     onPickPdf: () -> Unit,
@@ -363,7 +382,7 @@ fun ProcessPdfTab(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(exams) { exam ->
                     FilterChip(
-                        selected = exam.examId == selectedExam.examId,
+                        selected = hasExplicitExamSelection && exam.examId == selectedExam.examId,
                         onClick = { onSelectExam(exam) },
                         label = { Text(exam.shortName) }
                     )
@@ -378,7 +397,7 @@ fun ProcessPdfTab(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(subjects) { subj ->
                     FilterChip(
-                        selected = subj.subjectId == selectedSubjectId,
+                        selected = hasExplicitSubjectSelection && subj.subjectId == selectedSubjectId,
                         onClick = { onSelectSubject(subj.subjectId) },
                         label = { Text(subj.subjectName) }
                     )
