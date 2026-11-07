@@ -149,6 +149,16 @@ test("JEE Main Paper 1 numerical answer keys must be integers", () => {
   assert.equal(invalid.maxScore, 4);
 });
 
+test("direct scoring rejects missing or duplicate question IDs", () => {
+  assert.throws(() => evaluateTestAttempt("NEET UG", [
+    { id: "duplicate", correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" },
+    { id: "duplicate", correctAnswer: "B", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" }
+  ], {}, 10), { code: "invalid-argument" });
+  assert.throws(() => evaluateTestAttempt("NEET UG", [
+    { correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" }
+  ], {}, 10), { code: "invalid-argument" });
+});
+
 test("explicit SKIPPED answers are counted as unanswered", () => {
   const result = evaluateTestAttempt("NEET UG", [
     { id: "skip", correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" }
