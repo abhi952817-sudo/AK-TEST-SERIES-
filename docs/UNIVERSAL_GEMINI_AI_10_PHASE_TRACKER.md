@@ -41,7 +41,7 @@ Status vocabulary: NOT_STARTED | IN_PROGRESS | PARTIAL | BLOCKED | VERIFIED | CO
 | GEM-008 | P1 | Prompt construction is duplicated outside UniversalAIContext. | OPEN |
 | GEM-009 | P1 | Student API key verify/connect/disconnect and rotation reminder not found. | OPEN |
 | GEM-010 | P1 | Retry, model fallback, errors and usage metering duplicated/inconsistent. | OPEN |
-| GEM-011 | P1 | Strict JSON/schema/semantic validation gate before persistence not established. | OPEN |
+| GEM-011 | P1 | Strict JSON/schema/semantic validation gate before persistence not established. | CLOSED on feature branch for structural/config validation; semantic correctness still needs human review. |
 | GEM-012 | P1 | Durable per-question source page provenance not verified. | OPEN |
 | GEM-013 | P1 | ExamConfig and ExamConfiguration coexist; active usage and migration compatibility need inventory. | OPEN |
 | GEM-014 | P1 | Server-enforced user/key quota, token metering and abuse controls unverified. | OPEN |
@@ -64,8 +64,8 @@ For each phase, append:
 ## Supplemental audit update — 2026-11-08
 - Phase 7: Existing `generateTestFromPdf()` -> `saveGeneratedTest()` -> Room `TestEntity`/`QuestionEntity` path is present. Full Test Player/result E2E remains unverified.
 - Phase 8: Existing student-public `Under Review` state, Admin review list, Admin-only `publishReviewedTest()`, public answer-key stripping and private answer-key storage were found. Preserve these. Reject/correction and end-to-end security tests remain open.
-- GEM-015 | P0 | `saveGeneratedTest()` silently supplies generic placeholder question/option text when generated JSON fields are missing; add strict schema and semantic validation before persistence. | OPEN
-- GEM-016 | P1 | Student generation accepts a non-empty aggregate even if some chunks failed or expected question count was not met; require explicit partial-result state and owner decision before save. | OPEN
+- GEM-015 | P0 | `saveGeneratedTest()` silently supplies generic placeholder question/option text when generated JSON fields are missing. | CLOSED on feature branch: strict final validation rejects missing/placeholder question/options and unknown exam/section before persistence.
+- GEM-016 | P1 | Student generation accepts a non-empty aggregate even if some chunks failed or expected question count was not met. | CLOSED on feature branch: rejected chunks and count mismatch block save; save failure no longer reports Success.
 - CI baseline on source base `9b105e9e7c614d615becb99a72b3dc5e50799e05`: run `42176925903`; backend tests PASS, Firestore rules tests PASS, Android unit tests FAIL (299 tests, one failure: `CrashResilienceTest > classMethod`, `UnsupportedOperationException` at `DefaultSdkProvider.java:170`). This failure predates Gemini branch changes and must be isolated without weakening tests.
 - Phase 1 remains IN_PROGRESS. No code implementation changes have been made yet; only audit documentation is committed.
 
@@ -92,8 +92,8 @@ Implementation branch commits:
 - Phase 1: IN_PROGRESS (legacy prompt locations found and redirected; full repository-wide Gemini call-site inventory remains open).
 
 ### Remaining blockers / additional bugs
-- GEM-017 | P0 | Student/Admin response parsers do not yet consistently enforce the new response envelope, task-level status, answerStatus, sourceAnswer, needsReview and provenance fields before persistence. | OPEN
-- GEM-018 | P0 | `NEETViewModel.generateTestFromPdf()` still has a silent NEET fallback for unknown target exam; exam recognition prompt now refuses guessing, but caller/selection UX must be corrected before Phase 5 completion. | OPEN
+- GEM-017 | P0 | Student/Admin response parsers do not consistently enforce response envelope, answerStatus, sourceAnswer, needsReview and provenance before persistence. | CLOSED on feature branch: shared fail-closed validator is wired to both flows; metadata is retained.
+- GEM-018 | P0 | `NEETViewModel.generateTestFromPdf()` silently fell back to NEET for unknown target exam. | CLOSED on feature branch: both chunk paths and final save reject unknown exams; no NEET substitution.
 - GEM-019 | P1 | Prompt instructions reduce risk but cannot mathematically guarantee zero model errors; deterministic schema/answer validation and human review gates must remain authoritative. | OPEN
 - Student-owned API-key connect/verify/storage is still not implemented in the inspected Student flow. The current ViewModel key selector still reads BuildConfig primary + Admin secondary preferences. Phase 3 remains NOT_STARTED. Prompt reuse is ready at the builder boundary, but Student-key execution is not yet wired.
 
@@ -108,3 +108,33 @@ Implementation branch commits:
 - Main HEAD at verification: `d2feae47f908b705209c27b8e61e624f94c400d7` (unchanged).
 - Files verified present on feature branch: updated `UniversalAIContext.kt`, `UniversalPdfPipeline.kt`, `NEETViewModel.kt`, `GeminiPdfExtractor.kt`, and new `UniversalAIContextTest.kt`.
 - GitHub commit-status endpoint returned no status entries; workflow-run lookup returned no runs for this commit. Therefore tests are pending, not passed.
+
+
+## Strict response validation implementation — 2026-11-08
+
+### Implemented on the feature branch
+- Added fail-closed Gemini response envelope validation: only JSON objects with explicit task status and a questions array are accepted; malformed/non-array task errors and non-empty task errors reject the batch.
+- Per-question checks require verified answer status, explicit `needsReview=false`, valid provenance, confidence >= 70, non-empty verification summary, configured section identity and marks, valid question type, non-placeholder options and valid answer labels.
+- `KEY_EXTRACTED` requires a preserved `sourceAnswer`; any provided source key must match the resolved answer after order-independent label normalization and numeric normalization. Only `MCQ_MULTIPLE` may contain multiple correct labels.
+- Admin parsing validates exam ID, exact configured section name/type, exact marks and exact option labels/count. Unknown section/scoring is not replaced with generic Section A or +4/-1.
+- Student parsing validates against the selected `ExamConfig`; the raw-text chunk path no longer silently substitutes NEET for an unknown exam.
+- Final Student persistence repeats exam/section/type/marks/options checks. `saveGeneratedTest` now returns success/failure so a failed save cannot be overwritten by a later Success state.
+- Student persisted question JSON now retains exam/subject/section identity, marks, answer status/confidence, source key, provenance, verification summary, source page range and review reasons.
+- Admin `UniversalQuestionModel` now carries provenance, answer status/confidence, verification summary, source page end, review flag and review reasons. Deterministic validation failures escalate the item to review.
+- Admin source page is no longer fabricated from batch index. Unknown source page is represented as unavailable.
+- Added validator tests for malformed task envelopes, source-key conflicts, missing extracted keys, multiple-answer rules, exact option counts/order and exam/scoring identity.
+
+### Latest implementation commits
+- `b594fb6` — reject conflicting source keys, enforce exact question schema.
+- `cbc79b8` — fail closed on unknown exams and failed Student persistence.
+- `70174a2` — add strict validator regression tests.
+- `b2137fb` and `19a8f54` — enforce exact option labels and task-level errors array.
+- `a07406c` — persist Student verification and source provenance metadata.
+- `5509085` — add selected-exam configuration tests.
+- `5269485`, `35be155`, `f51af4e` — persist Admin provenance/verification metadata and escalate deterministic review failures.
+
+### Verification still pending
+- GitHub Actions workflow `Universal Gemini AI Validation` is running on feature branch commits. Latest observed run: `42476544073` at `f51af4efbc6abd5bf03931355db012e3403953c5`; status was `in_progress` at the last check.
+- Do not mark tests/build as passed until the latest head's workflow completes successfully.
+- Academic answer correctness cannot be guaranteed by schema validation alone. Source-key conflicts are rejected, but independently generated answers still require evidence-based verification and human review for high-stakes/public tests.
+- Student-owned API key connection, encrypted key storage, direct PDF bytes/File API and full end-to-end release tests remain incomplete.
