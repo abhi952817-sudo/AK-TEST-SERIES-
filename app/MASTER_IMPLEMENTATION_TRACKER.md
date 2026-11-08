@@ -691,3 +691,13 @@ The attempt-security review was extended beyond the initial idempotency issue:
 
 **Status:** SOURCE INTEGRATION DONE; BUILD / RUNTIME TESTS NOT RUN; VISION HANDOFF OPEN.  
 **Next:** compile and run Android tests, verify representative selectable-text PDFs (NEET/JEE/UPSC/SSC/Banking/Board layouts), verify mixed text+diagram pages and page completeness, then implement diagram-to-question mapping. Gemini prompting remains intentionally deferred.
+
+### PDF extraction integration addendum — 2026-11-08
+
+- The shared extractor now also consumes the existing per-page `StructuredQuestion` output and calls `LocalPdfImageExtractor.mapCandidatesToQuestions()`.
+- It returns page-aware `questionImageMappings` alongside diagram candidate paths. Student ViewModel and Universal Admin screen retain those mappings in their existing state; Admin status reports how many candidates were mapped.
+- This is deterministic local association only. Ambiguous/unassigned candidates remain review items; it is not proof of semantic diagram understanding and is not a Gemini Vision handoff.
+- Follow-up commits:
+  - `bfdf4e5cd7006e2eb44e2dfb7e35aa3ef3722606` — local question/image mapping included in shared extraction result.
+  - `ac0526145e25ddaca56907a88b565e838895cf52` — student flow retains question/image mappings.
+  - `4d261d3ece3c63e57d5bd6f0457cf5f80b310010` — Admin flow retains question/image mappings.
