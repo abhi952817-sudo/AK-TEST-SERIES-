@@ -899,3 +899,10 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Added a backend Node.js unit-test job (`node --test *.test.js`) alongside Android CI. Android CI uses JDK 21 for Robolectric SDK 36 and cancels stale same-branch runs.
 - Commits: `966b9bd6cf523667111ccbf08b71fd152ae3c542`, `f266a4aed7331e8adbd22f9b7f31d3eb4ebadd7b`, `3f5e8e3bd0500ac2dbb4d9c94d1936c8e055be61`, `c4165824312eea1fd57f2e1a7fe1ec5ef7e284df`, `1d0e86595121e08a9f07787474c404f19f0ec30f`, `4384c2ace2ab6b440057c60097a3751f8b9b7a01`.
 - Latest CI results are pending. Do not mark runtime verification complete until latest branch-head Android tests, APK build, and backend unit tests report success.
+
+
+### Native Gemini PDF client integration test
+- Added an injectable API base URL to `GeminiNativePdfClient` while retaining Google's production endpoint as the default.
+- Added a Robolectric HTTP integration test using a local ephemeral server. It verifies the actual request method/body path, per-user API key header, universal system instruction, prompt, PDF MIME type, and byte-for-byte original PDF Base64 payload, then verifies response extraction. It does not require or expose a real Gemini key.
+- Commits: `abd40bd810311912efcb42555ab2fa3bd7c5be8d` (injectable test endpoint), `5430008b14799979cdcfbe3a76bd0a34805092da` (HTTP integration test).
+- This verifies client request construction only; live Google API behavior still requires a valid student key and actual device/network session.
