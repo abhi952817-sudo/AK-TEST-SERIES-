@@ -78,7 +78,7 @@ object UniversalPdfPipeline {
             context = appContext,
             pdfUri = pdfUri,
             testId = "universal_${System.currentTimeMillis()}",
-            maxPages = 200
+            maxPages = 50
         )
         val compactMarkdown = documentExtraction.compactMarkdown
         onDocumentExtracted(documentExtraction)
