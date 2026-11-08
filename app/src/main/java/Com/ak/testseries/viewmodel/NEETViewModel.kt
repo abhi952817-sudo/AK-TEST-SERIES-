@@ -5313,29 +5313,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         } else {
                             extractedText.take(2500)
                         }
-                        val prompt = """
-                            You are an AI exam analyzer for Indian competitive examinations.
-                            Local parsing failed to detect structured questions automatically. Please analyze the following text from the opening page(s) of a test paper PDF, carefully align questions and their corresponding options (A, B, C, D), and identify the following metadata fields:
-                            Supported exams: $examNamesList.
-                            
-                            Identify and extract:
-                            1. targetExam: Match to one of the supported exams: $examNamesList. If not clearly specified, deduce from subjects/questions or default to '$currentTargetExam'.
-                            2. title: A descriptive test title.
-                            3. institute: Name of institute or source if present.
-                            4. subject: Name of primary subject or 'Full Syllabus'.
-                            5. classLevel: '11th', '12th', 'Dropper', 'Graduate', or 'All'.
-                            6. testType: 'Single Chapter', 'Multi-Chapter', or 'Full Syllabus'.
-                            7. chapter: Specific syllabus chapters/topics covered or 'Full Syllabus'.
-                            8. timerMinutes: Duration in minutes.
-                            9. questionsCount: Estimated total questions.
-                            10. totalMarks: Maximum total marks.
-                            11. language: 'English', 'Hindi', or 'Bilingual'.
-                            
-                            Text content:
-                            ${openingPagesSnippet.take(2500)}
-                            
-                            Return your response STRICTLY as a valid JSON object with keys: targetExam, title, institute, subject, classLevel, testType, chapter, timerMinutes, questionsCount, totalMarks, language, and confidence (0-100). Do not include any markdown fences or explanation.
-                        """.trimIndent()
+                        val prompt = Com.ak.testseries.exam.UniversalAIContext.buildExamRecognitionPrompt(
+                            supportedExamNames = registeredExams.map { it.examName },
+                            selectedExamName = currentTargetExam,
+                            sourceText = openingPagesSnippet.take(2500)
+                        )
                         
                         val responseJson = callGeminiApiForQuestionsWithFallback(prompt)
                         if (responseJson != null) {
