@@ -25,21 +25,8 @@ object GeminiPdfExtractor {
             // Note: Since raw public URLs might need specific downloading to pass as base64, 
             // a Cloud Function is usually best. But we will simulate the extraction structure here for MVP.
             
-            val prompt = """
-                You are an expert exam question extractor for Indian competitive exams.
-                Generate or extract exactly $totalQuestionsExpected multiple-choice questions for the test in strict JSON format.
-                
-                For each question object:
-                - questionText (String)
-                - optionA (String)
-                - optionB (String)
-                - optionC (String)
-                - optionD (String)
-                - correctOption (String: "A", "B", "C", or "D")
-                - explanation (String)
-                
-                Return ONLY a JSON array of objects without markdown fences.
-            """.trimIndent()
+            val prompt = Com.ak.testseries.exam.UniversalAIContext
+                .buildLegacyPdfExtractionPrompt(totalQuestionsExpected)
             
             val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
             var responseText: String? = null
