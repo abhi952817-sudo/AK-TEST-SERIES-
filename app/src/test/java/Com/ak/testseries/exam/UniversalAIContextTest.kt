@@ -85,6 +85,25 @@ class UniversalAIContextTest {
     }
 
     @Test
+    fun allSubjectsPromptUsesCanonicalSubjectIdsAndConfiguredSections() {
+        val prompt = UniversalAIContext.buildDynamicGenerationPrompt(
+            examConfig = neet,
+            subject = "All Subjects",
+            testTitle = "NEET Full Syllabus",
+            compactMarkdownPayload = "Biology, Physics and Chemistry syllabus.",
+            currentChunkSize = 5,
+            startQ = 1,
+            endQ = 5,
+            totalQuestions = 180
+        )
+
+        assertTrue(prompt.contains("canonical subjectId"))
+        assertTrue(prompt.contains("subjectId=physics"))
+        assertTrue(prompt.contains("subjectId=chemistry"))
+        assertFalse(prompt.contains("\"subjectId\": \"All Subjects\""))
+    }
+
+    @Test
     fun unknownSubjectDoesNotBorrowAnotherSubjectsSections() {
         val sections = UniversalAIContext.getApplicableSections(neet, "not-a-real-subject")
         assertTrue("Unknown subject must not silently inherit the first subject's scoring rules", sections.isEmpty())
