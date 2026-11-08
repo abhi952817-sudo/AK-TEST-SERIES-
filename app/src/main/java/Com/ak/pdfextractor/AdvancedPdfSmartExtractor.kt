@@ -625,7 +625,7 @@ data class ImageExtractionOptions(val minImageWidthPx: Int = 40, val minImageHei
 
 class AdvancedPdfSmartExtractor(private val context: Context) {
 
-    suspend fun processPdfUri(uri: Uri, languageCode: String, options: ImageExtractionOptions = ImageExtractionOptions()): List<PdfPageResult> = withContext(Dispatchers.IO) {
+    suspend fun processPdfUri(uri: Uri, languageCode: String, options: ImageExtractionOptions = ImageExtractionOptions(), maxPages: Int = 200): List<PdfPageResult> = withContext(Dispatchers.IO) {
         val results = mutableListOf<PdfPageResult>()
         val tempFile = createTempPdfFile(uri) ?: return@withContext emptyList()
 
@@ -636,7 +636,7 @@ class AdvancedPdfSmartExtractor(private val context: Context) {
             val pfd = ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_ONLY)
             val pdfRenderer = PdfRenderer(pfd)
             val pageCount = pdfRenderer.pageCount
-            val pagesToProcess = minOf(pageCount, 50) // Safely process up to 50 pages using sliding batching
+            val pagesToProcess = minOf(pageCount, maxPages.coerceAtLeast(1)) // Caller validates completeness before accepting results
             val slidingBatchSize = 5
 
             for (batchStart in 0 until pagesToProcess step slidingBatchSize) {
