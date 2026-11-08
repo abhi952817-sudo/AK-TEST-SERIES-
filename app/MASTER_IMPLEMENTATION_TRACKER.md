@@ -876,3 +876,17 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Commits: `802207a1e2f1a3dc6d827482282174b22797237b` (private defaults / remove simulated report); `63a68b039fa91a5a7e984d8104a844151f6f4e84` (native PDF client); `311f8dfc1d38004caf5c420ed8db9ec34bc06826` (Student BYOK native PDF route).
 - Verification: source committed only. Android compilation, JVM tests, device/network integration, real PDF extraction, and Firestore private-vault access have NOT yet been executed for these commits. Do not mark this milestone complete until those checks pass.
 - Remaining: actual animated tutorial GIF asset is not yet integrated; native Compose tutorial remains distinct from a GIF. Review legacy `GeminiPdfExtractor.processPdfWithGemini()` and confirm no hidden/external integration before deprecating it. Confirm `saveGeneratedTest` writes owner-scoped private records and that admin review/publish flow is server-authorized.
+
+
+## Runtime verification remediation — 2026-11-08
+- First CI evidence for commit `3edfcd714d493a63251ad269c577a74750457dab`: Android production and unit-test Kotlin compilation completed; `:app:testDebugUnitTest` ran 310 tests and failed 8. The failure report identified:
+  - Robolectric Android SDK 36 requires Java 21, while the workflow selected Java 17.
+  - Several question-validation tests expected APPROVED despite no independent source answer; policy correctly returns NEEDS_REVIEW.
+  - Registry section scoring needed exact configured section values to take precedence over rounded exam-level overrides.
+  - Non-finite textual/overflow numeric comparisons needed rejection.
+  - Unknown exam identifiers containing incidental digits must not be treated as Class 11/12.
+  - JSON parser unit tests require Robolectric rather than the plain Android mockable jar.
+- Remediation commits on this branch include `399d3bcf6165018b8f1627cd0f265bdd7baf0266`, `914bc9053dedb1f1e889e2f680335431d0080212`, `62cadce7ef9a86d9cf5a96b276f21f97ff296b4a`, `b9f8c6aac74fa43bdaef7c540416060a78b84ccc`, `f18bd2169c44966f1ac34108d9e52fd5e222b01c`, `7f8727125c754e5ef36791ff576c45f37101fa83`, `abfe46b56391a68416e6bd670ca6d81ef2608e36`, `1c5271832a2da48f0d5db54fed0eb0bd83580333`, and `1ec072efc67b21751de9679167748fcc1614512a`.
+- Added `GeneratedQuestionAnswerValidator` and unit tests for single-correct MCQ, multi-correct MSQ, 4/5-option exam patterns, finite NAT answers, and missing-option position integrity. Student PDF save validation now uses the selected exam's configured option count rather than assuming every exam uses four options.
+- Follow-up commits: `966b9bd6cf523667111ccbf08b71fd152ae3c542`, `f266a4aed7331e8adbd22f9b7f31d3eb4ebadd7b`, `3f5e8e3bd0500ac2dbb4d9c94d1936c8e055be61`.
+- CI status must be read from the latest branch-head run before marking this stage complete. Earlier runs are expected to remain failed because they target commits before remediation. A real student-owned Gemini key, real source PDF, physical/emulator device, and Firebase test environment are still required for end-to-end API/Firestore verification. No credentials or production deployment are used in CI.
