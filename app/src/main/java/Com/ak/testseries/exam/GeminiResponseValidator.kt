@@ -44,6 +44,53 @@ object GeminiResponseValidator {
         return Report(accepted, rejected, errors, status)
     }
 
+    fun parseResponse(raw: String, examConfig: ExamConfig): Report {
+        val base = parseResponse(raw, minimumMcqOptions = 2)
+        if (base.questions.length() == 0 || base.errors.isNotEmpty()) return base
+        val sections = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }.flatMap { it.sections }
+        val configErrors = mutableListOf<String>()
+        for (index in 0 until base.questions.length()) {
+            val item = base.questions.getJSONObject(index)
+            val questionExamId = item.optString("examId", "")
+            if (questionExamId != examConfig.examId) {
+                configErrors.add("Question ${index + 1}: examId does not match the selected exam configuration.")
+                continue
+            }
+            val sectionId = item.optString("sectionId", "")
+            val section = sections.firstOrNull { it.sectionId == sectionId }
+            if (section == null) {
+                configErrors.add("Question ${index + 1}: sectionId is not present in the selected exam configuration.")
+                continue
+            }
+            if (item.optString("sectionName", "") != section.sectionName) {
+                configErrors.add("Question ${index + 1}: sectionName does not match configured section.")
+                continue
+            }
+            if (item.optString("questionType", "") != section.questionType.name) {
+                configErrors.add("Question ${index + 1}: questionType does not match configured section type.")
+                continue
+            }
+            val positive = item.optDouble("positiveMarks", Double.NaN)
+            val negative = item.optDouble("negativeMarks", Double.NaN)
+            if (!positive.isFinite() || !negative.isFinite() ||
+                kotlin.math.abs(positive - section.positiveMarks) > 0.000001 ||
+                kotlin.math.abs(negative - section.negativeMarks) > 0.000001
+            ) {
+                configErrors.add("Question ${index + 1}: positive/negative marks do not match configured section scoring.")
+                continue
+            }
+            val questionError = validateQuestion(item, section.optionsCount)
+            if (questionError != null) configErrors.add("Question ${index + 1}: $questionError")
+        }
+        if (configErrors.isEmpty()) return base
+        return Report(
+            questions = JSONArray(),
+            rejectedCount = base.rejectedCount + configErrors.size,
+            errors = base.errors + configErrors,
+            taskStatus = base.taskStatus
+        )
+    }
+
     fun validateQuestion(item: JSONObject, minimumMcqOptions: Int = 4): String? {
         val question = item.optString("questionTextEn", item.optString("questionText", "")).trim()
         if (question.isBlank() || question.equals("Question Text", true) || question.length < 10) return "Question text is missing, placeholder, or too short."
