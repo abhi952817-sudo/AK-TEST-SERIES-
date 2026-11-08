@@ -130,7 +130,7 @@ class OfflineMarkdownQuestionParserTest {
         assertEquals(1, models.size)
         assertEquals("The Indian Constitution was adopted on:", models[0].questionText)
         assertEquals("B", models[0].correctAnswer)
-        assertEquals("Indian Polity", models[0].subjectId)
+        assertEquals("polity", models[0].subjectId)
         assertEquals(ValidationStatus.NEEDS_REVIEW, models[0].validationStatus)
         assertTrue(models[0].needsReview)
         assertEquals("KEY_EXTRACTED", models[0].answerStatus)
