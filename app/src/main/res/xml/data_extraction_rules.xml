@@ -20,6 +20,8 @@
         <exclude domain="sharedpref" path="test_progress.xml" />
         <exclude domain="sharedpref" path="SyllabusProgress.xml" />
         <exclude domain="sharedpref" path="ak_google_drive_backup_prefs.xml" />
+        <!-- Device-bound AndroidKeyStore ciphertext must not be restored to another device -->
+        <exclude domain="sharedpref" path="student_gemini_keys_v1.xml" />
     </cloud-backup>
     <device-transfer>
         <!-- Exclude raw un-isolated Room database from un-isolated device transfers -->
@@ -39,5 +41,6 @@
         <exclude domain="sharedpref" path="test_progress.xml" />
         <exclude domain="sharedpref" path="SyllabusProgress.xml" />
         <exclude domain="sharedpref" path="ak_google_drive_backup_prefs.xml" />
+        <exclude domain="sharedpref" path="student_gemini_keys_v1.xml" />
     </device-transfer>
 </data-extraction-rules>
