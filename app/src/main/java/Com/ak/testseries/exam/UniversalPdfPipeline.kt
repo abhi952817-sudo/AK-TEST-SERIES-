@@ -40,7 +40,8 @@ object UniversalPdfPipeline {
                 return sec
             }
         }
-        return sections.lastOrNull()
+        // Never map overflow questions to the last configured section.
+        return null
     }
 
     suspend fun processPdfForExam(
@@ -165,6 +166,7 @@ object UniversalPdfPipeline {
                             stageId = stageId,
                             subjectId = subjectId,
                             batchIndex = batchIndex,
+                            batchSize = batchSize,
                             existingHashes = existingHashes,
                             actualModel = apiResult.modelVersion,
                             actualSource = source
@@ -212,6 +214,7 @@ object UniversalPdfPipeline {
                                     stageId = stageId,
                                     subjectId = subjectId,
                                     batchIndex = batchIndex,
+                            batchSize = batchSize,
                                     existingHashes = existingHashes,
                                     actualModel = regenResult.modelVersion,
                                     actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
@@ -399,6 +402,7 @@ object UniversalPdfPipeline {
         stageId: String,
         subjectId: String,
         batchIndex: Int,
+        batchSize: Int,
         existingHashes: Map<String, String>,
         actualModel: String = "UNAVAILABLE",
         actualSource: String = "UNAVAILABLE"
@@ -407,7 +411,8 @@ object UniversalPdfPipeline {
         try {
             val responseReport = GeminiResponseValidator.parseResponse(
                 raw = jsonString,
-                examConfig = examConfig
+                examConfig = examConfig,
+                expectedSubjectId = subjectId
             )
             if (!responseReport.isUsable) return emptyList()
             val jsonArray = responseReport.questions
@@ -424,13 +429,17 @@ object UniversalPdfPipeline {
                 val optE = item.optString("optionEEn").ifBlank { item.optString("optionE") }
                 val options = listOf(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
-                val qIndexInBatch = (batchIndex * 10) + i + 1
-                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch)
-                val parsedSecId = item.optString("sectionId").takeIf { it.isNotBlank() && it != "null" } ?: resolvedSection?.sectionId ?: continue
-                val parsedSecName = item.optString("sectionName").takeIf { it.isNotBlank() && it != "null" } ?: resolvedSection?.sectionName ?: continue
-                val parsedPosMarks = if (item.has("positiveMarks") && !item.isNull("positiveMarks")) item.optDouble("positiveMarks", Double.NaN) else resolvedSection?.positiveMarks ?: continue
-                val parsedNegMarks = if (item.has("negativeMarks") && !item.isNull("negativeMarks")) item.optDouble("negativeMarks", Double.NaN) else resolvedSection?.negativeMarks ?: continue
-                if (!parsedPosMarks.isFinite() || !parsedNegMarks.isFinite() || parsedPosMarks < 0.0 || parsedNegMarks < 0.0) continue
+                val qIndexInBatch = (batchIndex * batchSize) + i + 1
+                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch) ?: continue
+                val parsedSecId = item.optString("sectionId")
+                val parsedSecName = item.optString("sectionName")
+                if (parsedSecId != resolvedSection.sectionId || parsedSecName != resolvedSection.sectionName) continue
+                val parsedPosMarks = item.optDouble("positiveMarks", Double.NaN)
+                val parsedNegMarks = item.optDouble("negativeMarks", Double.NaN)
+                if (!parsedPosMarks.isFinite() || !parsedNegMarks.isFinite() ||
+                    kotlin.math.abs(parsedPosMarks - resolvedSection.positiveMarks) > 0.000001 ||
+                    kotlin.math.abs(parsedNegMarks - resolvedSection.negativeMarks) > 0.000001
+                ) continue
 
                 val diffStr = item.optString("difficulty", "MEDIUM").uppercase()
                 val diffLevel = when {
