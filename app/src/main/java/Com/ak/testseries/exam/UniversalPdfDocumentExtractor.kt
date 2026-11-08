@@ -8,6 +8,7 @@ import Com.ak.pdfextractor.PdfPageResult
 import Com.ak.testseries.utils.CompactMarkdownFormatter
 import Com.ak.testseries.utils.DiagramCandidate
 import Com.ak.testseries.utils.LocalPdfImageExtractor
+import Com.ak.testseries.utils.QuestionImageMapping
 import Com.ak.testseries.utils.PdfCropper
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -28,6 +29,7 @@ object UniversalPdfDocumentExtractor {
         val fullText: String,
         val compactMarkdown: String,
         val diagramCandidates: List<DiagramCandidate>,
+        val questionImageMappings: Map<Int, QuestionImageMapping>,
         val diagramExtractionError: String? = null
     ) {
         val diagramPaths: List<String>
@@ -88,6 +90,14 @@ object UniversalPdfDocumentExtractor {
                 diagramError = error.message ?: error::class.java.simpleName
             }
 
+            val structuredQuestions = pageResults.flatMap { it.structuredQuestions }
+            val questionImageMappings = LocalPdfImageExtractor.mapCandidatesToQuestions(
+                questions = structuredQuestions.map { question ->
+                    Triple(question.questionNumber, question.questionText, question.pageNumber)
+                },
+                candidates = diagrams
+            )
+
             return Result(
                 sourcePageCount = sourcePageCount,
                 extractedPageCount = pageResults.size,
@@ -95,6 +105,7 @@ object UniversalPdfDocumentExtractor {
                 fullText = fullText,
                 compactMarkdown = compactMarkdown,
                 diagramCandidates = diagrams,
+                questionImageMappings = questionImageMappings,
                 diagramExtractionError = diagramError
             )
         } finally {
