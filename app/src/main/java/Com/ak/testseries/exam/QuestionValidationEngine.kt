@@ -216,13 +216,22 @@ object QuestionValidationEngine {
             } else {
                 listOf("A", "B", "C", "D", "1", "2", "3", "4")
             }
-            if (normalizedAnswer !in validAnswers && !options.any { it.trim().equals(trimmedAnswer, ignoreCase = true) }) {
+            val answerLabels = normalizedAnswer.split(",", ";").map { it.trim() }.filter { it.isNotBlank() }
+            val isMultipleCorrect = questionType == QuestionType.MCQ_MULTIPLE
+            val labelsAreValid = answerLabels.isNotEmpty() &&
+                answerLabels.all { it in validAnswers } &&
+                answerLabels.distinct().size == answerLabels.size
+            val isOptionTextAnswer = answerLabels.size == 1 &&
+                options.any { it.trim().equals(trimmedAnswer, ignoreCase = true) }
+            if (isMultipleCorrect) {
+                if (!labelsAreValid) {
+                    issues.add("⚠ Multiple-correct answer must contain unique valid option labels ($validAnswers)")
+                    answerConfidence = 0
+                    hasHardFailure = true
+                }
+            } else if (answerLabels.size != 1 || (!labelsAreValid && !isOptionTextAnswer)) {
                 issues.add("⚠ Answer conflict detected: Answer '$trimmedAnswer' does not match permitted options ($validAnswers)")
                 answerConfidence = 0
-                hasHardFailure = true
-            } else if (normalizedAnswer.contains("MULTIPLE") || normalizedAnswer.contains(",")) {
-                issues.add("⚠ Multiple options may be correct")
-                answerConfidence = 50
                 hasHardFailure = true
             }
         }
@@ -230,7 +239,9 @@ object QuestionValidationEngine {
         // 4.1 Golden Answer / Reference Check
         if (!sourceAnswer.isNullOrEmpty()) {
             val normalizedSource = sourceAnswer.trim().uppercase()
-            if (normalizedAnswer != normalizedSource && normalizedSource != "UNVERIFIED") {
+            val normalizedAnswerSet = normalizedAnswer.split(",", ";").map { it.trim() }.filter { it.isNotBlank() }.sorted()
+            val normalizedSourceSet = normalizedSource.split(",", ";").map { it.trim() }.filter { it.isNotBlank() }.sorted()
+            if (normalizedAnswerSet != normalizedSourceSet && normalizedSource != "UNVERIFIED") {
                 issues.add("⚠ Answer conflict detected: AI answer ($normalizedAnswer) != Source answer ($normalizedSource)")
                 answerConfidence = 0
                 hasHardFailure = true
