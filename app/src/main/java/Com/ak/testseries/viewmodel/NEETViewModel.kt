@@ -4973,86 +4973,60 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             activePdfSession.value = session
             val persistentPdfFile = java.io.File(session.filePath)
 
-            // 1. Extract text from persistent PDF file locally in page chunks using AdvancedPdfSmartExtractor
-            withContext(Dispatchers.IO) {
-                db.pdfSessionDao().updateStatus(session.sessionId, Com.ak.testseries.data.PdfSessionStatus.PARSING.name)
-            }
-
-            var (pdfPages, pdfText) = withContext(Dispatchers.IO) {
-                try {
-                    val smartExtractor = com.ak.pdfextractor.AdvancedPdfSmartExtractor(context)
-                    val pages = smartExtractor.extractStreamPagesText(persistentPdfFile)
-                    val fullText = if (pages.isNotEmpty()) pages.joinToString("\n") else smartExtractor.extractAllStreamText(persistentPdfFile)
-                    Pair(pages, fullText)
-                } catch (e: Exception) {
-                    Pair(emptyList<String>(), "")
-                }
-            }
-
-            // Smart Two-Tier Fallback: If raw stream text is empty/scanned, invoke Tier 2 On-Device ML Kit OCR
-            if (pdfText.isBlank() || pdfText.length < 30) {
-                aiGenStatusMessage.value = "Scanned PDF detected: Running on-device ML Kit OCR..."
-                val ocrResults = withContext(Dispatchers.IO) {
-                    try {
-                        val smartExtractor = com.ak.pdfextractor.AdvancedPdfSmartExtractor(context)
-                        smartExtractor.processPdfUri(android.net.Uri.fromFile(persistentPdfFile), "eng")
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
-                }
-                val ocrText = ocrResults.joinToString("\n\n") { it.fullText }
-                if (ocrText.isNotBlank()) {
-                    pdfText = ocrText
-                    pdfPages = ocrResults.map { it.fullText }
-                }
-            }
-
-            if (pdfText.isBlank()) {
-                val errorMsg = "PDF से readable text नहीं निकाला जा सका। यह scanned/image-only या unsupported PDF हो सकती है।"
+            // Shared extraction path for Student and Admin: page text plus local diagram/image crops.
+            val extractionResult = try {
                 withContext(Dispatchers.IO) {
-                    db.pdfSessionDao().updateError(session.sessionId, errorMsg, Com.ak.testseries.data.PdfSessionStatus.FAILED.name)
+                    Com.ak.testseries.exam.UniversalPdfDocumentExtractor.extract(
+                        context = context,
+                        pdfUri = android.net.Uri.fromFile(persistentPdfFile),
+                        testId = session.sessionId,
+                        maxPages = 200,
+                        languageCode = "eng"
+                    )
+                }
+            } catch (error: Exception) {
+                val errorMsg = "PDF extraction failed without accepting partial content: ${error.message ?: error::class.java.simpleName}"
+                withContext(Dispatchers.IO) {
+                    db.pdfSessionDao().updateError(
+                        session.sessionId,
+                        errorMsg,
+                        Com.ak.testseries.data.PdfSessionStatus.FAILED.name
+                    )
                 }
                 _pdfAnalysisState.value = PdfAnalysisState.Error(errorMsg)
                 aiGenStatusMessage.value = errorMsg
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
-                }
                 return@launch
             }
 
+            val pdfPages = extractionResult.pageTexts
+            val pdfText = extractionResult.fullText
             lastExtractedPdfPages.value = pdfPages
-            // Format raw text into highly compact, token-efficient Markdown
-            val compactMarkdown = Com.ak.testseries.utils.CompactMarkdownFormatter.formatToCompactMarkdown(pdfText)
+            val compactMarkdown = extractionResult.compactMarkdown
             lastExtractedPdfText.value = compactMarkdown
             val extractedText = compactMarkdown
 
             withContext(Dispatchers.IO) {
-                try {
-                    val sessionDir = Com.ak.testseries.data.pdf.PdfStorageManager.getSessionDirectory(context, session.sessionId)
-                    val mdFile = java.io.File(sessionDir, "source_extracted.md")
-                    mdFile.writeText(compactMarkdown)
-                    val totalP = session.pageCount.coerceAtLeast(pdfPages.size).coerceAtLeast(1)
-                    db.pdfSessionDao().updateProgress(session.sessionId, processedPages = totalP, lastProcessedPage = totalP)
-                    db.pdfSessionDao().updateExtractedPath(session.sessionId, mdFile.absolutePath, Com.ak.testseries.data.PdfSessionStatus.EXTRACTED.name)
-                } catch (_: Exception) {}
+                val sessionDir = Com.ak.testseries.data.pdf.PdfStorageManager.getSessionDirectory(context, session.sessionId)
+                val mdFile = java.io.File(sessionDir, "source_extracted.md")
+                mdFile.writeText(compactMarkdown)
+                db.pdfSessionDao().updateProgress(
+                    session.sessionId,
+                    processedPages = extractionResult.extractedPageCount,
+                    lastProcessedPage = extractionResult.extractedPageCount
+                )
+                db.pdfSessionDao().updateExtractedPath(
+                    session.sessionId,
+                    mdFile.absolutePath,
+                    Com.ak.testseries.data.PdfSessionStatus.EXTRACTED.name
+                )
             }
 
-            // 2. Extract diagrams, formulas, charts & image regions locally (100% Offline via Android PdfRenderer)
-            val extractedDiagrams = withContext(Dispatchers.IO) {
-                try {
-                    Com.ak.testseries.utils.LocalPdfImageExtractor.extractDiagramCandidates(
-                        context = context,
-                        pdfUri = android.net.Uri.fromFile(persistentPdfFile),
-                        testId = "pdf_${System.currentTimeMillis()}",
-                        maxPagesToScan = 30
-                    )
-                } catch (e: Exception) {
-                    emptyList()
-                }
-            }
-            val diagramPaths = extractedDiagrams.map { it.localImagePath }
+            val diagramPaths = extractionResult.diagramPaths
             extractedDiagramPaths.value = diagramPaths
             extractedDiagramCount.value = diagramPaths.size
+            if (extractionResult.diagramExtractionError != null) {
+                aiGenStatusMessage.value = "PDF text extracted; image extraction needs review: ${extractionResult.diagramExtractionError}"
+            }
 
             // Local Question Classification & Automated Workflow Routing
             val localClassification = com.ak.pdfextractor.LocalQuestionClassifier.classifyRawText(extractedText)
