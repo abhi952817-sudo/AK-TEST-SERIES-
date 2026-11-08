@@ -119,8 +119,14 @@ object UniversalAIContext {
     /**
      * Resolves configured sections without silently substituting another subject.
      */
-    fun getApplicableSubjects(examConfig: ExamConfig, subject: String): List<SubjectConfig> {
-        val allSubjects = examConfig.stages.flatMap { stage ->
+    fun getApplicableSubjects(
+        examConfig: ExamConfig,
+        subject: String,
+        stageId: String? = null
+    ): List<SubjectConfig> {
+        val selectedStages = if (stageId.isNullOrBlank()) examConfig.stages.take(1)
+        else examConfig.stages.filter { it.stageId == stageId }
+        val allSubjects = selectedStages.flatMap { stage ->
             stage.papers.flatMap { paper -> paper.subjects }
         }.distinctBy { it.subjectId }
         val clean = subject.trim()
@@ -133,8 +139,8 @@ object UniversalAIContext {
         }
     }
 
-    fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
-        val matchingSubjects = getApplicableSubjects(examConfig, subject)
+    fun getApplicableSections(examConfig: ExamConfig, subject: String, stageId: String? = null): List<SectionConfig> {
+        val matchingSubjects = getApplicableSubjects(examConfig, subject, stageId)
         return if (matchingSubjects.size == 1) matchingSubjects.single().sections else emptyList()
     }
 
@@ -151,12 +157,14 @@ object UniversalAIContext {
         startQ: Int,
         endQ: Int,
         totalQuestions: Int,
-        isExtractionMode: Boolean = false
+        isExtractionMode: Boolean = false,
+        stageId: String? = null
     ): String {
         val systemInstruction = buildSystemInstruction(examConfig)
         val ratio = examConfig.difficultyRatio
         val allowedTypes = examConfig.supportedQuestionTypes.joinToString(", ") { it.name }
-        val selectedSubjects = getApplicableSubjects(examConfig, subject)
+        val selectedStage = if (stageId.isNullOrBlank()) examConfig.stages.firstOrNull() else examConfig.stages.firstOrNull { it.stageId == stageId }
+        val selectedSubjects = if (selectedStage == null) emptyList() else getApplicableSubjects(examConfig, subject, selectedStage.stageId)
         val sectionDetails = if (selectedSubjects.isNotEmpty()) {
             selectedSubjects.flatMap { configuredSubject ->
                 configuredSubject.sections.map { section ->
@@ -176,6 +184,7 @@ object UniversalAIContext {
             """
             TASK MODE: SOURCE QUESTION EXTRACTION / TRANSCRIPTION
             Exam: ${examConfig.examName}; subject selection: $subject; title: $testTitle
+            Stage: ${selectedStage?.stageName ?: "UNRESOLVED"} (${selectedStage?.stageId ?: "UNKNOWN"})
             $canonicalSubjectInstruction
             Configured subject/section IDs:
             $sectionDetails
@@ -198,6 +207,7 @@ object UniversalAIContext {
             """
             TASK MODE: NEW EXAM-ALIGNED PRACTICE QUESTION GENERATION
             Exam: ${examConfig.examName} (${examConfig.shortName}); category: ${examConfig.category}
+            Stage: ${selectedStage?.stageName ?: "UNRESOLVED"} (${selectedStage?.stageId ?: "UNKNOWN"})
             Subject selection: $subject
             $canonicalSubjectInstruction
             Test title: $testTitle
