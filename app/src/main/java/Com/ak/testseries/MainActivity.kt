@@ -964,7 +964,7 @@ fun DashboardScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(if (selectedLanguage == AppLanguage.HINDI) "Gemini AI Setup" else "Gemini AI Setup", fontWeight = FontWeight.Bold)
+                                Text(if (selectedLanguage == AppLanguage.HINDI) "Gemini AI सेटअप" else "Gemini AI Setup", fontWeight = FontWeight.Bold)
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)

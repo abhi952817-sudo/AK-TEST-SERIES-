@@ -823,3 +823,15 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Added four unit tests for student no-fallback, personal-key exclusivity, verified-admin fallback, and signed-out rejection.
 - Setup UI now distinguishes a saved-but-unverified key from a verified connection and allows removal of a saved key even if Google has revoked it or the device is offline.
 - Verification of these new tests remains pending until Android CI or a local Gradle environment executes them.
+
+
+### Phase 1–3 commit and legacy-callsite record
+
+- Commits on `fix/phase1-real-questions-only`:
+  - `65ddbb55f7349fe8cb833c39828ca0b4ca52a70b` — shared Universal policy, per-user key selection, Gemini setup route, encrypted key store.
+  - `6aeeddeb9f8a7d427769283cb273c955eefea43b` — route state correction, saved-key verification, shared text-call policy, prompt-policy unit tests.
+  - `eedc8a16f665eac8074be29f46f5632c7986f466` — backup exclusions and API-key input state hardening.
+  - `cc97663f4dc676b9d9f0127f9f9bddd434ecd5f5` — explicit task-mode instructions and no-source fallback correction.
+  - `99412b5957430258a79a24fe9007e94e08ba3e33` — pure per-user key selection policy and four isolation tests.
+- Static call-site search found no active caller for `GeminiPdfExtractor.processPdfWithGemini()`; its old generic prompt and URL-key request remain in a legacy unreferenced file and are not part of the active flow. Keep it isolated until a safe removal/compatibility decision is made.
+- The Android workflow is configured for this branch, but no workflow run or commit status was returned for the latest branch commits. Build and tests therefore remain **NOT VERIFIED**, not passed.
