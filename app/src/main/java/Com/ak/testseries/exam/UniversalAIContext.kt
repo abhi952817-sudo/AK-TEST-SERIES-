@@ -59,40 +59,53 @@ object UniversalAIContext {
         examConfig: ExamConfig,
         taskMode: UniversalAiTaskMode = UniversalAiTaskMode.PRACTICE_GENERATION
     ): String {
-        val diff = examConfig.difficultyRatio
         val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
         val rules = examConfig.patternRules.joinToString("; ")
 
         return buildString {
             appendLine(buildUniversalSystemInstruction(taskMode))
             appendLine()
-            appendLine("=== EXAM-SPECIFIC SYSTEM INSTRUCTION: ${examConfig.examName} (${examConfig.shortName}) ===")
+            appendLine("=== EXAM CONFIGURATION: ${examConfig.examName} (${examConfig.shortName}) ===")
             if (examConfig.aiSystemInstruction.isNotBlank()) {
                 appendLine(examConfig.aiSystemInstruction)
-            } else {
-                appendLine("You are an authoritative senior academic examiner and curriculum developer for ${examConfig.examName}.")
             }
-            appendLine()
-            appendLine("TARGET DIFFICULTY RATIO (Strict Distribution):")
-            appendLine("- Easy: ${diff.easyPercent}% (Direct conceptual, formulaic, foundational recall)")
-            appendLine("- Medium: ${diff.mediumPercent}% (Multi-step application, relational reasoning, calculation)")
-            appendLine("- Hard: ${diff.hardPercent}% (Multi-concept synthesis, edge cases, high cognitive demand)")
-            appendLine()
-            appendLine("SUPPORTED QUESTION TYPES FOR THIS EXAM: $qTypes")
-            if (rules.isNotBlank()) {
-                appendLine("OFFICIAL PATTERN & MARKING RULES: $rules")
+            appendLine("Exam category: ${examConfig.category}")
+            appendLine("Supported question types: $qTypes")
+            if (rules.isNotBlank()) appendLine("Configured exam pattern and marking rules: $rules")
+            appendLine("Configured language: ${examConfig.language}")
+            appendLine("Default MCQ option count: ${examConfig.defaultOptionCount}")
+
+            when (taskMode) {
+                UniversalAiTaskMode.GENERAL_ASSISTANCE -> {
+                    appendLine("TASK RULE: Answer the user's stated academic task. Do not force a question-generation format unless requested.")
+                }
+                UniversalAiTaskMode.EXAM_RECOGNITION -> {
+                    appendLine("TASK RULE: Identify only exam metadata supported by the supplied document. Return unknown/low confidence for missing or ambiguous fields.")
+                }
+                UniversalAiTaskMode.SOURCE_EXTRACTION -> {
+                    appendLine("TASK RULE: Transcribe only questions and answer-key information that actually exist in the supplied source. Never invent missing questions or options.")
+                    appendLine("Preserve source order, original values, units, notation, and any available page references.")
+                }
+                UniversalAiTaskMode.PRACTICE_GENERATION -> {
+                    appendLine("TASK RULE: Create original practice questions only when the user explicitly requests generation. Ground them in the configured syllabus and exam rules. Never present newly authored practice questions as verbatim source questions.")
+                    val diff = examConfig.difficultyRatio
+                    appendLine("Target difficulty distribution: Easy ${diff.easyPercent}%, Medium ${diff.mediumPercent}%, Hard ${diff.hardPercent}%.")
+                }
+                UniversalAiTaskMode.SOLUTION_GENERATION -> {
+                    appendLine("TASK RULE: Solve the supplied question accurately and provide a concise, student-facing explanation with relevant steps and units.")
+                }
+                UniversalAiTaskMode.QUESTION_VERIFICATION -> {
+                    appendLine("TASK RULE: Audit the supplied question, options, answer, and explanation. Report defects and uncertainty; do not silently repair or guess.")
+                }
             }
-            appendLine()
-            appendLine("CRITICAL GENERATION CONSTRAINTS:")
-            appendLine("1. ANSWER VALIDATION: Independently verify the correct answer and distractors internally; return only a concise, checkable rationale, never private chain-of-thought.")
-            appendLine("2. ANTI-HALLUCINATION: Do NOT fabricate incorrect scientific/historical facts. Strictly follow the provided source material.")
+
+            appendLine("ANSWER VALIDATION: Independently check answers and distractors internally. Return a concise, checkable explanation; never reveal private chain-of-thought.")
+            appendLine("IMAGE REQUIREMENT: Set needsImage only when the question genuinely requires a diagram, circuit, graph, or illustration.")
             if (examConfig.language.contains("English", ignoreCase = true) && !examConfig.language.contains("Hindi", ignoreCase = true)) {
-                appendLine("3. LANGUAGE: Strictly English medium. Do not include Hindi translations for this exam (${examConfig.examName}).")
+                appendLine("Language output: English only; Hindi translation fields must be null or empty when present in the schema.")
             } else {
-                appendLine("3. LANGUAGE & BILINGUAL SUPPORT: ${examConfig.language}. Provide accurate, natural Hindi translations ('questionTextHi', 'optionAHi'..'optionDHi', 'explanationHi') alongside English.")
+                appendLine("Language output: ${examConfig.language}. Provide natural Hindi/English fields only where the schema requests them.")
             }
-            appendLine("4. DEFAULT OPTIONS: ${examConfig.defaultOptionCount} options for MCQs (or 0 for Numerical/NAT/TITA questions).")
-            appendLine("5. NEEDS IMAGE: Set 'needsImage': true whenever the question requires a diagram, circuit, graph, or illustration.")
         }.trim()
     }
 
@@ -186,7 +199,7 @@ object UniversalAIContext {
             
             --------------------------------------------------------------------------------
             COMPACT SOURCE MARKDOWN PAYLOAD (Cleaned & Token-Optimized):
-            ${if (compactMarkdownPayload.isNotBlank()) compactMarkdownPayload.take(50000) else "Source: Standard Official Syllabus for $subject in ${examConfig.examName}."}
+            ${if (compactMarkdownPayload.isNotBlank()) compactMarkdownPayload.take(50000) else "NO SOURCE DOCUMENT TEXT WAS PROVIDED. Do not claim to extract from a PDF. In source-extraction mode, return an empty JSON array. In practice-generation mode, use only the verified ExamConfig and clearly treat questions as newly authored practice."}
             
             --------------------------------------------------------------------------------
             REQUIRED JSON OUTPUT SCHEMA:
@@ -198,7 +211,7 @@ object UniversalAIContext {
                 "positiveMarks": 4.0,
                 "negativeMarks": 1.0,
                 "questionType": "MCQ_SINGLE",
-                "reasoning": "Step-by-step verification proving the correct answer according to official curriculum and showing why distractors are wrong.",
+                "reasoning": "Concise, checkable answer-verification summary for the student; do not expose private chain-of-thought.",
                 "questionTextEn": "English question text",
                 ${if (examConfig.language.contains("Hindi")) "\"questionTextHi\": \"Hindi translation of question\"," else ""}
                 "optionAEn": "Option A (English)",
