@@ -362,7 +362,24 @@ object UniversalPdfPipeline {
             delay(500)
         }
 
-        if (extractedQuestions.size >= expectedQuestions) {
+        if (extractedQuestions.size != expectedQuestions) {
+            val reason = "Expected $expectedQuestions verified questions, but only ${extractedQuestions.size} passed validation. Batch completeness requires manual review."
+            for (index in extractedQuestions.indices) {
+                val question = extractedQuestions[index]
+                extractedQuestions[index] = question.copy(
+                    validationStatus = ValidationStatus.NEEDS_REVIEW,
+                    validationReasons = (question.validationReasons + reason).distinct()
+                )
+            }
+            onProgress(
+                BatchProgress(
+                    totalBatches = totalBatches,
+                    currentBatch = totalBatches,
+                    processedQuestions = extractedQuestions.size,
+                    statusMessage = "Incomplete: ${extractedQuestions.size}/$expectedQuestions verified questions. All returned items require review."
+                )
+            )
+        } else {
             onProgress(
                 BatchProgress(
                     totalBatches = totalBatches,
