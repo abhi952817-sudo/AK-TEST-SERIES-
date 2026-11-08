@@ -5928,7 +5928,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     aiGenStatusMessage.value = message
                     return@withContext
                 }
-            val validationError = Com.ak.testseries.exam.GeminiResponseValidator.validateQuestion(item)
+            val examName = genTargetExam.value.ifBlank { "NEET UG" }
+            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(examName)
+            val sectionId = item.optString("sectionId", "")
+            val configuredOptionCount = examConfig?.stages
+                ?.flatMap { it.papers }
+                ?.flatMap { it.subjects }
+                ?.flatMap { it.sections }
+                ?.firstOrNull { it.sectionId == sectionId }
+                ?.optionsCount ?: examConfig?.defaultOptionCount ?: 4
+            val validationError = Com.ak.testseries.exam.GeminiResponseValidator.validateQuestion(item, configuredOptionCount)
             if (validationError != null) {
                 val message = "Question ${index + 1} failed the final publication safety check: $validationError Test was not saved."
                 _aiGenState.value = AiGenerationState.Error(message)
@@ -5944,15 +5953,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         
         for (i in 0 until jsonArray.length()) {
             val qObj = jsonArray.getJSONObject(i)
-            val qChapter = qObj.optString("chapter", "General Dynamics")
-            val qTopic = qObj.optString("topic", "General Topic")
+            val qChapter = qObj.optString("chapter", "").takeUnless { it == "null" } ?: ""
+            val qTopic = qObj.optString("topic", "").takeUnless { it == "null" } ?: ""
             
             if (i == 0) {
                 primaryChapter = qChapter
                 primaryTopic = qTopic
             }
             
-            val qTextEn = qObj.optString("questionTextEn", "Question Text")
+            val qTextEn = qObj.optString("questionTextEn", qObj.optString("questionText", ""))
             val qTextHi = qObj.optString("questionTextHi", "")
             val reasoning = qObj.optString("reasoning", "")
             val expEn = qObj.optString("explanationEn", "").ifBlank { reasoning }
@@ -5986,10 +5995,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     id = "${testId}_q${i}",
                     testId = testId,
                     questionText = qTextEn,
-                    optionA = if (isFreeResponse) "" else qObj.optString("optionAEn", ""),
-                    optionB = if (isFreeResponse) "" else qObj.optString("optionBEn", ""),
-                    optionC = if (isFreeResponse) "" else qObj.optString("optionCEn", ""),
-                    optionD = if (isFreeResponse) "" else qObj.optString("optionDEn", ""),
+                    optionA = if (isFreeResponse) "" else qObj.optString("optionAEn", qObj.optString("optionA", "")),
+                    optionB = if (isFreeResponse) "" else qObj.optString("optionBEn", qObj.optString("optionB", "")),
+                    optionC = if (isFreeResponse) "" else qObj.optString("optionCEn", qObj.optString("optionC", "")),
+                    optionD = if (isFreeResponse) "" else qObj.optString("optionDEn", qObj.optString("optionD", "")),
                     optionE = if (isFreeResponse) null else qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
