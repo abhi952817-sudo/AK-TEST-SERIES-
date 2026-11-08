@@ -47,6 +47,7 @@ fun SettingsScreen(
     val backupUiState by viewModel.backupUiState.collectAsStateWithLifecycle()
     val isAdmin by viewModel.isAdminFlow.collectAsStateWithLifecycle()
     val studentGeminiKeyConfigured by viewModel.studentGeminiKeyConfigured.collectAsStateWithLifecycle()
+    val studentGeminiKeyRotationDue by viewModel.studentGeminiKeyRotationDue.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
 
     var showStudentGeminiKeyDialog by remember { mutableStateOf(false) }
@@ -104,6 +105,14 @@ fun SettingsScreen(
                             if (isHindi) "वर्तमान key जुड़ी हुई है। नई key डालकर बदल सकते हैं।"
                             else "A personal key is already connected. Enter a new key to replace it."
                         )
+                        if (studentGeminiKeyRotationDue) {
+                            Text(
+                                if (isHindi) "सुरक्षा के लिए key को 7 दिन बाद rotate करने की सलाह है।"
+                                else "Security reminder: rotate this key after seven days.",
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                     studentGeminiKeyMessage?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -210,10 +219,12 @@ fun SettingsScreen(
                     icon = Icons.Rounded.Key,
                     title = if (isHindi) "Gemini API Key" else "Personal Gemini API Key",
                     subtitle = if (isHindi) {
-                        if (studentGeminiKeyConfigured) "व्यक्तिगत key जुड़ी है • सुरक्षित"
+                        if (studentGeminiKeyConfigured && studentGeminiKeyRotationDue) "व्यक्तिगत key जुड़ी है • rotate करें"
+                        else if (studentGeminiKeyConfigured) "व्यक्तिगत key जुड़ी है • सुरक्षित"
                         else "अपनी Gemini key जोड़ें • वैकल्पिक"
                     } else {
-                        if (studentGeminiKeyConfigured) "Personal key connected • encrypted"
+                        if (studentGeminiKeyConfigured && studentGeminiKeyRotationDue) "Personal key connected • rotation reminder"
+                        else if (studentGeminiKeyConfigured) "Personal key connected • encrypted"
                         else "Connect your own Gemini key • optional"
                     },
                     onClick = {
