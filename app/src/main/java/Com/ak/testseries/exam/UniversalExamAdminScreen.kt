@@ -63,6 +63,7 @@ fun UniversalExamAdminScreen(
     var isProcessing by remember { mutableStateOf(false) }
     var progressStatus by remember { mutableStateOf("") }
     val extractedQuestions = remember { mutableStateListOf<UniversalQuestionModel>() }
+    var extractedDiagramCandidates by remember { mutableStateOf<List<Com.ak.testseries.utils.DiagramCandidate>>(emptyList()) }
 
     val pdfPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -155,6 +156,7 @@ fun UniversalExamAdminScreen(
                             return@ProcessPdfTab
                         }
                         isProcessing = true
+                        extractedDiagramCandidates = emptyList()
                         scope.launch {
                             try {
                                 val results = UniversalPdfPipeline.processPdfForExam(
@@ -166,13 +168,17 @@ fun UniversalExamAdminScreen(
                                     isAiEnabled = isAiEnabled,
                                     onProgress = { prog ->
                                         progressStatus = prog.statusMessage
+                                    },
+                                    onDocumentExtracted = { document ->
+                                        extractedDiagramCandidates = document.diagramCandidates
+                                        progressStatus = "Extracted ${document.extractedPageCount} pages and ${document.diagramCandidates.size} diagram/image candidates."
                                     }
                                 )
                                 extractedQuestions.clear()
                                 extractedQuestions.addAll(results)
                                 isProcessing = false
                                 selectedTab = 2 // Move to review
-                                Toast.makeText(context, "Extracted ${results.size} questions successfully!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Extracted ${results.size} questions; found ${extractedDiagramCandidates.size} diagram/image candidates.", Toast.LENGTH_LONG).show()
                             } catch (e: Exception) {
                                 isProcessing = false
                                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
