@@ -443,7 +443,7 @@ object UniversalPdfPipeline {
                 if (!isOptionFree && finalOptions.size != expectedOptions.coerceIn(2, 5)) continue
 
                 val rawAnswer = item.optString("correctAnswer", "").trim()
-                val correctAnswer = if (isNumerical) rawAnswer else rawAnswer.uppercase()
+                val correctAnswer = if (isOptionFree) rawAnswer else rawAnswer.uppercase()
                 val sourceAnswer = item.optString("sourceAnswer", "").takeIf { it.isNotBlank() && it != "null" }
                 val explanation = item.optString("explanationEn").ifBlank { item.optString("explanation") }
 
