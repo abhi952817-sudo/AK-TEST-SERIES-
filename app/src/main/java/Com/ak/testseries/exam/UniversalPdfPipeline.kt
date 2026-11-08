@@ -552,10 +552,11 @@ object UniversalPdfPipeline {
         val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")
+                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("x-goog-api-key", apiKey)
                 conn.connectTimeout = 45000
                 conn.readTimeout = 45000
                 conn.doOutput = true
