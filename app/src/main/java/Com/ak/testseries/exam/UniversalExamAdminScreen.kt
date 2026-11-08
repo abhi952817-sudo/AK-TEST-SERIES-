@@ -64,6 +64,7 @@ fun UniversalExamAdminScreen(
     var progressStatus by remember { mutableStateOf("") }
     val extractedQuestions = remember { mutableStateListOf<UniversalQuestionModel>() }
     var extractedDiagramCandidates by remember { mutableStateOf<List<Com.ak.testseries.utils.DiagramCandidate>>(emptyList()) }
+    var extractedQuestionImageMappings by remember { mutableStateOf<Map<Int, Com.ak.testseries.utils.QuestionImageMapping>>(emptyMap()) }
 
     val pdfPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -157,6 +158,7 @@ fun UniversalExamAdminScreen(
                         }
                         isProcessing = true
                         extractedDiagramCandidates = emptyList()
+                        extractedQuestionImageMappings = emptyMap()
                         scope.launch {
                             try {
                                 val results = UniversalPdfPipeline.processPdfForExam(
@@ -171,14 +173,16 @@ fun UniversalExamAdminScreen(
                                     },
                                     onDocumentExtracted = { document ->
                                         extractedDiagramCandidates = document.diagramCandidates
-                                        progressStatus = "Extracted ${document.extractedPageCount} pages and ${document.diagramCandidates.size} diagram/image candidates."
+                                        extractedQuestionImageMappings = document.questionImageMappings
+                                        val mappedCount = document.questionImageMappings.values.count { it.localImagePath != null }
+                                        progressStatus = "Extracted ${document.extractedPageCount} pages, ${document.diagramCandidates.size} image candidates, and mapped ${mappedCount} question images."
                                     }
                                 )
                                 extractedQuestions.clear()
                                 extractedQuestions.addAll(results)
                                 isProcessing = false
                                 selectedTab = 2 // Move to review
-                                Toast.makeText(context, "Extracted ${results.size} questions; found ${extractedDiagramCandidates.size} diagram/image candidates.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Extracted ${results.size} questions; ${extractedDiagramCandidates.size} image candidates; ${extractedQuestionImageMappings.values.count { it.localImagePath != null }} mapped to questions.", Toast.LENGTH_LONG).show()
                             } catch (e: Exception) {
                                 isProcessing = false
                                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
