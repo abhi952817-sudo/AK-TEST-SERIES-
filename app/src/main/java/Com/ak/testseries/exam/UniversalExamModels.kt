@@ -199,7 +199,15 @@ data class UniversalQuestionModel(
     val generationModel: String = "",
     val generationTimestamp: Long = System.currentTimeMillis(),
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    // Explicit AI verification and provenance metadata; defaults preserve existing constructors.
+    val provenanceType: String = "",
+    val answerStatus: String = "",
+    val answerConfidence: Int = 0,
+    val verificationSummary: String = "",
+    val sourcePageEnd: Int? = null,
+    val needsReview: Boolean = false,
+    val reviewReasons: List<String> = emptyList()
 )
 
 // Traversal extension functions for the Master Syllabus hierarchy: Exam -> Stage -> Paper -> Subject -> Chapter -> Topic
