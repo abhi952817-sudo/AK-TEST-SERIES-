@@ -100,6 +100,53 @@ class GeminiResponseValidatorTest {
 
 
     @Test
+    fun rejectsTaskEnvelopeWithReportedErrorsEvenWhenQuestionsExist() {
+        val root = JSONObject()
+            .put("status", "COMPLETE")
+            .put("questions", JSONArray().put(validMcq()))
+            .put("errors", JSONArray().put("One source page could not be read."))
+        val report = GeminiResponseValidator.parseResponse(root.toString())
+        assertFalse(report.isUsable)
+        assertEquals(0, report.questions.length())
+        assertEquals(1, report.rejectedCount)
+    }
+
+    @Test
+    fun rejectsSourceAnswerConflictAndMissingExtractedKey() {
+        val conflict = validMcq()
+            .put("answerStatus", "KEY_EXTRACTED")
+            .put("sourceAnswer", "A")
+        assertTrue(GeminiResponseValidator.validateQuestion(conflict)!!.contains("conflicts"))
+
+        val missingKey = validMcq().put("answerStatus", "KEY_EXTRACTED")
+        assertTrue(GeminiResponseValidator.validateQuestion(missingKey)!!.contains("sourceAnswer"))
+    }
+
+    @Test
+    fun normalizesOrderForMultipleCorrectSourceKeys() {
+        val item = validMcq(answer = "A,C", type = "MCQ_MULTIPLE")
+            .put("sourceAnswer", "C,A")
+        assertNull(GeminiResponseValidator.validateQuestion(item))
+    }
+
+    @Test
+    fun enforcesExactConfiguredOptionCountAndOptionOrder() {
+        val fourOptions = validMcq()
+        assertNotNull(GeminiResponseValidator.validateQuestion(fourOptions, 5, requireExactOptionCount = true))
+
+        val missingA = validMcq()
+            .put("optionAEn", "")
+            .put("optionEEn", "Friction")
+        assertNotNull(GeminiResponseValidator.validateQuestion(missingA, 4, requireExactOptionCount = true))
+    }
+
+    @Test
+    fun onlyMcqMultipleMayCarryMultipleCorrectLabels() {
+        val multiStatement = validMcq(answer = "A,C", type = "MULTI_STATEMENT")
+        assertNotNull(GeminiResponseValidator.validateQuestion(multiStatement))
+    }
+
+    @Test
     fun validationEngineAcceptsMultipleCorrectAnswersAndOrderIndependentSourceKey() {
         val result = QuestionValidationEngine.validateQuestion(
             questionText = "Which of the following are vector quantities?",
