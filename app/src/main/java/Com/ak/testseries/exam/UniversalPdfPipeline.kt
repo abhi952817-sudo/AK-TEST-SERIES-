@@ -377,6 +377,8 @@ object UniversalPdfPipeline {
                     if (rawAnswer.length == 1) rawAnswer.uppercase() else rawAnswer
                 }
                 val explanation = item.optString("explanationEn").ifBlank { item.optString("explanation") }
+                // Only a separately supplied printed answer key counts as independent evidence.
+                val sourceAnswer = item.optString("sourceAnswer").ifBlank { item.optString("answerKey") }.takeIf { it.isNotBlank() }
 
                 val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
                 val dupResult = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, existingHashes)
@@ -387,6 +389,7 @@ object UniversalPdfPipeline {
                     explanation = explanation,
                     hasDiagramAttached = false,
                     duplicateResult = dupResult,
+                    sourceAnswer = sourceAnswer,
                     questionType = parsedQType,
                     expectedOptionCount = examConfig.defaultOptionCount
                 )
@@ -410,7 +413,7 @@ object UniversalPdfPipeline {
                         item.optString("optionEHi").takeIf { it.isNotBlank() }
                     ).takeIf { it.size == finalOptions.size },
                     correctAnswer = correctAnswer,
-                    sourceAnswer = null,
+                    sourceAnswer = sourceAnswer,
                     explanation = explanation,
                     explanationHi = item.optString("explanationHi").takeIf { it.isNotBlank() },
                     difficulty = diffLevel,
