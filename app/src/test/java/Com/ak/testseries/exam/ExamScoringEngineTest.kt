@@ -273,6 +273,37 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun testGeneratedUniversalQuestionsRetainSectionSubjectAndQuestionTypeScoring() {
+        val multi = createQuestion(
+            id = "jee_multi",
+            correctAnswer = "A,C",
+            subject = "Physics",
+            section = "phy_sec_multi",
+            questionType = "MCQ_MULTIPLE"
+        )
+        val numerical = createQuestion(
+            id = "jee_numerical",
+            correctAnswer = "2.5",
+            subject = "Physics",
+            section = "phy_sec_num",
+            questionType = "NUMERICAL_VALUE"
+        )
+
+        val breakdown = ExamScoringEngine.evaluateTestAttempt(
+            targetExam = "JEE Advanced",
+            questions = listOf(multi, numerical),
+            userAnswers = mapOf("jee_multi" to "C,A", "jee_numerical" to "2.5"),
+            timeSpentSeconds = 90
+        )
+
+        assertEquals(2, breakdown.correctCount)
+        assertEquals(0, breakdown.wrongCount)
+        assertEquals(7.0, breakdown.positiveMarksEarned, 0.001)
+        assertEquals(0.0, breakdown.negativeMarksPenalty, 0.001)
+        assertEquals(7.0, breakdown.maxScore, 0.001)
+    }
+
+    @Test
     fun testSectionBOptionalAttemptCapping() {
         // 12 questions in Physics Section B for NEET UG (only first 10 should be evaluated)
         val questions = (1..12).map { i ->
