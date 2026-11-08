@@ -1625,6 +1625,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
+            qObj.put("questionType", sourceQuestion.optString("questionType", "MCQ_SINGLE"))
+            qObj.put("answerStatus", sourceQuestion.optString("answerStatus", ""))
+            qObj.put("answerConfidence", sourceQuestion.optDouble("answerConfidence", -1.0))
+            qObj.put("needsReview", sourceQuestion.optBoolean("needsReview", true))
+            qObj.put("provenanceType", sourceQuestion.optString("provenanceType", ""))
+            if (!sourceQuestion.isNull("sourceAnswer")) qObj.put("sourceAnswer", sourceQuestion.optString("sourceAnswer"))
+            qObj.put("sectionId", sourceQuestion.optString("sectionId", ""))
+            qObj.put("positiveMarks", sourceQuestion.optDouble("positiveMarks", Double.NaN))
+            qObj.put("negativeMarks", sourceQuestion.optDouble("negativeMarks", Double.NaN))
             qObj.put("subject", q.subject)
             qObj.put("chapter", q.chapter)
             qObj.put("topic", q.topic)
@@ -6002,7 +6011,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         // Serialize questions to JSON array string
         val qJsonArray = JSONArray()
-        for (q in questions) {
+        for ((questionIndex, q) in questions.withIndex()) {
+            val sourceQuestion = jsonArray.optJSONObject(questionIndex) ?: JSONObject()
             val qObj = JSONObject()
             qObj.put("id", q.id)
             qObj.put("testId", q.testId)
