@@ -175,7 +175,10 @@ object UniversalAIContext {
         val task = if (isExtractionMode) {
             """
             TASK MODE: SOURCE QUESTION EXTRACTION / TRANSCRIPTION
-            Exam: ${examConfig.examName}; subject: $subject; title: $testTitle
+            Exam: ${examConfig.examName}; subject selection: $subject; title: $testTitle
+            $canonicalSubjectInstruction
+            Configured subject/section IDs:
+            $sectionDetails
             Requested maximum for this chunk: $currentChunkSize
             Global requested range: $startQ-$endQ of $totalQuestions
 
@@ -202,8 +205,9 @@ object UniversalAIContext {
             Question sequence: $startQ-$endQ of $totalQuestions
             Difficulty target: Easy ${ratio.easyPercent}%, Medium ${ratio.mediumPercent}%, Hard ${ratio.hardPercent}%
             Supported types: $allowedTypes
-            Configured sections:
+            Configured subjects and sections:
             $sectionDetails
+            $canonicalSubjectInstruction
 
             Generate original practice questions, not claimed PYQs. Base every question on the supplied source payload and configured syllabus/pattern. Do not introduce facts beyond the supplied material unless they are standard prerequisites needed to make a well-posed question; do not invent source citations.
             The number of each difficulty level should approximate the configured ratio over the whole requested test, not reset incorrectly for every small chunk. If this chunk's assigned range implies a distribution, follow it as closely as integer counts permit.
