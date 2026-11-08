@@ -122,6 +122,10 @@ object GeminiResponseValidator {
     ): String? {
         val question = item.optString("questionTextEn", "").ifBlank { item.optString("questionText", "") }.trim()
         if (question.isBlank() || question.equals("Question Text", true) || question.length < 10) return "Question text is missing, placeholder, or too short."
+        val difficulty = item.optString("difficulty", "").uppercase()
+        if (difficulty !in setOf("EASY", "MEDIUM", "HARD")) return "Difficulty is missing or unsupported."
+        val explanation = item.optString("explanationEn", "").ifBlank { item.optString("explanation", "") }.trim()
+        if (explanation.length < 5 || explanation.equals("Explanation", true)) return "A meaningful explanation is missing."
 
         val answerStatus = item.optString("answerStatus", "").uppercase()
         if (answerStatus !in setOf("KEY_EXTRACTED", "INDEPENDENTLY_VERIFIED")) return "Answer is not verified ($answerStatus)."
@@ -155,6 +159,8 @@ object GeminiResponseValidator {
                 return "Expected configured option labels ${labels.take(expectedCount)} in order; found $present."
             }
             if (!requireExactOptionCount && present.size < expectedCount) return "Required options are missing or contain placeholders."
+            val optionValues = options.filter { it.isNotBlank() }.map { it.replace(Regex("\\s+"), " ").trim().lowercase() }
+            if (optionValues.distinct().size != optionValues.size) return "Duplicate option text detected."
             val answers = answer.uppercase().split(",", ";").map { it.trim() }.filter { it.isNotBlank() }
             if (answers.isEmpty() || answers.any { it !in present } || answers.distinct().size != answers.size) return "Answer label does not map to the supplied options."
             if (type != "MCQ_MULTIPLE" && answers.size != 1) return "Only MCQ_MULTIPLE may contain multiple correct answer labels."
@@ -177,6 +183,12 @@ object GeminiResponseValidator {
         val positiveMarks = item.optDouble("positiveMarks", Double.NaN)
         val negativeMarks = item.optDouble("negativeMarks", Double.NaN)
         if (!positiveMarks.isFinite() || !negativeMarks.isFinite() || positiveMarks < 0.0 || negativeMarks < 0.0) return "Configured marks are invalid."
+        val sourcePageStart = item.optInt("sourcePageStart", -1)
+        val sourcePageEnd = item.optInt("sourcePageEnd", -1)
+        if ((sourcePageStart > 0 && sourcePageEnd <= 0) ||
+            (sourcePageEnd > 0 && sourcePageStart <= 0) ||
+            (sourcePageStart > 0 && sourcePageEnd < sourcePageStart)
+        ) return "Source page range is incomplete or invalid."
         return null
     }
 
