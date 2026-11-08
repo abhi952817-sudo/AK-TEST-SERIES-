@@ -918,3 +918,13 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - CI contains no student Gemini credentials. The local HTTP integration test verifies the native PDF request payload and key header using a test credential only. A live Google Gemini request with a real student-owned key, actual exam PDF, device/network behavior, and Firestore Admin-review visibility remains a separate end-to-end check and is NOT claimed as passed.
 - No production Firebase deploy was performed. `main` was not modified.
 - Current verification status: Android unit tests PASS; debug APK build PASS; backend unit tests PASS; live student-key/API/device/Firestore integration PENDING; actual tutorial GIF PENDING.
+
+
+## Runtime verification result — CI run 42459562922 (2026-11-08)
+- Verified branch-head source commit: `71d422d2614d493bd9bbc54721d26107a78e326f`.
+- Android CI: JDK 21 + Gradle 9.3.1. ` :app:testDebugUnitTest ` completed successfully: **321 tests, 0 failures, 0 skipped**. This includes `GeminiNativePdfClientTest` (1 Robolectric HTTP integration test), `GeneratedQuestionAnswerValidatorTest` (5 tests), the crash-resilience suite, exam pattern/scoring tests, hierarchy tests, and PDF pipeline tests.
+- Android packaging: `:app:assembleDebug` completed successfully; APK artifact `app-debug` (artifact ID `13608777563`, 31,899,726-byte ZIP). Extracted APK SHA-256: `41998337fda2f837c3586771a4119572a68309a0c2a0cd775e0452249f48da5c`.
+- Backend CI: Node.js 18 `npm ci` and `node --test *.test.js` completed successfully.
+- Workflow: [Android CI run 42459562922](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/42459562922).
+- Scope boundary: the HTTP integration test uses a local deterministic test server and a synthetic PDF fixture; it verifies PDF bytes, API-key header isolation, prompt payload, and response parsing without contacting Google or using a real key. A real Google API request using a student's own key, install/launch on a physical device, and Firebase emulator/Firestore private-vault authorization tests remain external end-to-end checks. Do not claim those have passed.
+- No production Firebase deployment. `main` remains untouched.
