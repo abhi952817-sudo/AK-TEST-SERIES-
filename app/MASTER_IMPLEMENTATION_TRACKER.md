@@ -703,3 +703,53 @@ The attempt-security review was extended beyond the initial idempotency issue:
   - `4d261d3ece3c63e57d5bd6f0457cf5f80b310010` — Admin flow retains question/image mappings.
 
 - **Memory-safety correction:** bitmap-retaining page extraction is capped at 50 pages (not 200) to avoid retaining too many rendered/annotated page bitmaps at once. PDFs over 50 pages fail explicitly; no truncated document is accepted. Commit: `c21da44626fa5c45bd10d52ed1799ecef4ae1e88`.
+
+
+
+## PDF Fixture Validation Audit — 2026-11-08
+
+**Branch:** `fix/phase1-real-questions-only`  
+**Scope:** Audit the repository's actual PDF fixtures, current PDF test coverage, and CI execution path before declaring universal extraction verified.
+
+### Confirmed repository evidence
+
+- The current branch tree contains exactly one `.pdf` file: `public/assets/aistudio/1000_app_bug_security_audit_checklist_hindi_0b0bcfdf.pdf`. It is an application security-audit checklist, not an NEET/JEE/UPSC/SSC/Banking/Board exam paper.
+- No `app/src/test/resources` PDF fixtures or `androidTest/assets` PDF fixtures are present.
+- Existing PDF-related tests include `UniversalPdfPipelineTest.kt`, `LocalPdfImageExtractorTest.kt`, `LocalQuestionClassifierTest.kt`, and `PdfSessionRecoveryTest.kt`.
+- `LocalPdfImageExtractorTest.kt` uses programmatically drawn bitmaps and constructed question/image objects for diagram/mapping scenarios. These are useful unit tests for local algorithms, but they are not real-PDF extraction fixtures.
+- `UniversalPdfPipelineTest.kt` currently tests question-type parsing and structural validation; it does not exercise a real PDF through `UniversalPdfDocumentExtractor.extract()`.
+- The existing Android CI workflow previously ran only `assembleDebug`, was triggered on pushes to `main` only, and did not execute `testDebugUnitTest`.
+- No workflow run was returned for the working branch at the time of this audit.
+
+### Changes made
+
+- Updated `.github/workflows/android.yml` on this working branch only:
+  - Push trigger now includes `fix/phase1-real-questions-only` as well as `main`.
+  - Added `gradle :app:testDebugUnitTest`.
+  - Kept the debug APK build.
+  - Added always-attempted upload of unit-test reports.
+- Workflow change commit: `ccefeaca15a77189bbb3359afafba292fea19417`.
+
+### Fixture validation matrix
+
+| Exam family | Real digital PDF fixture in repository | Page-wise text/options/equations | Diagram extraction | Question-image mapping | Status |
+|---|---|---|---|---|---|
+| NEET | No | Not run | Not run | Not run | BLOCKED: fixture missing |
+| JEE Main/Advanced | No | Not run | Not run | Not run | BLOCKED: fixture missing |
+| UPSC | No | Not run | Not run | Not run | BLOCKED: fixture missing |
+| SSC | No | Not run | Not run | Not run | BLOCKED: fixture missing |
+| Banking | No | Not run | Not run | Not run | BLOCKED: fixture missing |
+| Board Exams | No | Not run | Not run | Not run | BLOCKED: fixture missing |
+
+### Validation rules before marking universal extraction verified
+
+For each supplied genuine digital PDF, record source provenance and a stable SHA-256; page count must match exactly; compare page-wise extracted text against the PDF's selectable text; verify question boundaries and every option; check mathematical symbols, subscripts, superscripts, tables and multi-column ordering; inspect each diagram candidate against the original page; verify mapping only where unambiguous and leave uncertain mappings for review. Any missing page, dropped option, corrupted equation, unsupported font encoding, or wrong image association is a failure/review result, not a successful extraction.
+
+### Current status and constraints
+
+- **Real exam PDF fixture validation: BLOCKED — no genuine exam-paper PDFs are present in the repository.**
+- **Android CI test execution: PENDING — workflow was updated on the working branch; a run must complete before reporting build/test results.**
+- No synthetic exam PDFs or generated questions were added.
+- No Gemini prompt or Vision transport was changed.
+- No production deployment or `main` branch change was made.
+- Do not declare extraction universal or verified until all six exam-family fixture suites have actual evidence and the Android test/build workflow passes.
