@@ -5595,7 +5595,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!isAdmin) {
             val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
             val studentKey = Com.ak.testseries.utils.StudentGeminiKeyStore.read(getApplication(), uid)
-            if (!studentKey.isNullOrBlank()) list.add(Pair(2, studentKey))
+            // When a student connects a personal key, never silently spend the shared Admin quota as fallback.
+            if (!studentKey.isNullOrBlank()) return listOf(Pair(2, studentKey))
         }
         if (isPrimaryGeminiActive.value && primary.isNotEmpty() && primary != "MY_GEMINI_API_KEY") {
             list.add(Pair(0, primary))
