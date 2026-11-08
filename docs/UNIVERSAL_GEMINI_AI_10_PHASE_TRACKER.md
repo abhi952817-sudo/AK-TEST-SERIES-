@@ -1,0 +1,61 @@
+# Universal Gemini AI — 10-Phase Development Tracker
+Last updated: 2026-11-08
+Repository: abhi952817-sudo/AK-TEST-SERIES-
+Implementation branch: feature/universal-gemini-ai-10-phase-2026-11-08
+Audit report: docs/UNIVERSAL_GEMINI_AI_AUDIT_2026-11-08.md
+Status vocabulary: NOT_STARTED | IN_PROGRESS | PARTIAL | BLOCKED | VERIFIED | COMPLETE
+
+## Global gates
+- [ ] Never modify main directly.
+- [ ] No production deployment, Firebase migration, rules/index deployment, or PR merge without explicit owner approval.
+- [ ] Inventory call sites and dependencies before changing an existing implementation.
+- [ ] Preserve working PDF persistence, recovery, OCR, diagrams, exam registry, question validation, private vault and test-player flows.
+- [ ] No synthetic/dummy questions may be passed off as source-extracted or verified Gemini output.
+- [ ] Student API keys must be isolated per authenticated UID and never be stored in Firestore, logs, analytics, crash reports, or plaintext preferences.
+- [ ] Every phase must have code evidence, tests, bug IDs, commit SHA and status before completion.
+
+## Phase tracker
+| Phase | Scope | Status | Current evidence / exit criteria |
+|---|---|---|---|
+| 1 | Complete Source Audit | IN_PROGRESS | First-pass audit committed; complete call-site/dependency map, data-flow trace, existing tests and exact-head CI baseline still required. |
+| 2 | Universal Prompt Engine | PARTIAL | UniversalAIContext exists; all duplicated prompts must route through versioned task-mode templates and ExamConfig. Prompt unit tests required. |
+| 3 | Student Gemini Connect | NOT_STARTED | Student-owned connect/verify/replace/disconnect/revoke UX, encrypted local key storage, UID isolation and seven-day reminder required. |
+| 4 | Direct PDF Understanding | NOT_STARTED | Send actual PDF bytes via supported Gemini document input or File API; preserve page references; keep current local extraction as fallback/parallel validation. |
+| 5 | Universal Exam Recognition | PARTIAL | Registry and metadata analysis exist; remove silent NEET/first-exam fallback; require confidence and user confirmation for ambiguity. |
+| 6 | Question & Solution Generation | PARTIAL | Existing generation/validation exists; strict schema, answer-key confidence, provenance, duplicates, unsupported question rejection and bilingual checks required. |
+| 7 | Automatic Test Creation | PARTIAL | Existing save flow and player exist; verify complete metadata, ownership, scoring, timer, autosave, submission and result integration end-to-end. |
+| 8 | Private/Public & Admin Review | PARTIAL | Firestore publication helper/private answer-key rules exist; trace generated-test status and enforce owner-private -> Admin review -> explicit approval -> public. |
+| 9 | Reliability, Security & Cost Controls | PARTIAL | Existing daily limit, Admin kill switch and batch retry exist; add server-side quotas, key isolation, token/cost telemetry, safe retry and recovery. |
+| 10 | Full Integration & Release Testing | NOT_STARTED | Require real authorized PDFs, all supported task modes, Hindi/English/bilingual, Admin/Student E2E, Android/backend/rules tests and regression pass. |
+
+## Bug register
+| Bug ID | Priority | Summary | Status |
+|---|---|---|---|
+| GEM-001 | P0 | Student-owned API key connection not found in inspected Student flow; current key sources are app BuildConfig and Admin global key. | OPEN |
+| GEM-002 | P0 | Admin secondary key is stored in ordinary SharedPreferences. | OPEN |
+| GEM-003 | P0 | Gemini API key is placed in URL query parameter in inspected REST clients. | OPEN |
+| GEM-004 | P0 | Multiple Gemini HTTP clients exist in ViewModel, UniversalPdfPipeline and legacy GeminiPdfExtractor. | OPEN |
+| GEM-005 | P0 | Current PDF Gemini path sends extracted text; direct PDF bytes/File API input not implemented by inspected evidence. | OPEN |
+| GEM-006 | P0 | Offline fallback can synthesize generic placeholder questions; source extraction must fail closed or be explicitly marked mock. | OPEN |
+| GEM-007 | P0 | Unknown exam can silently fall back to NEET/first registry item. | OPEN |
+| GEM-008 | P1 | Prompt construction is duplicated outside UniversalAIContext. | OPEN |
+| GEM-009 | P1 | Student API key verify/connect/disconnect and rotation reminder not found. | OPEN |
+| GEM-010 | P1 | Retry, model fallback, errors and usage metering duplicated/inconsistent. | OPEN |
+| GEM-011 | P1 | Strict JSON/schema/semantic validation gate before persistence not established. | OPEN |
+| GEM-012 | P1 | Durable per-question source page provenance not verified. | OPEN |
+| GEM-013 | P1 | ExamConfig and ExamConfiguration coexist; active usage and migration compatibility need inventory. | OPEN |
+| GEM-014 | P1 | Server-enforced user/key quota, token metering and abuse controls unverified. | OPEN |
+
+## Commit / test log
+| Date | Commit | Change | Tests | Result |
+|---|---|---|---|---|
+| 2026-11-08 | 1a753811f2cc1d78f19cb1989ac59a212a4838f5 | Preliminary Gemini source audit | Read-only source inspection; no build/test executed yet | Audit baseline only |
+
+## Phase completion template
+For each phase, append:
+- Changed files and why existing call sites were extended rather than replaced.
+- Bug IDs closed and evidence.
+- Unit, integration, security and regression tests executed on exact commit.
+- CI run URL/head SHA and results.
+- Commit SHA.
+- Remaining risks and owner decision required.
