@@ -59,3 +59,12 @@ For each phase, append:
 - CI run URL/head SHA and results.
 - Commit SHA.
 - Remaining risks and owner decision required.
+
+
+## Supplemental audit update — 2026-11-08
+- Phase 7: Existing `generateTestFromPdf()` -> `saveGeneratedTest()` -> Room `TestEntity`/`QuestionEntity` path is present. Full Test Player/result E2E remains unverified.
+- Phase 8: Existing student-public `Under Review` state, Admin review list, Admin-only `publishReviewedTest()`, public answer-key stripping and private answer-key storage were found. Preserve these. Reject/correction and end-to-end security tests remain open.
+- GEM-015 | P0 | `saveGeneratedTest()` silently supplies generic placeholder question/option text when generated JSON fields are missing; add strict schema and semantic validation before persistence. | OPEN
+- GEM-016 | P1 | Student generation accepts a non-empty aggregate even if some chunks failed or expected question count was not met; require explicit partial-result state and owner decision before save. | OPEN
+- CI baseline on source base `9b105e9e7c614d615becb99a72b3dc5e50799e05`: run `42176925903`; backend tests PASS, Firestore rules tests PASS, Android unit tests FAIL (299 tests, one failure: `CrashResilienceTest > classMethod`, `UnsupportedOperationException` at `DefaultSdkProvider.java:170`). This failure predates Gemini branch changes and must be isolated without weakening tests.
+- Phase 1 remains IN_PROGRESS. No code implementation changes have been made yet; only audit documentation is committed.
