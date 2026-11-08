@@ -625,7 +625,7 @@ data class ImageExtractionOptions(val minImageWidthPx: Int = 40, val minImageHei
 
 class AdvancedPdfSmartExtractor(private val context: Context) {
 
-    suspend fun processPdfUri(uri: Uri, languageCode: String, options: ImageExtractionOptions = ImageExtractionOptions(), maxPages: Int = 200): List<PdfPageResult> = withContext(Dispatchers.IO) {
+    suspend fun processPdfUri(uri: Uri, languageCode: String, options: ImageExtractionOptions = ImageExtractionOptions(), maxPages: Int = 50): List<PdfPageResult> = withContext(Dispatchers.IO) {
         val results = mutableListOf<PdfPageResult>()
         val tempFile = createTempPdfFile(uri) ?: return@withContext emptyList()
 
