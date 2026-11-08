@@ -4907,6 +4907,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     aiGenStatusMessage.value = message
                                     return@launch
                                 }
+                            val requestedSubjectName = genSubject.value.trim()
+                            val expectedSubjectId = if (requestedSubjectName.isBlank() || requestedSubjectName.equals("All Subjects", true)) {
+                                null
+                            } else {
+                                examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
+                                    .firstOrNull {
+                                        it.subjectId.equals(requestedSubjectName, true) ||
+                                            it.subjectName.equals(requestedSubjectName, true)
+                                    }?.subjectId ?: run {
+                                        val message = "Subject '$requestedSubjectName' is not configured for $targetExamName. No other subject will be substituted."
+                                        _aiGenState.value = AiGenerationState.Error(message)
+                                        aiGenStatusMessage.value = message
+                                        return@launch
+                                    }
+                            }
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
@@ -4926,7 +4941,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 try {
                                     val report = Com.ak.testseries.exam.GeminiResponseValidator.parseResponse(
                                         raw = resultJson,
-                                        examConfig = examConfig
+                                        examConfig = examConfig,
+                                        expectedSubjectId = expectedSubjectId
                                     )
                                     if (report.errors.isNotEmpty() || report.questions.length() == 0) {
                                         rejectedGeminiQuestions += report.rejectedCount.coerceAtLeast(1)
@@ -4978,6 +4994,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                     aiGenStatusMessage.value = message
                                     return@launch
                                 }
+                            val requestedSubjectName = genSubject.value.trim()
+                            val expectedSubjectId = if (requestedSubjectName.isBlank() || requestedSubjectName.equals("All Subjects", true)) {
+                                null
+                            } else {
+                                examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
+                                    .firstOrNull {
+                                        it.subjectId.equals(requestedSubjectName, true) ||
+                                            it.subjectName.equals(requestedSubjectName, true)
+                                    }?.subjectId ?: run {
+                                        val message = "Subject '$requestedSubjectName' is not configured for $targetExamName. No other subject will be substituted."
+                                        _aiGenState.value = AiGenerationState.Error(message)
+                                        aiGenStatusMessage.value = message
+                                        return@launch
+                                    }
+                            }
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
@@ -4997,7 +5028,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 try {
                                     val report = Com.ak.testseries.exam.GeminiResponseValidator.parseResponse(
                                         raw = resultJson,
-                                        examConfig = examConfig
+                                        examConfig = examConfig,
+                                        expectedSubjectId = expectedSubjectId
                                     )
                                     if (report.errors.isNotEmpty() || report.questions.length() == 0) {
                                         rejectedGeminiQuestions += report.rejectedCount.coerceAtLeast(1)
