@@ -18,7 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.sp
 import Com.ak.testseries.viewmodel.NEETViewModel
 
@@ -43,6 +45,15 @@ fun SettingsScreen(
     val userProfileData by viewModel.userProfile.collectAsStateWithLifecycle()
     val currentAuthUid by viewModel.currentUserId.collectAsStateWithLifecycle()
     val backupUiState by viewModel.backupUiState.collectAsStateWithLifecycle()
+    val isAdmin by viewModel.isAdminFlow.collectAsStateWithLifecycle()
+    val studentGeminiKeyConfigured by viewModel.studentGeminiKeyConfigured.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
+
+    var showStudentGeminiKeyDialog by remember { mutableStateOf(false) }
+    var studentGeminiKeyInput by remember { mutableStateOf("") }
+    var studentGeminiKeyBusy by remember { mutableStateOf(false) }
+    var studentGeminiKeyMessage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentAuthUid) { viewModel.refreshStudentGeminiKeyState() }
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -64,6 +75,85 @@ fun SettingsScreen(
         if (uri != null) {
             viewModel.stageAndValidateBackupFromUri(uri, context)
         }
+    }
+
+    if (showStudentGeminiKeyDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!studentGeminiKeyBusy) showStudentGeminiKeyDialog = false },
+            title = { Text(if (isHindi) "अपनी Gemini API Key जोड़ें" else "Connect Personal Gemini API Key") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        if (isHindi)
+                            "आपकी key इसी डिवाइस पर Android Keystore से encrypt होगी। यह Firebase, Firestore या backup में नहीं भेजी जाएगी।"
+                        else
+                            "Your key is encrypted on this device with Android Keystore. It is not sent to Firebase, Firestore or device backups."
+                    )
+                    OutlinedTextField(
+                        value = studentGeminiKeyInput,
+                        onValueChange = { studentGeminiKeyInput = it },
+                        label = { Text(if (isHindi) "Gemini API Key" else "Gemini API Key") },
+                        placeholder = { Text("Paste API key") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        enabled = !studentGeminiKeyBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (studentGeminiKeyConfigured) {
+                        Text(
+                            if (isHindi) "वर्तमान key जुड़ी हुई है। नई key डालकर बदल सकते हैं।"
+                            else "A personal key is already connected. Enter a new key to replace it."
+                        )
+                    }
+                    studentGeminiKeyMessage?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                    if (studentGeminiKeyBusy) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text(if (isHindi) "Key सत्यापित की जा रही है..." else "Verifying API key...")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !studentGeminiKeyBusy && studentGeminiKeyInput.isNotBlank(),
+                    onClick = {
+                        studentGeminiKeyBusy = true
+                        studentGeminiKeyMessage = null
+                        coroutineScope.launch {
+                            val error = viewModel.connectStudentGeminiApiKey(studentGeminiKeyInput)
+                            studentGeminiKeyBusy = false
+                            if (error == null) {
+                                studentGeminiKeyInput = ""
+                                showStudentGeminiKeyDialog = false
+                                Toast.makeText(context, if (isHindi) "Gemini key सुरक्षित रूप से जुड़ गई" else "Gemini key connected securely", Toast.LENGTH_LONG).show()
+                            } else {
+                                studentGeminiKeyMessage = error
+                            }
+                        }
+                    }
+                ) { Text(if (isHindi) "सत्यापित करें और सहेजें" else "Verify & Save") }
+            },
+            dismissButton = {
+                Row {
+                    if (studentGeminiKeyConfigured) {
+                        TextButton(
+                            enabled = !studentGeminiKeyBusy,
+                            onClick = {
+                                viewModel.disconnectStudentGeminiApiKey()
+                                studentGeminiKeyInput = ""
+                                showStudentGeminiKeyDialog = false
+                                Toast.makeText(context, if (isHindi) "व्यक्तिगत key हटा दी गई" else "Personal key disconnected", Toast.LENGTH_SHORT).show()
+                            }
+                        ) { Text(if (isHindi) "हटाएँ" else "Disconnect") }
+                    }
+                    TextButton(
+                        enabled = !studentGeminiKeyBusy,
+                        onClick = { showStudentGeminiKeyDialog = false }
+                    ) { Text(if (isHindi) "बंद करें" else "Cancel") }
+                }
+            }
+        )
     }
 
     if (showLogoutDialog) {
@@ -115,6 +205,24 @@ fun SettingsScreen(
                 SettingsMenuItem(icon = Icons.Rounded.Assignment, title = if (isHindi) "लक्ष्य परीक्षा" else stringRes("Target Exam"), subtitle = if (isHindi) "वर्तमान: ${userProfileData.targetExam}" else "Current: ${userProfileData.targetExam}", onClick = { showExamDialog = true })
             }
             SettingsMenuItem(icon = Icons.Rounded.Star, title = if (isHindi) "मेरी सदस्यता" else "My Subscription", subtitle = if (isHindi) "प्रीमियम प्लान प्रबंधित करें" else "Manage premium plans", onClick = { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.SUBSCRIPTION) })
+            if (!isAdmin) {
+                SettingsMenuItem(
+                    icon = Icons.Rounded.Key,
+                    title = if (isHindi) "Gemini API Key" else "Personal Gemini API Key",
+                    subtitle = if (isHindi) {
+                        if (studentGeminiKeyConfigured) "व्यक्तिगत key जुड़ी है • सुरक्षित"
+                        else "अपनी Gemini key जोड़ें • वैकल्पिक"
+                    } else {
+                        if (studentGeminiKeyConfigured) "Personal key connected • encrypted"
+                        else "Connect your own Gemini key • optional"
+                    },
+                    onClick = {
+                        studentGeminiKeyInput = ""
+                        studentGeminiKeyMessage = null
+                        showStudentGeminiKeyDialog = true
+                    }
+                )
+            }
             SettingsMenuItem(icon = Icons.Rounded.Notifications, title = if (isHindi) "सूचनाएं" else stringRes("Notifications"), subtitle = if (isHindi) "पुश और ईमेल प्राथमिकताएं" else "Push and email preferences", onClick = { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.USER_NOTIFICATIONS) })
             
             Spacer(modifier = Modifier.height(16.dp))
