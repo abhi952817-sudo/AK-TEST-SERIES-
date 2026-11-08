@@ -234,12 +234,15 @@ object OfflineMarkdownQuestionParser {
         subject: String,
         examName: String
     ): List<QuestionEntity> {
+        if (subject.isBlank()) return emptyList()
         val examConfig = UniversalExamRegistry.findExamByNameOrShortName(examName) ?: return emptyList()
-        val subjectConfig = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }.firstOrNull {
-            it.subjectId.equals(subject, true) ||
-                it.subjectName.equals(subject, true) ||
-                it.subjectName.contains(subject, true)
-        } ?: return emptyList()
+        val subjectCandidates = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }.distinctBy { it.subjectId }
+            .filter {
+                it.subjectId.equals(subject, true) ||
+                    it.subjectName.equals(subject, true) ||
+                    it.subjectName.contains(subject, true)
+            }
+        val subjectConfig = subjectCandidates.singleOrNull() ?: return emptyList()
         val parsedList = parseStructuredQuestions(text)
         return parsedList.mapIndexedNotNull { index, pq ->
             val section = UniversalPdfPipeline.resolveSectionForIndex(examConfig, subjectConfig.subjectId, index + 1)
@@ -272,13 +275,15 @@ object OfflineMarkdownQuestionParser {
         subjectId: String,
         stageId: String = ""
     ): List<UniversalQuestionModel> {
+        if (subjectId.isBlank()) return emptyList()
         val parsedList = parseStructuredQuestions(markdown)
-        val subjects = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
-        val subjectConfig = subjects.firstOrNull {
+        val subjects = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }.distinctBy { it.subjectId }
+        val subjectCandidates = subjects.filter {
             it.subjectId.equals(subjectId, true) ||
                 it.subjectName.equals(subjectId, true) ||
                 it.subjectName.contains(subjectId, true)
-        } ?: return emptyList()
+        }
+        val subjectConfig = subjectCandidates.singleOrNull() ?: return emptyList()
         val resolvedStage = examConfig.stages.firstOrNull { it.stageId == stageId }
             ?: examConfig.stages.firstOrNull() ?: return emptyList()
         val resolvedPaper = resolvedStage.papers.firstOrNull { paper ->
