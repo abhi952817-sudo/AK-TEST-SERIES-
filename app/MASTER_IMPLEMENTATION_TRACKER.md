@@ -805,3 +805,11 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Student API key remains UID-scoped and exclusive. Admin fallback is only available when the authenticated user has a verified Admin claim and has not configured a personal key.
 - The setup screen's tutorial is currently a native animated step guide, not a GIF file. GIF artwork remains OPEN and must be added as a real asset after image-generation tooling is available.
 - Runtime verification still NOT RUN at source-update time.
+
+
+### Local credential backup hardening
+
+- The Gemini key preferences file is excluded from Android cloud backup and device transfer because its AES key is bound to the current device's Android Keystore.
+- The API key text field is no longer stored in Compose saved-instance state; only in-memory UI state holds the unsubmitted key.
+- Text fallback prompt separator corrected to actual newline characters.
+- These changes are source-reviewed only; backup/restore and device rotation behavior still require Android runtime tests.

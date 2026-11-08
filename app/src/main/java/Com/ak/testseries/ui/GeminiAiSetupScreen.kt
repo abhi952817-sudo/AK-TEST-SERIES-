@@ -80,7 +80,7 @@ fun GeminiAiSetupScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var apiKey by rememberSaveable { mutableStateOf("") }
+    var apiKey by remember { mutableStateOf("") }
     var isConnected by remember { mutableStateOf(false) }
     var isVerifying by remember { mutableStateOf(false) }
     var connectionMessage by remember { mutableStateOf<String?>(null) }

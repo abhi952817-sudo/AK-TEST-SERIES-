@@ -5401,7 +5401,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val universalPolicy = Com.ak.testseries.exam.UniversalAIContext.buildUniversalSystemInstruction(
             Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
         )
-        val effectivePrompt = "$universalPolicy\\n\\n$prompt"
+        val effectivePrompt = "$universalPolicy\n\n$prompt"
         var startIndex = 0
         val currentActiveId = activeGeminiKeyIndex.value
         val indexOfActive = keys.indexOfFirst { it.first == currentActiveId }

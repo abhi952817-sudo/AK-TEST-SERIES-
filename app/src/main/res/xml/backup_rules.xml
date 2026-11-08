@@ -19,4 +19,6 @@
     <exclude domain="sharedpref" path="test_progress.xml" />
     <exclude domain="sharedpref" path="SyllabusProgress.xml" />
     <exclude domain="sharedpref" path="ak_google_drive_backup_prefs.xml" />
+    <!-- Device-bound Gemini ciphertext must not migrate without its Android Keystore key. -->
+    <exclude domain="sharedpref" path="gemini_personal_credentials_v1.xml" />
 </full-backup-content>
