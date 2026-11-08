@@ -358,7 +358,7 @@ object UniversalPdfPipeline {
                                 duplicateHash = hash,
                                 diagramUrl = markdownCandidate?.diagramUrl,
                                 diagramMetadata = markdownCandidate?.diagramMetadata,
-                                sourceName = if (markdownCandidate != null) "Extracted PDF Markdown" else "${examConfig.examName} Bundled Verified Catalog",
+                                sourceName = if (markdownCandidate != null) "Extracted PDF Markdown" else "${examConfig.examName} Bundled Practice Catalog (Review Required)",
                                 sourcePage = markdownCandidate?.sourcePage?.takeIf { it > 0 } ?: -1,
                                 isOfficialPYQ = false,
                                 questionVersion = 1,
