@@ -250,9 +250,6 @@ object UniversalPdfPipeline {
 
                     extractedQuestions.addAll(finalBatch)
                 } else {
-                    val offlineModel = if (compactMarkdown.isNotBlank()) "pdf-real-extractor-v1" else "bundled-exam-catalog-v1"
-                    val offlineSource = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "${examConfig.examName} Authentic Catalog"
-
                     // Real extraction from parsed markdown or authentic exam catalog (Zero dummy data)
                     val realExtractedFromMarkdown = if (compactMarkdown.isNotBlank()) {
                         OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, stageId)
@@ -393,7 +390,7 @@ object UniversalPdfPipeline {
         try {
             val responseReport = GeminiResponseValidator.parseResponse(
                 raw = jsonString,
-                minimumMcqOptions = examConfig.defaultOptionCount
+                minimumMcqOptions = 2
             )
             if (!responseReport.isUsable) return emptyList()
             val jsonArray = responseReport.questions
@@ -442,6 +439,8 @@ object UniversalPdfPipeline {
 
                 val isNumerical = (parsedQType == QuestionType.NUMERICAL_VALUE || parsedQType == QuestionType.NUMERICAL || parsedQType == QuestionType.TITA)
                 val finalOptions = if (isNumerical) emptyList() else options
+                val expectedOptions = resolvedSection?.optionsCount ?: examConfig.defaultOptionCount
+                if (!isNumerical && finalOptions.size != expectedOptions.coerceIn(2, 5)) continue
 
                 val rawAnswer = item.optString("correctAnswer", "").trim()
                 val correctAnswer = if (isNumerical) rawAnswer else rawAnswer.uppercase()
@@ -459,7 +458,7 @@ object UniversalPdfPipeline {
                     hasDiagramAttached = false,
                     duplicateResult = dupResult,
                     questionType = parsedQType,
-                    expectedOptionCount = examConfig.defaultOptionCount
+                    expectedOptionCount = expectedOptions
                 )
 
                 val model = UniversalQuestionModel(
