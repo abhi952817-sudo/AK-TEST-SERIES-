@@ -59,8 +59,11 @@ object GeminiResponseValidator {
 
         val type = item.optString("questionType", "MCQ_SINGLE").uppercase()
         val numerical = type in setOf("NAT", "TITA", "NUMERICAL", "NUMERICAL_VALUE", "NUMERICAL_VALUE_QUESTION")
+        val freeResponse = type in setOf("DESCRIPTIVE", "ESSAY", "SUBJECTIVE")
         if (numerical) {
             if (!answer.matches(Regex("^[+-]?\\d+(\\.\\d+)?$"))) return "Numerical answer is not a valid numeric value."
+        } else if (freeResponse) {
+            if (answer.length < 2) return "Descriptive answer is missing or too short."
         } else {
             val labels = listOf("A", "B", "C", "D", "E")
             val options = labels.map { label ->
