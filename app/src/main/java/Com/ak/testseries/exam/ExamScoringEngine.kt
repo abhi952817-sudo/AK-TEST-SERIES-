@@ -38,6 +38,9 @@ object ExamScoringEngine {
         return false
     }
 
+    private fun isNonFiniteNumberLiteral(value: String): Boolean =
+        value.trim().uppercase() in setOf("NAN", "+NAN", "-NAN", "INFINITY", "+INFINITY", "-INFINITY", "INF", "+INF", "-INF")
+
     private fun isNumericLiteral(value: String): Boolean =
         value.matches(Regex("^[+-]?(?:(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)$"))
 
@@ -46,6 +49,7 @@ object ExamScoringEngine {
         val b = ans2.trim().uppercase()
         val num1 = a.toDoubleOrNull()
         val num2 = b.toDoubleOrNull()
+        if (isNonFiniteNumberLiteral(a) || isNonFiniteNumberLiteral(b)) return false
         if ((num1 != null && !num1.isFinite()) || (num2 != null && !num2.isFinite())) return false
         // Reject overflowed numeric literals even when both textual values are identical.
         if ((isNumericLiteral(a) && num1 == null) || (isNumericLiteral(b) && num2 == null)) return false
