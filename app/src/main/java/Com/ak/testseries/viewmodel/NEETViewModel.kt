@@ -4660,14 +4660,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             Exam: ${examConfig.examName}; Subject: $subjectName; Requested upper limit: $expectedCount.
                             Transcribe only questions that actually exist in the PDF, preserving their order and wording.
                             Never create filler questions or claim generated questions came from the PDF.
-                            Include all available options and any printed answer key/solutions. If an answer is not
-                            explicitly present, solve only when the answer is unambiguous from the question; otherwise
-                            leave correctAnswer empty so the question can be rejected for review, never guess.
-                            Mark needsImage=true when the original question depends on a diagram/graph/table image.
-                            Return ONLY a JSON array, with one object per real source question, using fields:
-                            questionTextEn, questionTextHi, optionAEn, optionBEn, optionCEn, optionDEn, optionEEn,
-                            optionAHi, optionBHi, optionCHi, optionDHi, optionEHi, correctAnswer, explanationEn,
-                            explanationHi, questionType, needsImage, chapter, topic, pageNumber.
+                            Include all available options and printed solutions. Set sourceAnswer ONLY when a printed
+                            answer key/official answer is visibly present in the PDF; never copy a model-solved answer
+                            into sourceAnswer. If no printed key exists, sourceAnswer must be empty. Set correctAnswer
+                            from a clearly printed key when available; otherwise solve only if unambiguous, and leave
+                            it empty when uncertain. Never guess. Mark needsImage=true when the question depends on
+                            a diagram/graph/table image. Return ONLY a JSON array, one object per real source question,
+                            with fields: questionTextEn, questionTextHi, optionAEn, optionBEn, optionCEn, optionDEn,
+                            optionEEn, optionAHi, optionBHi, optionCHi, optionDHi, optionEHi, correctAnswer,
+                            sourceAnswer, explanationEn, explanationHi, questionType, needsImage, chapter, topic,
+                            pageNumber.
                             Do not exceed $expectedCount questions. If the PDF contains no readable questions,
                             return an empty array. No markdown fences or prose outside JSON.
                         """.trimIndent()
