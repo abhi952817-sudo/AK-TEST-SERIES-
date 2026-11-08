@@ -5457,6 +5457,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val activeGeminiKeyIndex = MutableStateFlow(0)
     private val _studentGeminiKeyConfigured = MutableStateFlow(false)
     val studentGeminiKeyConfigured: StateFlow<Boolean> = _studentGeminiKeyConfigured.asStateFlow()
+    private val _studentGeminiKeyRotationDue = MutableStateFlow(false)
+    val studentGeminiKeyRotationDue: StateFlow<Boolean> = _studentGeminiKeyRotationDue.asStateFlow()
     val geminiStatusMessage = MutableStateFlow("Initializing...")
     val activeAiModel = MutableStateFlow("UNAVAILABLE")
 
@@ -5544,6 +5546,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
         _studentGeminiKeyConfigured.value = !isAdmin &&
             Com.ak.testseries.utils.StudentGeminiKeyStore.isConfigured(getApplication(), uid)
+        _studentGeminiKeyRotationDue.value = _studentGeminiKeyConfigured.value &&
+            Com.ak.testseries.utils.StudentGeminiKeyStore.needsRotationReminder(getApplication(), uid)
     }
 
     suspend fun connectStudentGeminiApiKey(apiKey: String): String? = withContext(Dispatchers.IO) {
@@ -5570,6 +5574,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
             Com.ak.testseries.utils.StudentGeminiKeyStore.save(getApplication(), uid, normalizedKey)
             _studentGeminiKeyConfigured.value = true
+            _studentGeminiKeyRotationDue.value = false
             geminiStatusMessage.value = "Personal Gemini API key connected securely."
             null
         } catch (_: Exception) {
@@ -5583,6 +5588,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
         if (uid.isNotBlank()) Com.ak.testseries.utils.StudentGeminiKeyStore.clear(getApplication(), uid)
         _studentGeminiKeyConfigured.value = false
+        _studentGeminiKeyRotationDue.value = false
         if (activeGeminiKeyIndex.value == 2) activeGeminiKeyIndex.value = 0
         geminiStatusMessage.value = "Personal Gemini API key disconnected."
     }
