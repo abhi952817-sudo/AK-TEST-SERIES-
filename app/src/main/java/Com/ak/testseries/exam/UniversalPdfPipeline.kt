@@ -71,10 +71,11 @@ object UniversalPdfPipeline {
         }
         val extractedQuestions = mutableListOf<UniversalQuestionModel>()
         extractedQuestions.addAll(existingQuestionsCache)
+        val appContext = requireNotNull(context) { "PDF extraction requires an Android context." }
         
         // Shared extraction path: page text + local diagram/image candidates for every exam.
         val documentExtraction = UniversalPdfDocumentExtractor.extract(
-            context = context,
+            context = appContext,
             pdfUri = pdfUri,
             testId = "universal_${System.currentTimeMillis()}",
             maxPages = 200
