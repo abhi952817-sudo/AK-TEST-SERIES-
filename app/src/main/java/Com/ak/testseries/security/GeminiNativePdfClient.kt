@@ -60,7 +60,7 @@ object GeminiNativePdfClient {
                     .put("temperature", 0.1))
             }
 
-            val models = listOf("gemini-2.5-flash", "gemini-flash-latest")
+            val models = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash")
             var lastFailure = "Gemini did not return a usable response."
             for (model in models) {
                 var connection: HttpURLConnection? = null
