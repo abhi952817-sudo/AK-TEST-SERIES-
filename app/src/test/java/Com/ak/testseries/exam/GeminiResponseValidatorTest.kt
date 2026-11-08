@@ -158,6 +158,18 @@ class GeminiResponseValidatorTest {
     }
 
     @Test
+    fun rejectsPartialTaskEvenWhenQuestionArrayLooksValid() {
+        val root = JSONObject()
+            .put("status", "PARTIAL")
+            .put("questions", JSONArray().put(validMcq()))
+            .put("errors", JSONArray())
+        val report = GeminiResponseValidator.parseResponse(root.toString())
+        assertFalse(report.isUsable)
+        assertEquals(0, report.questions.length())
+        assertTrue(report.errors.any { it.contains("COMPLETE") })
+    }
+
+    @Test
     fun rejectsTaskEnvelopeWithReportedErrorsEvenWhenQuestionsExist() {
         val root = JSONObject()
             .put("status", "COMPLETE")
