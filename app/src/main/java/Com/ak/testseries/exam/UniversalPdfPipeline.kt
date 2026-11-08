@@ -195,12 +195,13 @@ object UniversalPdfPipeline {
                             )
                         )
 
-                        val targetedPrompt = """
-                            ${UniversalAIContext.buildSystemInstruction(examConfig)}
-                            Generate exactly $neededCount high-quality ${deficientLevel.name} difficulty questions for ${examConfig.examName} ($subjectId).
-                            Difficulty requirement: Strictly ${deficientLevel.name} level questions only.
-                            Output strictly a valid JSON array of questions matching schema.
-                        """.trimIndent()
+                        val targetedPrompt = UniversalAIContext.buildDifficultyRegenerationPrompt(
+                            examConfig = examConfig,
+                            subjectId = subjectId,
+                            neededCount = neededCount,
+                            difficulty = deficientLevel,
+                            sourceText = compactMarkdown
+                        )
 
                         try {
                             val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null)
