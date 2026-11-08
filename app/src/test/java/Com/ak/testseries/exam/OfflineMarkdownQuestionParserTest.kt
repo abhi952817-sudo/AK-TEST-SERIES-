@@ -131,7 +131,39 @@ class OfflineMarkdownQuestionParserTest {
         assertEquals("The Indian Constitution was adopted on:", models[0].questionText)
         assertEquals("B", models[0].correctAnswer)
         assertEquals("Indian Polity", models[0].subjectId)
-        assertEquals(ValidationStatus.APPROVED, models[0].validationStatus)
+        assertEquals(ValidationStatus.NEEDS_REVIEW, models[0].validationStatus)
+        assertTrue(models[0].needsReview)
+        assertEquals("KEY_EXTRACTED", models[0].answerStatus)
+        assertEquals("B", models[0].sourceAnswer)
         assertEquals("Extracted PDF Test Paper", models[0].sourceName)
+    }
+
+    @Test
+    fun missingAnswerKeyNeverDefaultsToOptionAOrInventedExplanation() {
+        val text = """
+            1. Which particle has a negative charge?
+            (A) Proton
+            (B) Electron
+            (C) Neutron
+            (D) Photon
+        """.trimIndent()
+        val parsed = OfflineMarkdownQuestionParser.parseStructuredQuestions(text)
+        assertEquals(1, parsed.size)
+        assertEquals("", parsed[0].correctAnswer)
+        assertEquals("", parsed[0].explanation)
+
+        val config = UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+        val models = OfflineMarkdownQuestionParser.parseMarkdownToQuestions(
+            markdown = text,
+            examConfig = config,
+            subjectId = "physics"
+        )
+        assertEquals(1, models.size)
+        assertEquals("", models[0].correctAnswer)
+        assertEquals("UNVERIFIED", models[0].answerStatus)
+        assertTrue(models[0].needsReview)
+        assertEquals(ValidationStatus.NEEDS_REVIEW, models[0].validationStatus)
+        assertEquals(4.0, models[0].positiveMarks, 0.001)
+        assertEquals(1.0, models[0].negativeMarks, 0.001)
     }
 }
