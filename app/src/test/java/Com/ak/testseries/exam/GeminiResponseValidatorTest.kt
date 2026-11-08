@@ -99,6 +99,64 @@ class GeminiResponseValidatorTest {
     }
 
 
+    private fun testExamConfig(): ExamConfig = ExamConfig(
+        examId = "neet_ug",
+        examName = "NEET UG",
+        shortName = "NEET",
+        category = "Medical",
+        stages = listOf(
+            StageConfig(
+                stageId = "stage_1",
+                stageName = "Main",
+                papers = listOf(
+                    PaperConfig(
+                        paperId = "paper_1",
+                        paperName = "Paper",
+                        subjects = listOf(
+                            SubjectConfig(
+                                subjectId = "physics",
+                                subjectName = "Physics",
+                                sections = listOf(
+                                    SectionConfig(
+                                        sectionId = "PHYSICS_A",
+                                        sectionName = "Physics",
+                                        totalQuestions = 1,
+                                        compulsoryQuestions = 1,
+                                        positiveMarks = 4.0,
+                                        negativeMarks = 1.0,
+                                        questionType = QuestionType.MCQ_SINGLE,
+                                        optionsCount = 4
+                                    )
+                                )
+                            )
+                        ),
+                        durationMinutes = 60,
+                        totalMarks = 4.0
+                    )
+                )
+            )
+        )
+    )
+
+    @Test
+    fun examConfigRejectsIdentityScoringAndQuestionTypeMismatch() {
+        val wrongExam = validMcq().put("examId", "jee_main")
+            .put("subjectId", "physics")
+        val root = JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(wrongExam))
+        val report = GeminiResponseValidator.parseResponse(root.toString(), testExamConfig())
+        assertFalse(report.isUsable)
+        assertTrue(report.errors.any { it.contains("examId") })
+    }
+
+    @Test
+    fun examConfigAcceptsOnlyExactConfiguredSectionAndMarks() {
+        val item = validMcq().put("examId", "neet_ug").put("subjectId", "physics")
+        val root = JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(item))
+        val report = GeminiResponseValidator.parseResponse(root.toString(), testExamConfig())
+        assertTrue(report.isUsable)
+        assertEquals(1, report.questions.length())
+    }
+
     @Test
     fun rejectsTaskEnvelopeWithReportedErrorsEvenWhenQuestionsExist() {
         val root = JSONObject()
