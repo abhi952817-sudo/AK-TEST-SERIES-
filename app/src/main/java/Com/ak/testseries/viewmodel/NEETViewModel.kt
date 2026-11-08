@@ -4982,7 +4982,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         context = context,
                         pdfUri = android.net.Uri.fromFile(persistentPdfFile),
                         testId = session.sessionId,
-                        maxPages = 200,
+                        maxPages = 50,
                         languageCode = "eng"
                     )
                 }
