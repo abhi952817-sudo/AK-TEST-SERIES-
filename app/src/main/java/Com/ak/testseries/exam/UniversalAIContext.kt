@@ -373,19 +373,30 @@ object UniversalAIContext {
         subjectId: String,
         neededCount: Int,
         difficulty: DifficultyLevel,
-        sourceText: String
-    ): String = """
-        ${buildSystemInstruction(examConfig)}
-        TASK: REGENERATE ONLY $neededCount questions at exactly $difficulty difficulty.
-        Exam: ${examConfig.examName}; subject: $subjectId.
-        Use only the supplied source material and configured exam pattern.
-        Do not change the requested difficulty, section question type, option cardinality, marks or negative marks.
-        Verify each answer independently; do not output hidden chain-of-thought.
-        If source evidence is insufficient, return fewer questions and explain the gap in errors. Never use filler.
-        Return JSON object {"status":"COMPLETE|PARTIAL|ERROR","questions":[...],"errors":[]} using the same question schema as buildDynamicGenerationPrompt.
-        SOURCE:
-        ${sourceText.take(30000)}
-    """.trimIndent()
+        sourceText: String,
+        stageId: String? = null
+    ): String {
+        val selectedStage = if (stageId.isNullOrBlank()) examConfig.stages.firstOrNull()
+            else examConfig.stages.firstOrNull { it.stageId == stageId }
+        val sections = getApplicableSections(examConfig, subjectId, selectedStage?.stageId)
+        val sectionDetails = sections.joinToString("\n") {
+            "- ${it.sectionId} | ${it.sectionName} | type=${it.questionType.name} | options=${it.optionsCount} | marks=+${it.positiveMarks}/-${it.negativeMarks}"
+        }
+        return """
+            ${buildSystemInstruction(examConfig)}
+            TASK: REGENERATE ONLY $neededCount questions at exactly $difficulty difficulty.
+            Exam: ${examConfig.examName}; stage: ${selectedStage?.stageId ?: "UNRESOLVED"}; subjectId: $subjectId.
+            Configured sections:
+            $sectionDetails
+            Use only the supplied source material and configured exam pattern.
+            Do not change the requested difficulty, section question type, option cardinality, marks or negative marks.
+            Verify each answer independently; do not output hidden chain-of-thought.
+            If source evidence is insufficient, return fewer questions and explain the gap in errors. Never use filler.
+            Return JSON object {"status":"COMPLETE|PARTIAL|ERROR","questions":[...],"errors":[]} using the same question schema as buildDynamicGenerationPrompt.
+            SOURCE:
+            ${sourceText.take(30000)}
+        """.trimIndent()
+    }
 
     /** Generic strict legacy extractor prompt. Keeps the old call signature usable. */
     fun buildLegacyPdfExtractionPrompt(totalQuestionsExpected: Int): String = """
