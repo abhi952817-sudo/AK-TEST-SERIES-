@@ -5292,7 +5292,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (uid.isBlank()) return emptyList()
 
         val personalKey = try {
-            Com.ak.testseries.security.GeminiApiKeyStore.getApiKey(getApplication(), uid)
+            if (Com.ak.testseries.security.GeminiApiKeyStore.isRotationDue(getApplication(), uid)) {
+                null
+            } else {
+                Com.ak.testseries.security.GeminiApiKeyStore.getApiKey(getApplication(), uid)
+            }
         } catch (e: Exception) {
             android.util.Log.w("NEETViewModel", "Unable to read the local Gemini key", e)
             null
@@ -5322,10 +5326,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
         val keys = getGeminiApiKeys()
         if (keys.isEmpty()) {
-            geminiStatusMessage.value = if (currentUserId.value.isNotBlank() && !isAdminFlow.value) {
-                "Connect your own Gemini API key in Gemini AI Setup."
-            } else {
-                "No Gemini API key is configured."
+            val uid = currentUserId.value
+            val rotationDue = uid.isNotBlank() && !isAdminFlow.value &&
+                Com.ak.testseries.security.GeminiApiKeyStore.isRotationDue(getApplication(), uid) &&
+                Com.ak.testseries.security.GeminiApiKeyStore.hasApiKey(getApplication(), uid)
+            geminiStatusMessage.value = when {
+                rotationDue -> "Your personal Gemini key has reached its 7-day rotation limit. Verify a new key in Gemini AI Setup."
+                uid.isNotBlank() && !isAdminFlow.value -> "Connect your own Gemini API key in Gemini AI Setup."
+                else -> "No Gemini API key is configured."
             }
             return null
         }

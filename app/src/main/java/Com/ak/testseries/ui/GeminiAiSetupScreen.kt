@@ -98,13 +98,17 @@ fun GeminiAiSetupScreen(
             val savedKey = GeminiApiKeyStore.getApiKey(context, userId)
             hasSavedKey = !savedKey.isNullOrBlank()
             if (!savedKey.isNullOrBlank()) {
-                isVerifying = true
-                val verification = GeminiApiKeyStore.verifyApiKey(savedKey)
-                isConnected = verification.isSuccess
-                if (verification.isFailure) {
-                    connectionError = verification.exceptionOrNull()?.message
+                if (GeminiApiKeyStore.isRotationDue(context, userId)) {
+                    connectionError = if (isHindi) "सुरक्षा के लिए 7-दिन की Key Rotation जरूरी है। नई Key Verify करें।" else "The 7-day key rotation is due. Verify a new key to continue using your personal key."
+                } else {
+                    isVerifying = true
+                    val verification = GeminiApiKeyStore.verifyApiKey(savedKey)
+                    isConnected = verification.isSuccess
+                    if (verification.isFailure) {
+                        connectionError = verification.exceptionOrNull()?.message
+                    }
+                    isVerifying = false
                 }
-                isVerifying = false
             } else {
                 lastUpdated = 0L
             }
@@ -113,7 +117,7 @@ fun GeminiAiSetupScreen(
         }
     }
 
-    val rotationDue = lastUpdated > 0L && System.currentTimeMillis() - lastUpdated >= 7L * 24L * 60L * 60L * 1000L
+    val rotationDue = hasSavedKey && userId.isNotBlank() && GeminiApiKeyStore.isRotationDue(context, userId)
 
     if (showDisconnectDialog) {
         AlertDialog(

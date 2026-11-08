@@ -5,6 +5,13 @@ package Com.ak.testseries.security
  * Admin-managed keys are available only to a verified Admin when no personal key is configured.
  */
 object GeminiApiKeyPolicy {
+    const val KEY_ROTATION_INTERVAL_MILLIS: Long = 7L * 24L * 60L * 60L * 1000L
+
+    fun isPersonalKeyFresh(lastUpdatedAtMillis: Long, nowMillis: Long): Boolean =
+        lastUpdatedAtMillis > 0L &&
+            nowMillis >= lastUpdatedAtMillis &&
+            nowMillis - lastUpdatedAtMillis < KEY_ROTATION_INTERVAL_MILLIS
+
     fun selectKeys(
         uid: String,
         personalKey: String?,

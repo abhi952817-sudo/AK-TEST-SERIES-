@@ -30,6 +30,14 @@ class GeminiApiKeyPolicyTest {
     }
 
     @Test
+    fun personalKeyMustBeRotatedAtSevenDayBoundary() {
+        val sevenDays = GeminiApiKeyPolicy.KEY_ROTATION_INTERVAL_MILLIS
+        assertEquals(false, GeminiApiKeyPolicy.isPersonalKeyFresh(1_000L, 1_000L + sevenDays))
+        assertEquals(true, GeminiApiKeyPolicy.isPersonalKeyFresh(1_000L, 1_000L + sevenDays - 1L))
+        assertEquals(false, GeminiApiKeyPolicy.isPersonalKeyFresh(0L, 10_000L))
+    }
+
+    @Test
     fun signedOutUserCannotUseAnyKey() {
         assertEquals(
             emptyList<Pair<Int, String>>(),

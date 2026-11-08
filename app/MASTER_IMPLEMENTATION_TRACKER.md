@@ -835,3 +835,13 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
   - `99412b5957430258a79a24fe9007e94e08ba3e33` — pure per-user key selection policy and four isolation tests.
 - Static call-site search found no active caller for `GeminiPdfExtractor.processPdfWithGemini()`; its old generic prompt and URL-key request remain in a legacy unreferenced file and are not part of the active flow. Keep it isolated until a safe removal/compatibility decision is made.
 - The Android workflow is configured for this branch, but no workflow run or commit status was returned for the latest branch commits. Build and tests therefore remain **NOT VERIFIED**, not passed.
+
+
+### Enforced weekly personal-key rotation
+
+- Added a seven-day freshness policy to the pure credential-selection layer.
+- Student personal keys older than seven days are no longer returned to Gemini call sites; a new key must pass live verification before replacing the saved key.
+- The existing key remains encrypted on-device until a replacement verifies or the user explicitly disconnects it.
+- The setup screen distinguishes expired-for-rotation from revoked/invalid/network failure.
+- Added a unit test for the seven-day boundary and missing timestamp.
+- This is source-level behavior only until Android tests and a real device clock/rotation scenario are executed.

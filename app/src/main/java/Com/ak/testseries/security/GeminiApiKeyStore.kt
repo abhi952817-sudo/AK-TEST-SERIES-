@@ -99,6 +99,9 @@ object GeminiApiKeyStore {
             .getLong(timestampKey(uid), 0L)
     }
 
+    fun isRotationDue(context: Context, uid: String, nowMillis: Long = System.currentTimeMillis()): Boolean =
+        !GeminiApiKeyPolicy.isPersonalKeyFresh(lastUpdatedAt(context, uid), nowMillis)
+
     fun deleteApiKey(context: Context, uid: String) {
         if (uid.isBlank()) return
         context.applicationContext
