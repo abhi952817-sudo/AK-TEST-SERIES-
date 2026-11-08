@@ -55,7 +55,8 @@ object UniversalPdfPipeline {
         existingQuestionsCache: List<UniversalQuestionModel> = emptyList(),
         apiKey: String? = null,
         isAiEnabled: Boolean = true,
-        onProgress: (BatchProgress) -> Unit = {}
+        onProgress: (BatchProgress) -> Unit = {},
+        onDocumentExtracted: (UniversalPdfDocumentExtractor.Result) -> Unit = {}
     ): List<UniversalQuestionModel> = withContext(Dispatchers.IO) {
         if (!isAiEnabled) {
             onProgress(
@@ -79,6 +80,7 @@ object UniversalPdfPipeline {
             maxPages = 200
         )
         val compactMarkdown = documentExtraction.compactMarkdown
+        onDocumentExtracted(documentExtraction)
         onProgress(
             BatchProgress(
                 totalBatches = (expectedQuestions + batchSize - 1) / batchSize,
