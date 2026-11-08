@@ -286,8 +286,8 @@ object UniversalPdfPipeline {
                                 bundledCandidate?.optionE?.takeIf { it.isNotBlank() }
                             )
                         }
-                        val isNumerical = qType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA)
-                        if (!isNumerical && options.size < examConfig.defaultOptionCount.coerceIn(2, 5)) continue
+                        val isOptionFree = qType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA, QuestionType.DESCRIPTIVE)
+                        if (!isOptionFree && options.size < examConfig.defaultOptionCount.coerceIn(2, 5)) continue
                         val correctAnswer = markdownCandidate?.correctAnswer?.takeIf { it.isNotBlank() }
                             ?: bundledCandidate?.correctAnswer?.takeIf { it.isNotBlank() } ?: continue
                         val explanation = markdownCandidate?.explanation?.takeIf { it.isNotBlank() }
@@ -437,10 +437,10 @@ object UniversalPdfPipeline {
                     else -> resolvedSection?.questionType ?: continue
                 }
 
-                val isNumerical = (parsedQType == QuestionType.NUMERICAL_VALUE || parsedQType == QuestionType.NUMERICAL || parsedQType == QuestionType.TITA)
-                val finalOptions = if (isNumerical) emptyList() else options
+                val isOptionFree = parsedQType in setOf(QuestionType.NUMERICAL_VALUE, QuestionType.NUMERICAL, QuestionType.TITA, QuestionType.DESCRIPTIVE)
+                val finalOptions = if (isOptionFree) emptyList() else options
                 val expectedOptions = resolvedSection?.optionsCount ?: examConfig.defaultOptionCount
-                if (!isNumerical && finalOptions.size != expectedOptions.coerceIn(2, 5)) continue
+                if (!isOptionFree && finalOptions.size != expectedOptions.coerceIn(2, 5)) continue
 
                 val rawAnswer = item.optString("correctAnswer", "").trim()
                 val correctAnswer = if (isNumerical) rawAnswer else rawAnswer.uppercase()
