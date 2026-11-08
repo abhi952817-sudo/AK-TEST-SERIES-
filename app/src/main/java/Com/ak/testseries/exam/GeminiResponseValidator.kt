@@ -14,7 +14,7 @@ object GeminiResponseValidator {
         val errors: List<String>,
         val taskStatus: String
     ) {
-        val isUsable: Boolean get() = questions.length() > 0 && errors.isEmpty()
+        val isUsable: Boolean get() = taskStatus == "COMPLETE" && questions.length() > 0 && errors.isEmpty()
     }
 
     fun parseResponse(raw: String, minimumMcqOptions: Int = 4): Report {
@@ -24,8 +24,13 @@ object GeminiResponseValidator {
             return Report(JSONArray(), 0, listOf("Response must be a JSON object; legacy arrays and malformed JSON are rejected."), "ERROR")
         }
         val status = root.optString("status", "").uppercase()
-        if (status !in setOf("COMPLETE", "PARTIAL")) {
-            return Report(JSONArray(), 0, listOf("Task status is missing or not publishable: $status"), status.ifBlank { "ERROR" })
+        if (status != "COMPLETE") {
+            return Report(
+                JSONArray(),
+                0,
+                listOf("Task status must be COMPLETE for test persistence/publication; received: ${status.ifBlank { "MISSING" }}."),
+                status.ifBlank { "ERROR" }
+            )
         }
         if (root.has("errors")) {
             val taskErrors = root.optJSONArray("errors")
