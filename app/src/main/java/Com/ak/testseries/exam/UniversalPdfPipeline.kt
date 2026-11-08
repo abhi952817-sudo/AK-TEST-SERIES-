@@ -71,30 +71,22 @@ object UniversalPdfPipeline {
         val extractedQuestions = mutableListOf<UniversalQuestionModel>()
         extractedQuestions.addAll(existingQuestionsCache)
         
-        // 1. Extract text from the PDF using the local PDF extractor only.
-        // Never interpret raw PDF bytes as text: compressed/object streams are not readable text.
-        require(context != null) { "PDF extraction requires an Android context." }
-        val tempFile = java.io.File.createTempFile("pipe_pdf_", ".pdf", context.cacheDir)
-        val compactMarkdown = try {
-            val copied = context.contentResolver.openInputStream(pdfUri)?.use { input ->
-                tempFile.outputStream().use { output -> input.copyTo(output) }
-                true
-            } ?: false
-            require(copied && tempFile.length() > 0L) { "Could not read the selected PDF." }
-
-            val smartExtractor = com.ak.pdfextractor.AdvancedPdfSmartExtractor(context)
-            // OCR page-by-page so scanned pages are included even in mixed PDFs.
-            // Diagram pixels are not yet sent to the vision model; such questions remain review-only.
-            val extractedText = smartExtractor.extractAllPagesWithLocalOcr(tempFile, maxPages = 50)
-            require(extractedText.isNotBlank()) {
-                "No readable text was extracted by local OCR or the PDF text fallback. Question generation was stopped."
-            }
-            CompactMarkdownFormatter.formatToCompactMarkdown(extractedText).also {
-                require(it.isNotBlank()) { "PDF text formatting produced no usable content." }
-            }
-        } finally {
-            tempFile.delete()
-        }
+        // Shared extraction path: page text + local diagram/image candidates for every exam.
+        val documentExtraction = UniversalPdfDocumentExtractor.extract(
+            context = context,
+            pdfUri = pdfUri,
+            testId = "universal_${System.currentTimeMillis()}",
+            maxPages = 200
+        )
+        val compactMarkdown = documentExtraction.compactMarkdown
+        onProgress(
+            BatchProgress(
+                totalBatches = (expectedQuestions + batchSize - 1) / batchSize,
+                currentBatch = 0,
+                processedQuestions = extractedQuestions.size,
+                statusMessage = "Extracted ${documentExtraction.extractedPageCount} PDF pages and ${documentExtraction.diagramCandidates.size} diagram/image candidates for ${examConfig.examName}."
+            )
+        )
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
         val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
