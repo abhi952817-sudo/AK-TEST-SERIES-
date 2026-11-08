@@ -753,3 +753,15 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - No Gemini prompt or Vision transport was changed.
 - No production deployment or `main` branch change was made.
 - Do not declare extraction universal or verified until all six exam-family fixture suites have actual evidence and the Android test/build workflow passes.
+
+
+### Offline Hindi OCR decision and CI failure follow-up — 2026-11-08
+
+- Hindi OCR must not depend on cloud APIs, Gemini, Google Play Services, or network access at inference time.
+- Candidate selected for implementation evaluation: PaddleOCR PP-OCRv5 Devanagari recognition model with on-device Android inference. PaddleOCR is Apache-2.0; its language/model documentation lists Hindi/Devanagari support. Published recognition accuracy is benchmark-specific and is not a guarantee for AK TEST SERIES exam PDFs.
+- Official PaddleOCR Android deployment sample uses ONNX Runtime and OpenCV and documents local inference, but the documented sample currently highlights PP-OCRv6 and PP-OCRv5 mobile models. The Devanagari PP-OCRv5 recognizer must be verified in this Android runtime before integration is declared complete.
+- Existing MlKitLocalOcrEngine is Latin-script only and uses the Google Play Services ML Kit recognizer. It is not a Hindi OCR solution. Replacement must preserve embedded/selectable PDF text extraction and use local OCR only when the page lacks a usable text layer.
+- Do not remove the existing Latin OCR path until an offline replacement handles both Devanagari and Latin and passes device tests; otherwise English scanned PDFs regress. Final architecture should not require Play Services or network for OCR.
+- Offline OCR implementation remains OPEN: Android model/runtime compatibility, model asset packaging and checksum, CPU/memory/performance, Hindi+English recognition, page/layout ordering, and real exam PDF validation are not yet complete. No model binary has been added and no offline OCR runtime has been claimed.
+- CI run 42447761562 completed FAILURE. Compiler errors: wrong-case imports (Com.ak.pdfextractor vs declared com.ak.pdfextractor) in UniversalPdfDocumentExtractor.kt, and MainActivity.kt called addNewTest(test) without required questions. The latter screen currently supplies no real questions; the call is changed to pass an empty list, which the existing ViewModel validator rejects. No placeholder question is introduced. CI must be rerun after these fixes.
+- No production deploy, Gemini prompt change, or main branch change.
