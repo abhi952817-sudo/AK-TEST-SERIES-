@@ -31,6 +31,7 @@ object UniversalPdfPipeline {
      * Resolves the section configuration for a question based on its sequential index in the subject.
      */
     fun resolveSectionForIndex(examConfig: ExamConfig, subjectId: String, qIndexInSubject: Int): SectionConfig? {
+        if (qIndexInSubject <= 0) return null
         val sections = UniversalAIContext.getApplicableSections(examConfig, subjectId)
         if (sections.isEmpty()) return null
         var runningCount = 0
