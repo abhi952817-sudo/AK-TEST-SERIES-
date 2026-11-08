@@ -167,10 +167,11 @@ object QuestionValidationEngine {
         val isNumericalType = (questionType == QuestionType.NUMERICAL_VALUE ||
                                questionType == QuestionType.NUMERICAL ||
                                questionType == QuestionType.TITA)
+        val isFreeResponseType = questionType == QuestionType.DESCRIPTIVE
 
         // 3. Option Validation (Integrity)
-        if (isNumericalType) {
-            // NAT/TITA questions are option-free by design
+        if (isNumericalType || isFreeResponseType) {
+            // NAT/TITA and descriptive questions are option-free by design
             optionIntegrity = 100
         } else {
             val minOptions = expectedOptionCount.coerceIn(4, 5)
@@ -207,6 +208,12 @@ object QuestionValidationEngine {
                             trimmedAnswer.matches(Regex("""^[+-]?\d+(\.\d+)?$"""))
             if (!isNumeric) {
                 issues.add("⚠ Answer conflict detected: Numerical question expects a valid numeric value, found '$trimmedAnswer'")
+                answerConfidence = 0
+                hasHardFailure = true
+            }
+        } else if (isFreeResponseType) {
+            if (trimmedAnswer.length < 2) {
+                issues.add("⚠ Descriptive answer is missing or too short")
                 answerConfidence = 0
                 hasHardFailure = true
             }
