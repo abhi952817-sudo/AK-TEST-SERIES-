@@ -341,6 +341,7 @@ class LocalPdfImageExtractorTest {
             questionText = textWithKeyword,
             options = listOf("Curve A", "Curve B", "Curve C", "Curve D"),
             correctAnswer = "A",
+            sourceAnswer = "A",
             explanation = "Valid comprehensive reasoning text for testing.",
             hasDiagramAttached = true
         )
