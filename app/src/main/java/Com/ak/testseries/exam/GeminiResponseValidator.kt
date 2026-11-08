@@ -54,10 +54,14 @@ object GeminiResponseValidator {
         return Report(accepted, rejected, errors, status)
     }
 
-    fun parseResponse(raw: String, examConfig: ExamConfig): Report {
+    fun parseResponse(
+        raw: String,
+        examConfig: ExamConfig,
+        expectedSubjectId: String? = null
+    ): Report {
         val base = parseResponse(raw, minimumMcqOptions = 2)
         if (base.questions.length() == 0 || base.errors.isNotEmpty()) return base
-        val sections = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }.flatMap { it.sections }
+        val subjects = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
         val configErrors = mutableListOf<String>()
         for (index in 0 until base.questions.length()) {
             val item = base.questions.getJSONObject(index)
@@ -66,10 +70,20 @@ object GeminiResponseValidator {
                 configErrors.add("Question ${index + 1}: examId does not match the selected exam configuration.")
                 continue
             }
+            val subjectId = item.optString("subjectId", "")
+            val subject = subjects.firstOrNull { it.subjectId == subjectId }
+            if (subject == null) {
+                configErrors.add("Question ${index + 1}: subjectId is missing or not registered for the selected exam.")
+                continue
+            }
+            if (!expectedSubjectId.isNullOrBlank() && subjectId != expectedSubjectId) {
+                configErrors.add("Question ${index + 1}: subjectId does not match the requested subject.")
+                continue
+            }
             val sectionId = item.optString("sectionId", "")
-            val section = sections.firstOrNull { it.sectionId == sectionId }
+            val section = subject.sections.firstOrNull { it.sectionId == sectionId }
             if (section == null) {
-                configErrors.add("Question ${index + 1}: sectionId is not present in the selected exam configuration.")
+                configErrors.add("Question ${index + 1}: sectionId is not configured inside the supplied subject.")
                 continue
             }
             if (item.optString("sectionName", "") != section.sectionName) {
