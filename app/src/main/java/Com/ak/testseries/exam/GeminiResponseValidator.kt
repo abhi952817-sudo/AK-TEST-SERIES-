@@ -27,6 +27,10 @@ object GeminiResponseValidator {
         if (status !in setOf("COMPLETE", "PARTIAL")) {
             return Report(JSONArray(), 0, listOf("Task status is missing or not publishable: $status"), status.ifBlank { "ERROR" })
         }
+        val taskErrors = root.optJSONArray("errors")
+        if (taskErrors != null && taskErrors.length() > 0) {
+            return Report(JSONArray(), taskErrors.length(), listOf("Gemini task reported one or more extraction/generation errors; the batch is not publishable."), status)
+        }
         val source = root.optJSONArray("questions")
             ?: return Report(JSONArray(), 0, listOf("Required questions array is missing."), status)
         val accepted = JSONArray()
@@ -79,7 +83,7 @@ object GeminiResponseValidator {
                 configErrors.add("Question ${index + 1}: positive/negative marks do not match configured section scoring.")
                 continue
             }
-            val questionError = validateQuestion(item, section.optionsCount)
+            val questionError = validateQuestion(item, section.optionsCount, requireExactOptionCount = true)
             if (questionError != null) configErrors.add("Question ${index + 1}: $questionError")
         }
         if (configErrors.isEmpty()) return base
@@ -91,8 +95,12 @@ object GeminiResponseValidator {
         )
     }
 
-    fun validateQuestion(item: JSONObject, minimumMcqOptions: Int = 4): String? {
-        val question = item.optString("questionTextEn", item.optString("questionText", "")).trim()
+    fun validateQuestion(
+        item: JSONObject,
+        minimumMcqOptions: Int = 4,
+        requireExactOptionCount: Boolean = false
+    ): String? {
+        val question = item.optString("questionTextEn", "").ifBlank { item.optString("questionText", "") }.trim()
         if (question.isBlank() || question.equals("Question Text", true) || question.length < 10) return "Question text is missing, placeholder, or too short."
 
         val answerStatus = item.optString("answerStatus", "").uppercase()
@@ -104,9 +112,11 @@ object GeminiResponseValidator {
         val answer = if (item.isNull("correctAnswer")) "" else item.optString("correctAnswer", "").trim()
         if (answer.isBlank() || answer.equals("null", true)) return "Verified answer is missing."
 
-        val type = item.optString("questionType", "MCQ_SINGLE").uppercase()
-        val numerical = type in setOf("NAT", "TITA", "NUMERICAL", "NUMERICAL_VALUE", "NUMERICAL_VALUE_QUESTION")
-        val freeResponse = type in setOf("DESCRIPTIVE", "ESSAY", "SUBJECTIVE")
+        val type = item.optString("questionType", "").uppercase()
+        val allowedTypes = QuestionType.values().map { it.name }.toSet()
+        if (type !in allowedTypes) return "Question type is missing or unsupported ($type)."
+        val numerical = type in setOf("NAT", "TITA", "NUMERICAL", "NUMERICAL_VALUE")
+        val freeResponse = type in setOf("DESCRIPTIVE")
         if (numerical) {
             if (!answer.matches(Regex("^[+-]?\\d+(\\.\\d+)?$"))) return "Numerical answer is not a valid numeric value."
         } else if (freeResponse) {
@@ -114,14 +124,23 @@ object GeminiResponseValidator {
         } else {
             val labels = listOf("A", "B", "C", "D", "E")
             val options = labels.map { label ->
-                val suffix = if (label == "A") "A" else label
-                item.optString("option${suffix}En", item.optString("option$suffix", "")).trim()
+                item.optString("option${label}En", "").ifBlank { item.optString("option$label", "") }.trim()
             }
-            val present = options.mapIndexedNotNull { i, value -> if (value.isNotBlank() && !value.startsWith("Option ", true)) labels[i] else null }
-            if (present.size < minimumMcqOptions.coerceIn(2, 5)) return "Required options are missing or contain placeholders."
+            val present = options.mapIndexedNotNull { i, value ->
+                if (value.isNotBlank() && !value.startsWith("Option ", true) && !value.equals("N/A", true)) labels[i] else null
+            }
+            val expectedCount = minimumMcqOptions.coerceIn(2, 5)
+            if (requireExactOptionCount && present.size != expectedCount) return "Expected exactly $expectedCount configured options; found ${present.size}."
+            if (!requireExactOptionCount && present.size < expectedCount) return "Required options are missing or contain placeholders."
             val answers = answer.uppercase().split(",", ";").map { it.trim() }.filter { it.isNotBlank() }
             if (answers.isEmpty() || answers.any { it !in present } || answers.distinct().size != answers.size) return "Answer label does not map to the supplied options."
-            if (type !in setOf("MCQ_MULTIPLE", "MULTI_STATEMENT") && answers.size != 1) return "Single-correct question has multiple answer labels."
+            if (type != "MCQ_MULTIPLE" && answers.size != 1) return "Only MCQ_MULTIPLE may contain multiple correct answer labels."
+        }
+
+        val sourceAnswer = if (item.isNull("sourceAnswer")) "" else item.optString("sourceAnswer", "").trim()
+        if (answerStatus == "KEY_EXTRACTED" && sourceAnswer.isBlank()) return "KEY_EXTRACTED answer has no preserved sourceAnswer."
+        if (sourceAnswer.isNotBlank() && normalizeAnswer(sourceAnswer) != normalizeAnswer(answer)) {
+            return "Source answer key conflicts with the verified correctAnswer."
         }
 
         val confidence = item.optDouble("answerConfidence", -1.0)
@@ -136,5 +155,16 @@ object GeminiResponseValidator {
         val negativeMarks = item.optDouble("negativeMarks", Double.NaN)
         if (!positiveMarks.isFinite() || !negativeMarks.isFinite() || positiveMarks < 0.0 || negativeMarks < 0.0) return "Configured marks are invalid."
         return null
+    }
+
+    private fun normalizeAnswer(value: String): String {
+        val trimmed = value.trim()
+        val labels = trimmed.uppercase().split(",", ";").map { it.trim() }.filter { it.isNotBlank() }
+        if (labels.isNotEmpty() && labels.all { it.matches(Regex("^[A-E]$")) }) {
+            return labels.distinct().sorted().joinToString(",")
+        }
+        val numeric = trimmed.toBigDecimalOrNull()
+        if (numeric != null) return numeric.stripTrailingZeros().toPlainString()
+        return trimmed.replace(Regex("\\s+"), " ").uppercase()
     }
 }
