@@ -1245,6 +1245,24 @@ object UniversalExamRegistry {
         val subQuery = subjectName?.trim()?.lowercase() ?: ""
         val typeQuery = questionTypeStr?.trim()?.uppercase() ?: ""
 
+        // Exact configured section values are authoritative and must win over rounded
+        // exam-wide convenience defaults (for example CDS fractional marking).
+        if (secQuery.isNotBlank()) {
+            for (stage in config.stages) {
+                for (paper in stage.papers) {
+                    for (subject in paper.subjects) {
+                        for (section in subject.sections) {
+                            if (section.sectionId.equals(sectionIdOrName?.trim(), ignoreCase = true) ||
+                                section.sectionName.equals(sectionIdOrName?.trim(), ignoreCase = true)
+                            ) {
+                                return Pair(section.positiveMarks, section.negativeMarks)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Specific handling for JEE Advanced section/question-type resolution
         if (config.examId == "jee_advanced" || config.shortName.equals("JEE Adv", ignoreCase = true) || config.examName.contains("Advanced", ignoreCase = true)) {
             val isMulti = secQuery.contains("multi") || typeQuery == "MCQ_MULTIPLE" || typeQuery == "MULTIPLE"
