@@ -15,6 +15,8 @@ class GeminiResponseValidatorTest {
             .put("optionCEn", "Newton's third law")
             .put("optionDEn", "Law of gravitation")
             .put("correctAnswer", answer)
+            .put("difficulty", "MEDIUM")
+            .put("explanationEn", "The first law describes inertia and the persistence of motion.")
             .put("answerStatus", "INDEPENDENTLY_VERIFIED")
             .put("answerConfidence", 96)
             .put("verificationSummary", "The selected option matches the governing law.")
@@ -189,7 +191,7 @@ class GeminiResponseValidatorTest {
         val missingExplanation = validMcq().put("explanationEn", "")
         assertTrue(GeminiResponseValidator.validateQuestion(missingExplanation)!!.contains("explanation"))
 
-        val duplicateOptions = validMcq().put("optionCEn", "Option A")
+        val duplicateOptions = validMcq().put("optionCEn", "Newton's first law")
         assertTrue(GeminiResponseValidator.validateQuestion(duplicateOptions)!!.contains("Duplicate option"))
 
         val invalidPages = validMcq().put("sourcePageStart", 8).put("sourcePageEnd", 7)
