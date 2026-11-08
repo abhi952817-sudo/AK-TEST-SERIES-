@@ -658,8 +658,8 @@ The attempt-security review was extended beyond the initial idempotency issue:
   - The shared extractor is exam-agnostic. Exam-specific rules remain in `ExamConfig` / `UniversalAIContext`, not in the PDF parser.
 
 - **PDF-UNI-002 | EXISTING PAGE EXTRACTOR REUSED**
-  - Extended `AdvancedPdfSmartExtractor.processPdfUri()` with a caller-controlled page limit (default 200); existing callers retain source compatibility.
-  - The shared orchestrator rejects PDFs above the configured 200-page safety limit instead of silently treating the first 200 pages as the full document.
+  - Extended `AdvancedPdfSmartExtractor.processPdfUri()` with a caller-controlled page limit (default 50); existing callers retain source compatibility.
+  - The shared orchestrator rejects PDFs above the configured 50-page safety limit instead of silently treating the first 200 pages as the full document.
 
 - **PDF-UNI-003 | STUDENT UPLOAD INTEGRATION**
   - Replaced the separate stream-text → conditional OCR → separate diagram extraction sequence in `NEETViewModel.analyzePdfWithAI()` with the shared extractor.
@@ -676,7 +676,7 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Extracted image candidates are stored locally and exposed to the calling flow; they are **not yet attached to individual questions** and are **not sent to Gemini Vision**. That is a separate image-to-question mapping and AI transport task.
 - The configured ML Kit OCR recognizer remains Latin-script only. Hindi and other Indian-script OCR is not implemented/verified here. Digital PDFs with a usable embedded text layer can still be processed through the existing PDF text-stream parser.
 - PDF parser support for every producer/font encoding in India has not been proven. Unsupported or incomplete extraction should fail/flag review, never fabricate text.
-- The current safety limit is 200 pages per PDF.
+- The current safety limit is 50 pages per PDF.
 - No Android Gradle build, unit/instrumentation test, real PDF fixture test, or device test was executed in this connector-only continuation. Source changes are **NOT runtime verified**.
 - No Gemini prompt, Gemini API request, Firebase deployment, production data, or `main` branch was changed.
 
@@ -701,3 +701,5 @@ The attempt-security review was extended beyond the initial idempotency issue:
   - `bfdf4e5cd7006e2eb44e2dfb7e35aa3ef3722606` — local question/image mapping included in shared extraction result.
   - `ac0526145e25ddaca56907a88b565e838895cf52` — student flow retains question/image mappings.
   - `4d261d3ece3c63e57d5bd6f0457cf5f80b310010` — Admin flow retains question/image mappings.
+
+- **Memory-safety correction:** bitmap-retaining page extraction is capped at 50 pages (not 200) to avoid retaining too many rendered/annotated page bitmaps at once. PDFs over 50 pages fail explicitly; no truncated document is accepted. Commit: `c21da44626fa5c45bd10d52ed1799ecef4ae1e88`.
