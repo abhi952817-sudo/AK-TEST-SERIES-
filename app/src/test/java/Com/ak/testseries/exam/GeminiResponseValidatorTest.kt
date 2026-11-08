@@ -98,6 +98,21 @@ class GeminiResponseValidatorTest {
         assertNull(GeminiResponseValidator.validateQuestion(numerical))
     }
 
+
+    @Test
+    fun validationEngineAcceptsMultipleCorrectAnswersAndOrderIndependentSourceKey() {
+        val result = QuestionValidationEngine.validateQuestion(
+            questionText = "Which of the following are vector quantities?",
+            options = listOf("Velocity", "Speed", "Force", "Mass"),
+            correctAnswer = "A,C",
+            sourceAnswer = "C,A",
+            explanation = "Velocity and force have magnitude and direction.",
+            questionType = QuestionType.MCQ_MULTIPLE,
+            expectedOptionCount = 4
+        )
+        assertFalse(result.issues.any { it.contains("Multiple-correct") || it.contains("Answer conflict") })
+    }
+
     @Test
     fun rejectsErrorOrNeedsReviewTaskEnvelope() {
         for (status in listOf("ERROR", "NEEDS_REVIEW", "")) {
