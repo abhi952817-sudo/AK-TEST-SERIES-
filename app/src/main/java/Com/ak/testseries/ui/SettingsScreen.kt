@@ -126,7 +126,7 @@ fun SettingsScreen(
                             if (error == null) {
                                 studentGeminiKeyInput = ""
                                 showStudentGeminiKeyDialog = false
-                                android.widget.Toast.makeText(context, if (isHindi) "Gemini key सुरक्षित रूप से जुड़ गई" else "Gemini key connected securely", Toast.LENGTH_LONG).show()
+                                android.widget.Toast.makeText(context, if (isHindi) "Gemini key सुरक्षित रूप से जुड़ गई" else "Gemini key connected securely", android.widget.Toast.LENGTH_LONG).show()
                             } else {
                                 studentGeminiKeyMessage = error
                             }
@@ -143,7 +143,7 @@ fun SettingsScreen(
                                 viewModel.disconnectStudentGeminiApiKey()
                                 studentGeminiKeyInput = ""
                                 showStudentGeminiKeyDialog = false
-                                android.widget.Toast.makeText(context, if (isHindi) "व्यक्तिगत key हटा दी गई" else "Personal key disconnected", Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, if (isHindi) "व्यक्तिगत key हटा दी गई" else "Personal key disconnected", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         ) { Text(if (isHindi) "हटाएँ" else "Disconnect") }
                     }
