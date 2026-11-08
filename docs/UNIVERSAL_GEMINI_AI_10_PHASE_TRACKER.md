@@ -68,3 +68,36 @@ For each phase, append:
 - GEM-016 | P1 | Student generation accepts a non-empty aggregate even if some chunks failed or expected question count was not met; require explicit partial-result state and owner decision before save. | OPEN
 - CI baseline on source base `9b105e9e7c614d615becb99a72b3dc5e50799e05`: run `42176925903`; backend tests PASS, Firestore rules tests PASS, Android unit tests FAIL (299 tests, one failure: `CrashResilienceTest > classMethod`, `UnsupportedOperationException` at `DefaultSdkProvider.java:170`). This failure predates Gemini branch changes and must be isolated without weakening tests.
 - Phase 1 remains IN_PROGRESS. No code implementation changes have been made yet; only audit documentation is committed.
+
+
+## Prompt Engine implementation update — 2026-11-08
+Implementation branch commits:
+- `e6de55884d32dc6afc442ccecfcfc1ca73367fc7` — replaced `UniversalAIContext` with versioned `AKTS_UNIVERSAL_PROMPT_V2` policy and shared task prompts.
+- `9c90e429f416c837cb9c5dde0dfb6ce480128e9f` — Admin difficulty regeneration now calls the shared prompt builder.
+- `c8fb148db6dba78787b83f820a7cbfaf0aee9158` — Student PDF metadata analysis now calls shared exam-recognition prompt.
+- `ff5dbbea2bd9109ff43436f71339522b252bed0d` — legacy PDF extractor prompt now comes from shared prompt engine.
+- `f038fc55d24ae93fb62511550031521272840970` — exam recognition prompt receives canonical exam name -> examId mapping.
+- `34849b6809dffe581eaebdb958bb3d9dc864188e` — metadata caller supplies canonical exam IDs.
+- `f2a4bff32191bc1696ff8488088bcdf1138dfd92` — added `UniversalAIContextTest` coverage for source integrity, answer accuracy policy, exam config, ambiguity and no-source behavior.
+
+### What changed
+- Prompt construction is independent of API credential identity. The same builder output is passed regardless of which authorized key the transport selects.
+- Shared system policy covers source-of-truth hierarchy, answer verification, numeric/unit checks, MCQ_SINGLE vs MCQ_MULTIPLE vs NAT/TITA, answer-key conflicts, bilingual fidelity, provenance, diagrams, anti-fabrication, and strict JSON contracts.
+- Added shared task builders for generation/extraction, exam recognition, difficulty regeneration and legacy extraction.
+- Removed unsafe first-subject fallback from `getApplicableSections()`; unknown subjects no longer inherit another subject's section/scoring configuration.
+- Removed the old "extensive reasoning block" requirement; prompt asks for concise verification summaries, not private chain-of-thought.
+
+### Phase status
+- Phase 2: IN_PROGRESS (core prompt-engine refactor committed; build/test execution and complete call-site inventory still required).
+- Phase 1: IN_PROGRESS (legacy prompt locations found and redirected; full repository-wide Gemini call-site inventory remains open).
+
+### Remaining blockers / additional bugs
+- GEM-017 | P0 | Student/Admin response parsers do not yet consistently enforce the new response envelope, task-level status, answerStatus, sourceAnswer, needsReview and provenance fields before persistence. | OPEN
+- GEM-018 | P0 | `NEETViewModel.generateTestFromPdf()` still has a silent NEET fallback for unknown target exam; exam recognition prompt now refuses guessing, but caller/selection UX must be corrected before Phase 5 completion. | OPEN
+- GEM-019 | P1 | Prompt instructions reduce risk but cannot mathematically guarantee zero model errors; deterministic schema/answer validation and human review gates must remain authoritative. | OPEN
+- Student-owned API-key connect/verify/storage is still not implemented in the inspected Student flow. The current ViewModel key selector still reads BuildConfig primary + Admin secondary preferences. Phase 3 remains NOT_STARTED. Prompt reuse is ready at the builder boundary, but Student-key execution is not yet wired.
+
+### Verification status
+- Prompt unit tests added but NOT YET EXECUTED.
+- No Android build, unit-test run, emulator rules test or CI run has been executed on this new implementation head yet.
+- Do not mark Phase 2 COMPLETE until the exact-commit build and tests pass and parser integration is hardened.
