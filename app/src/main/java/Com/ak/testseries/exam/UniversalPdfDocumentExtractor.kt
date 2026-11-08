@@ -40,7 +40,7 @@ object UniversalPdfDocumentExtractor {
         context: Context,
         pdfUri: Uri,
         testId: String,
-        maxPages: Int = 200,
+        maxPages: Int = 50,
         languageCode: String = "eng"
     ): Result {
         require(testId.isNotBlank()) { "A stable PDF session/test ID is required." }
