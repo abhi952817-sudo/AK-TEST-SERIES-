@@ -53,7 +53,7 @@ class GeminiResponseValidatorTest {
             .put("answerStatus", "UNVERIFIED")
             .put("needsReview", true)
         val report = GeminiResponseValidator.parseResponse(
-            JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(item)).toString()
+            JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(item)).put("errors", JSONArray()).toString()
         )
         assertFalse(report.isUsable)
         assertEquals(1, report.rejectedCount)
@@ -65,7 +65,7 @@ class GeminiResponseValidatorTest {
             .put("provenanceType", "")
             .put("optionDEn", "Option D")
         val report = GeminiResponseValidator.parseResponse(
-            JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(item)).toString()
+            JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(item)).put("errors", JSONArray()).toString()
         )
         assertFalse(report.isUsable)
         assertTrue(report.errors.first().contains("provenance"))
@@ -142,7 +142,7 @@ class GeminiResponseValidatorTest {
     fun examConfigRejectsIdentityScoringAndQuestionTypeMismatch() {
         val wrongExam = validMcq().put("examId", "jee_main")
             .put("subjectId", "physics")
-        val root = JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(wrongExam))
+        val root = JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(wrongExam)).put("errors", JSONArray())
         val report = GeminiResponseValidator.parseResponse(root.toString(), testExamConfig())
         assertFalse(report.isUsable)
         assertTrue(report.errors.any { it.contains("examId") })
@@ -151,7 +151,7 @@ class GeminiResponseValidatorTest {
     @Test
     fun examConfigAcceptsOnlyExactConfiguredSectionAndMarks() {
         val item = validMcq().put("examId", "neet_ug").put("subjectId", "physics")
-        val root = JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(item))
+        val root = JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(item)).put("errors", JSONArray())
         val report = GeminiResponseValidator.parseResponse(root.toString(), testExamConfig())
         assertTrue(report.isUsable)
         assertEquals(1, report.questions.length())
