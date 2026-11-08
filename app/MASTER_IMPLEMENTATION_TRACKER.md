@@ -845,3 +845,11 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - The setup screen distinguishes expired-for-rotation from revoked/invalid/network failure.
 - Added a unit test for the seven-day boundary and missing timestamp.
 - This is source-level behavior only until Android tests and a real device clock/rotation scenario are executed.
+
+
+### Universal prompt consolidation and token duplication removal
+
+- All central ViewModel text and JSON Gemini call paths now receive the shared Universal AI policy plus the selected ExamConfig when available, even if a caller supplies an additional task-specific instruction.
+- Existing dynamic PDF generation sends the shared System Instruction in the Gemini systemInstruction field only; the duplicate copy was removed from the user prompt to avoid paying input tokens twice.
+- Existing extraction prompt remains on the shared UniversalAIContext task-mode builder.
+- Static inspection confirms the active Admin PDF pipeline uses UniversalAIContext and the central Student ViewModel uses the same policy. The legacy GeminiPdfExtractor has no active caller in the inspected branch.

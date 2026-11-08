@@ -5337,20 +5337,23 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
             return null
         }
-        val effectiveSystemInstruction = systemInstruction ?: run {
-            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(
-                _userProfile.value.targetExam
+        val examConfigForPrompt = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(
+            _userProfile.value.targetExam
+        )
+        val universalSystemInstruction = if (examConfigForPrompt != null) {
+            Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(
+                examConfigForPrompt,
+                Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
             )
-            if (examConfig != null) {
-                Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(
-                    examConfig,
-                    Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
-                )
-            } else {
-                Com.ak.testseries.exam.UniversalAIContext.buildUniversalSystemInstruction(
-                    Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
-                )
-            }
+        } else {
+            Com.ak.testseries.exam.UniversalAIContext.buildUniversalSystemInstruction(
+                Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
+            )
+        }
+        val effectiveSystemInstruction = when {
+            systemInstruction.isNullOrBlank() -> universalSystemInstruction
+            systemInstruction.contains("AK TEST SERIES — UNIVERSAL AI POLICY") -> systemInstruction
+            else -> "$universalSystemInstruction\n\n$systemInstruction"
         }
         var startIndex = 0
         val currentActiveId = activeGeminiKeyIndex.value
@@ -5401,9 +5404,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (keys.isEmpty()) {
             return null
         }
-        val universalPolicy = Com.ak.testseries.exam.UniversalAIContext.buildUniversalSystemInstruction(
-            Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
+        val examConfigForPrompt = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(
+            _userProfile.value.targetExam
         )
+        val universalPolicy = if (examConfigForPrompt != null) {
+            Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(
+                examConfigForPrompt,
+                Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
+            )
+        } else {
+            Com.ak.testseries.exam.UniversalAIContext.buildUniversalSystemInstruction(
+                Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
+            )
+        }
         val effectivePrompt = "$universalPolicy\n\n$prompt"
         var startIndex = 0
         val currentActiveId = activeGeminiKeyIndex.value
