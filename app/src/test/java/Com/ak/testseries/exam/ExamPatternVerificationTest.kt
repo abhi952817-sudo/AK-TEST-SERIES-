@@ -321,6 +321,7 @@ class ExamPatternVerificationTest {
             questionText = "Calculate the current flowing through the circuit in Amperes when V = 24.5V and R = 2.0 ohms.",
             options = emptyList(), // Option-free by design
             correctAnswer = "12.25", // Full decimal answer
+            sourceAnswer = "12.25", // Independent answer-key confirmation
             explanation = "Using Ohm's Law, I = V / R = 24.5 / 2.0 = 12.25 A.",
             questionType = QuestionType.NUMERICAL_VALUE
         )
@@ -355,6 +356,7 @@ class ExamPatternVerificationTest {
                 "Standing Deposit Facility (SDF)"
             ),
             correctAnswer = "E", // Option E
+            sourceAnswer = "E", // Independent answer-key confirmation
             explanation = "Standing Deposit Facility allows RBI to absorb liquidity without providing collateral.",
             expectedOptionCount = 5
         )
