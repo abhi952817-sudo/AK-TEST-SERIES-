@@ -258,23 +258,25 @@ object UniversalPdfPipeline {
                         OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, stageId)
                     } else emptyList()
 
+                    val subjectConfig = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
+                        .firstOrNull { it.subjectId == subjectId } ?: return@withContext emptyList()
                     val bundledExamTests = BundledExamCatalog.getBundledTestsForExam(examConfig.examName)
                     val bundledQuestions = bundledExamTests.flatMap { it.second }
+                        .filter { it.subject.equals(subjectConfig.subjectName, ignoreCase = true) }
 
                     for (i in 1..questionsInThisBatch) {
                         val qIndex = (batchIndex * batchSize) + i
                         val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
+                            ?.takeIf { it.subjectId == subjectId }
                         val bundledCandidate = bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
                         if (markdownCandidate == null && bundledCandidate == null) continue
 
-                        val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex)
-                        val qType = resolvedSection?.questionType ?: markdownCandidate?.questionType ?: continue
-                        val secId = resolvedSection?.sectionId
-                            ?: markdownCandidate?.sectionId?.takeIf { it.isNotBlank() } ?: continue
-                        val secName = resolvedSection?.sectionName
-                            ?: markdownCandidate?.sectionName?.takeIf { it.isNotBlank() } ?: continue
-                        val posMark = resolvedSection?.positiveMarks ?: markdownCandidate?.positiveMarks ?: continue
-                        val negMark = resolvedSection?.negativeMarks ?: markdownCandidate?.negativeMarks ?: continue
+                        val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex) ?: continue
+                        val qType = resolvedSection.questionType
+                        val secId = resolvedSection.sectionId
+                        val secName = resolvedSection.sectionName
+                        val posMark = resolvedSection.positiveMarks
+                        val negMark = resolvedSection.negativeMarks
 
                         val questionText = markdownCandidate?.questionText?.takeIf { it.isNotBlank() }
                             ?: bundledCandidate?.questionText?.takeIf { it.isNotBlank() } ?: continue
@@ -290,7 +292,7 @@ object UniversalPdfPipeline {
                             )
                         }
                         val isOptionFree = qType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA, QuestionType.DESCRIPTIVE)
-                        if (!isOptionFree && options.size < examConfig.defaultOptionCount.coerceIn(2, 5)) continue
+                        if (!isOptionFree && options.size != resolvedSection.optionsCount.coerceIn(2, 5)) continue
                         val correctAnswer = markdownCandidate?.correctAnswer?.takeIf { it.isNotBlank() }
                             ?: bundledCandidate?.correctAnswer?.takeIf { it.isNotBlank() } ?: continue
                         val explanation = markdownCandidate?.explanation?.takeIf { it.isNotBlank() }
