@@ -126,7 +126,7 @@ fun SettingsScreen(
                             if (error == null) {
                                 studentGeminiKeyInput = ""
                                 showStudentGeminiKeyDialog = false
-                                Toast.makeText(context, if (isHindi) "Gemini key सुरक्षित रूप से जुड़ गई" else "Gemini key connected securely", Toast.LENGTH_LONG).show()
+                                android.widget.Toast.makeText(context, if (isHindi) "Gemini key सुरक्षित रूप से जुड़ गई" else "Gemini key connected securely", Toast.LENGTH_LONG).show()
                             } else {
                                 studentGeminiKeyMessage = error
                             }
@@ -143,7 +143,7 @@ fun SettingsScreen(
                                 viewModel.disconnectStudentGeminiApiKey()
                                 studentGeminiKeyInput = ""
                                 showStudentGeminiKeyDialog = false
-                                Toast.makeText(context, if (isHindi) "व्यक्तिगत key हटा दी गई" else "Personal key disconnected", Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, if (isHindi) "व्यक्तिगत key हटा दी गई" else "Personal key disconnected", Toast.LENGTH_SHORT).show()
                             }
                         ) { Text(if (isHindi) "हटाएँ" else "Disconnect") }
                     }
@@ -306,7 +306,7 @@ fun SettingsScreen(
                     title = if (isHindi) "स्थानीय बैकअप (साइन इन आवश्यक)" else "Local Backup (Sign In Required)",
                     subtitle = if (isHindi) "खाता-स्वामित्व वाले बैकअप के लिए कृपया साइन इन करें" else "Sign in to export or restore account-owned data",
                     onClick = {
-                        android.widget.Toast.makeText(
+                        android.widget.android.widget.Toast.makeText(
                             context,
                             if (isHindi) "बैकअप के लिए कृपया पहले साइन इन करें" else "Please sign in to export or restore account data",
                             android.widget.Toast.LENGTH_SHORT
@@ -345,7 +345,7 @@ fun SettingsScreen(
                 try { context.startActivity(intent) } catch (e: Exception) {}
             })
             SettingsMenuItem(icon = Icons.Rounded.Info, title = if (isHindi) "AK Test Series के बारे में" else "About AK Test Series", subtitle = if (isHindi) "संस्करण 1.0.0" else "Version 1.0.0", onClick = { 
-                android.widget.Toast.makeText(context, "AK Test Series Version 1.0.0", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.android.widget.Toast.makeText(context, "AK Test Series Version 1.0.0", android.widget.Toast.LENGTH_SHORT).show()
             })
             SettingsMenuItem(icon = Icons.Rounded.Security, title = if (isHindi) "गोपनीयता नीति" else "Privacy Policy", subtitle = if (isHindi) "नियम और शर्तें" else "Terms and conditions", onClick = { 
                 val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://policies.google.com/privacy"))
