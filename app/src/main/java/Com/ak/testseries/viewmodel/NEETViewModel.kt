@@ -6008,6 +6008,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "status" to newTest.status,
                 "uploaderId" to newTest.uploaderId,
                 "targetExam" to newTest.targetExam,
+                "durationMinutes" to newTest.durationMinutes,
                 "examId" to (newTest.examId ?: newTest.targetExam),
                 "stageId" to newTest.stageId,
                 "paperId" to newTest.paperId,
