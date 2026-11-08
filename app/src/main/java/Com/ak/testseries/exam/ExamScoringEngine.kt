@@ -38,12 +38,17 @@ object ExamScoringEngine {
         return false
     }
 
+    private fun isNumericLiteral(value: String): Boolean =
+        value.matches(Regex("^[+-]?(?:(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)$"))
+
     fun areOptionsEquivalent(ans1: String, ans2: String, isNumerical: Boolean = false): Boolean {
         val a = ans1.trim().uppercase()
         val b = ans2.trim().uppercase()
         val num1 = a.toDoubleOrNull()
         val num2 = b.toDoubleOrNull()
         if ((num1 != null && !num1.isFinite()) || (num2 != null && !num2.isFinite())) return false
+        // Reject overflowed numeric literals even when both textual values are identical.
+        if ((isNumericLiteral(a) && num1 == null) || (isNumericLiteral(b) && num2 == null)) return false
         val mapIndex = mapOf("1" to "A", "2" to "B", "3" to "C", "4" to "D", "5" to "E")
         if (!isNumerical && (a.contains(",") || b.contains(","))) {
             if (!a.contains(",") || !b.contains(",")) return false
