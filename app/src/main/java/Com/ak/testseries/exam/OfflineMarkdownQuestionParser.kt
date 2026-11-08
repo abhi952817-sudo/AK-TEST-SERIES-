@@ -41,7 +41,8 @@ object OfflineMarkdownQuestionParser {
         val optionC: String,
         val optionD: String,
         val correctAnswer: String,
-        val explanation: String = ""
+        val explanation: String = "",
+        val optionE: String = ""
     )
 
     /**
@@ -206,21 +207,21 @@ object OfflineMarkdownQuestionParser {
         val optB = optionsMap["B"] ?: ""
         val optC = optionsMap["C"] ?: ""
         val optD = optionsMap["D"] ?: ""
+        val optE = optionsMap["E"] ?: ""
 
-        // Final answer resolution
-        val finalAnswer = inlineDetectedAnswer ?: "A"
+        // Missing answer keys remain missing; never invent option A.
+        val finalAnswer = inlineDetectedAnswer.orEmpty()
 
         return ParsedQuestion(
             questionNumber = qNum,
-            questionText = questionStem.ifBlank { "Question $qNum" },
+            questionText = questionStem,
             optionA = optA,
             optionB = optB,
             optionC = optC,
             optionD = optD,
             correctAnswer = finalAnswer,
-            explanation = explanationText.ifBlank {
-                "Correct Answer is Option $finalAnswer based on official exam test paper answer key."
-            }
+            explanation = explanationText,
+            optionE = optE
         )
     }
 
@@ -233,22 +234,31 @@ object OfflineMarkdownQuestionParser {
         subject: String,
         examName: String
     ): List<QuestionEntity> {
+        val examConfig = UniversalExamRegistry.findExamByNameOrShortName(examName) ?: return emptyList()
+        val subjectConfig = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }.firstOrNull {
+            it.subjectId.equals(subject, true) ||
+                it.subjectName.equals(subject, true) ||
+                it.subjectName.contains(subject, true)
+        } ?: return emptyList()
         val parsedList = parseStructuredQuestions(text)
-        return parsedList.map { pq ->
+        return parsedList.mapIndexedNotNull { index, pq ->
+            val section = UniversalPdfPipeline.resolveSectionForIndex(examConfig, subjectConfig.subjectId, index + 1)
+                ?: return@mapIndexedNotNull null
             QuestionEntity(
                 id = "${testId}_q${pq.questionNumber}",
                 testId = testId,
                 questionText = pq.questionText,
-                optionA = pq.optionA,
-                optionB = pq.optionB,
-                optionC = pq.optionC,
-                optionD = pq.optionD,
+                optionA = if (section.optionsCount == 0) "" else pq.optionA,
+                optionB = if (section.optionsCount == 0) "" else pq.optionB,
+                optionC = if (section.optionsCount == 0) "" else pq.optionC,
+                optionD = if (section.optionsCount == 0) "" else pq.optionD,
+                optionE = pq.optionE.takeIf { section.optionsCount >= 5 && it.isNotBlank() },
                 correctAnswer = pq.correctAnswer,
                 explanation = pq.explanation,
-                subject = subject,
+                subject = subjectConfig.subjectName,
                 chapter = "Exam Test Paper",
-                questionType = "MCQ",
-                section = "SECTION_A"
+                questionType = section.questionType.name,
+                section = section.sectionId
             )
         }
     }
@@ -263,40 +273,70 @@ object OfflineMarkdownQuestionParser {
         stageId: String = ""
     ): List<UniversalQuestionModel> {
         val parsedList = parseStructuredQuestions(markdown)
-        val defaultMarks = 4.0
-        val defaultNegMarks = 1.0
+        val subjects = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
+        val subjectConfig = subjects.firstOrNull {
+            it.subjectId.equals(subjectId, true) ||
+                it.subjectName.equals(subjectId, true) ||
+                it.subjectName.contains(subjectId, true)
+        } ?: return emptyList()
+        val resolvedStage = examConfig.stages.firstOrNull { it.stageId == stageId }
+            ?: examConfig.stages.firstOrNull() ?: return emptyList()
+        val resolvedPaper = resolvedStage.papers.firstOrNull { paper ->
+            paper.subjects.any { it.subjectId == subjectConfig.subjectId }
+        } ?: return emptyList()
 
-        return parsedList.map { pq ->
-            val optionsList = listOfNotNull(
-                pq.optionA.takeIf { it.isNotBlank() },
-                pq.optionB.takeIf { it.isNotBlank() },
-                pq.optionC.takeIf { it.isNotBlank() },
-                pq.optionD.takeIf { it.isNotBlank() }
+        return parsedList.mapIndexedNotNull { index, pq ->
+            val section = UniversalPdfPipeline.resolveSectionForIndex(examConfig, subjectConfig.subjectId, index + 1)
+                ?: return@mapIndexedNotNull null
+            val expectedCount = section.optionsCount.coerceIn(0, 5)
+            val optionsList = if (expectedCount == 0) emptyList() else
+                listOf(pq.optionA, pq.optionB, pq.optionC, pq.optionD, pq.optionE).take(expectedCount)
+            val answerExtracted = pq.correctAnswer.isNotBlank()
+            val validation = QuestionValidationEngine.validateQuestion(
+                questionText = pq.questionText,
+                options = optionsList,
+                correctAnswer = pq.correctAnswer,
+                sourceAnswer = pq.correctAnswer.takeIf { answerExtracted },
+                explanation = pq.explanation,
+                questionType = section.questionType,
+                expectedOptionCount = expectedCount
             )
-
-            val qType = if (optionsList.isEmpty()) QuestionType.NUMERICAL else QuestionType.DIRECT_MCQ
+            val reviewReasons = (validation.issues + "Offline PDF extraction requires manual verification before approval.").distinct()
 
             UniversalQuestionModel(
                 questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${pq.questionNumber}",
                 examId = examConfig.examId,
-                stageId = stageId,
-                paperId = "paper_1",
-                subjectId = subjectId,
-                sectionId = "SECTION_A",
-                sectionName = "Section A",
-                questionType = qType,
+                stageId = resolvedStage.stageId,
+                paperId = resolvedPaper.paperId,
+                subjectId = subjectConfig.subjectId,
+                sectionId = section.sectionId,
+                sectionName = section.sectionName,
                 questionText = pq.questionText,
                 options = optionsList,
                 correctAnswer = pq.correctAnswer,
+                sourceAnswer = pq.correctAnswer.takeIf { answerExtracted },
                 explanation = pq.explanation,
-                positiveMarks = defaultMarks,
-                negativeMarks = defaultNegMarks,
                 difficulty = DifficultyLevel.MEDIUM,
-                qualityScore = 95,
-                validationStatus = ValidationStatus.APPROVED,
+                questionType = section.questionType,
+                positiveMarks = section.positiveMarks,
+                negativeMarks = section.negativeMarks,
+                difficultyScore = validation.difficultyScore,
+                qualityScore = validation.qualityScore.coerceAtMost(69),
+                qualityMetrics = validation.qualityMetrics,
+                validationStatus = if (validation.status == ValidationStatus.DUPLICATE) ValidationStatus.DUPLICATE else ValidationStatus.NEEDS_REVIEW,
+                validationReasons = reviewReasons,
                 duplicateHash = DuplicateDetectionEngine.generateNormalizedHash(pq.questionText, optionsList),
-                generationModel = "pdf-real-extractor-v1",
-                sourceName = "Extracted PDF Test Paper"
+                generationModel = "pdf-real-extractor-v2",
+                sourceName = "Extracted PDF Test Paper",
+                sourcePage = -1,
+                provenanceType = "SOURCE_EXTRACTED",
+                answerStatus = if (answerExtracted) "KEY_EXTRACTED" else "UNVERIFIED",
+                answerConfidence = if (answerExtracted) 60 else 0,
+                verificationSummary = if (answerExtracted)
+                    "Answer key text extracted; OCR and answer correctness still require manual verification."
+                else "No answer key found; correct answer remains unverified.",
+                needsReview = true,
+                reviewReasons = reviewReasons
             )
         }
     }
@@ -309,7 +349,7 @@ object OfflineMarkdownQuestionParser {
             "4", "द", "घ", "४" -> "D"
             "5", "य", "ङ", "५" -> "E"
             "A", "B", "C", "D", "E" -> raw.trim().uppercase()
-            else -> "A"
+            else -> ""
         }
     }
 
