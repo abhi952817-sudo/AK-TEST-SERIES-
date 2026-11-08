@@ -255,12 +255,16 @@ object UniversalPdfPipeline {
                     extractedQuestions.addAll(finalBatch)
                 } else {
                     // Real extraction from parsed markdown or authentic exam catalog (Zero dummy data)
-                    val realExtractedFromMarkdown = if (compactMarkdown.isNotBlank()) {
-                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, stageId)
-                    } else emptyList()
-
-                    val subjectConfig = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
+                    val resolvedStage = examConfig.stages.firstOrNull { it.stageId == stageId }
+                        ?: examConfig.stages.firstOrNull() ?: return@withContext emptyList()
+                    val subjectConfig = resolvedStage.papers.flatMap { it.subjects }
                         .firstOrNull { it.subjectId == subjectId } ?: return@withContext emptyList()
+                    val resolvedPaper = resolvedStage.papers.firstOrNull { paper ->
+                        paper.subjects.any { it.subjectId == subjectId }
+                    } ?: return@withContext emptyList()
+                    val realExtractedFromMarkdown = if (compactMarkdown.isNotBlank()) {
+                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, resolvedStage.stageId)
+                    } else emptyList()
                     val bundledExamTests = BundledExamCatalog.getBundledTestsForExam(examConfig.examName)
                     val bundledQuestions = bundledExamTests.flatMap { it.second }
                         .filter { it.subject.equals(subjectConfig.subjectName, ignoreCase = true) }
@@ -269,7 +273,9 @@ object UniversalPdfPipeline {
                         val qIndex = (batchIndex * batchSize) + i
                         val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
                             ?.takeIf { it.subjectId == subjectId }
-                        val bundledCandidate = bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
+                        val bundledCandidate = if (markdownCandidate == null) {
+                            bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
+                        } else null
                         if (markdownCandidate == null && bundledCandidate == null) continue
 
                         val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex) ?: continue
@@ -279,47 +285,56 @@ object UniversalPdfPipeline {
                         val posMark = resolvedSection.positiveMarks
                         val negMark = resolvedSection.negativeMarks
 
-                        val questionText = markdownCandidate?.questionText?.takeIf { it.isNotBlank() }
-                            ?: bundledCandidate?.questionText?.takeIf { it.isNotBlank() } ?: continue
-                        val options = if (markdownCandidate?.options?.isNotEmpty() == true) {
+                        // Never mix fields from a PDF extraction with an unrelated bundled question.
+                        val questionText = markdownCandidate?.questionText ?: bundledCandidate?.questionText.orEmpty()
+                        if (questionText.isBlank()) continue
+                        val expectedOptionCount = resolvedSection.optionsCount.coerceIn(0, 5)
+                        val options = if (markdownCandidate != null) {
                             markdownCandidate.options
+                        } else if (expectedOptionCount == 0) {
+                            emptyList()
                         } else {
-                            listOfNotNull(
-                                bundledCandidate?.optionA?.takeIf { it.isNotBlank() },
-                                bundledCandidate?.optionB?.takeIf { it.isNotBlank() },
-                                bundledCandidate?.optionC?.takeIf { it.isNotBlank() },
-                                bundledCandidate?.optionD?.takeIf { it.isNotBlank() },
-                                bundledCandidate?.optionE?.takeIf { it.isNotBlank() }
-                            )
+                            listOf(
+                                bundledCandidate?.optionA.orEmpty(),
+                                bundledCandidate?.optionB.orEmpty(),
+                                bundledCandidate?.optionC.orEmpty(),
+                                bundledCandidate?.optionD.orEmpty(),
+                                bundledCandidate?.optionE.orEmpty()
+                            ).take(expectedOptionCount)
                         }
-                        val isOptionFree = qType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA, QuestionType.DESCRIPTIVE)
-                        if (!isOptionFree && options.size != resolvedSection.optionsCount.coerceIn(2, 5)) continue
-                        val correctAnswer = markdownCandidate?.correctAnswer?.takeIf { it.isNotBlank() }
-                            ?: bundledCandidate?.correctAnswer?.takeIf { it.isNotBlank() } ?: continue
-                        val explanation = markdownCandidate?.explanation?.takeIf { it.isNotBlank() }
-                            ?: bundledCandidate?.explanation?.takeIf { it.isNotBlank() } ?: continue
+                        val isOptionFree = qType in setOf(
+                            QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA, QuestionType.DESCRIPTIVE
+                        )
+                        if (!isOptionFree && options.size != expectedOptionCount.coerceAtLeast(2)) continue
+                        val correctAnswer = if (markdownCandidate != null) markdownCandidate.correctAnswer else bundledCandidate?.correctAnswer.orEmpty()
+                        val explanation = if (markdownCandidate != null) markdownCandidate.explanation else bundledCandidate?.explanation.orEmpty()
 
                         val hash = DuplicateDetectionEngine.generateNormalizedHash(questionText, options)
                         val dupResult = DuplicateDetectionEngine.checkDuplicate(questionText, options, existingHashes)
+                        val sourceAnswer = markdownCandidate?.sourceAnswer?.takeIf { it.isNotBlank() }
                         val validation = QuestionValidationEngine.validateQuestion(
                             questionText = questionText,
                             options = options,
                             correctAnswer = correctAnswer,
-                            sourceAnswer = markdownCandidate?.sourceAnswer,
+                            sourceAnswer = sourceAnswer,
                             explanation = explanation,
                             hasDiagramAttached = markdownCandidate?.diagramUrl != null,
                             duplicateResult = dupResult,
                             questionType = qType,
-                            expectedOptionCount = resolvedSection?.optionsCount ?: examConfig.defaultOptionCount
+                            expectedOptionCount = expectedOptionCount
                         )
-                        if (validation.status == ValidationStatus.DUPLICATE || validation.status == ValidationStatus.REJECTED) continue
+                        if (validation.status == ValidationStatus.DUPLICATE) continue
 
+                        val reviewReasons = (
+                            validation.issues + "Offline extraction/catalog fallback requires manual verification before approval."
+                        ).distinct()
+                        val answerExtracted = !sourceAnswer.isNullOrBlank()
                         extractedQuestions.add(
                             UniversalQuestionModel(
                                 questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_$qIndex",
                                 examId = examConfig.examId,
-                                stageId = stageId,
-                                paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
+                                stageId = resolvedStage.stageId,
+                                paperId = resolvedPaper.paperId,
                                 sectionId = secId,
                                 sectionName = secName,
                                 subjectId = subjectId,
@@ -328,7 +343,7 @@ object UniversalPdfPipeline {
                                 options = options,
                                 optionsHi = markdownCandidate?.optionsHi,
                                 correctAnswer = correctAnswer,
-                                sourceAnswer = markdownCandidate?.sourceAnswer,
+                                sourceAnswer = sourceAnswer,
                                 explanation = explanation,
                                 explanationHi = markdownCandidate?.explanationHi,
                                 difficulty = markdownCandidate?.difficulty ?: DifficultyLevel.MEDIUM,
@@ -336,20 +351,29 @@ object UniversalPdfPipeline {
                                 positiveMarks = posMark,
                                 negativeMarks = negMark,
                                 difficultyScore = validation.difficultyScore,
-                                qualityScore = validation.qualityScore,
+                                qualityScore = validation.qualityScore.coerceAtMost(69),
                                 qualityMetrics = validation.qualityMetrics,
-                                validationStatus = validation.status,
-                                validationReasons = validation.issues,
+                                validationStatus = ValidationStatus.NEEDS_REVIEW,
+                                validationReasons = reviewReasons,
                                 duplicateHash = hash,
                                 diagramUrl = markdownCandidate?.diagramUrl,
                                 diagramMetadata = markdownCandidate?.diagramMetadata,
                                 sourceName = if (markdownCandidate != null) "Extracted PDF Markdown" else "${examConfig.examName} Bundled Verified Catalog",
-                                sourcePage = markdownCandidate?.sourcePage ?: 1,
-                                isOfficialPYQ = markdownCandidate?.isOfficialPYQ ?: false,
+                                sourcePage = markdownCandidate?.sourcePage?.takeIf { it > 0 } ?: -1,
+                                isOfficialPYQ = false,
                                 questionVersion = 1,
-                                validationVersion = 1,
-                                generationModel = if (markdownCandidate != null) "pdf-real-extractor-v1" else "bundled-exam-catalog-v1",
-                                generationTimestamp = System.currentTimeMillis()
+                                validationVersion = 2,
+                                generationModel = if (markdownCandidate != null) "pdf-real-extractor-v2" else "bundled-exam-catalog-v1",
+                                generationTimestamp = System.currentTimeMillis(),
+                                provenanceType = if (markdownCandidate != null) "SOURCE_EXTRACTED" else "GENERATED_PRACTICE",
+                                answerStatus = if (answerExtracted) "KEY_EXTRACTED" else "UNVERIFIED",
+                                answerConfidence = if (answerExtracted) 60 else 0,
+                                verificationSummary = if (answerExtracted)
+                                    "Source answer key extracted; correctness still requires manual verification."
+                                else "No independently verified answer is available; manual review required.",
+                                sourcePageEnd = markdownCandidate?.sourcePageEnd,
+                                needsReview = true,
+                                reviewReasons = reviewReasons
                             )
                         )
                     }
