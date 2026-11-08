@@ -118,10 +118,11 @@ object GeminiResponseValidator {
         if (answer.isBlank() || answer.equals("null", true)) return "Verified answer is missing."
 
         val type = item.optString("questionType", "").uppercase()
-        val allowedTypes = QuestionType.values().map { it.name }.toSet()
+        val allowedTypes = QuestionType.values().map { it.name }.toSet() +
+            setOf("NAT", "NVQ", "NUMERICAL_VALUE_QUESTION", "ESSAY", "SUBJECTIVE")
         if (type !in allowedTypes) return "Question type is missing or unsupported ($type)."
-        val numerical = type in setOf("NAT", "TITA", "NUMERICAL", "NUMERICAL_VALUE")
-        val freeResponse = type in setOf("DESCRIPTIVE")
+        val numerical = type in setOf("NAT", "NVQ", "TITA", "NUMERICAL", "NUMERICAL_VALUE", "NUMERICAL_VALUE_QUESTION")
+        val freeResponse = type in setOf("DESCRIPTIVE", "ESSAY", "SUBJECTIVE")
         if (numerical) {
             if (!answer.matches(Regex("^[+-]?\\d+(\\.\\d+)?$"))) return "Numerical answer is not a valid numeric value."
         } else if (freeResponse) {
