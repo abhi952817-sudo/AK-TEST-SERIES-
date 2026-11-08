@@ -78,7 +78,16 @@ object GeminiResponseValidator {
         }
 
         val confidence = item.optDouble("answerConfidence", -1.0)
-        if (confidence < 0.0 || confidence > 100.0) return "Answer confidence is missing or outside 0-100."
+        if (!confidence.isFinite() || confidence < 70.0 || confidence > 100.0) return "Answer confidence is below the 70-point acceptance threshold or outside 0-100."
+        val verificationSummary = item.optString("verificationSummary", "").trim()
+        if (verificationSummary.isBlank()) return "Concise verification summary is missing."
+        val sectionId = item.optString("sectionId", "").trim()
+        val sectionName = item.optString("sectionName", "").trim()
+        if (sectionId.isBlank() || sectionId == "null" || sectionName.isBlank() || sectionName == "null") return "Configured section identity is missing."
+        if (!item.has("positiveMarks") || item.isNull("positiveMarks") || !item.has("negativeMarks") || item.isNull("negativeMarks")) return "Configured positive/negative marks are missing."
+        val positiveMarks = item.optDouble("positiveMarks", Double.NaN)
+        val negativeMarks = item.optDouble("negativeMarks", Double.NaN)
+        if (!positiveMarks.isFinite() || !negativeMarks.isFinite() || positiveMarks < 0.0 || negativeMarks < 0.0) return "Configured marks are invalid."
         return null
     }
 }
