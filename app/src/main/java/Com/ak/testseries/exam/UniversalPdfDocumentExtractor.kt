@@ -3,8 +3,8 @@ package Com.ak.testseries.exam
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
-import Com.ak.pdfextractor.AdvancedPdfSmartExtractor
-import Com.ak.pdfextractor.PdfPageResult
+import com.ak.pdfextractor.AdvancedPdfSmartExtractor
+import com.ak.pdfextractor.PdfPageResult
 import Com.ak.testseries.utils.CompactMarkdownFormatter
 import Com.ak.testseries.utils.DiagramCandidate
 import Com.ak.testseries.utils.LocalPdfImageExtractor
