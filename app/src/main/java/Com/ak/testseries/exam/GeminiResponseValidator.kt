@@ -27,9 +27,14 @@ object GeminiResponseValidator {
         if (status !in setOf("COMPLETE", "PARTIAL")) {
             return Report(JSONArray(), 0, listOf("Task status is missing or not publishable: $status"), status.ifBlank { "ERROR" })
         }
-        val taskErrors = root.optJSONArray("errors")
-        if (taskErrors != null && taskErrors.length() > 0) {
-            return Report(JSONArray(), taskErrors.length(), listOf("Gemini task reported one or more extraction/generation errors; the batch is not publishable."), status)
+        if (root.has("errors")) {
+            val taskErrors = root.optJSONArray("errors")
+            if (taskErrors == null) {
+                return Report(JSONArray(), 0, listOf("Task errors field must be an array; malformed task envelope rejected."), status)
+            }
+            if (taskErrors.length() > 0) {
+                return Report(JSONArray(), taskErrors.length(), listOf("Gemini task reported one or more extraction/generation errors; the batch is not publishable."), status)
+            }
         }
         val source = root.optJSONArray("questions")
             ?: return Report(JSONArray(), 0, listOf("Required questions array is missing."), status)
