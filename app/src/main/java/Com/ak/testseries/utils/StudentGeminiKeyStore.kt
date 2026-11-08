@@ -34,7 +34,10 @@ object StudentGeminiKeyStore {
         val payload = cipher.iv + encrypted
         val encoded = Base64.encodeToString(payload, Base64.NO_WRAP)
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(preferenceKey(uid), encoded).commit()
+            .edit()
+            .putString(preferenceKey(uid), encoded)
+            .putLong(savedAtKey(uid), System.currentTimeMillis())
+            .commit()
         if (context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(preferenceKey(uid), null) != encoded) {
             throw IllegalStateException("Encrypted Gemini key could not be persisted.")
         }
@@ -60,10 +63,17 @@ object StudentGeminiKeyStore {
 
     fun isConfigured(context: Context, uid: String): Boolean = !read(context, uid).isNullOrBlank()
 
+    fun needsRotationReminder(context: Context, uid: String): Boolean {
+        if (!isConfigured(context, uid)) return false
+        val savedAt = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getLong(savedAtKey(uid), 0L)
+        return savedAt > 0L && System.currentTimeMillis() - savedAt >= ROTATION_REMINDER_MILLIS
+    }
+
     fun clear(context: Context, uid: String) {
         if (uid.isBlank()) return
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().remove(preferenceKey(uid)).commit()
+            .edit().remove(preferenceKey(uid)).remove(savedAtKey(uid)).commit()
         try {
             val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
             keyStore.deleteEntry(alias(uid))
@@ -95,7 +105,11 @@ object StudentGeminiKeyStore {
 
     private fun preferenceKey(uid: String): String = KEY_PREFIX + digest(uid).take(32)
 
+    private fun savedAtKey(uid: String): String = preferenceKey(uid) + "_saved_at"
+
     private fun alias(uid: String): String = "akts_gemini_" + digest(uid).take(32)
+
+    private const val ROTATION_REMINDER_MILLIS = 7L * 24L * 60L * 60L * 1000L
 
     private fun digest(value: String): String =
         MessageDigest.getInstance("SHA-256")
