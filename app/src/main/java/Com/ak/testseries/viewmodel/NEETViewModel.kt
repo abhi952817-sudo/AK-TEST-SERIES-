@@ -5455,6 +5455,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val primaryGeminiUsage = MutableStateFlow(0)
     val secondaryGeminiUsage = MutableStateFlow(0)
     val activeGeminiKeyIndex = MutableStateFlow(0)
+    private val _studentGeminiKeyConfigured = MutableStateFlow(false)
+    val studentGeminiKeyConfigured: StateFlow<Boolean> = _studentGeminiKeyConfigured.asStateFlow()
     val geminiStatusMessage = MutableStateFlow("Initializing...")
     val activeAiModel = MutableStateFlow("UNAVAILABLE")
 
@@ -5491,10 +5493,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val newCount = primaryGeminiUsage.value + 1
                 prefs.edit().putInt("primary_gemini_usage", newCount).apply()
                 primaryGeminiUsage.value = newCount
-            } else {
+            } else if (keyIdentifier == 1) {
                 val newCount = secondaryGeminiUsage.value + 1
                 prefs.edit().putInt("secondary_gemini_usage", newCount).apply()
                 secondaryGeminiUsage.value = newCount
+            } else {
+                // Student-owned keys are deliberately excluded from Admin quota counters.
+                return
             }
         } catch (e: Exception) { e.printStackTrace() }
     }
@@ -5513,11 +5518,63 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { "" }
     }
 
+    fun refreshStudentGeminiKeyState() {
+        val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
+        _studentGeminiKeyConfigured.value = !isAdmin &&
+            Com.ak.testseries.utils.StudentGeminiKeyStore.isConfigured(getApplication(), uid)
+    }
+
+    suspend fun connectStudentGeminiApiKey(apiKey: String): String? = withContext(Dispatchers.IO) {
+        if (isAdmin) return@withContext "Admin accounts must use the centrally managed Admin API keys."
+        val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
+        if (uid.isBlank()) return@withContext "Please sign in before connecting your personal Gemini API key."
+        val normalizedKey = apiKey.trim()
+        if (normalizedKey.length < 20) return@withContext "The API key appears incomplete."
+        var connection: HttpURLConnection? = null
+        try {
+            connection = URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1")
+                .openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("x-goog-api-key", normalizedKey)
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+            val responseCode = connection.responseCode
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                return@withContext "Gemini rejected this key (HTTP $responseCode). Check the key and API access."
+            }
+            val response = connection.inputStream.bufferedReader().use(BufferedReader::readText)
+            if (!JSONObject(response).has("models")) {
+                return@withContext "Gemini key verification returned an unexpected response."
+            }
+            Com.ak.testseries.utils.StudentGeminiKeyStore.save(getApplication(), uid, normalizedKey)
+            _studentGeminiKeyConfigured.value = true
+            geminiStatusMessage.value = "Personal Gemini API key connected securely."
+            null
+        } catch (_: Exception) {
+            "Could not verify or securely store the Gemini API key. Check network access and try again."
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    fun disconnectStudentGeminiApiKey() {
+        val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
+        if (uid.isNotBlank()) Com.ak.testseries.utils.StudentGeminiKeyStore.clear(getApplication(), uid)
+        _studentGeminiKeyConfigured.value = false
+        if (activeGeminiKeyIndex.value == 2) activeGeminiKeyIndex.value = 0
+        geminiStatusMessage.value = "Personal Gemini API key disconnected."
+    }
+
     fun getGeminiApiKeys(): List<Pair<Int, String>> {
         val primary = BuildConfig.GEMINI_API_KEY
         val secondary = getSecondaryGeminiKey()
 
         val list = mutableListOf<Pair<Int, String>>()
+        if (!isAdmin) {
+            val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
+            val studentKey = Com.ak.testseries.utils.StudentGeminiKeyStore.read(getApplication(), uid)
+            if (!studentKey.isNullOrBlank()) list.add(Pair(2, studentKey))
+        }
         if (isPrimaryGeminiActive.value && primary.isNotEmpty() && primary != "MY_GEMINI_API_KEY") {
             list.add(Pair(0, primary))
         }
@@ -5550,15 +5607,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val keyId = currentKeyPair.first
             val currentKey = currentKeyPair.second
             
-            geminiStatusMessage.value = "Trying API Key ${if (keyId == 0) "Primary" else "Secondary"}..."
+            geminiStatusMessage.value = "Trying API Key ${when (keyId) { 0 -> "Primary"; 1 -> "Secondary"; else -> "Personal Student" }}..."
             val result = callGeminiApiForQuestions(currentKey, prompt, systemInstruction)
             if (result != null) {
                 val currentModel = activeAiModel.value
                 if (activeGeminiKeyIndex.value != keyId) {
                     activeGeminiKeyIndex.value = keyId
-                    geminiStatusMessage.value = "Switched to ${if (keyId == 0) "Primary" else "Secondary"} Key ($currentModel)"
+                    geminiStatusMessage.value = "Switched to ${when (keyId) { 0 -> "Primary"; 1 -> "Secondary"; else -> "Personal Student" }} Key ($currentModel)"
                 } else {
-                    geminiStatusMessage.value = "${if (keyId == 0) "Primary" else "Secondary"} Key Active ($currentModel)"
+                    geminiStatusMessage.value = "${when (keyId) { 0 -> "Primary"; 1 -> "Secondary"; else -> "Personal Student" }} Key Active ($currentModel)"
                 }
                 incrementGeminiUsage(keyId)
                 return result
@@ -5607,10 +5664,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")
+                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("x-goog-api-key", apiKey)
                 conn.connectTimeout = 60000
                 conn.readTimeout = 60000
                 conn.doOutput = true
@@ -5672,10 +5730,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")
+                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("x-goog-api-key", apiKey)
                 conn.connectTimeout = 60000
                 conn.readTimeout = 60000
                 conn.doOutput = true
