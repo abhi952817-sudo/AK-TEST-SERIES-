@@ -4635,6 +4635,79 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val hasApiKey = keys.isNotEmpty()
 
             if (hasApiKey) {
+                // Student BYOK path: send the original PDF to Gemini's native document input.
+                // Admin retains the existing reviewed extraction pipeline.
+                if (!isAdmin && selectedPdfUri.value != null) {
+                    val personalKey = keys.singleOrNull { it.first == 2 }?.second
+                    if (personalKey.isNullOrBlank()) {
+                        val message = "Connect your own verified Gemini API key before processing a PDF."
+                        _aiGenState.value = AiGenerationState.Error(message)
+                        aiGenStatusMessage.value = message
+                        return@launch
+                    }
+                    try {
+                        val targetExamName = genTargetExam.value.trim()
+                        require(targetExamName.isNotBlank()) { "Select a supported exam before generating questions." }
+                        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
+                            ?: throw IllegalArgumentException("Unsupported exam: $targetExamName. No NEET fallback is allowed.")
+                        val expectedCount = genQuestionsCount.value.coerceAtLeast(1)
+                        val subjectName = genSubject.value.ifBlank {
+                            examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects"
+                        }
+                        val prompt = """
+                            Read the attached original PDF as a visual document, including page layout, diagrams,
+                            tables, graphs, equations, and embedded images. This is STRICT SOURCE EXTRACTION.
+                            Exam: ${examConfig.examName}; Subject: $subjectName; Requested upper limit: $expectedCount.
+                            Transcribe only questions that actually exist in the PDF, preserving their order and wording.
+                            Never create filler questions or claim generated questions came from the PDF.
+                            Include all available options and any printed answer key/solutions. If an answer is not
+                            explicitly present, solve only when the answer is unambiguous from the question; otherwise
+                            leave correctAnswer empty so the question can be rejected for review, never guess.
+                            Mark needsImage=true when the original question depends on a diagram/graph/table image.
+                            Return ONLY a JSON array, with one object per real source question, using fields:
+                            questionTextEn, questionTextHi, optionAEn, optionBEn, optionCEn, optionDEn, optionEEn,
+                            optionAHi, optionBHi, optionCHi, optionDHi, optionEHi, correctAnswer, explanationEn,
+                            explanationHi, questionType, needsImage, chapter, topic, pageNumber.
+                            Do not exceed $expectedCount questions. If the PDF contains no readable questions,
+                            return an empty array. No markdown fences or prose outside JSON.
+                        """.trimIndent()
+                        val systemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(
+                            examConfig,
+                            Com.ak.testseries.exam.UniversalAiTaskMode.SOURCE_EXTRACTION
+                        )
+                        _aiGenState.value = AiGenerationState.ExtractingQuestions
+                        aiGenStatusMessage.value = "Sending original PDF to Gemini native document understanding..."
+                        val response = Com.ak.testseries.security.GeminiNativePdfClient.generate(
+                            context = getApplication(),
+                            pdfUri = selectedPdfUri.value!!,
+                            apiKey = personalKey,
+                            prompt = prompt,
+                            systemInstruction = systemInstruction
+                        ).getOrElse { throw it }
+                        val cleanJson = response.trim()
+                            .removePrefix("```json").removePrefix("```")
+                            .removeSuffix("```").trim()
+                        val parsed = JSONArray(cleanJson)
+                        if (parsed.length() == 0) {
+                            throw IllegalStateException("Gemini found no source questions in this PDF. Nothing was saved.")
+                        }
+                        if (parsed.length() > expectedCount) {
+                            throw IllegalStateException("Gemini returned more questions than the requested limit. Nothing was saved.")
+                        }
+                        _aiGenState.value = AiGenerationState.ExtractingAnswers
+                        aiGenStatusMessage.value = "Validating ${parsed.length()} questions extracted from the original PDF..."
+                        saveGeneratedTest(parsed.toString())
+                        if (_aiGenState.value is AiGenerationState.Error) return@launch
+                        recordDailyGeneration()
+                        aiGenStatusMessage.value = "Gemini extracted ${parsed.length()} source questions. Test saved to your Private Vault."
+                        _aiGenState.value = AiGenerationState.Success
+                    } catch (error: Exception) {
+                        val message = error.message ?: "Native Gemini PDF processing failed."
+                        _aiGenState.value = AiGenerationState.Error(message)
+                        aiGenStatusMessage.value = message
+                    }
+                    return@launch
+                }
                 try {
                     val totalQuestions = genQuestionsCount.value
                     val pages = lastExtractedPdfPages.value
