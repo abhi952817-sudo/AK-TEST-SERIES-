@@ -5860,26 +5860,23 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val reasoning = qObj.optString("reasoning", "")
             val expEn = qObj.optString("explanationEn", "").ifBlank { reasoning }
             val questionType = qObj.optString("questionType", "MCQ").trim().uppercase()
-            val isNumerical = questionType in setOf("NUMERICAL", "NUMERICAL_VALUE", "NAT", "TITA")
+                .replace(Regex("[\\s-]+"), "_")
+            val isNumerical = questionType in setOf("NUMERICAL", "NUMERICAL_VALUE", "NAT", "TITA", "NVQ")
             val optionA = qObj.optString("optionAEn", qObj.optString("optionA", "")).trim()
             val optionB = qObj.optString("optionBEn", qObj.optString("optionB", "")).trim()
             val optionC = qObj.optString("optionCEn", qObj.optString("optionC", "")).trim()
             val optionD = qObj.optString("optionDEn", qObj.optString("optionD", "")).trim()
             val optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).trim()
             val answer = qObj.optString("correctAnswer", "").trim()
-            val validAnswer = if (isNumerical) {
-                answer.matches(Regex("^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$"))
-            } else {
-                answer.uppercase() in setOf("A", "B", "C", "D", "E") &&
-                    when (answer.uppercase()) {
-                        "A" -> optionA.isNotBlank()
-                        "B" -> optionB.isNotBlank()
-                        "C" -> optionC.isNotBlank()
-                        "D" -> optionD.isNotBlank()
-                        "E" -> optionE.isNotBlank()
-                        else -> false
-                    } && listOf(optionA, optionB, optionC, optionD).all { it.isNotBlank() }
-            }
+            val expectedOptionCount = Com.ak.testseries.exam.UniversalExamRegistry
+                .findExamByNameOrShortName(genTargetExam.value)
+                ?.defaultOptionCount ?: 4
+            val validAnswer = Com.ak.testseries.exam.GeneratedQuestionAnswerValidator.isValid(
+                questionType = questionType,
+                answer = answer,
+                options = listOf(optionA, optionB, optionC, optionD, optionE),
+                expectedOptionCount = expectedOptionCount
+            )
             if (qTextEn.isBlank() || !validAnswer) {
                 _aiGenState.value = AiGenerationState.Error(
                     "Question ${i + 1} failed validation (question text, options, or answer). Nothing was saved."
