@@ -63,7 +63,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import Com.ak.testseries.security.GeminiApiKeyStore
 import java.text.DateFormat
 import java.util.Date
@@ -95,7 +97,9 @@ fun GeminiAiSetupScreen(
         connectionError = null
         if (userId.isNotBlank()) {
             lastUpdated = GeminiApiKeyStore.lastUpdatedAt(context, userId)
-            val savedKey = GeminiApiKeyStore.getApiKey(context, userId)
+            val savedKey = withContext(Dispatchers.IO) {
+                GeminiApiKeyStore.getApiKey(context, userId)
+            }
             hasSavedKey = !savedKey.isNullOrBlank()
             if (!savedKey.isNullOrBlank()) {
                 if (GeminiApiKeyStore.isRotationDue(context, userId)) {
@@ -246,7 +250,9 @@ fun GeminiAiSetupScreen(
                                     if (verification.isSuccess) {
                                         try {
                                             // Replace only after the new key has passed live verification.
-                                            GeminiApiKeyStore.saveApiKey(context, userId, apiKey)
+                                            withContext(Dispatchers.IO) {
+                                                GeminiApiKeyStore.saveApiKey(context, userId, apiKey)
+                                            }
                                             isConnected = true
                                             hasSavedKey = true
                                             lastUpdated = GeminiApiKeyStore.lastUpdatedAt(context, userId)

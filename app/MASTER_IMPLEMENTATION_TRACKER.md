@@ -856,3 +856,13 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 
 
 - Removed the now-unused system-instruction construction from the user-prompt builder after moving that instruction to the dedicated API field. This avoids duplicate prompt content and removes an unused local.
+
+
+### Final source checkpoint before runtime validation
+
+- Additional commits:
+  - `3ad974464fb9d987cd96eb65cb3ad1eaf7fd9e12` — enforce seven-day personal-key rotation.
+  - `4915152d76b8d95f6d2301e41626e8c950dda0c4` — apply the shared policy to task-specific prompts and remove duplicate system-policy tokens from text calls.
+  - `b3671980058e09d31144b7c1aeb83de13d95fef4` — remove unused system-prompt construction from the dynamic user-prompt builder.
+- Keystore read/save work on the setup screen is dispatched to IO to avoid doing crypto and synchronous preference commits on the Compose main thread.
+- Current milestone state: source implementation is committed; runtime validation remains blocked because no Android build runner or CI workflow result is available in this continuation. Do not mark Integrated Phase 1–3 complete until CI/device tests pass and the actual GIF asset is added.
