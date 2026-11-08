@@ -434,7 +434,8 @@ object UniversalPdfPipeline {
                     qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
                     qTypeStr.contains("GRAPH") -> QuestionType.GRAPH
                     qTypeStr.contains("DIRECT") || qTypeStr.contains("MCQ") -> QuestionType.DIRECT_MCQ
-                    else -> resolvedSection?.questionType ?: continue
+                    else -> runCatching { QuestionType.valueOf(qTypeStr) }.getOrNull()
+                        ?: resolvedSection?.questionType ?: continue
                 }
 
                 val isOptionFree = parsedQType in setOf(QuestionType.NUMERICAL_VALUE, QuestionType.NUMERICAL, QuestionType.TITA, QuestionType.DESCRIPTIVE)
