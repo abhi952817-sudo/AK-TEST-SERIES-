@@ -890,3 +890,12 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Added `GeneratedQuestionAnswerValidator` and unit tests for single-correct MCQ, multi-correct MSQ, 4/5-option exam patterns, finite NAT answers, and missing-option position integrity. Student PDF save validation now uses the selected exam's configured option count rather than assuming every exam uses four options.
 - Follow-up commits: `966b9bd6cf523667111ccbf08b71fd152ae3c542`, `f266a4aed7331e8adbd22f9b7f31d3eb4ebadd7b`, `3f5e8e3bd0500ac2dbb4d9c94d1936c8e055be61`.
 - CI status must be read from the latest branch-head run before marking this stage complete. Earlier runs are expected to remain failed because they target commits before remediation. A real student-owned Gemini key, real source PDF, physical/emulator device, and Firebase test environment are still required for end-to-end API/Firestore verification. No credentials or production deployment are used in CI.
+
+
+### Follow-up hardening after CI failure analysis
+- Added `GeneratedQuestionAnswerValidator` for single-answer MCQ, multiple-answer MSQ, exam-specific four/five-option layouts, and finite NAT/TITA values. The Student PDF save path now uses the selected exam's configured option count and does not shift option positions when an option is missing.
+- Added five unit tests covering the answer validator.
+- Updated native PDF Gemini model preference to currently supported `gemini-3.8-flash`, then `gemini-flash-latest` and `gemini-3.5-flash`. Google model lifecycle documentation lists Gemini 2.5 Flash as retired in October 2026 for Gemini API usage; using it first would make this November 2026 feature fail before reaching a working fallback.
+- Added a backend Node.js unit-test job (`node --test *.test.js`) alongside Android CI. Android CI uses JDK 21 for Robolectric SDK 36 and cancels stale same-branch runs.
+- Commits: `966b9bd6cf523667111ccbf08b71fd152ae3c542`, `f266a4aed7331e8adbd22f9b7f31d3eb4ebadd7b`, `3f5e8e3bd0500ac2dbb4d9c94d1936c8e055be61`, `c4165824312eea1fd57f2e1a7fe1ec5ef7e284df`, `1d0e86595121e08a9f07787474c404f19f0ec30f`, `4384c2ace2ab6b440057c60097a3751f8b9b7a01`.
+- Latest CI results are pending. Do not mark runtime verification complete until latest branch-head Android tests, APK build, and backend unit tests report success.
