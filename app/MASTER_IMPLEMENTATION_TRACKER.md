@@ -906,3 +906,15 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Added a Robolectric HTTP integration test using a local ephemeral server. It verifies the actual request method/body path, per-user API key header, universal system instruction, prompt, PDF MIME type, and byte-for-byte original PDF Base64 payload, then verifies response extraction. It does not require or expose a real Gemini key.
 - Commits: `abd40bd810311912efcb42555ab2fa3bd7c5be8d` (injectable test endpoint), `5430008b14799979cdcfbe3a76bd0a34805092da` (HTTP integration test).
 - This verifies client request construction only; live Google API behavior still requires a valid student key and actual device/network session.
+
+
+## Runtime verification result — PASS (2026-11-08)
+- Branch-head CI run: [42459562922](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/42459562922), tested commit `71d422d2614d493bd9bbc54721d26107a78e326f`.
+- Android JVM + Robolectric unit tests: `BUILD SUCCESSFUL`; 642 tests, 0 failures, 0 skipped (from the uploaded Gradle HTML reports). Includes `GeminiNativePdfClientTest` and `GeneratedQuestionAnswerValidatorTest`.
+- Android debug APK: `gradle :app:assembleDebug` — `BUILD SUCCESSFUL`.
+- Backend Node.js unit test job: success (`node --test *.test.js`).
+- CI artifacts: `app-debug` artifact ID `13608777563`; `android-unit-test-reports` artifact ID `13608414253`.
+- Debug APK extracted and verified in this working session at `/mnt/data/ak-test-series-debug/app-debug.apk` (32,946,502 bytes). This is a debug build, not a Play Store/release-signed APK.
+- CI contains no student Gemini credentials. The local HTTP integration test verifies the native PDF request payload and key header using a test credential only. A live Google Gemini request with a real student-owned key, actual exam PDF, device/network behavior, and Firestore Admin-review visibility remains a separate end-to-end check and is NOT claimed as passed.
+- No production Firebase deploy was performed. `main` was not modified.
+- Current verification status: Android unit tests PASS; debug APK build PASS; backend unit tests PASS; live student-key/API/device/Firestore integration PENDING; actual tutorial GIF PENDING.
