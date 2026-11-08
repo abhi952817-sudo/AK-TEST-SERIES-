@@ -309,6 +309,13 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel
                             )
                         }
+                        AppScreen.GEMINI_AI_SETUP -> {
+                            Com.ak.testseries.ui.GeminiAiSetupScreen(
+                                onNavigateBack = { viewModel.navigateToScreen(AppScreen.DASHBOARD) },
+                                userId = viewModel.currentUserId.collectAsStateWithLifecycle().value,
+                                isHindi = selectedLanguage == AppLanguage.HINDI
+                            )
+                        }
                         AppScreen.BACKUP_RESTORE -> {
                             Com.ak.testseries.ui.BackupRestoreScreen(
                                 viewModel = viewModel,
@@ -947,6 +954,31 @@ fun DashboardScreen(
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
                     }
+
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Rounded.AutoAwesome, contentDescription = "Gemini AI Setup", tint = MaterialTheme.colorScheme.primary) },
+                        label = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(if (selectedLanguage == AppLanguage.HINDI) "Gemini AI Setup" else "Gemini AI Setup", fontWeight = FontWeight.Bold)
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                ) {
+                                    Text("AI", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                            }
+                        },
+                        selected = viewModel.currentScreen.value == AppScreen.GEMINI_AI_SETUP,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            viewModel.navigateToScreen(AppScreen.GEMINI_AI_SETUP)
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding).testTag("drawer_gemini_ai_setup")
+                    )
 
                     NavigationDrawerItem(
                         icon = { Icon(Icons.Rounded.Settings, contentDescription = stringRes("Settings")) },

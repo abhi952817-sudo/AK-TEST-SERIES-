@@ -765,3 +765,33 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Offline OCR implementation remains OPEN: Android model/runtime compatibility, model asset packaging and checksum, CPU/memory/performance, Hindi+English recognition, page/layout ordering, and real exam PDF validation are not yet complete. No model binary has been added and no offline OCR runtime has been claimed.
 - CI run 42447761562 completed FAILURE. Compiler errors: wrong-case imports (Com.ak.pdfextractor vs declared com.ak.pdfextractor) in UniversalPdfDocumentExtractor.kt, and MainActivity.kt called addNewTest(test) without required questions. The latter screen currently supplies no real questions; the call is changed to pass an empty list, which the existing ViewModel validator rejects. No placeholder question is introduced. CI must be rerun after these fixes.
 - No production deploy, Gemini prompt change, or main branch change.
+
+
+## Integrated Gemini Phase 1–3 — initial implementation checkpoint — 2026-11-08
+
+**Working branch:** `fix/phase1-real-questions-only`  
+**Scope:** Source audit, shared Universal Gemini policy foundation, Student-owned API Key storage/connection UI, existing Student drawer integration. No production deployment.
+
+### Audit findings
+
+- The repository already contains `UniversalAIContext` with exam-specific system instructions, dynamic generation prompts, and extraction prompts. This remains the single canonical exam prompt source; no parallel prompt engine was introduced.
+- Additional reachable Gemini call paths exist in `NEETViewModel`, `UniversalPdfPipeline`, and the legacy `GeminiPdfExtractor`. The legacy extractor still contains a separate generic prompt and needs a dedicated call-site/deprecation decision before being treated as part of the unified pipeline.
+- Student-facing API key selection previously returned app-configured Primary/Secondary keys. That could cause a student without a personal key to use a shared key. The updated selection is exclusive: a signed-in non-admin student receives only their UID-scoped local key; without one, Gemini requests fail closed and ask the student to connect it. Verified Admin accounts retain the existing Admin key fallback.
+- Google AI Studio creates a default project/key for eligible new users after Terms acceptance; existing Google Cloud projects must be imported. The UI links directly to the API Keys page and explains both cases. Source: Google Gemini API key documentation (2026-07-30).
+
+### Source changes in this checkpoint
+
+- Added `UniversalAiTaskMode` and a shared AK TEST SERIES Universal AI policy in the existing `UniversalAIContext`.
+- Added source-fidelity, exam-agnostic, no-fabrication, uncertainty/review, schema adherence, and concise rationale rules.
+- Removed the instruction asking Gemini to emit extensive internal reasoning; the model is instructed to validate answers internally and return concise, checkable explanations.
+- Dynamic generation and extraction prompts now select the corresponding shared task mode.
+- Student API key selection now prefers the user's own encrypted local key exclusively; it does not fall back to another user's or the app's shared key.
+- Gemini GenerateContent requests in the central ViewModel and Universal PDF pipeline now send the key in the `x-goog-api-key` header instead of the URL query string.
+- Added the Student sidebar route `Gemini AI Setup`; detailed screen and encrypted local key storage are added in the next commit of this milestone.
+
+### Verification status
+
+- Static source edits only at this checkpoint.
+- Android compilation, unit tests, Compose navigation tests, live API key verification, real PDF generation, and device security tests: **NOT RUN**.
+- GIF asset generation was unavailable in the current session; no GIF asset is claimed as implemented.
+- No Firebase production deployment; `main` untouched.

@@ -58,7 +58,8 @@ enum class AppScreen {
     SETTINGS,
     PRIVATE_VAULT,
     HIERARCHICAL_TEST_FLOW,
-    BACKUP_RESTORE
+    BACKUP_RESTORE,
+    GEMINI_AI_SETUP
 }
 
 enum class AppTheme {
@@ -5247,16 +5248,29 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private fun incrementGeminiUsage(keyIdentifier: Int) {
         try {
             val prefs = getApplication<Application>().getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
-            if (keyIdentifier == 0) {
-                val newCount = primaryGeminiUsage.value + 1
-                prefs.edit().putInt("primary_gemini_usage", newCount).apply()
-                primaryGeminiUsage.value = newCount
-            } else {
-                val newCount = secondaryGeminiUsage.value + 1
-                prefs.edit().putInt("secondary_gemini_usage", newCount).apply()
-                secondaryGeminiUsage.value = newCount
+            when (keyIdentifier) {
+                0 -> {
+                    val newCount = primaryGeminiUsage.value + 1
+                    prefs.edit().putInt("primary_gemini_usage", newCount).apply()
+                    primaryGeminiUsage.value = newCount
+                }
+                1 -> {
+                    val newCount = secondaryGeminiUsage.value + 1
+                    prefs.edit().putInt("secondary_gemini_usage", newCount).apply()
+                    secondaryGeminiUsage.value = newCount
+                }
+                2 -> {
+                    val uid = currentUserId.value
+                    if (uid.isNotBlank()) {
+                        val usagePrefs = getApplication<Application>().getSharedPreferences("gemini_personal_usage", Context.MODE_PRIVATE)
+                        val usageKey = "usage_" + uid.hashCode().toUInt().toString(16)
+                        usagePrefs.edit().putInt(usageKey, usagePrefs.getInt(usageKey, 0) + 1).apply()
+                    }
+                }
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            android.util.Log.w("NEETViewModel", "Gemini usage counter update failed", e)
+        }
     }
 
     fun setSecondaryGeminiKey(key: String) {
@@ -5274,9 +5288,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getGeminiApiKeys(): List<Pair<Int, String>> {
+        // A signed-in student's personal key is an exclusive credential source.
+        // Never fall back to the app/admin key for a student who has not connected their own key.
+        val uid = currentUserId.value
+        if (uid.isNotBlank()) {
+            val personalKey = try {
+                Com.ak.testseries.security.GeminiApiKeyStore.getApiKey(getApplication(), uid)
+            } catch (e: Exception) {
+                android.util.Log.w("NEETViewModel", "Unable to read the local Gemini key", e)
+                null
+            }
+            if (!personalKey.isNullOrBlank()) return listOf(Pair(2, personalKey))
+            if (!isAdminFlow.value) return emptyList()
+        } else {
+            return emptyList()
+        }
+
+        // Only a verified Admin may use the app-configured/admin-managed keys.
         val primary = BuildConfig.GEMINI_API_KEY
         val secondary = getSecondaryGeminiKey()
-
         val list = mutableListOf<Pair<Int, String>>()
         if (isPrimaryGeminiActive.value && primary.isNotEmpty() && primary != "MY_GEMINI_API_KEY") {
             list.add(Pair(0, primary))
@@ -5297,7 +5327,27 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
         val keys = getGeminiApiKeys()
         if (keys.isEmpty()) {
+            geminiStatusMessage.value = if (currentUserId.value.isNotBlank() && !isAdminFlow.value) {
+                "Connect your own Gemini API key in Gemini AI Setup."
+            } else {
+                "No Gemini API key is configured."
+            }
             return null
+        }
+        val effectiveSystemInstruction = systemInstruction ?: run {
+            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(
+                _userProfile.value.targetExam
+            )
+            if (examConfig != null) {
+                Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(
+                    examConfig,
+                    Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
+                )
+            } else {
+                Com.ak.testseries.exam.UniversalAIContext.buildUniversalSystemInstruction(
+                    Com.ak.testseries.exam.UniversalAiTaskMode.GENERAL_ASSISTANCE
+                )
+            }
         }
         var startIndex = 0
         val currentActiveId = activeGeminiKeyIndex.value
@@ -5310,15 +5360,27 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val keyId = currentKeyPair.first
             val currentKey = currentKeyPair.second
             
-            geminiStatusMessage.value = "Trying API Key ${if (keyId == 0) "Primary" else "Secondary"}..."
-            val result = callGeminiApiForQuestions(currentKey, prompt, systemInstruction)
+            geminiStatusMessage.value = when (keyId) {
+                2 -> "Trying your personal Gemini API key..."
+                0 -> "Trying Admin Primary API key..."
+                else -> "Trying Admin Secondary API key..."
+            }
+            val result = callGeminiApiForQuestions(currentKey, prompt, effectiveSystemInstruction)
             if (result != null) {
                 val currentModel = activeAiModel.value
                 if (activeGeminiKeyIndex.value != keyId) {
                     activeGeminiKeyIndex.value = keyId
-                    geminiStatusMessage.value = "Switched to ${if (keyId == 0) "Primary" else "Secondary"} Key ($currentModel)"
+                    geminiStatusMessage.value = when (keyId) {
+                        2 -> "Personal Gemini key active ($currentModel)"
+                        0 -> "Admin Primary key active ($currentModel)"
+                        else -> "Admin Secondary key active ($currentModel)"
+                    }
                 } else {
-                    geminiStatusMessage.value = "${if (keyId == 0) "Primary" else "Secondary"} Key Active ($currentModel)"
+                    geminiStatusMessage.value = when (keyId) {
+                        2 -> "Personal Gemini key active ($currentModel)"
+                        0 -> "Admin Primary key active ($currentModel)"
+                        else -> "Admin Secondary key active ($currentModel)"
+                    }
                 }
                 incrementGeminiUsage(keyId)
                 return result
@@ -5367,10 +5429,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")
+                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("x-goog-api-key", apiKey)
                 conn.connectTimeout = 60000
                 conn.readTimeout = 60000
                 conn.doOutput = true
@@ -5432,10 +5495,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")
+                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("x-goog-api-key", apiKey)
                 conn.connectTimeout = 60000
                 conn.readTimeout = 60000
                 conn.doOutput = true

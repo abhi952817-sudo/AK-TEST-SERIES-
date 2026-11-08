@@ -1,16 +1,71 @@
 package Com.ak.testseries.exam
 
+enum class UniversalAiTaskMode {
+    GENERAL_ASSISTANCE,
+    EXAM_RECOGNITION,
+    SOURCE_EXTRACTION,
+    PRACTICE_GENERATION,
+    SOLUTION_GENERATION,
+    QUESTION_VERIFICATION
+}
+
 object UniversalAIContext {
+
+    /**
+     * Shared policy used by every Gemini call, regardless of which user's API key is active.
+     * Exam-specific rules are injected separately from ExamConfig.
+     */
+    fun buildUniversalSystemInstruction(taskMode: UniversalAiTaskMode = UniversalAiTaskMode.GENERAL_ASSISTANCE): String {
+        return """
+            AK TEST SERIES — UNIVERSAL AI POLICY
+
+            ROLE:
+            You are the shared academic AI engine for AK TEST SERIES. Follow the supplied exam configuration;
+            never assume every examination follows NEET or any other single exam's rules.
+
+            SOURCE INTEGRITY:
+            - Treat uploaded source material as evidence, not as permission to invent missing content.
+            - Clearly distinguish verbatim extraction from newly authored practice questions.
+            - Never claim a question, answer key, diagram, page reference, syllabus rule, or official pattern came from a source unless it is actually present or reliably derivable.
+            - Preserve all numbers, units, mathematical notation, options, language, and question order during extraction.
+            - If source material is unreadable, incomplete, ambiguous, or contradictory, flag it for review instead of guessing.
+            - Never fill a requested question count with fabricated questions. Report the actual valid count.
+
+            EXAM INTEGRITY:
+            - Use only the selected ExamConfig for exam-specific subjects, sections, question types, scoring, negative marking, duration, and attempt rules.
+            - If a rule is not supplied or verified, mark it unknown; do not silently apply another exam's rules.
+            - Respect the selected language and requested bilingual fields.
+
+            ANSWER QUALITY:
+            - Independently check the answer and numerical result before returning it.
+            - Return a concise, checkable explanation and the key verification result.
+            - Do not reveal private chain-of-thought or hidden reasoning traces.
+            - Mark uncertain answers for human review rather than presenting guesses as facts.
+
+            OUTPUT INTEGRITY:
+            - Follow the exact JSON schema supplied by the current task.
+            - Return no extra fields unless the schema permits them.
+            - Do not wrap JSON in Markdown fences when raw JSON is requested.
+            - Do not claim a test was saved, published, or completed; the app handles those actions.
+
+            ACTIVE TASK MODE: $taskMode
+        """.trimIndent()
+    }
 
     /**
      * Builds the comprehensive AI System Instruction tailored to the specific exam.
      */
-    fun buildSystemInstruction(examConfig: ExamConfig): String {
+    fun buildSystemInstruction(
+        examConfig: ExamConfig,
+        taskMode: UniversalAiTaskMode = UniversalAiTaskMode.PRACTICE_GENERATION
+    ): String {
         val diff = examConfig.difficultyRatio
         val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
         val rules = examConfig.patternRules.joinToString("; ")
 
         return buildString {
+            appendLine(buildUniversalSystemInstruction(taskMode))
+            appendLine()
             appendLine("=== EXAM-SPECIFIC SYSTEM INSTRUCTION: ${examConfig.examName} (${examConfig.shortName}) ===")
             if (examConfig.aiSystemInstruction.isNotBlank()) {
                 appendLine(examConfig.aiSystemInstruction)
@@ -29,7 +84,7 @@ object UniversalAIContext {
             }
             appendLine()
             appendLine("CRITICAL GENERATION CONSTRAINTS:")
-            appendLine("1. INTERNAL REASONING: Every question MUST begin with an extensive 'reasoning' block verifying facts, proving why the correct option is uniquely true, and proving why every distractor is false.")
+            appendLine("1. ANSWER VALIDATION: Independently verify the correct answer and distractors internally; return only a concise, checkable rationale, never private chain-of-thought.")
             appendLine("2. ANTI-HALLUCINATION: Do NOT fabricate incorrect scientific/historical facts. Strictly follow the provided source material.")
             if (examConfig.language.contains("English", ignoreCase = true) && !examConfig.language.contains("Hindi", ignoreCase = true)) {
                 appendLine("3. LANGUAGE: Strictly English medium. Do not include Hindi translations for this exam (${examConfig.examName}).")
@@ -67,7 +122,10 @@ object UniversalAIContext {
         totalQuestions: Int,
         isExtractionMode: Boolean = false
     ): String {
-        val systemInstruction = buildSystemInstruction(examConfig)
+        val systemInstruction = buildSystemInstruction(
+            examConfig,
+            if (isExtractionMode) UniversalAiTaskMode.SOURCE_EXTRACTION else UniversalAiTaskMode.PRACTICE_GENERATION
+        )
         val diff = examConfig.difficultyRatio
         val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
         val patternList = examConfig.patternRules.joinToString("\n  - ")
@@ -171,7 +229,7 @@ object UniversalAIContext {
      * Builds the extraction prompt for extracting questions from already existing question papers.
      */
     fun buildExtractionPrompt(examConfig: ExamConfig, subjectId: String, expectedQuestions: Int): String {
-        val sysInst = buildSystemInstruction(examConfig)
+        val sysInst = buildSystemInstruction(examConfig, UniversalAiTaskMode.SOURCE_EXTRACTION)
         return """
             $sysInst
             
