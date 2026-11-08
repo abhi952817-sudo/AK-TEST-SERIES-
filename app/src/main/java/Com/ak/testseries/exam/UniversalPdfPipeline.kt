@@ -523,10 +523,12 @@ object UniversalPdfPipeline {
                     answerConfidence = item.optDouble("answerConfidence", 0.0).toInt(),
                     verificationSummary = item.optString("verificationSummary", ""),
                     sourcePageEnd = item.optInt("sourcePageEnd", -1).takeIf { it > 0 },
-                    needsReview = item.optBoolean("needsReview", true),
-                    reviewReasons = item.optJSONArray("reviewReasons")?.let { reasons ->
-                        (0 until reasons.length()).mapNotNull { index -> reasons.optString(index).takeIf { it.isNotBlank() } }
-                    } ?: emptyList()
+                    needsReview = item.optBoolean("needsReview", true) || validation.status != ValidationStatus.APPROVED,
+                    reviewReasons = (
+                        (item.optJSONArray("reviewReasons")?.let { reasons ->
+                            (0 until reasons.length()).mapNotNull { index -> reasons.optString(index).takeIf { it.isNotBlank() } }
+                        } ?: emptyList()) + validation.issues
+                    ).distinct()
                 )
                 resultList.add(model)
             }
