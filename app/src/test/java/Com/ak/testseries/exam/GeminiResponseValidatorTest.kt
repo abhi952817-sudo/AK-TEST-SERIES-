@@ -17,8 +17,13 @@ class GeminiResponseValidatorTest {
             .put("correctAnswer", answer)
             .put("answerStatus", "INDEPENDENTLY_VERIFIED")
             .put("answerConfidence", 96)
+            .put("verificationSummary", "The selected option matches the governing law.")
             .put("needsReview", false)
             .put("provenanceType", "GENERATED_PRACTICE")
+            .put("sectionId", "PHYSICS_A")
+            .put("sectionName", "Physics")
+            .put("positiveMarks", 4.0)
+            .put("negativeMarks", 1.0)
             .put("questionType", type)
 
     @Test
@@ -82,8 +87,13 @@ class GeminiResponseValidatorTest {
             .put("correctAnswer", "-2.5")
             .put("answerStatus", "INDEPENDENTLY_VERIFIED")
             .put("answerConfidence", 92)
+            .put("verificationSummary", "The force-to-mass calculation gives the stated value.")
             .put("needsReview", false)
             .put("provenanceType", "SOURCE_EXTRACTED")
+            .put("sectionId", "NUMERICAL_A")
+            .put("sectionName", "Numerical")
+            .put("positiveMarks", 3.0)
+            .put("negativeMarks", 0.0)
             .put("questionType", "NAT")
         assertNull(GeminiResponseValidator.validateQuestion(numerical))
     }
