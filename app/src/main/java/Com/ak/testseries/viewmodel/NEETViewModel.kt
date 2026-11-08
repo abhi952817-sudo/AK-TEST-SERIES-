@@ -6095,6 +6095,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 return@withContext false
             }
         }
+        val finalExamName = genTargetExam.value.ifBlank { "NEET UG" }
+        val finalExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(finalExamName)
+            ?: run {
+                val message = "Selected exam '$finalExamName' is no longer registered. Test was not saved."
+                _aiGenState.value = AiGenerationState.Error(message)
+                aiGenStatusMessage.value = message
+                return@withContext false
+            }
         val testId = "ai_" + System.currentTimeMillis()
 
         val questions = mutableListOf<QuestionEntity>()
@@ -6139,7 +6147,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val finalImageUrl = if (assignedImageUrl.isNullOrEmpty()) null else assignedImageUrl
 
             val questionType = qObj.optString("questionType", "MCQ_SINGLE").uppercase()
-            val isFreeResponse = questionType in setOf("NAT", "TITA", "NUMERICAL", "NUMERICAL_VALUE", "DESCRIPTIVE", "ESSAY", "SUBJECTIVE")
+            val questionSubjectId = qObj.optString("subjectId", "")
+            val questionSubjectName = finalExamConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
+                .firstOrNull { it.subjectId == questionSubjectId }?.subjectName ?: run {
+                    val message = "Question ${i + 1} has an unknown subject '$questionSubjectId'. Test was not saved."
+                    _aiGenState.value = AiGenerationState.Error(message)
+                    aiGenStatusMessage.value = message
+                    return@withContext false
+                }
+            val questionSectionId = qObj.optString("sectionId", "")
+            val isFreeResponse = questionType in setOf("NAT", "NVQ", "TITA", "NUMERICAL", "NUMERICAL_VALUE", "NUMERICAL_VALUE_QUESTION", "DESCRIPTIVE", "ESSAY", "SUBJECTIVE")
             questions.add(
                 QuestionEntity(
                     id = "${testId}_q${i}",
@@ -6152,7 +6169,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionE = if (isFreeResponse) null else qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
-                    subject = genSubject.value,
+                    subject = questionSubjectName,
                     chapter = qChapter,
                     topic = qTopic,
                     questionTextHi = qTextHi.takeIf { it.isNotEmpty() },
@@ -6163,7 +6180,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionEHi = qObj.optString("optionEHi", "").takeIf { it.isNotEmpty() },
                     explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
                     needsImage = finalNeedsImage,
-                    imageUrl = finalImageUrl
+                    imageUrl = finalImageUrl,
+                    questionType = questionType,
+                    section = questionSectionId
                 )
             )
         }
@@ -6184,6 +6203,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
             qObj.put("questionType", sourceQuestion.optString("questionType", "MCQ_SINGLE"))
+            qObj.put("section", q.section)
             qObj.put("answerStatus", sourceQuestion.optString("answerStatus", ""))
             qObj.put("answerConfidence", sourceQuestion.optDouble("answerConfidence", -1.0))
             qObj.put("needsReview", sourceQuestion.optBoolean("needsReview", true))
@@ -6236,7 +6256,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             batchName = genBatch.value,
             facultyName = genFaculty.value,
             language = genLanguage.value,
-            subject = genSubject.value,
+            subject = genSubject.value.ifBlank { "Full Syllabus" },
+            targetExam = finalExamConfig.examName,
+            durationMinutes = if (isLiveTest) genLiveDurationMinutes.value else
+                (finalExamConfig.stages.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: 0),
+            examId = finalExamConfig.examId,
+            stageId = finalExamConfig.stages.firstOrNull()?.stageId,
+            paperId = finalExamConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId,
+            scoringVersion = 1,
             difficulty = "Medium",
             testType = if (isLiveTest) "Live" else genType.value,
             questionsCount = jsonArray.length(),
