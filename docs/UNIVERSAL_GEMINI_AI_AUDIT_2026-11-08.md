@@ -75,3 +75,24 @@ This is a read-only first-pass audit of the existing Gemini, PDF, prompt, exam-c
 - Do not merge or deploy Firebase Functions, Firestore rules, Storage rules, indexes, or production data.
 - Do not publish generated tests automatically.
 - Do not mark a phase COMPLETE without source evidence and passing tests on the exact commit.
+
+
+## Supplemental findings — generated-test workflow and CI baseline
+Additional call-site tracing on the audit base confirmed:
+- `NEETViewModel.generateTestFromPdf()` is the main Student generation entry point and calls `UniversalAIContext` plus the ViewModel Gemini client.
+- `NEETViewModel.analyzePdfWithAI()` uses existing `PdfStorageManager`, `PdfSessionEntity`, `AdvancedPdfSmartExtractor`, local question classification and diagram extraction. Gemini receives extracted opening-page text for metadata analysis, not the original PDF binary.
+- `saveGeneratedTest()` already builds Room `TestEntity` and `QuestionEntity` records. Student public submissions are marked `Under Review`; private submissions remain local/private. This is an existing integration to preserve.
+- `AdminTestListContent` already exposes an Under Review list and an Approve & Publish action. `publishReviewedTest()` is Admin-gated, strips public answer keys, and stores the trusted key under `private_keys/answerKey`. This is a substantial Phase 8 foundation, not a greenfield feature. Reject/correction workflow and full E2E permission behavior still need verification.
+- `saveGeneratedTest()` currently fills missing question/option text with generic defaults (for example, "Question Text" / "Option A") and does not show a strict schema validation gate in the inspected method. Reject malformed/incomplete generated items before Room/Firestore persistence.
+- Existing PDF session recovery, OCR and diagram extraction tests are present. No dedicated Gemini transport, Prompt Engine, Student API key, direct-PDF upload, or full generated-test E2E test file was found in the inspected test tree.
+
+### CI baseline on the audit source
+- Source base commit: `9b105e9e7c614d615becb99a72b3dc5e50799e05`.
+- GitHub Actions run `42176925903` ("Ranking V2 Validation") completed with failure.
+- `firestore-rules-tests`: PASS.
+- `backend-unit-tests`: PASS.
+- `android-validation`: FAIL because `CrashResilienceTest > classMethod` threw `UnsupportedOperationException` at `DefaultSdkProvider.java:170`; 299 tests completed, 1 failed.
+- This is a pre-existing branch baseline failure, not caused by the Gemini audit commits. Re-run on the new Gemini branch after implementation and isolate/fix the test without weakening the test suite.
+
+### Phase 1 status update
+Phase 1 remains IN_PROGRESS until every Gemini call site, caller, persistence route, approval route, relevant test and exact-branch CI result is recorded. The findings above narrow the scope but do not authorize marking Phase 1 complete.
