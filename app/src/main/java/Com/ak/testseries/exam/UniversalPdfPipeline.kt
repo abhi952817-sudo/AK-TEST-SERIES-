@@ -400,17 +400,12 @@ object UniversalPdfPipeline {
     ): List<UniversalQuestionModel> {
         val resultList = mutableListOf<UniversalQuestionModel>()
         try {
-            val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-            val jsonArray = if (cleanJson.startsWith("[")) {
-                JSONArray(cleanJson)
-            } else if (cleanJson.startsWith("{")) {
-                val obj = JSONObject(cleanJson)
-                obj.optJSONArray("questions") ?: obj.optJSONArray("data") ?: JSONArray()
-            } else {
-                val start = cleanJson.indexOf('[')
-                val end = cleanJson.lastIndexOf(']')
-                if (start != -1 && end > start) JSONArray(cleanJson.substring(start, end + 1)) else JSONArray()
-            }
+            val responseReport = GeminiResponseValidator.parseResponse(
+                raw = jsonString,
+                minimumMcqOptions = examConfig.defaultOptionCount
+            )
+            if (!responseReport.isUsable) return emptyList()
+            val jsonArray = responseReport.questions
 
             for (i in 0 until jsonArray.length()) {
                 val item = jsonArray.getJSONObject(i)
@@ -426,10 +421,11 @@ object UniversalPdfPipeline {
 
                 val qIndexInBatch = (batchIndex * 10) + i + 1
                 val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch)
-                val parsedSecId = item.optString("sectionId").ifBlank { resolvedSection?.sectionId ?: "SECTION_A" }
-                val parsedSecName = item.optString("sectionName").ifBlank { resolvedSection?.sectionName ?: "Section A" }
-                val parsedPosMarks = if (item.has("positiveMarks")) item.optDouble("positiveMarks", 4.0) else (resolvedSection?.positiveMarks ?: 4.0)
-                val parsedNegMarks = if (item.has("negativeMarks")) item.optDouble("negativeMarks", 1.0) else (resolvedSection?.negativeMarks ?: 1.0)
+                val parsedSecId = item.optString("sectionId").takeIf { it.isNotBlank() && it != "null" } ?: resolvedSection?.sectionId ?: continue
+                val parsedSecName = item.optString("sectionName").takeIf { it.isNotBlank() && it != "null" } ?: resolvedSection?.sectionName ?: continue
+                val parsedPosMarks = if (item.has("positiveMarks") && !item.isNull("positiveMarks")) item.optDouble("positiveMarks", Double.NaN) else resolvedSection?.positiveMarks ?: continue
+                val parsedNegMarks = if (item.has("negativeMarks") && !item.isNull("negativeMarks")) item.optDouble("negativeMarks", Double.NaN) else resolvedSection?.negativeMarks ?: continue
+                if (!parsedPosMarks.isFinite() || !parsedNegMarks.isFinite() || parsedPosMarks < 0.0 || parsedNegMarks < 0.0) continue
 
                 val diffStr = item.optString("difficulty", "MEDIUM").uppercase()
                 val diffLevel = when {
@@ -440,6 +436,8 @@ object UniversalPdfPipeline {
 
                 val qTypeStr = item.optString("questionType").uppercase()
                 val parsedQType = when {
+                    qTypeStr == "MCQ_MULTIPLE" -> QuestionType.MCQ_MULTIPLE
+                    qTypeStr == "MCQ_SINGLE" -> QuestionType.MCQ_SINGLE
                     qTypeStr.contains("STATEMENT_I") || qTypeStr.contains("STATEMENT_1") -> QuestionType.STATEMENT_I_II
                     qTypeStr.contains("ASSERTION") -> QuestionType.ASSERTION_REASON
                     qTypeStr.contains("MATCH") -> QuestionType.MATCH_LIST_I_II
@@ -448,18 +446,15 @@ object UniversalPdfPipeline {
                     qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
                     qTypeStr.contains("GRAPH") -> QuestionType.GRAPH
                     qTypeStr.contains("DIRECT") || qTypeStr.contains("MCQ") -> QuestionType.DIRECT_MCQ
-                    else -> resolvedSection?.questionType ?: examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
+                    else -> resolvedSection?.questionType ?: continue
                 }
 
                 val isNumerical = (parsedQType == QuestionType.NUMERICAL_VALUE || parsedQType == QuestionType.NUMERICAL || parsedQType == QuestionType.TITA)
                 val finalOptions = if (isNumerical) emptyList() else options
 
                 val rawAnswer = item.optString("correctAnswer", "").trim()
-                val correctAnswer = if (isNumerical) {
-                    rawAnswer // Preserve full integer, decimal, or negative numerical answer
-                } else {
-                    if (rawAnswer.length == 1) rawAnswer.uppercase() else rawAnswer
-                }
+                val correctAnswer = if (isNumerical) rawAnswer else rawAnswer.uppercase()
+                val sourceAnswer = item.optString("sourceAnswer", "").takeIf { it.isNotBlank() && it != "null" }
                 val explanation = item.optString("explanationEn").ifBlank { item.optString("explanation") }
 
                 val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
@@ -468,6 +463,7 @@ object UniversalPdfPipeline {
                     questionText = qText,
                     options = finalOptions,
                     correctAnswer = correctAnswer,
+                    sourceAnswer = sourceAnswer,
                     explanation = explanation,
                     hasDiagramAttached = false,
                     duplicateResult = dupResult,
@@ -494,7 +490,7 @@ object UniversalPdfPipeline {
                         item.optString("optionEHi").takeIf { it.isNotBlank() }
                     ).takeIf { it.size == finalOptions.size },
                     correctAnswer = correctAnswer,
-                    sourceAnswer = null,
+                    sourceAnswer = sourceAnswer,
                     explanation = explanation,
                     explanationHi = item.optString("explanationHi").takeIf { it.isNotBlank() },
                     difficulty = diffLevel,
