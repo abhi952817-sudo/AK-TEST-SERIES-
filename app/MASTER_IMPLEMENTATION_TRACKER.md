@@ -853,3 +853,6 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Existing dynamic PDF generation sends the shared System Instruction in the Gemini systemInstruction field only; the duplicate copy was removed from the user prompt to avoid paying input tokens twice.
 - Existing extraction prompt remains on the shared UniversalAIContext task-mode builder.
 - Static inspection confirms the active Admin PDF pipeline uses UniversalAIContext and the central Student ViewModel uses the same policy. The legacy GeminiPdfExtractor has no active caller in the inspected branch.
+
+
+- Removed the now-unused system-instruction construction from the user-prompt builder after moving that instruction to the dedicated API field. This avoids duplicate prompt content and removes an unused local.

@@ -122,8 +122,8 @@ object UniversalAIContext {
     }
 
     /**
-     * Builds the complete prompt dynamically injecting the selected exam's system instruction,
-     * difficulty ratios, pattern rules, and the compact Markdown payload.
+     * Builds the task-specific user prompt. The caller must pass buildSystemInstruction()
+     * separately in the Gemini systemInstruction field to avoid duplicating those input tokens.
      */
     fun buildDynamicGenerationPrompt(
         examConfig: ExamConfig,
@@ -136,10 +136,6 @@ object UniversalAIContext {
         totalQuestions: Int,
         isExtractionMode: Boolean = false
     ): String {
-        val systemInstruction = buildSystemInstruction(
-            examConfig,
-            if (isExtractionMode) UniversalAiTaskMode.SOURCE_EXTRACTION else UniversalAiTaskMode.PRACTICE_GENERATION
-        )
         val diff = examConfig.difficultyRatio
         val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
         val patternList = examConfig.patternRules.joinToString("\n  - ")
