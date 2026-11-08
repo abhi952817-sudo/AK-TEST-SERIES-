@@ -5019,6 +5019,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
 
+                    if (allQuestionsList.size != totalQuestions) {
+                        val message = "Only ${allQuestionsList.size} of $totalQuestions requested questions passed verification. The incomplete test was not saved or published."
+                        _aiGenState.value = AiGenerationState.Error(message)
+                        aiGenStatusMessage.value = message
+                        return@launch
+                    }
+
                     if (allQuestionsList.isNotEmpty()) {
                         val combinedArray = org.json.JSONArray()
                         for (obj in allQuestionsList) {
@@ -6032,7 +6039,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         saveQuestionsJsonToInternalStorage(testId, questionsJsonString)
 
         val isLiveTest = genIsLive.value
-        val initialStatus = if (isAdmin || isLiveTest) "Published" else if (genIsPublic.value) "Under Review" else "Published"
+        // AI-authored public tests always require explicit moderation, including Admin uploads.
+        val initialStatus = if (isLiveTest) "Published" else if (genIsPublic.value) "Under Review" else "Published"
         val newTest = TestEntity(
             id = testId,
             title = genTestName.value,
@@ -6046,7 +6054,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             testType = if (isLiveTest) "Live" else genType.value,
             questionsCount = jsonArray.length(),
             isOfficial = isLiveTest,
-            isVerifiedCommunity = isLiveTest || isAdmin,
+            isVerifiedCommunity = isLiveTest,
             countsTowardRanking = isLiveTest, // Only official Admin live tests count toward competitive ranking
             attemptsCount = 0,
             downloadsCount = 0,
