@@ -23,7 +23,8 @@ object GeminiNativePdfClient {
         pdfUri: Uri,
         apiKey: String,
         prompt: String,
-        systemInstruction: String
+        systemInstruction: String,
+        apiBaseUrl: String = "https://generativelanguage.googleapis.com"
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             require(apiKey.isNotBlank()) { "A personal Gemini API key is required." }
@@ -65,7 +66,7 @@ object GeminiNativePdfClient {
             for (model in models) {
                 var connection: HttpURLConnection? = null
                 try {
-                    connection = (URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                    connection = (URL("${apiBaseUrl.trimEnd('/')}/v1beta/models/$model:generateContent")
                         .openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
                         connectTimeout = 30_000
@@ -74,7 +75,9 @@ object GeminiNativePdfClient {
                         setRequestProperty("Content-Type", "application/json")
                         setRequestProperty("x-goog-api-key", apiKey)
                     }
-                    connection.outputStream.use { it.write(request.toString().toByteArray(Charsets.UTF_8)) }
+                    val requestBytes = request.toString().toByteArray(Charsets.UTF_8)
+                    connection.setFixedLengthStreamingMode(requestBytes.size)
+                    connection.outputStream.use { it.write(requestBytes) }
                     val code = connection.responseCode
                     val responseText = (if (code in 200..299) connection.inputStream else connection.errorStream)
                         ?.bufferedReader()?.use { it.readText() }.orEmpty()
