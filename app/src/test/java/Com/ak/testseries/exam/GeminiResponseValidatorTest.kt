@@ -182,6 +182,21 @@ class GeminiResponseValidatorTest {
     }
 
     @Test
+    fun rejectsMissingDifficultyExplanationDuplicateOptionsAndInvalidPageRange() {
+        val missingDifficulty = validMcq().put("difficulty", "")
+        assertTrue(GeminiResponseValidator.validateQuestion(missingDifficulty)!!.contains("Difficulty"))
+
+        val missingExplanation = validMcq().put("explanationEn", "")
+        assertTrue(GeminiResponseValidator.validateQuestion(missingExplanation)!!.contains("explanation"))
+
+        val duplicateOptions = validMcq().put("optionCEn", "Option A")
+        assertTrue(GeminiResponseValidator.validateQuestion(duplicateOptions)!!.contains("Duplicate option"))
+
+        val invalidPages = validMcq().put("sourcePageStart", 8).put("sourcePageEnd", 7)
+        assertTrue(GeminiResponseValidator.validateQuestion(invalidPages)!!.contains("Source page"))
+    }
+
+    @Test
     fun rejectsSourceAnswerConflictAndMissingExtractedKey() {
         val conflict = validMcq()
             .put("answerStatus", "KEY_EXTRACTED")
