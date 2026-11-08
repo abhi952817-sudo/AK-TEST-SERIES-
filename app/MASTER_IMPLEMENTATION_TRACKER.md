@@ -787,7 +787,7 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Dynamic generation and extraction prompts now select the corresponding shared task mode.
 - Student API key selection now prefers the user's own encrypted local key exclusively; it does not fall back to another user's or the app's shared key.
 - Gemini GenerateContent requests in the central ViewModel and Universal PDF pipeline now send the key in the `x-goog-api-key` header instead of the URL query string.
-- Added the Student sidebar route `Gemini AI Setup`; detailed screen and encrypted local key storage are added in the next commit of this milestone.
+- Added the Student sidebar route `Gemini AI Setup`, the connection screen, animated step-by-step Compose guide, and encrypted per-UID local key storage in this checkpoint. The actual GIF artwork asset remains pending because image generation was unavailable; the screen does not claim a GIF is installed.
 
 ### Verification status
 
@@ -795,3 +795,13 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - Android compilation, unit tests, Compose navigation tests, live API key verification, real PDF generation, and device security tests: **NOT RUN**.
 - GIF asset generation was unavailable in the current session; no GIF asset is claimed as implemented.
 - No Firebase production deployment; `main` untouched.
+
+
+### Integrated Phase 1–3 follow-up — key verification and prompt coverage
+
+- Hoisted the authenticated UID state collection to the root Compose scope; the Gemini setup route now receives the current UID without collecting state inside a conditional route branch.
+- Opening Gemini AI Setup re-verifies a saved key against Google's Models endpoint before showing a connected state. Revoked/invalid keys show a real verification error.
+- The shared Universal AI policy is now prepended to the existing text-only Gemini fallback path as well as the question-generation path.
+- Student API key remains UID-scoped and exclusive. Admin fallback is only available when the authenticated user has a verified Admin claim and has not configured a personal key.
+- The setup screen's tutorial is currently a native animated step guide, not a GIF file. GIF artwork remains OPEN and must be added as a real asset after image-generation tooling is available.
+- Runtime verification still NOT RUN at source-update time.

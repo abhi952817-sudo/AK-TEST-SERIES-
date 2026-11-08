@@ -90,8 +90,25 @@ fun GeminiAiSetupScreen(
     var showDisconnectDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(userId) {
-        isConnected = userId.isNotBlank() && GeminiApiKeyStore.hasApiKey(context, userId)
-        lastUpdated = if (userId.isNotBlank()) GeminiApiKeyStore.lastUpdatedAt(context, userId) else 0L
+        isConnected = false
+        connectionError = null
+        if (userId.isNotBlank()) {
+            lastUpdated = GeminiApiKeyStore.lastUpdatedAt(context, userId)
+            val savedKey = GeminiApiKeyStore.getApiKey(context, userId)
+            if (!savedKey.isNullOrBlank()) {
+                isVerifying = true
+                val verification = GeminiApiKeyStore.verifyApiKey(savedKey)
+                isConnected = verification.isSuccess
+                if (verification.isFailure) {
+                    connectionError = verification.exceptionOrNull()?.message
+                }
+                isVerifying = false
+            } else {
+                lastUpdated = 0L
+            }
+        } else {
+            lastUpdated = 0L
+        }
     }
 
     val rotationDue = lastUpdated > 0L && System.currentTimeMillis() - lastUpdated >= 7L * 24L * 60L * 60L * 1000L

@@ -160,6 +160,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
                 val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
+                val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
                 CompositionLocalProvider(LocalAppLanguage provides selectedLanguage) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -312,7 +313,7 @@ class MainActivity : ComponentActivity() {
                         AppScreen.GEMINI_AI_SETUP -> {
                             Com.ak.testseries.ui.GeminiAiSetupScreen(
                                 onNavigateBack = { viewModel.navigateToScreen(AppScreen.DASHBOARD) },
-                                userId = viewModel.currentUserId.collectAsStateWithLifecycle().value,
+                                userId = currentUserId,
                                 isHindi = selectedLanguage == AppLanguage.HINDI
                             )
                         }
