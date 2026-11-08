@@ -96,3 +96,18 @@ Additional call-site tracing on the audit base confirmed:
 
 ### Phase 1 status update
 Phase 1 remains IN_PROGRESS until every Gemini call site, caller, persistence route, approval route, relevant test and exact-branch CI result is recorded. The findings above narrow the scope but do not authorize marking Phase 1 complete.
+
+
+## Prompt-engine follow-up — 2026-11-08
+The existing `UniversalAIContext.kt` was the natural shared boundary already called by the Student PDF generation flow and Admin `UniversalPdfPipeline`. It has now been replaced on the feature branch with versioned `AKTS_UNIVERSAL_PROMPT_V2`, preserving the existing method signatures used by those primary callers.
+
+Additional previously independent prompt blocks were routed into the shared engine:
+- Admin difficulty regeneration in `UniversalPdfPipeline.kt`.
+- Student PDF exam metadata recognition in `NEETViewModel.kt`.
+- Legacy `GeminiPdfExtractor.kt` extraction prompt.
+
+The new policy requires source hierarchy, explicit uncertainty, independent answer verification, source-key conflict flags, exact section scoring, bilingual fidelity, provenance labels, strict JSON, no filler, and no private chain-of-thought output. Unknown subjects no longer inherit the first configured subject's sections.
+
+Important limitation: this is a prompt-level refactor, not proof of zero hallucinations. The Student/Admin JSON parsers still need to enforce task status, answerStatus, sourceAnswer, needsReview, provenance and strict schema before persistence (GEM-017). The Student flow still silently falls back to NEET for unknown exam identities (GEM-018). Student-owned API-key connect/storage remains Phase 3 work; current inspected key selector still uses BuildConfig primary and Admin secondary preferences.
+
+Prompt tests have been added but not run. Phase 2 remains IN_PROGRESS pending exact-head compile/test and response-parser hardening.
