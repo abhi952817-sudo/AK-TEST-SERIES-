@@ -130,7 +130,9 @@ object GeminiResponseValidator {
                 if (value.isNotBlank() && !value.startsWith("Option ", true) && !value.equals("N/A", true)) labels[i] else null
             }
             val expectedCount = minimumMcqOptions.coerceIn(2, 5)
-            if (requireExactOptionCount && present.size != expectedCount) return "Expected exactly $expectedCount configured options; found ${present.size}."
+            if (requireExactOptionCount && present != labels.take(expectedCount)) {
+                return "Expected configured option labels ${labels.take(expectedCount)} in order; found $present."
+            }
             if (!requireExactOptionCount && present.size < expectedCount) return "Required options are missing or contain placeholders."
             val answers = answer.uppercase().split(",", ";").map { it.trim() }.filter { it.isNotBlank() }
             if (answers.isEmpty() || answers.any { it !in present } || answers.distinct().size != answers.size) return "Answer label does not map to the supplied options."
