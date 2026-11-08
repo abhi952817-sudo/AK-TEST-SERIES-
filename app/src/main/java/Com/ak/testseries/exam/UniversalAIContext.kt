@@ -119,15 +119,23 @@ object UniversalAIContext {
     /**
      * Resolves configured sections without silently substituting another subject.
      */
-    fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
+    fun getApplicableSubjects(examConfig: ExamConfig, subject: String): List<SubjectConfig> {
         val allSubjects = examConfig.stages.flatMap { stage ->
             stage.papers.flatMap { paper -> paper.subjects }
+        }.distinctBy { it.subjectId }
+        val clean = subject.trim()
+        if (clean.equals("All Subjects", true) || clean.equals("All", true) || clean.equals("Full Syllabus", true)) {
+            return allSubjects
         }
-        val matchingSubject = allSubjects.firstOrNull {
-            it.subjectName.equals(subject, ignoreCase = true) ||
-                it.subjectId.equals(subject, ignoreCase = true)
+        return allSubjects.filter {
+            it.subjectName.equals(clean, ignoreCase = true) ||
+                it.subjectId.equals(clean, ignoreCase = true)
         }
-        return matchingSubject?.sections ?: emptyList()
+    }
+
+    fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
+        val matchingSubjects = getApplicableSubjects(examConfig, subject)
+        return if (matchingSubjects.size == 1) matchingSubjects.single().sections else emptyList()
     }
 
     /**
@@ -148,13 +156,20 @@ object UniversalAIContext {
         val systemInstruction = buildSystemInstruction(examConfig)
         val ratio = examConfig.difficultyRatio
         val allowedTypes = examConfig.supportedQuestionTypes.joinToString(", ") { it.name }
-        val sections = getApplicableSections(examConfig, subject)
-        val sectionDetails = if (sections.isNotEmpty()) {
-            sections.joinToString("\n") { section ->
-                "- ${section.sectionId} | ${section.sectionName} | type=${section.questionType.name} | questions=${section.totalQuestions} | compulsory=${section.compulsoryQuestions} | options=${section.optionsCount} | marks=+${section.positiveMarks}/-${section.negativeMarks}"
-            }
+        val selectedSubjects = getApplicableSubjects(examConfig, subject)
+        val sectionDetails = if (selectedSubjects.isNotEmpty()) {
+            selectedSubjects.flatMap { configuredSubject ->
+                configuredSubject.sections.map { section ->
+                    "- subjectId=${configuredSubject.subjectId} | ${configuredSubject.subjectName} | sectionId=${section.sectionId} | ${section.sectionName} | type=${section.questionType.name} | questions=${section.totalQuestions} | compulsory=${section.compulsoryQuestions} | options=${section.optionsCount} | marks=+${section.positiveMarks}/-${section.negativeMarks}"
+                }
+            }.joinToString("\n")
         } else {
-            "- No matching subject section was found in the supplied ExamConfig. Do not invent a section or scoring rule. Set sectionId/sectionName to null and needsReview=true."
+            "- No matching subject section was found in the supplied ExamConfig. Do not invent a subject, section or scoring rule. Return an explicit error."
+        }
+        val canonicalSubjectInstruction = if (selectedSubjects.size == 1) {
+            "Use subjectId=${selectedSubjects.single().subjectId} for every question."
+        } else {
+            "For each question, use the exact canonical subjectId shown in the configured subject/section list. Never output the display label as subjectId."
         }
         val safePayload = compactMarkdownPayload.trim()
         val task = if (isExtractionMode) {
@@ -180,7 +195,8 @@ object UniversalAIContext {
             """
             TASK MODE: NEW EXAM-ALIGNED PRACTICE QUESTION GENERATION
             Exam: ${examConfig.examName} (${examConfig.shortName}); category: ${examConfig.category}
-            Subject: $subject
+            Subject selection: $subject
+            $canonicalSubjectInstruction
             Test title: $testTitle
             Required count for this chunk: exactly $currentChunkSize
             Question sequence: $startQ-$endQ of $totalQuestions
@@ -218,7 +234,7 @@ object UniversalAIContext {
               "questions": [
                 {
                   "examId": "${examConfig.examId}",
-                  "subjectId": "$subject",
+                  "subjectId": "exact canonical subject ID from the configured list",
                   "sectionId": "configured ID or null",
                   "sectionName": "configured name or null",
                   "questionType": "one configured enum name",
