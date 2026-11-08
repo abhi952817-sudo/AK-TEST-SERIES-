@@ -6720,7 +6720,7 @@ fun AdminTestGenerationContent(viewModel: NEETViewModel) {
                                 timestamp = System.currentTimeMillis(),
                                 imageUrl = imageUrl.ifEmpty { null }
                             )
-                            viewModel.addNewTest(newTest) // Need to define this in viewModel
+                            viewModel.addNewTest(newTest, emptyList()) // Empty input is rejected by ViewModel; never create placeholder questions.
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(40.dp),
