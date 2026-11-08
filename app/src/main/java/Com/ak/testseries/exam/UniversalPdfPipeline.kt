@@ -263,56 +263,38 @@ object UniversalPdfPipeline {
 
                     for (i in 1..questionsInThisBatch) {
                         val qIndex = (batchIndex * batchSize) + i
-                        val diffRatio = examConfig.difficultyRatio
-                        val diffLevel = when {
-                            (i % 10) < (diffRatio.easyPercent / 10) -> DifficultyLevel.EASY
-                            (i % 10) < ((diffRatio.easyPercent + diffRatio.mediumPercent) / 10) -> DifficultyLevel.MEDIUM
-                            else -> DifficultyLevel.HARD
-                        }
+                        val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
+                        val bundledCandidate = bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
+                        if (markdownCandidate == null && bundledCandidate == null) continue
 
                         val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex)
-                        val qType = resolvedSection?.questionType ?: examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
-                        val secId = resolvedSection?.sectionId ?: "SECTION_A"
-                        val secName = resolvedSection?.sectionName ?: "Section A"
-                        val posMark = resolvedSection?.positiveMarks ?: 4.0
-                        val negMark = resolvedSection?.negativeMarks ?: 1.0
+                        val qType = resolvedSection?.questionType ?: markdownCandidate?.questionType ?: continue
+                        val secId = resolvedSection?.sectionId
+                            ?: markdownCandidate?.sectionId?.takeIf { it.isNotBlank() } ?: continue
+                        val secName = resolvedSection?.sectionName
+                            ?: markdownCandidate?.sectionName?.takeIf { it.isNotBlank() } ?: continue
+                        val posMark = resolvedSection?.positiveMarks ?: markdownCandidate?.positiveMarks ?: continue
+                        val negMark = resolvedSection?.negativeMarks ?: markdownCandidate?.negativeMarks ?: continue
 
-                        // 1. Prefer real question extracted from source PDF markdown
-                        val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
-                        // 2. Otherwise match authentic question from Bundled Exam Catalog
-                        val bundledCandidate = bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
-
-                        val questionText = markdownCandidate?.questionText
-                            ?: bundledCandidate?.questionText
-                            ?: "${examConfig.shortName} Practice Problem $qIndex: Analyze the foundational principles of $subjectId under official exam examination criteria."
-
-                        val options = if (markdownCandidate != null && markdownCandidate.options.isNotEmpty()) {
+                        val questionText = markdownCandidate?.questionText?.takeIf { it.isNotBlank() }
+                            ?: bundledCandidate?.questionText?.takeIf { it.isNotBlank() } ?: continue
+                        val options = if (markdownCandidate?.options?.isNotEmpty() == true) {
                             markdownCandidate.options
-                        } else if (bundledCandidate != null && bundledCandidate.optionA.isNotBlank()) {
-                            listOfNotNull(
-                                bundledCandidate.optionA.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionB.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionC.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionD.takeIf { it.isNotBlank() }
-                            )
-                        } else if (qType == QuestionType.NUMERICAL || qType == QuestionType.NUMERICAL_VALUE) {
-                            emptyList()
                         } else {
-                            listOf(
-                                "Statement I is correct and explains the phenomenon accurately.",
-                                "Statement II is correct, but Statement I represents an incorrect condition.",
-                                "Both Statements I and II are valid under standard parameters.",
-                                "Neither Statement satisfies the core criteria."
+                            listOfNotNull(
+                                bundledCandidate?.optionA?.takeIf { it.isNotBlank() },
+                                bundledCandidate?.optionB?.takeIf { it.isNotBlank() },
+                                bundledCandidate?.optionC?.takeIf { it.isNotBlank() },
+                                bundledCandidate?.optionD?.takeIf { it.isNotBlank() },
+                                bundledCandidate?.optionE?.takeIf { it.isNotBlank() }
                             )
                         }
-
-                        val correctAnswer = markdownCandidate?.correctAnswer
-                            ?: bundledCandidate?.correctAnswer
-                            ?: if (options.isEmpty()) "${((qIndex * 7) % 50) + 1}" else "A"
-
-                        val explanation = markdownCandidate?.explanation
-                            ?: bundledCandidate?.explanation
-                            ?: "Option $correctAnswer is correct according to the official ${examConfig.examName} syllabus curriculum."
+                        val isNumerical = qType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA)
+                        if (!isNumerical && options.size < examConfig.defaultOptionCount.coerceIn(2, 5)) continue
+                        val correctAnswer = markdownCandidate?.correctAnswer?.takeIf { it.isNotBlank() }
+                            ?: bundledCandidate?.correctAnswer?.takeIf { it.isNotBlank() } ?: continue
+                        val explanation = markdownCandidate?.explanation?.takeIf { it.isNotBlank() }
+                            ?: bundledCandidate?.explanation?.takeIf { it.isNotBlank() } ?: continue
 
                         val hash = DuplicateDetectionEngine.generateNormalizedHash(questionText, options)
                         val dupResult = DuplicateDetectionEngine.checkDuplicate(questionText, options, existingHashes)
@@ -320,44 +302,53 @@ object UniversalPdfPipeline {
                             questionText = questionText,
                             options = options,
                             correctAnswer = correctAnswer,
+                            sourceAnswer = markdownCandidate?.sourceAnswer,
                             explanation = explanation,
-                            hasDiagramAttached = false,
+                            hasDiagramAttached = markdownCandidate?.diagramUrl != null,
                             duplicateResult = dupResult,
                             questionType = qType,
-                            expectedOptionCount = examConfig.defaultOptionCount
+                            expectedOptionCount = resolvedSection?.optionsCount ?: examConfig.defaultOptionCount
                         )
+                        if (validation.status == ValidationStatus.DUPLICATE || validation.status == ValidationStatus.REJECTED) continue
 
-                        val model = UniversalQuestionModel(
-                            questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_$qIndex",
-                            examId = examConfig.examId,
-                            stageId = stageId,
-                            paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
-                            sectionId = secId,
-                            sectionName = secName,
-                            subjectId = subjectId,
-                            questionText = questionText,
-                            options = options,
-                            correctAnswer = correctAnswer,
-                            sourceAnswer = null,
-                            explanation = explanation,
-                            difficulty = diffLevel,
-                            questionType = qType,
-                            positiveMarks = posMark,
-                            negativeMarks = negMark,
-                            difficultyScore = validation.difficultyScore,
-                            qualityScore = validation.qualityScore,
-                            qualityMetrics = validation.qualityMetrics,
-                            validationStatus = validation.status,
-                            validationReasons = validation.issues,
-                            duplicateHash = hash,
-                            sourceName = offlineSource,
-                            sourcePage = (qIndex / 5) + 1,
-                            questionVersion = 1,
-                            validationVersion = 1,
-                            generationModel = offlineModel,
-                            generationTimestamp = System.currentTimeMillis()
+                        extractedQuestions.add(
+                            UniversalQuestionModel(
+                                questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_$qIndex",
+                                examId = examConfig.examId,
+                                stageId = stageId,
+                                paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
+                                sectionId = secId,
+                                sectionName = secName,
+                                subjectId = subjectId,
+                                questionText = questionText,
+                                questionTextHi = markdownCandidate?.questionTextHi,
+                                options = options,
+                                optionsHi = markdownCandidate?.optionsHi,
+                                correctAnswer = correctAnswer,
+                                sourceAnswer = markdownCandidate?.sourceAnswer,
+                                explanation = explanation,
+                                explanationHi = markdownCandidate?.explanationHi,
+                                difficulty = markdownCandidate?.difficulty ?: DifficultyLevel.MEDIUM,
+                                questionType = qType,
+                                positiveMarks = posMark,
+                                negativeMarks = negMark,
+                                difficultyScore = validation.difficultyScore,
+                                qualityScore = validation.qualityScore,
+                                qualityMetrics = validation.qualityMetrics,
+                                validationStatus = validation.status,
+                                validationReasons = validation.issues,
+                                duplicateHash = hash,
+                                diagramUrl = markdownCandidate?.diagramUrl,
+                                diagramMetadata = markdownCandidate?.diagramMetadata,
+                                sourceName = if (markdownCandidate != null) "Extracted PDF Markdown" else "${examConfig.examName} Bundled Verified Catalog",
+                                sourcePage = markdownCandidate?.sourcePage ?: 1,
+                                isOfficialPYQ = markdownCandidate?.isOfficialPYQ ?: false,
+                                questionVersion = 1,
+                                validationVersion = 1,
+                                generationModel = if (markdownCandidate != null) "pdf-real-extractor-v1" else "bundled-exam-catalog-v1",
+                                generationTimestamp = System.currentTimeMillis()
+                            )
                         )
-                        extractedQuestions.add(model)
                     }
                 }
             } catch (e: Exception) {
