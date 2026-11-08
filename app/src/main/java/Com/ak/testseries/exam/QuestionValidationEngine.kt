@@ -174,7 +174,7 @@ object QuestionValidationEngine {
             // NAT/TITA and descriptive questions are option-free by design
             optionIntegrity = 100
         } else {
-            val minOptions = expectedOptionCount.coerceIn(4, 5)
+            val minOptions = expectedOptionCount.coerceIn(2, 5)
             if (options.size < minOptions) {
                 issues.add("⚠ Source incomplete: Fewer than $minOptions options provided (${options.size} found)")
                 optionIntegrity = 0
@@ -218,11 +218,9 @@ object QuestionValidationEngine {
                 hasHardFailure = true
             }
         } else {
-            val validAnswers = if (expectedOptionCount >= 5) {
-                listOf("A", "B", "C", "D", "E", "1", "2", "3", "4", "5")
-            } else {
-                listOf("A", "B", "C", "D", "1", "2", "3", "4")
-            }
+            val optionCount = expectedOptionCount.coerceIn(2, 5)
+            val validAnswers = listOf("A", "B", "C", "D", "E").take(optionCount) +
+                (1..optionCount).map(Int::toString)
             val answerLabels = normalizedAnswer.split(",", ";").map { it.trim() }.filter { it.isNotBlank() }
             val isMultipleCorrect = questionType == QuestionType.MCQ_MULTIPLE
             val labelsAreValid = answerLabels.isNotEmpty() &&
