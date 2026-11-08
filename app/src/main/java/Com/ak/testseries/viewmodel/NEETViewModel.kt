@@ -5504,18 +5504,40 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { e.printStackTrace() }
     }
 
+    private val adminSecondaryGeminiKeyScope = "akts_admin_secondary_global"
+
     fun setSecondaryGeminiKey(key: String) {
         try {
-            val prefs = getApplication<Application>().getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
-            prefs.edit().putString("sec_gemini_api_key", key).apply()
-        } catch (e: Exception) { e.printStackTrace() }
+            val context = getApplication<Application>()
+            val prefs = context.getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
+            if (key.isBlank()) {
+                Com.ak.testseries.utils.StudentGeminiKeyStore.clear(context, adminSecondaryGeminiKeyScope)
+            } else {
+                Com.ak.testseries.utils.StudentGeminiKeyStore.save(context, adminSecondaryGeminiKeyScope, key.trim())
+            }
+            // Remove any legacy plaintext value after the encrypted write succeeds.
+            prefs.edit().remove("sec_gemini_api_key").commit()
+        } catch (_: Exception) {
+            geminiStatusMessage.value = "Admin secondary Gemini key could not be stored securely."
+        }
     }
 
     fun getSecondaryGeminiKey(): String {
         return try {
-            val prefs = getApplication<Application>().getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
-            prefs.getString("sec_gemini_api_key", "") ?: ""
-        } catch (e: Exception) { "" }
+            val context = getApplication<Application>()
+            val secureValue = Com.ak.testseries.utils.StudentGeminiKeyStore.read(context, adminSecondaryGeminiKeyScope)
+            if (!secureValue.isNullOrBlank()) return secureValue
+
+            // One-time migration from the previous plaintext preference.
+            val prefs = context.getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
+            val legacyValue = prefs.getString("sec_gemini_api_key", "").orEmpty()
+            if (legacyValue.isNotBlank()) {
+                Com.ak.testseries.utils.StudentGeminiKeyStore.save(context, adminSecondaryGeminiKeyScope, legacyValue)
+                prefs.edit().remove("sec_gemini_api_key").commit()
+                return legacyValue
+            }
+            ""
+        } catch (_: Exception) { "" }
     }
 
     fun refreshStudentGeminiKeyState() {
