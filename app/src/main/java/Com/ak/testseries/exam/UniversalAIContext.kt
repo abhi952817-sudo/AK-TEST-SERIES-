@@ -29,7 +29,8 @@ object UniversalAIContext {
             - Never claim a question, answer key, diagram, page reference, syllabus rule, or official pattern came from a source unless it is actually present or reliably derivable.
             - Preserve all numbers, units, mathematical notation, options, language, and question order during extraction.
             - If source material is unreadable, incomplete, ambiguous, or contradictory, flag it for review instead of guessing.
-            - Never fill a requested question count with fabricated questions. Report the actual valid count.
+            - In SOURCE_EXTRACTION mode, never fill the requested count with invented questions; report the actual valid count.
+            - In PRACTICE_GENERATION mode, create new questions only when explicitly requested and grounded in the verified exam configuration; never claim they appeared in the source document.
 
             EXAM INTEGRITY:
             - Use only the selected ExamConfig for exam-specific subjects, sections, question types, scoring, negative marking, duration, and attempt rules.

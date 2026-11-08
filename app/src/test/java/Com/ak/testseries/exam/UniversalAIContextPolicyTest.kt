@@ -9,7 +9,7 @@ class UniversalAIContextPolicyTest {
     fun universalPolicyIsExamAgnosticAndPreventsFabrication() {
         val prompt = UniversalAIContext.buildUniversalSystemInstruction()
         assertTrue(prompt.contains("never assume every examination follows NEET"))
-        assertTrue(prompt.contains("Never fill a requested question count with fabricated questions"))
+        assertTrue(prompt.contains("In SOURCE_EXTRACTION mode, never fill the requested count with invented questions"))
         assertTrue(prompt.contains("Do not reveal private chain-of-thought"))
         assertTrue(prompt.contains("Follow the exact JSON schema"))
     }

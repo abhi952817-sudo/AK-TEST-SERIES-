@@ -5288,33 +5288,28 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getGeminiApiKeys(): List<Pair<Int, String>> {
-        // A signed-in student's personal key is an exclusive credential source.
-        // Never fall back to the app/admin key for a student who has not connected their own key.
         val uid = currentUserId.value
-        if (uid.isNotBlank()) {
-            val personalKey = try {
-                Com.ak.testseries.security.GeminiApiKeyStore.getApiKey(getApplication(), uid)
-            } catch (e: Exception) {
-                android.util.Log.w("NEETViewModel", "Unable to read the local Gemini key", e)
-                null
-            }
-            if (!personalKey.isNullOrBlank()) return listOf(Pair(2, personalKey))
-            if (!isAdminFlow.value) return emptyList()
-        } else {
-            return emptyList()
-        }
+        if (uid.isBlank()) return emptyList()
 
-        // Only a verified Admin may use the app-configured/admin-managed keys.
-        val primary = BuildConfig.GEMINI_API_KEY
-        val secondary = getSecondaryGeminiKey()
-        val list = mutableListOf<Pair<Int, String>>()
-        if (isPrimaryGeminiActive.value && primary.isNotEmpty() && primary != "MY_GEMINI_API_KEY") {
-            list.add(Pair(0, primary))
+        val personalKey = try {
+            Com.ak.testseries.security.GeminiApiKeyStore.getApiKey(getApplication(), uid)
+        } catch (e: Exception) {
+            android.util.Log.w("NEETViewModel", "Unable to read the local Gemini key", e)
+            null
         }
-        if (isSecondaryGeminiActive.value && secondary.isNotEmpty() && secondary != "MY_GEMINI_API_KEY") {
-            list.add(Pair(1, secondary))
+        val primary = BuildConfig.GEMINI_API_KEY.takeIf {
+            isPrimaryGeminiActive.value && it.isNotBlank() && it != "MY_GEMINI_API_KEY"
         }
-        return list
+        val secondary = getSecondaryGeminiKey().takeIf {
+            isSecondaryGeminiActive.value && it.isNotBlank() && it != "MY_GEMINI_API_KEY"
+        }
+        return Com.ak.testseries.security.GeminiApiKeyPolicy.selectKeys(
+            uid = uid,
+            personalKey = personalKey,
+            isVerifiedAdmin = isAdminFlow.value,
+            adminPrimaryKey = primary,
+            adminSecondaryKey = secondary
+        )
     }
 
     suspend fun callGeminiApiForQuestionsWithFallback(

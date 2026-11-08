@@ -813,3 +813,13 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
 - The API key text field is no longer stored in Compose saved-instance state; only in-memory UI state holds the unsubmitted key.
 - Text fallback prompt separator corrected to actual newline characters.
 - These changes are source-reviewed only; backup/restore and device rotation behavior still require Android runtime tests.
+
+
+### Student/Admin API-key isolation policy
+
+- Extracted the credential-selection rule into pure `GeminiApiKeyPolicy` so it can be unit tested independently of Android Keystore.
+- Signed-in Students can use only their own UID-scoped personal key. No Admin Primary/Secondary fallback is allowed for non-admin users.
+- Verified Admin users may use their own personal key first, or existing Admin-managed keys only when no personal key is configured.
+- Added four unit tests for student no-fallback, personal-key exclusivity, verified-admin fallback, and signed-out rejection.
+- Setup UI now distinguishes a saved-but-unverified key from a verified connection and allows removal of a saved key even if Google has revoked it or the device is offline.
+- Verification of these new tests remains pending until Android CI or a local Gradle environment executes them.

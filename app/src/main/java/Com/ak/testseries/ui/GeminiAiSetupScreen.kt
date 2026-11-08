@@ -82,6 +82,7 @@ fun GeminiAiSetupScreen(
     val scope = rememberCoroutineScope()
     var apiKey by remember { mutableStateOf("") }
     var isConnected by remember { mutableStateOf(false) }
+    var hasSavedKey by remember { mutableStateOf(false) }
     var isVerifying by remember { mutableStateOf(false) }
     var connectionMessage by remember { mutableStateOf<String?>(null) }
     var connectionError by remember { mutableStateOf<String?>(null) }
@@ -91,10 +92,12 @@ fun GeminiAiSetupScreen(
 
     LaunchedEffect(userId) {
         isConnected = false
+        hasSavedKey = false
         connectionError = null
         if (userId.isNotBlank()) {
             lastUpdated = GeminiApiKeyStore.lastUpdatedAt(context, userId)
             val savedKey = GeminiApiKeyStore.getApiKey(context, userId)
+            hasSavedKey = !savedKey.isNullOrBlank()
             if (!savedKey.isNullOrBlank()) {
                 isVerifying = true
                 val verification = GeminiApiKeyStore.verifyApiKey(savedKey)
@@ -122,6 +125,7 @@ fun GeminiAiSetupScreen(
                 TextButton(onClick = {
                     GeminiApiKeyStore.deleteApiKey(context, userId)
                     isConnected = false
+                    hasSavedKey = false
                     lastUpdated = 0L
                     apiKey = ""
                     connectionMessage = if (isHindi) "Gemini डिस्कनेक्ट हो गया।" else "Gemini disconnected."
@@ -228,6 +232,7 @@ fun GeminiAiSetupScreen(
                                             // Replace only after the new key has passed live verification.
                                             GeminiApiKeyStore.saveApiKey(context, userId, apiKey)
                                             isConnected = true
+                                            hasSavedKey = true
                                             lastUpdated = GeminiApiKeyStore.lastUpdatedAt(context, userId)
                                             apiKey = ""
                                             connectionMessage = if (isHindi) "Gemini सफलतापूर्वक कनेक्ट हो गया।" else "Gemini connected and verified."
@@ -260,10 +265,21 @@ fun GeminiAiSetupScreen(
                     if (connectionError != null) {
                         Text(connectionError!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                     }
-                    if (isConnected) {
+                    if (hasSavedKey) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Text(if (isHindi) "आपकी व्यक्तिगत Key इस डिवाइस पर सुरक्षित रूप से सेव है।" else "Your personal key is encrypted on this device.", fontSize = 12.sp)
+                            Icon(
+                                if (isConnected) Icons.Rounded.CheckCircle else Icons.Rounded.Warning,
+                                contentDescription = null,
+                                tint = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                if (isConnected) {
+                                    if (isHindi) "आपकी व्यक्तिगत Key सत्यापित और encrypted है।" else "Your personal key is verified and encrypted on this device."
+                                } else {
+                                    if (isHindi) "Key इस डिवाइस पर सेव है, लेकिन अभी सत्यापित नहीं है।" else "A key is saved on this device, but it is not currently verified."
+                                },
+                                fontSize = 12.sp
+                            )
                         }
                         if (lastUpdated > 0L) {
                             Text(
@@ -281,7 +297,7 @@ fun GeminiAiSetupScreen(
                             )
                         }
                         TextButton(onClick = { showDisconnectDialog = true }) {
-                            Text(if (isHindi) "Disconnect और Key हटाएँ" else "Disconnect and remove key")
+                            Text(if (isHindi) "Disconnect और Key हटाएँ" else "Remove saved key")
                         }
                     }
                 }
