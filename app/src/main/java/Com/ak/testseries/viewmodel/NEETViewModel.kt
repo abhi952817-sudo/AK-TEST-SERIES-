@@ -5969,17 +5969,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String) {
+    private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String): Boolean {
         if (!newTest.isPublic) {
             android.util.Log.d("NEETViewModel", "Test ${newTest.id} is PRIVATE. Scoped exclusively to local sandbox and skipped Firestore upload.")
-            return
+            return true
         }
         try {
             val sanitizedQuestionsJson = try {
                 sanitizeAndUploadQuestionImages(newTest.id, questionsJsonString)
             } catch (e: Exception) {
                 android.util.Log.e("NEETViewModel", "Aborting Firestore upload due to image upload failure in test ${newTest.id}: ${e.message}")
-                return
+                return false
             }
 
             if (sanitizedQuestionsJson != questionsJsonString) {
@@ -6030,8 +6030,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 testDocRef.collection("private_keys").document("answerKey").set(keysDoc).await()
             }
+            true
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("NEETViewModel", "Firestore test upload failed for ${newTest.id}", e)
+            false
         }
     }
 
@@ -6281,13 +6283,26 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             status = initialStatus
         )
 
-        repository.insertTest(newTest)
-        repository.insertQuestions(questions)
+        try {
+            repository.insertTest(newTest)
+            repository.insertQuestions(questions)
+        } catch (e: Exception) {
+            val message = "Test could not be saved to local database: ${e.localizedMessage ?: "storage error"}"
+            _aiGenState.value = AiGenerationState.Error(message)
+            aiGenStatusMessage.value = message
+            return@withContext false
+        }
         previewQuestions.value = questions
         
         // Upload to Firestore in real-time ONLY if public test
         if (newTest.isPublic) {
-            uploadTestToFirestore(newTest, questionsJsonString)
+            val uploaded = uploadTestToFirestore(newTest, questionsJsonString)
+            if (!uploaded) {
+                val message = "Test is saved locally, but Community upload failed. It was not reported as successfully published; retry the upload."
+                _aiGenState.value = AiGenerationState.Error(message)
+                aiGenStatusMessage.value = message
+                return@withContext false
+            }
 
             if (isLiveTest) {
                 try {
