@@ -86,6 +86,8 @@ object UniversalAIContext {
             appendLine("8. Never invent an answer key. If the answer cannot be established confidently, set correctAnswer to null, answerStatus to UNVERIFIED and needsReview to true.")
             appendLine("9. If the supplied official key conflicts with independent verification, preserve the source key separately, set answerStatus to CONFLICT, record the conflict and require human review. Do not silently replace the official key.")
             appendLine("10. Explanations must justify the final answer accurately and briefly. Do not output private chain-of-thought, hidden reasoning traces or speculative reasoning. Give only a concise verification summary and the necessary educational derivation.")
+            appendLine("11. Set answerConfidence from 0 to 100 based on evidence, not optimism. Use needsReview=false only when confidence is at least 70, the answer and distractors are verified, and no source/configuration ambiguity remains.")
+            appendLine("12. sectionId, sectionName, questionType, positiveMarks and negativeMarks must exactly match one configured section. If no exact section applies, set needsReview=true and do not invent section or marks.")
             appendLine()
             appendLine("ANTI-FABRICATION / SOURCE INTEGRITY")
             appendLine("1. Never invent, reconstruct or complete missing question text, options, diagrams, answer keys, source pages, citations, institute names or exam facts.")
@@ -235,7 +237,7 @@ object UniversalAIContext {
                   "correctAnswer": "A / B / A,C / exact numerical answer / null",
                   "sourceAnswer": "verbatim source key or null",
                   "answerStatus": "KEY_EXTRACTED | INDEPENDENTLY_VERIFIED | UNVERIFIED | CONFLICT",
-                  "answerConfidence": 0,
+                  "answerConfidence": 95,
                   "verificationSummary": "concise check result; no hidden chain-of-thought",
                   "explanationEn": "accurate educational explanation or null",
                   "explanationHi": "accurate Hindi explanation or null",
@@ -259,10 +261,11 @@ object UniversalAIContext {
             Before responding, verify:
             1. JSON parses and every required key has the correct type.
             2. Question count matches the task rules; extraction may return fewer, generation must not pad with invented items.
-            3. Question type, option count, answer format and marks match the exact configured section.
-            4. Each answer was checked; unresolved/conflicting answers are explicitly flagged.
-            5. No source text, values, options, diagrams, page references or citations were invented.
-            6. English/Hindi meaning and technical notation match.
+            3. Question type, option count, section ID/name and positive/negative marks match the exact configured section.
+            4. answerConfidence is evidence-based and at least 70 for every item marked needsReview=false; verificationSummary is non-empty.
+            5. Each answer was checked; unresolved/conflicting answers are explicitly flagged.
+            6. No source text, values, options, diagrams, page references or citations were invented.
+            7. English/Hindi meaning and technical notation match.
             7. No duplicate or near-duplicate questions exist within this batch.
             8. Any uncertainty is represented as needsReview, not hidden.
         """.trimIndent()
