@@ -512,11 +512,21 @@ object UniversalPdfPipeline {
                     validationReasons = validation.issues,
                     duplicateHash = hash,
                     sourceName = actualSource,
-                    sourcePage = batchIndex + 1,
+                    // Never invent a source page from the batch number.
+                    sourcePage = item.optInt("sourcePageStart", -1).takeIf { it > 0 } ?: -1,
                     questionVersion = 1,
                     validationVersion = 1,
                     generationModel = actualModel,
-                    generationTimestamp = System.currentTimeMillis()
+                    generationTimestamp = System.currentTimeMillis(),
+                    provenanceType = item.optString("provenanceType", ""),
+                    answerStatus = item.optString("answerStatus", ""),
+                    answerConfidence = item.optDouble("answerConfidence", 0.0).toInt(),
+                    verificationSummary = item.optString("verificationSummary", ""),
+                    sourcePageEnd = item.optInt("sourcePageEnd", -1).takeIf { it > 0 },
+                    needsReview = item.optBoolean("needsReview", true),
+                    reviewReasons = item.optJSONArray("reviewReasons")?.let { reasons ->
+                        (0 until reasons.length()).mapNotNull { index -> reasons.optString(index).takeIf { it.isNotBlank() } }
+                    } ?: emptyList()
                 )
                 resultList.add(model)
             }
