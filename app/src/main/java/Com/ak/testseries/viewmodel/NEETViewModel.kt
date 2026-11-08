@@ -4972,7 +4972,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             }
                             val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
                             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                                ?: run {
+                                    val message = "Unknown exam '$targetExamName'. Select a registered exam; NEET fallback is disabled."
+                                    _aiGenState.value = AiGenerationState.Error(message)
+                                    aiGenStatusMessage.value = message
+                                    return@launch
+                                }
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
@@ -5031,9 +5036,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         for (obj in allQuestionsList) {
                             combinedArray.put(obj)
                         }
-                        saveGeneratedTest(combinedArray.toString())
+                        val saved = saveGeneratedTest(combinedArray.toString())
+                        if (!saved) return@launch
                         recordDailyGeneration()
-                        aiGenStatusMessage.value = "Successfully generated ${allQuestionsList.size} questions!"
+                        aiGenStatusMessage.value = "Successfully generated ${allQuestionsList.size} verified questions!"
                         _aiGenState.value = AiGenerationState.Success
                         return@launch
                     }
@@ -5908,7 +5914,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun saveGeneratedTest(jsonString: String) = withContext(Dispatchers.IO) {
+    private suspend fun saveGeneratedTest(jsonString: String): Boolean = withContext(Dispatchers.IO) {
         val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val jsonArray = JSONArray(cleanJson)
         for (index in 0 until jsonArray.length()) {
@@ -5917,23 +5923,33 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val message = "Question ${index + 1} is not a valid JSON object. Test was not saved."
                     _aiGenState.value = AiGenerationState.Error(message)
                     aiGenStatusMessage.value = message
-                    return@withContext
+                    return@withContext false
                 }
             val examName = genTargetExam.value.ifBlank { "NEET UG" }
             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(examName)
+                ?: run {
+                    val message = "Unknown exam '$examName'. Test was not saved; no NEET/default exam configuration will be substituted."
+                    _aiGenState.value = AiGenerationState.Error(message)
+                    aiGenStatusMessage.value = message
+                    return@withContext false
+                }
             val sectionId = item.optString("sectionId", "")
-            val configuredOptionCount = examConfig?.stages
-                ?.flatMap { it.papers }
-                ?.flatMap { it.subjects }
-                ?.flatMap { it.sections }
-                ?.firstOrNull { it.sectionId == sectionId }
-                ?.optionsCount ?: examConfig?.defaultOptionCount ?: 4
-            val validationError = Com.ak.testseries.exam.GeminiResponseValidator.validateQuestion(item, configuredOptionCount)
+            val configuredSection = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
+                .flatMap { it.sections }.firstOrNull { it.sectionId == sectionId }
+                ?: run {
+                    val message = "Question ${index + 1} references an unconfigured section '$sectionId'. Test was not saved."
+                    _aiGenState.value = AiGenerationState.Error(message)
+                    aiGenStatusMessage.value = message
+                    return@withContext false
+                }
+            val validationError = Com.ak.testseries.exam.GeminiResponseValidator.validateQuestion(
+                item, configuredSection.optionsCount, requireExactOptionCount = true
+            )
             if (validationError != null) {
                 val message = "Question ${index + 1} failed the final publication safety check: $validationError Test was not saved."
                 _aiGenState.value = AiGenerationState.Error(message)
                 aiGenStatusMessage.value = message
-                return@withContext
+                return@withContext false
             }
         }
         val testId = "ai_" + System.currentTimeMillis()
@@ -6053,7 +6069,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         if (genIsPublic.value && (currentAuthUser == null || authenticatedUid.isBlank())) {
             _aiGenState.value = AiGenerationState.Error("Please sign in to publish this test to the Community.")
-            return@withContext
+            return@withContext false
         }
 
         val questionsJsonString = qJsonArray.toString()
@@ -6157,6 +6173,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             android.util.Log.e("NEETViewModel", "Automatic community share failed (test preserved): ${e.localizedMessage}", e)
         }
+        true
     }
 
     private fun saveQuestionsJsonToInternalStorage(testId: String, questionsJsonString: String) {
