@@ -641,3 +641,53 @@ The attempt-security review was extended beyond the initial idempotency issue:
 - Commits: `6980cdc80bd1f41767e9080467ff0e22e9847dab`, `7eebb36f9fdb73fc310ff807368ef860fbd54856`.
 - **Status: source-level integration only; tests NOT EXECUTED.** This does not yet secure every answer-key read path or every admin callable. Firestore/Storage rules and remaining callable/UI authorization paths are still open.
 - Next: inspect every server callable and Firestore rule path that reads or mutates test content, private keys, student records, limits, publishing state, storage, and alerts; apply the same permission map to existing code paths and add deny tests.
+
+## Shared Universal PDF Extraction — 2026-11-08
+
+**Branch:** `fix/phase1-real-questions-only`  
+**Scope:** Reuse existing local PDF text, rendering, OCR, layout and diagram extraction tools across Student Upload and Universal Admin PDF processing. No Gemini prompt or Vision API changes in this batch.
+
+### Implemented in source
+
+- **PDF-UNI-001 | SHARED EXTRACTION ENTRY POINT**
+  - Added `app/src/main/java/Com/ak/testseries/exam/UniversalPdfDocumentExtractor.kt`.
+  - Orchestrates the existing `AdvancedPdfSmartExtractor.processPdfUri()`, `CompactMarkdownFormatter`, `LocalPdfImageExtractor.extractDiagramCandidates()`, and `PdfCropper` page count/rendering utilities.
+  - Returns page-indexed text, full source text, compact Markdown, extracted diagram/image candidate metadata and local image paths.
+  - Validates that every source page was processed. It fails closed rather than accepting partial page extraction.
+  - Recycles page/rendered/annotated and extracted-image bitmaps after extraction to limit memory retention.
+  - The shared extractor is exam-agnostic. Exam-specific rules remain in `ExamConfig` / `UniversalAIContext`, not in the PDF parser.
+
+- **PDF-UNI-002 | EXISTING PAGE EXTRACTOR REUSED**
+  - Extended `AdvancedPdfSmartExtractor.processPdfUri()` with a caller-controlled page limit (default 200); existing callers retain source compatibility.
+  - The shared orchestrator rejects PDFs above the configured 200-page safety limit instead of silently treating the first 200 pages as the full document.
+
+- **PDF-UNI-003 | STUDENT UPLOAD INTEGRATION**
+  - Replaced the separate stream-text → conditional OCR → separate diagram extraction sequence in `NEETViewModel.analyzePdfWithAI()` with the shared extractor.
+  - Stores page text/Markdown and diagram paths in the existing PDF session workflow/state.
+  - Extraction errors mark the existing session failed and stop processing; partial content is not forwarded.
+
+- **PDF-UNI-004 | UNIVERSAL ADMIN INTEGRATION**
+  - `UniversalPdfPipeline.processPdfForExam()` now uses the same shared extractor.
+  - Added an optional document-extraction callback so the Admin screen retains diagram candidate metadata from the selected PDF.
+  - `UniversalExamAdminScreen` reports both extracted question count and diagram/image candidate count.
+
+### Known limitations / not completed in this batch
+
+- Extracted image candidates are stored locally and exposed to the calling flow; they are **not yet attached to individual questions** and are **not sent to Gemini Vision**. That is a separate image-to-question mapping and AI transport task.
+- The configured ML Kit OCR recognizer remains Latin-script only. Hindi and other Indian-script OCR is not implemented/verified here. Digital PDFs with a usable embedded text layer can still be processed through the existing PDF text-stream parser.
+- PDF parser support for every producer/font encoding in India has not been proven. Unsupported or incomplete extraction should fail/flag review, never fabricate text.
+- The current safety limit is 200 pages per PDF.
+- No Android Gradle build, unit/instrumentation test, real PDF fixture test, or device test was executed in this connector-only continuation. Source changes are **NOT runtime verified**.
+- No Gemini prompt, Gemini API request, Firebase deployment, production data, or `main` branch was changed.
+
+### Source commits
+
+- `8650bd9a82bd444ab446a894e994dfe3401e7359` — configurable page limit for the existing page extractor.
+- `0b222316e1d63eb1c5469ceb84efe32e0052c819` — shared Universal PDF extraction orchestrator.
+- `b718169f91f33c5ce491478ea5bf9690578feadb` — Universal Admin pipeline uses shared extraction.
+- `ea41c9ec26d0a1d1330c4dcaa1cf243ad089594b` — Student upload uses shared extraction.
+- `16591cafb163c8910d01a27ed0ac170707cf95d1` — expose extracted document metadata to caller.
+- `f6813be0ed322d2a0f88d0436ad55eb08ee1a33f` — Admin screen retains diagram candidate metadata.
+
+**Status:** SOURCE INTEGRATION DONE; BUILD / RUNTIME TESTS NOT RUN; VISION HANDOFF OPEN.  
+**Next:** compile and run Android tests, verify representative selectable-text PDFs (NEET/JEE/UPSC/SSC/Banking/Board layouts), verify mixed text+diagram pages and page completeness, then implement diagram-to-question mapping. Gemini prompting remains intentionally deferred.
