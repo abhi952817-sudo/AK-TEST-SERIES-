@@ -19,7 +19,7 @@ Status vocabulary: NOT_STARTED | IN_PROGRESS | PARTIAL | BLOCKED | VERIFIED | CO
 |---|---|---|---|
 | 1 | Complete Source Audit | IN_PROGRESS | First-pass audit committed; complete call-site/dependency map, data-flow trace, existing tests and exact-head CI baseline still required. |
 | 2 | Universal Prompt Engine | PARTIAL | UniversalAIContext exists; all duplicated prompts must route through versioned task-mode templates and ExamConfig. Prompt unit tests required. |
-| 3 | Student Gemini Connect | NOT_STARTED | Student-owned connect/verify/replace/disconnect/revoke UX, encrypted local key storage, UID isolation and seven-day reminder required. |
+| 3 | Student Gemini Connect | PARTIAL | Student connect/verify/replace/disconnect, UID-scoped AndroidKeyStore encryption and seven-day reminder implemented; provider-side key revocation remains external; exact-head CI pending. |
 | 4 | Direct PDF Understanding | NOT_STARTED | Send actual PDF bytes via supported Gemini document input or File API; preserve page references; keep current local extraction as fallback/parallel validation. |
 | 5 | Universal Exam Recognition | PARTIAL | Registry and metadata analysis exist; remove silent NEET/first-exam fallback; require confidence and user confirmation for ambiguity. |
 | 6 | Question & Solution Generation | PARTIAL | Existing generation/validation exists; strict schema, answer-key confidence, provenance, duplicates, unsupported question rejection and bilingual checks required. |
@@ -31,18 +31,18 @@ Status vocabulary: NOT_STARTED | IN_PROGRESS | PARTIAL | BLOCKED | VERIFIED | CO
 ## Bug register
 | Bug ID | Priority | Summary | Status |
 |---|---|---|---|
-| GEM-001 | P0 | Student-owned API key connection not found in inspected Student flow; current key sources are app BuildConfig and Admin global key. | OPEN |
-| GEM-002 | P0 | Admin secondary key is stored in ordinary SharedPreferences. | OPEN |
-| GEM-003 | P0 | Gemini API key is placed in URL query parameter in inspected REST clients. | OPEN |
+| GEM-001 | P0 | Student-owned API key connection was missing. | CLOSED on feature branch: verified personal key is stored per Firebase UID with AndroidKeyStore encryption and used by the same prompt builders. |
+| GEM-002 | P0 | Admin secondary key was stored in ordinary SharedPreferences. | CLOSED on feature branch: migrated to AndroidKeyStore-encrypted local storage; legacy plaintext is removed after successful migration. |
+| GEM-003 | P0 | Gemini API key was placed in URL query parameters. | CLOSED on feature branch: active ViewModel and Admin pipeline clients now send the key in the x-goog-api-key header; legacy extractor is disabled. |
 | GEM-004 | P0 | Multiple Gemini HTTP clients exist in ViewModel, UniversalPdfPipeline and legacy GeminiPdfExtractor. | OPEN |
 | GEM-005 | P0 | Current PDF Gemini path sends extracted text; direct PDF bytes/File API input not implemented by inspected evidence. | OPEN |
 | GEM-006 | P0 | Offline fallback can synthesize generic placeholder questions; source extraction must fail closed or be explicitly marked mock. | OPEN |
 | GEM-007 | P0 | Unknown exam can silently fall back to NEET/first registry item. | OPEN |
 | GEM-008 | P1 | Prompt construction is duplicated outside UniversalAIContext. | OPEN |
-| GEM-009 | P1 | Student API key verify/connect/disconnect and rotation reminder not found. | OPEN |
+| GEM-009 | P1 | Student API key verify/connect/disconnect and rotation reminder were missing. | CLOSED for local UX: connect/verify/replace/disconnect and seven-day reminder implemented; provider-side revocation remains external. |
 | GEM-010 | P1 | Retry, model fallback, errors and usage metering duplicated/inconsistent. | OPEN |
 | GEM-011 | P1 | Strict JSON/schema/semantic validation gate before persistence not established. | CLOSED on feature branch for structural/config validation; semantic correctness still needs human review. |
-| GEM-012 | P1 | Durable per-question source page provenance not verified. | OPEN |
+| GEM-012 | P1 | Durable per-question source page provenance not verified. | PARTIAL: Student/Admin models retain source page range when supplied; end-to-end persistence round-trip remains pending. |
 | GEM-013 | P1 | ExamConfig and ExamConfiguration coexist; active usage and migration compatibility need inventory. | OPEN |
 | GEM-014 | P1 | Server-enforced user/key quota, token metering and abuse controls unverified. | OPEN |
 
@@ -95,7 +95,7 @@ Implementation branch commits:
 - GEM-017 | P0 | Student/Admin response parsers do not consistently enforce response envelope, answerStatus, sourceAnswer, needsReview and provenance before persistence. | CLOSED on feature branch: shared fail-closed validator is wired to both flows; metadata is retained.
 - GEM-018 | P0 | `NEETViewModel.generateTestFromPdf()` silently fell back to NEET for unknown target exam. | CLOSED on feature branch: both chunk paths and final save reject unknown exams; no NEET substitution.
 - GEM-019 | P1 | Prompt instructions reduce risk but cannot mathematically guarantee zero model errors; deterministic schema/answer validation and human review gates must remain authoritative. | OPEN
-- Student-owned API-key connect/verify/storage is still not implemented in the inspected Student flow. The current ViewModel key selector still reads BuildConfig primary + Admin secondary preferences. Phase 3 remains NOT_STARTED. Prompt reuse is ready at the builder boundary, but Student-key execution is not yet wired.
+- Student-owned API key flow is now implemented on the feature branch: connect/verify/replace/disconnect UI, per-Firebase-UID AES-GCM encryption backed by AndroidKeyStore, backup exclusion, personal-key-only use (no silent Admin quota fallback), and seven-day rotation reminder. Provider-side revocation still requires the user to revoke the key in Google AI Studio. Phase 3 remains PARTIAL until CI and device-level tests pass.
 
 ### Verification status
 - Prompt unit tests added but NOT YET EXECUTED.
@@ -104,7 +104,7 @@ Implementation branch commits:
 
 
 ## Latest repository checkpoint
-- Feature branch HEAD: `9d777f81d6ce0723549a038cffcc268013cff5c5`.
+- Feature branch HEAD: `af110ff02cf741e5b2ce46d2db586ed4fff437f7c5`.
 - Main HEAD at verification: `d2feae47f908b705209c27b8e61e624f94c400d7` (unchanged).
 - Files verified present on feature branch: updated `UniversalAIContext.kt`, `UniversalPdfPipeline.kt`, `NEETViewModel.kt`, `GeminiPdfExtractor.kt`, and new `UniversalAIContextTest.kt`.
 - GitHub commit-status endpoint returned no status entries; workflow-run lookup returned no runs for this commit. Therefore tests are pending, not passed.
@@ -134,7 +134,39 @@ Implementation branch commits:
 - `5269485`, `35be155`, `f51af4e` — persist Admin provenance/verification metadata and escalate deterministic review failures.
 
 ### Verification still pending
-- GitHub Actions workflow `Universal Gemini AI Validation` is running on feature branch commits. Latest observed run: `42476544073` at `f51af4efbc6abd5bf03931355db012e3403953c5`; status was `in_progress` at the last check.
+- GitHub Actions workflow `Universal Gemini AI Validation` is running on feature branch commits. Latest observed run: `42476938214` at `18e489d5e4249507d3f4d2b37bd0fd81b109f604`; status was `in_progress` at the last check.
 - Do not mark tests/build as passed until the latest head's workflow completes successfully.
 - Academic answer correctness cannot be guaranteed by schema validation alone. Source-key conflicts are rejected, but independently generated answers still require evidence-based verification and human review for high-stakes/public tests.
 - Student-owned API key connection, encrypted key storage, direct PDF bytes/File API and full end-to-end release tests remain incomplete.
+
+
+## Phase 3 — Student/Admin key security update — 2026-11-08
+
+- Student key connect, verify, replace and disconnect controls added to Settings. Keys are verified against the Gemini Models endpoint before save.
+- Student keys are encrypted with AES-256-GCM; non-exportable per-UID keys are generated and held by AndroidKeyStore. Only ciphertext is stored in private SharedPreferences.
+- Student key ciphertext and Admin preferences are excluded from cloud backup and device transfer.
+- A connected student key is used exclusively; the app does not silently spend shared Admin quota after personal-key quota/authentication failure.
+- Admin secondary key is migrated from plaintext SharedPreferences to AndroidKeyStore encryption. Legacy plaintext is removed only after successful encrypted persistence.
+- Active Gemini REST calls send keys in the `x-goog-api-key` header, not URL query strings.
+- Seven-day key rotation reminder is shown in Settings. Disconnect deletes local ciphertext and the UID-specific AndroidKeyStore key. Provider-side revocation must still be performed in Google AI Studio.
+
+### Security limitations
+- BuildConfig primary key remains embedded in the app binary and cannot be considered secret from a determined APK reverse engineer. A server-side proxy with per-user authentication and quota is the long-term safe design.
+- Admin and Student ViewModel HTTP clients remain separate from the Admin pipeline client; transport consolidation remains GEM-004.
+- Key-store encryption and Settings flow have not yet received device/emulator verification. Android CI is pending.
+
+### Phase 3 commits
+- `66b17e1d25b0fcc98c83d0d9d6e00e7813e6d96a` — UID-scoped AndroidKeyStore key vault.
+- `40e0adc5410d82e74e0780b4a3cc0465a37f7182`, `e10ffd7b135117fc03f15fc44016e3fa033a7e57` — backup exclusions.
+- `dc839e66fcfb93cc7d9f0a1ef7fcdfd6497e21a9` — Student key integration, verification and API-key header transport.
+- `d615796d4154be10eec83ea3545aa2f5d10b9b93` — Admin pipeline API-key header.
+- `396327eea1fafe6e965c2cd18b1298849c6be1f8` — Settings connect/verify/disconnect UI.
+- `e81dace7e6e4eb838c2574a1efd8e3755aeb5884` — Admin secondary key encryption and plaintext migration.
+- `86ffa828940eb2070368726a67a3bd31d408bb76` — Admin preferences backup exclusion.
+- `1dac654cc108497407bda9ca4a63b05166dc76d5` — isolate Student key use from Admin quota fallback.
+- `43dbc253042451adb7e43bd5536c92dbaef46c12`, `18e489d5e4249507d3f4d2b37bd0fd81b109f604`, `af110ff02cf741e5b2ce46d2db586ed4fff437f7` — seven-day key rotation reminder.
+
+### Verification snapshot
+- Main HEAD: `d2feae47f908b705209c27b8e61e624f94c400d7` (unchanged).
+- Feature branch latest observed HEAD before this tracker update: `af110ff02cf741e5b2ce46d2db586ed4fff437f7`.
+- Latest workflow observed: `42476938214`; it had not yet reached unit-test or APK-build steps. No build/test success is claimed.
