@@ -5970,16 +5970,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val finalNeedsImage = requiresImage || !assignedImageUrl.isNullOrEmpty()
             val finalImageUrl = if (assignedImageUrl.isNullOrEmpty()) null else assignedImageUrl
 
+            val questionType = qObj.optString("questionType", "MCQ_SINGLE").uppercase()
+            val isFreeResponse = questionType in setOf("NAT", "TITA", "NUMERICAL", "NUMERICAL_VALUE", "DESCRIPTIVE", "ESSAY", "SUBJECTIVE")
             questions.add(
                 QuestionEntity(
                     id = "${testId}_q${i}",
                     testId = testId,
                     questionText = qTextEn,
-                    optionA = qObj.optString("optionAEn", "Option A"),
-                    optionB = qObj.optString("optionBEn", "Option B"),
-                    optionC = qObj.optString("optionCEn", "Option C"),
-                    optionD = qObj.optString("optionDEn", "Option D"),
-                    optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
+                    optionA = if (isFreeResponse) "" else qObj.optString("optionAEn", ""),
+                    optionB = if (isFreeResponse) "" else qObj.optString("optionBEn", ""),
+                    optionC = if (isFreeResponse) "" else qObj.optString("optionCEn", ""),
+                    optionD = if (isFreeResponse) "" else qObj.optString("optionDEn", ""),
+                    optionE = if (isFreeResponse) null else qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
                     subject = genSubject.value,
