@@ -866,3 +866,13 @@ For each supplied genuine digital PDF, record source provenance and a stable SHA
   - `b3671980058e09d31144b7c1aeb83de13d95fef4` — remove unused system-prompt construction from the dynamic user-prompt builder.
 - Keystore read/save work on the setup screen is dispatched to IO to avoid doing crypto and synchronous preference commits on the Compose main thread.
 - Current milestone state: source implementation is committed; runtime validation remains blocked because no Android build runner or CI workflow result is available in this continuation. Do not mark Integrated Phase 1–3 complete until CI/device tests pass and the actual GIF asset is added.
+
+
+## Gemini BYOK Native PDF Integration — Source implementation (2026-11-08)
+- Student PDF generation now has a dedicated native-document path in `NEETViewModel.generateTestFromPdf`: it sends the selected original PDF bytes to Gemini using the authenticated student's own UID-scoped key (key identifier 2 only). It does not fall back to Admin/shared keys for students.
+- Added `GeminiNativePdfClient.kt` using Gemini `generateContent` PDF `inlineData`, `application/pdf`, JSON response mode, a 50 MB inline PDF limit, bounded timeouts, and non-secret error reporting. The source PDF is sent directly; this path does not depend on local OCR text.
+- The prompt uses the universal `SOURCE_EXTRACTION` system policy plus the selected `ExamConfig`. It requires verbatim source extraction, preserves question order, forbids filler questions, and rejects empty/over-limit output. Existing `saveGeneratedTest` validation remains the final gate before persistence.
+- Student-generated tests now default to private (`genIsPublic=false`, `autoShareToCommunity=false`). Public/community publishing requires an explicit user action. The no-key question-report path no longer returns a fabricated "simulated evaluation".
+- Commits: `802207a1e2f1a3dc6d827482282174b22797237b` (private defaults / remove simulated report); `63a68b039fa91a5a7e984d8104a844151f6f4e84` (native PDF client); `311f8dfc1d38004caf5c420ed8db9ec34bc06826` (Student BYOK native PDF route).
+- Verification: source committed only. Android compilation, JVM tests, device/network integration, real PDF extraction, and Firestore private-vault access have NOT yet been executed for these commits. Do not mark this milestone complete until those checks pass.
+- Remaining: actual animated tutorial GIF asset is not yet integrated; native Compose tutorial remains distinct from a GIF. Review legacy `GeminiPdfExtractor.processPdfWithGemini()` and confirm no hidden/external integration before deprecating it. Confirm `saveGeneratedTest` writes owner-scoped private records and that admin review/publish flow is server-authorized.
