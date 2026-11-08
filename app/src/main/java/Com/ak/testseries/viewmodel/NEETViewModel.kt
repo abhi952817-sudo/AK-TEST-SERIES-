@@ -5316,7 +5316,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         val prompt = Com.ak.testseries.exam.UniversalAIContext.buildExamRecognitionPrompt(
                             supportedExamNames = registeredExams.map { it.examName },
                             selectedExamName = currentTargetExam,
-                            sourceText = openingPagesSnippet.take(2500)
+                            sourceText = openingPagesSnippet.take(2500),
+                            supportedExamIds = registeredExams.associate { it.examName to it.examId }
                         )
                         
                         val responseJson = callGeminiApiForQuestionsWithFallback(prompt)
