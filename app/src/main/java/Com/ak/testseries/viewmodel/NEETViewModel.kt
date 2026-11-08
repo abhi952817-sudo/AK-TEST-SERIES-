@@ -6053,11 +6053,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     aiGenStatusMessage.value = message
                     return@withContext false
                 }
-            val sectionId = item.optString("sectionId", "")
-            val configuredSection = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
-                .flatMap { it.sections }.firstOrNull { it.sectionId == sectionId }
+            val subjectId = item.optString("subjectId", "")
+            val configuredSubject = examConfig.stages.flatMap { it.papers }.flatMap { it.subjects }
+                .firstOrNull { it.subjectId == subjectId }
                 ?: run {
-                    val message = "Question ${index + 1} references an unconfigured section '$sectionId'. Test was not saved."
+                    val message = "Question ${index + 1} references an unconfigured subject '$subjectId'. Test was not saved."
+                    _aiGenState.value = AiGenerationState.Error(message)
+                    aiGenStatusMessage.value = message
+                    return@withContext false
+                }
+            val sectionId = item.optString("sectionId", "")
+            val configuredSection = configuredSubject.sections.firstOrNull { it.sectionId == sectionId }
+                ?: run {
+                    val message = "Question ${index + 1} references a section '$sectionId' that does not belong to subject '$subjectId'. Test was not saved."
                     _aiGenState.value = AiGenerationState.Error(message)
                     aiGenStatusMessage.value = message
                     return@withContext false
