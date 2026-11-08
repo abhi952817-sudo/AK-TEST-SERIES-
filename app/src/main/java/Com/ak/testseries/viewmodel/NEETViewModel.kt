@@ -5942,6 +5942,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     aiGenStatusMessage.value = message
                     return@withContext false
                 }
+            val questionTypeFromResponse = item.optString("questionType", "")
+            val configuredPositive = item.optDouble("positiveMarks", Double.NaN)
+            val configuredNegative = item.optDouble("negativeMarks", Double.NaN)
+            val configMismatch = item.optString("examId", "") != examConfig.examId ||
+                item.optString("sectionName", "") != configuredSection.sectionName ||
+                questionTypeFromResponse != configuredSection.questionType.name ||
+                !configuredPositive.isFinite() || !configuredNegative.isFinite() ||
+                kotlin.math.abs(configuredPositive - configuredSection.positiveMarks) > 0.000001 ||
+                kotlin.math.abs(configuredNegative - configuredSection.negativeMarks) > 0.000001
+            if (configMismatch) {
+                val message = "Question ${index + 1} does not match the selected exam's exact section, question type or scoring configuration. Test was not saved."
+                _aiGenState.value = AiGenerationState.Error(message)
+                aiGenStatusMessage.value = message
+                return@withContext false
+            }
             val validationError = Com.ak.testseries.exam.GeminiResponseValidator.validateQuestion(
                 item, configuredSection.optionsCount, requireExactOptionCount = true
             )
@@ -6046,9 +6061,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("needsReview", sourceQuestion.optBoolean("needsReview", true))
             qObj.put("provenanceType", sourceQuestion.optString("provenanceType", ""))
             if (!sourceQuestion.isNull("sourceAnswer")) qObj.put("sourceAnswer", sourceQuestion.optString("sourceAnswer"))
+            qObj.put("examId", sourceQuestion.optString("examId", ""))
+            qObj.put("subjectId", sourceQuestion.optString("subjectId", ""))
             qObj.put("sectionId", sourceQuestion.optString("sectionId", ""))
+            qObj.put("sectionName", sourceQuestion.optString("sectionName", ""))
             qObj.put("positiveMarks", sourceQuestion.optDouble("positiveMarks", 0.0))
             qObj.put("negativeMarks", sourceQuestion.optDouble("negativeMarks", 0.0))
+            qObj.put("verificationSummary", sourceQuestion.optString("verificationSummary", ""))
+            qObj.put("sourcePageStart", sourceQuestion.optInt("sourcePageStart", -1))
+            qObj.put("sourcePageEnd", sourceQuestion.optInt("sourcePageEnd", -1))
+            qObj.put("reviewReasons", sourceQuestion.optJSONArray("reviewReasons") ?: JSONArray())
             qObj.put("subject", q.subject)
             qObj.put("chapter", q.chapter)
             qObj.put("topic", q.topic)
