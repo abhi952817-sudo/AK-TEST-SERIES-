@@ -4935,7 +4935,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 try {
                                     val report = Com.ak.testseries.exam.GeminiResponseValidator.parseResponse(
                                         raw = resultJson,
-                                        minimumMcqOptions = examConfig.defaultOptionCount
+                                        examConfig = examConfig
                                     )
                                     if (report.errors.isNotEmpty() || report.questions.length() == 0) {
                                         rejectedGeminiQuestions += report.rejectedCount.coerceAtLeast(1)
@@ -5001,7 +5001,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 try {
                                     val report = Com.ak.testseries.exam.GeminiResponseValidator.parseResponse(
                                         raw = resultJson,
-                                        minimumMcqOptions = examConfig.defaultOptionCount
+                                        examConfig = examConfig
                                     )
                                     if (report.errors.isNotEmpty() || report.questions.length() == 0) {
                                         rejectedGeminiQuestions += report.rejectedCount.coerceAtLeast(1)
