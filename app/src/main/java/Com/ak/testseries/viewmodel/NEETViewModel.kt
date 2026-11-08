@@ -4860,6 +4860,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val pages = lastExtractedPdfPages.value
                     val pageChunkSize = 2 // Process in smaller page ranges (2 pages per chunk)
                     var successChunks = 0
+                    var rejectedGeminiQuestions = 0
 
                     val isPrivatePdfExtraction = !genIsPublic.value || autoRoutedWorkflow.value == "private"
                     val answerKeyPage = if (isPrivatePdfExtraction && pages.isNotEmpty()) {
@@ -4900,7 +4901,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                             val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
                             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                                ?: run {
+                                    val message = "Unknown exam '$targetExamName'. Select a registered exam; NEET fallback is disabled."
+                                    _aiGenState.value = AiGenerationState.Error(message)
+                                    aiGenStatusMessage.value = message
+                                    return@launch
+                                }
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
@@ -4918,28 +4924,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
                             if (resultJson != null) {
                                 try {
-                                    val cleanJson = resultJson.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-                                    val jsonArray = if (cleanJson.startsWith("[")) {
-                                        org.json.JSONArray(cleanJson)
-                                    } else if (cleanJson.startsWith("{")) {
-                                        val obj = org.json.JSONObject(cleanJson)
-                                        obj.optJSONArray("questions")
-                                            ?: obj.optJSONArray("data")
-                                            ?: obj.optJSONArray("mcqs")
-                                            ?: org.json.JSONArray()
+                                    val report = Com.ak.testseries.exam.GeminiResponseValidator.parseResponse(
+                                        raw = resultJson,
+                                        minimumMcqOptions = examConfig.defaultOptionCount
+                                    )
+                                    if (report.errors.isNotEmpty() || report.questions.length() == 0) {
+                                        rejectedGeminiQuestions += report.rejectedCount.coerceAtLeast(1)
+                                        android.util.Log.w("NEETViewModel", "Gemini response rejected: ${report.errors.joinToString("; ")}")
                                     } else {
-                                        val startIdx = cleanJson.indexOf('[')
-                                        val endIdx = cleanJson.lastIndexOf(']')
-                                        if (startIdx != -1 && endIdx > startIdx) {
-                                            org.json.JSONArray(cleanJson.substring(startIdx, endIdx + 1))
-                                        } else {
-                                            org.json.JSONArray()
+                                        for (i in 0 until report.questions.length()) {
+                                            allQuestionsList.add(report.questions.getJSONObject(i))
                                         }
+                                        successChunks++
                                     }
-                                    for (i in 0 until jsonArray.length()) {
-                                        allQuestionsList.add(jsonArray.getJSONObject(i))
-                                    }
-                                    successChunks++
                                     // Mark current chunk complete so it is never re-processed
                                     currentChunkIndex = chunkIndex + 1
                                 } catch (e: Exception) {
@@ -4993,28 +4990,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
                             if (resultJson != null) {
                                 try {
-                                    val cleanJson = resultJson.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-                                    val jsonArray = if (cleanJson.startsWith("[")) {
-                                        org.json.JSONArray(cleanJson)
-                                    } else if (cleanJson.startsWith("{")) {
-                                        val obj = org.json.JSONObject(cleanJson)
-                                        obj.optJSONArray("questions")
-                                            ?: obj.optJSONArray("data")
-                                            ?: obj.optJSONArray("mcqs")
-                                            ?: org.json.JSONArray()
+                                    val report = Com.ak.testseries.exam.GeminiResponseValidator.parseResponse(
+                                        raw = resultJson,
+                                        minimumMcqOptions = examConfig.defaultOptionCount
+                                    )
+                                    if (report.errors.isNotEmpty() || report.questions.length() == 0) {
+                                        rejectedGeminiQuestions += report.rejectedCount.coerceAtLeast(1)
+                                        android.util.Log.w("NEETViewModel", "Gemini response rejected: ${report.errors.joinToString("; ")}")
                                     } else {
-                                        val startIdx = cleanJson.indexOf('[')
-                                        val endIdx = cleanJson.lastIndexOf(']')
-                                        if (startIdx != -1 && endIdx > startIdx) {
-                                            org.json.JSONArray(cleanJson.substring(startIdx, endIdx + 1))
-                                        } else {
-                                            org.json.JSONArray()
+                                        for (i in 0 until report.questions.length()) {
+                                            allQuestionsList.add(report.questions.getJSONObject(i))
                                         }
+                                        successChunks++
                                     }
-                                    for (i in 0 until jsonArray.length()) {
-                                        allQuestionsList.add(jsonArray.getJSONObject(i))
-                                    }
-                                    successChunks++
                                     currentChunkIndex = chunkIndex + 1
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -5022,6 +5010,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             }
                             delay(800) // Small delay to respect rate limits
                         }
+                    }
+
+                    if (rejectedGeminiQuestions > 0) {
+                        val message = "Gemini returned $rejectedGeminiQuestions unverified, incomplete, or invalid question(s). Nothing was saved or published. Correct the source/answer key and retry."
+                        _aiGenState.value = AiGenerationState.Error(message)
+                        aiGenStatusMessage.value = message
+                        return@launch
                     }
 
                     if (allQuestionsList.isNotEmpty()) {
@@ -5909,6 +5904,22 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun saveGeneratedTest(jsonString: String) = withContext(Dispatchers.IO) {
         val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val jsonArray = JSONArray(cleanJson)
+        for (index in 0 until jsonArray.length()) {
+            val item = jsonArray.optJSONObject(index)
+                ?: run {
+                    val message = "Question ${index + 1} is not a valid JSON object. Test was not saved."
+                    _aiGenState.value = AiGenerationState.Error(message)
+                    aiGenStatusMessage.value = message
+                    return@withContext
+                }
+            val validationError = Com.ak.testseries.exam.GeminiResponseValidator.validateQuestion(item)
+            if (validationError != null) {
+                val message = "Question ${index + 1} failed the final publication safety check: $validationError Test was not saved."
+                _aiGenState.value = AiGenerationState.Error(message)
+                aiGenStatusMessage.value = message
+                return@withContext
+            }
+        }
         val testId = "ai_" + System.currentTimeMillis()
 
         val questions = mutableListOf<QuestionEntity>()
