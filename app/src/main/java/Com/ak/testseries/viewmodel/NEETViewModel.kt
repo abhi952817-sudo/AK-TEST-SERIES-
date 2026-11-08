@@ -4856,6 +4856,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val autoRoutingExplanation = MutableStateFlow<String?>(null)
     val extractedDiagramPaths = MutableStateFlow<List<String>>(emptyList())
     val extractedDiagramCount = MutableStateFlow(0)
+    val extractedQuestionImageMappings = MutableStateFlow<Map<Int, Com.ak.testseries.utils.QuestionImageMapping>>(emptyMap())
 
     fun resetPdfAnalysisState() {
         _pdfAnalysisState.value = PdfAnalysisState.Idle
@@ -4863,6 +4864,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         autoRoutingExplanation.value = null
         extractedDiagramPaths.value = emptyList()
         extractedDiagramCount.value = 0
+        extractedQuestionImageMappings.value = emptyMap()
         lastExtractedPdfPages.value = emptyList()
         activePdfSession.value = null
     }
@@ -5024,6 +5026,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val diagramPaths = extractionResult.diagramPaths
             extractedDiagramPaths.value = diagramPaths
             extractedDiagramCount.value = diagramPaths.size
+            extractedQuestionImageMappings.value = extractionResult.questionImageMappings
             if (extractionResult.diagramExtractionError != null) {
                 aiGenStatusMessage.value = "PDF text extracted; image extraction needs review: ${extractionResult.diagramExtractionError}"
             }
