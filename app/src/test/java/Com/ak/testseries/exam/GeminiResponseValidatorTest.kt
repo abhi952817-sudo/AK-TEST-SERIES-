@@ -160,6 +160,26 @@ class GeminiResponseValidatorTest {
     }
 
     @Test
+    fun rejectsQuestionOutsideRequestedSubjectEvenWhenExamAndSectionExist() {
+        val item = validMcq()
+            .put("examId", "neet_ug")
+            .put("subjectId", "chemistry")
+        val root = JSONObject()
+            .put("status", "COMPLETE")
+            .put("questions", JSONArray().put(item))
+            .put("errors", JSONArray())
+
+        val report = GeminiResponseValidator.parseResponse(
+            raw = root.toString(),
+            examConfig = testExamConfig(),
+            expectedSubjectId = "physics"
+        )
+
+        assertFalse(report.isUsable)
+        assertTrue(report.errors.any { it.contains("subjectId") })
+    }
+
+    @Test
     fun rejectsPartialTaskEvenWhenQuestionArrayLooksValid() {
         val root = JSONObject()
             .put("status", "PARTIAL")
