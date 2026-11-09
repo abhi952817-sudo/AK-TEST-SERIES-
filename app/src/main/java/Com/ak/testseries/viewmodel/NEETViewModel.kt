@@ -4638,7 +4638,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         for (obj in allQuestionsList) {
                             combinedArray.put(obj)
                         }
-                        val saved = saveGeneratedTest(combinedArray.toString())
+                        val saved = saveGeneratedTest(combinedArray.toString(), questionRoute)
                         if (saved) {
                             recordDailyGeneration()
                             aiGenStatusMessage.value = "Successfully generated ${allQuestionsList.size} questions for private review."
@@ -5534,7 +5534,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun saveGeneratedTest(jsonString: String): Boolean = withContext(Dispatchers.IO) {
+    private suspend fun saveGeneratedTest(
+        jsonString: String,
+        questionRoute: Com.ak.testseries.exam.QuestionGenerationRouteResolver.Route
+    ): Boolean = withContext(Dispatchers.IO) {
         val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val jsonArray = JSONArray(cleanJson)
         if (jsonArray.length() == 0) {
@@ -5551,20 +5554,35 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 continue
             }
             val text = q.optString("questionTextEn").ifBlank { q.optString("questionText") }
-            val optionKeys = listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn")
-            val options = optionKeys.map { key -> q.optString(key).ifBlank { q.optString(key.removeSuffix("En")) } }
+            val expectedOptionCount = questionRoute.examConfig.defaultOptionCount.coerceIn(4, 5)
+            val optionKeys = if (expectedOptionCount == 5) {
+                listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn", "optionEEn")
+            } else {
+                listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn")
+            }
+            val options = optionKeys.map { key ->
+                q.optString(key).ifBlank { q.optString(key.removeSuffix("En")) }
+            }
             val questionType = q.optString("questionType", "MCQ").uppercase()
             val isNumeric = questionType in numericTypes
             val answer = q.optString("correctAnswer").trim()
             val explanation = q.optString("explanationEn").ifBlank { q.optString("explanation") }.ifBlank { q.optString("reasoning") }
             val hasPlaceholder = options.any { option ->
                 listOf("Option A", "Option B", "Option C", "Option D", "Option E",
-                    "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                    "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D", "Distractor Option E")
                     .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
             }
-            val optionsValid = if (isNumeric) options.all { it.isBlank() } || options.all { it.isNotBlank() }
-                else options.all { it.isNotBlank() } && !hasPlaceholder
-            if (text.isBlank() || answer.isBlank() || explanation.isBlank() || !optionsValid) {
+            val optionsValid = if (isNumeric) {
+                options.all { it.isBlank() } || options.all { it.isNotBlank() && !hasPlaceholder } && options.map { it.trim().lowercase() }.distinct().size == options.size
+            } else {
+                options.all { it.isNotBlank() } && !hasPlaceholder &&
+                    options.map { it.trim().lowercase() }.distinct().size == options.size
+            }
+            val numericAnswer = answer.toDoubleOrNull()?.isFinite() == true
+            val allowedAnswers = if (expectedOptionCount == 5) setOf("A", "B", "C", "D", "E", "1", "2", "3", "4", "5")
+                else setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            val answerValid = if (isNumeric) numericAnswer else answer.uppercase() in allowedAnswers
+            if (text.isBlank() || answer.isBlank() || explanation.isBlank() || !optionsValid || !answerValid) {
                 invalidQuestionNumbers.add(index + 1)
             }
         }
@@ -5638,6 +5656,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                     optionEHi = qObj.optString("optionEHi", "").takeIf { it.isNotEmpty() },
                     explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
+                    questionType = qObj.optString("questionType", "MCQ"),
+                    section = qObj.optString("sectionId").ifBlank {
+                        qObj.optString("section", "SECTION_A")
+                    },
                     needsImage = finalNeedsImage,
                     imageUrl = finalImageUrl
                 )
@@ -5707,8 +5729,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             topic = primaryTopic,
             questionsJson = questionsJsonString,
             uploaderId = authenticatedUid,
-            isPublic = false,
-            status = if (genIsPublic.value || isLiveTest) "Under Review" else "Published"
+            targetExam = questionRoute.examConfig.examName,
+            durationMinutes = questionRoute.examConfig.findPaper(questionRoute.paperId)?.durationMinutes ?: 0,
+            examId = questionRoute.examConfig.examId,
+            stageId = questionRoute.stageId,
+            paperId = questionRoute.paperId,
+            isPublic = genIsPublic.value,
+            status = initialStatus
         )
 
         repository.insertTest(newTest)
