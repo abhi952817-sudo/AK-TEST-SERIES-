@@ -6537,6 +6537,7 @@ fun AdminSidebarItem(title: String, icon: androidx.compose.ui.graphics.vector.Im
 
 @Composable
 fun AdminTestGenerationContent(viewModel: NEETViewModel) {
+    val context = LocalContext.current
     var classLevel by remember { mutableStateOf("11th") }
     var classLevelExpanded by remember { mutableStateOf(false) }
     
