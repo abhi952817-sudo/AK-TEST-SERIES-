@@ -6593,28 +6593,54 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             aiGenStatusMessage.value = "Cannot save an empty test. No dummy questions were inserted."
             return
         }
-        val numericTypes = setOf("NUMERICAL_VALUE", "NUMERICAL", "TITA")
+        val firstQuestion = questions.first()
+        val routeResolution = Com.ak.testseries.exam.QuestionGenerationRouteResolver.resolve(
+            examQuery = examName,
+            subjectQuery = firstQuestion.subjectId,
+            stageId = firstQuestion.stageId,
+            paperId = firstQuestion.paperId
+        )
+        val questionRoute = routeResolution.route
+        if (questionRoute == null) {
+            aiGenStatusMessage.value = routeResolution.error
+                ?: "Test blocked: exact exam, stage, paper and subject identity could not be resolved."
+            return
+        }
+
+        val mixedRouteQuestions = questions.filter { question ->
+            question.examId != questionRoute.examConfig.examId ||
+                question.stageId != questionRoute.stageId ||
+                question.paperId != questionRoute.paperId ||
+                question.subjectId != questionRoute.subjectId
+        }
+        if (mixedRouteQuestions.isNotEmpty()) {
+            aiGenStatusMessage.value = "Test blocked: questions from different exams, stages, papers or subjects cannot be combined."
+            return
+        }
+
+        val configuredSections = questionRoute.examConfig.stages
+            .firstOrNull { it.stageId == questionRoute.stageId }
+            ?.papers?.firstOrNull { it.paperId == questionRoute.paperId }
+            ?.subjects?.singleOrNull { it.subjectId == questionRoute.subjectId }
+            ?.sections.orEmpty()
+        if (configuredSections.isEmpty()) {
+            aiGenStatusMessage.value = "Test blocked: the selected subject has no configured section and marking rules."
+            return
+        }
+
         val invalidQuestions = questions.filter { question ->
+            val section = configuredSections.singleOrNull { it.sectionId == question.sectionId }
             val requiredTextPresent = question.questionText.isNotBlank() &&
                 question.correctAnswer.isNotBlank() &&
-                question.subjectId.isNotBlank() &&
                 question.explanation.isNotBlank()
-            val isNumeric = question.questionType.name in numericTypes
-            val optionsValid = if (isNumeric) {
-                question.options.all { it.isNotBlank() }
-            } else {
-                question.options.size in 4..5 &&
-                    question.options.all { it.isNotBlank() } &&
-                    question.options.none { option ->
-                        listOf("Option A", "Option B", "Option C", "Option D", "Option E",
-                            "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
-                            .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
-                    }
-            }
-            !requiredTextPresent || !optionsValid
+            val sectionMatchesPattern = section != null &&
+                section.questionType == question.questionType &&
+                kotlin.math.abs(section.positiveMarks - question.positiveMarks) < 0.0001 &&
+                kotlin.math.abs(section.negativeMarks - question.negativeMarks) < 0.0001
+            !requiredTextPresent || !sectionMatchesPattern
         }
         if (invalidQuestions.isNotEmpty()) {
-            aiGenStatusMessage.value = "Test blocked: ${invalidQuestions.size} question(s) contain missing data or placeholder options."
+            aiGenStatusMessage.value = "Test blocked: ${invalidQuestions.size} question(s) do not match the selected paper's section, question type or marking rules."
             return
         }
         val isPublicTest = genIsPublic.value && questions.all {
@@ -6627,14 +6653,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val testId = "universal_${System.currentTimeMillis()}"
                 
-                val subjectStr = questions.firstOrNull()?.subjectId?.replaceFirstChar { it.uppercase() } ?: "General"
-                val diffStr = questions.firstOrNull()?.difficulty?.name ?: "Medium"
-                
-                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examName)
+                val subjectStr = questionRoute.subjectName
+                val diffStr = questions.first().difficulty.name
+                val authenticatedUploaderId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+                if (authenticatedUploaderId.isBlank()) {
+                    aiGenStatusMessage.value = "Test blocked: an authenticated admin account is required to save or publish this test."
+                    return@launch
+                }
+
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
                     title = "$examName - Universal Mock Test",
-                    description = "AI-generated draft. Source, answer and quality review are required before public release.",
+                    description = "Gemini-verified extraction from the uploaded PDF. Admin approval is required for public release; official PYQ status is not implied.",
                     institute = "AK Exam Portal",
                     batchName = "AI Review Draft",
                     facultyName = "Exam Panel",
@@ -6647,10 +6677,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     isVerifiedCommunity = false,
                     isPublic = isPublicTest,
                     countsTowardRanking = false,
-                    targetExam = examConfig?.examId ?: examName,
-                    examId = examConfig?.examId ?: examName,
-                    stageId = examConfig?.stages?.firstOrNull()?.stageId,
-                    paperId = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
+                    uploaderId = authenticatedUploaderId,
+                    targetExam = questionRoute.examConfig.examName,
+                    examId = questionRoute.examConfig.examId,
+                    stageId = questionRoute.stageId,
+                    paperId = questionRoute.paperId,
                     scoringVersion = 1,
                     status = if (isPublicTest) "Published" else "Under Review",
                     durationMinutes = durationMinutes
@@ -6681,9 +6712,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("chapter", uq.chapterName.ifBlank { uq.chapterId })
                     qObj.put("questionType", uq.questionType.name)
                     qObj.put("section", uq.sectionId)
+                    qObj.put("sectionId", uq.sectionId)
                     qObj.put("sectionName", uq.sectionName)
                     qObj.put("positiveMarks", uq.positiveMarks)
                     qObj.put("negativeMarks", uq.negativeMarks)
+                    qObj.put("sourceName", uq.sourceName)
+                    qObj.put("sourcePage", uq.sourcePage)
+                    qObj.put("generationModel", uq.generationModel)
+                    qObj.put("isOfficialPYQ", uq.isOfficialPYQ)
                     if (!uq.diagramUrl.isNullOrEmpty()) qObj.put("imageUrl", uq.diagramUrl)
                     qJsonArray.put(qObj)
                     
@@ -6715,8 +6751,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
+                val questionPayloadJson = qJsonArray.toString()
+                val payloadIsValid = Com.ak.testseries.data.QuestionPayloadValidator.isValid(
+                    rawJson = questionPayloadJson,
+                    expectedCount = questions.size,
+                    expectedOptionCount = questionRoute.examConfig.defaultOptionCount
+                )
+                if (!payloadIsValid) {
+                    aiGenStatusMessage.value = "Test blocked: Gemini question payload failed the final option, answer, explanation, duplicate or count validation."
+                    return@launch
+                }
+
                 // Save locally as a review draft unless every question is explicitly approved.
-                val finalTestEntity = testEntity.copy(isPublic = isPublicTest, questionsJson = qJsonArray.toString())
+                val finalTestEntity = testEntity.copy(isPublic = isPublicTest, questionsJson = questionPayloadJson)
                 repository.insertTest(finalTestEntity)
                 repository.insertQuestions(questionEntities)
                 saveQuestionsJsonToInternalStorage(testId, qJsonArray.toString())
