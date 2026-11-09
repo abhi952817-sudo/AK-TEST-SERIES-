@@ -47,6 +47,10 @@ object QuestionPayloadValidator {
             if (answer.isBlank() || explanation.isBlank()) return false
 
             val type = question.optString("questionType", "MCQ").uppercase()
+            val extraOptionE = question.optString("optionE")
+                .ifBlank { question.optString("optionEEn") }
+                .trim()
+            if (optionCount == 4 && extraOptionE.isNotBlank()) return false
             val options = listOf("A", "B", "C", "D", "E").take(optionCount).map { letter ->
                 question.optString("option$letter")
                     .ifBlank { question.optString("option${letter}En") }
