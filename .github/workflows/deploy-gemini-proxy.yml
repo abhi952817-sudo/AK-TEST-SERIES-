@@ -1,0 +1,56 @@
+name: Deploy Gemini Proxy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: "Deploy generateGeminiContent to the selected Firebase project"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-gemini-proxy:
+    if: inputs.confirm_deploy == true
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Configure deployment identity
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Provision Gemini owner key in Firebase Secret Manager
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          test -n "$GEMINI_API_KEY"
+          test -n "$FIREBASE_PROJECT_ID"
+          printf '%s' "$GEMINI_API_KEY" | firebase functions:secrets:set GEMINI_API_KEY --data-file - --project "$FIREBASE_PROJECT_ID"
+
+      - name: Deploy only Gemini callable
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: firebase deploy --only functions:generateGeminiContent --project "$FIREBASE_PROJECT_ID"
+
+      - name: Remove temporary deployment credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
