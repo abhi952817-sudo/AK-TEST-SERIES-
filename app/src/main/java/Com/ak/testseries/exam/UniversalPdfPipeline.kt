@@ -27,8 +27,14 @@ object UniversalPdfPipeline {
     /**
      * Resolves the section configuration for a question based on its sequential index in the subject.
      */
-    fun resolveSectionForIndex(examConfig: ExamConfig, subjectId: String, qIndexInSubject: Int): SectionConfig? {
-        val sections = UniversalAIContext.getApplicableSections(examConfig, subjectId)
+    fun resolveSectionForIndex(
+        examConfig: ExamConfig,
+        subjectId: String,
+        qIndexInSubject: Int,
+        stageId: String? = null,
+        paperId: String? = null
+    ): SectionConfig? {
+        val sections = UniversalAIContext.getApplicableSections(examConfig, subjectId, stageId, paperId)
         if (sections.isEmpty()) return null
         var runningCount = 0
         for (sec in sections) {
@@ -52,15 +58,24 @@ object UniversalPdfPipeline {
         existingQuestionsCache: List<UniversalQuestionModel> = emptyList(),
         apiKey: String? = null,
         isAiEnabled: Boolean = true,
+        paperId: String = "",
         onProgress: (BatchProgress) -> Unit = {}
     ): List<UniversalQuestionModel> = withContext(Dispatchers.IO) {
-        if (!UniversalAIContext.isKnownSubject(examConfig, subjectId)) {
+        val routeResolution = QuestionGenerationRouteResolver.resolve(
+            examQuery = examConfig.examId,
+            subjectQuery = subjectId,
+            stageId = stageId.takeIf { it.isNotBlank() },
+            paperId = paperId.takeIf { it.isNotBlank() }
+        )
+        val questionRoute = routeResolution.route
+        if (questionRoute == null) {
             onProgress(
                 BatchProgress(
                     totalBatches = 0,
                     currentBatch = 0,
                     processedQuestions = 0,
-                    statusMessage = "PDF processing stopped: subject '$subjectId' is blank or not configured for ${examConfig.examName}. Admin review is required."
+                    statusMessage = routeResolution.error
+                        ?: "PDF processing stopped: exact exam, stage, paper and subject route is unresolved."
                 )
             )
             return@withContext emptyList()
@@ -76,8 +91,15 @@ object UniversalPdfPipeline {
             )
             return@withContext emptyList()
         }
+        // Resume only questions belonging to this exact exam/stage/paper/subject route.
+        val scopedExistingQuestions = existingQuestionsCache.filter { question ->
+            question.examId == examConfig.examId &&
+                question.stageId == questionRoute.stageId &&
+                question.paperId == questionRoute.paperId &&
+                question.subjectId == questionRoute.subjectId
+        }
         val extractedQuestions = mutableListOf<UniversalQuestionModel>()
-        extractedQuestions.addAll(existingQuestionsCache)
+        extractedQuestions.addAll(scopedExistingQuestions)
         
         // 1. Extract text from PDF URI and format into compact Markdown
         val compactMarkdown = if (context != null) {
@@ -122,7 +144,7 @@ object UniversalPdfPipeline {
         } else ""
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
-        val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
+        val existingHashes = scopedExistingQuestions.associate { it.duplicateHash to it.questionText }
         val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() }
         var generationFailed = false
 
@@ -151,14 +173,16 @@ object UniversalPdfPipeline {
                 // Dynamically build the prompt injecting aiSystemInstruction, pattern rules, and compact Markdown
                 val prompt = UniversalAIContext.buildDynamicGenerationPrompt(
                     examConfig = examConfig,
-                    subject = subjectId.trim(),
+                    subject = questionRoute.subjectName,
                     testTitle = "${examConfig.shortName} Diagnostic Paper",
                     compactMarkdownPayload = compactMarkdown,
                     currentChunkSize = questionsInThisBatch,
                     startQ = startQ,
                     endQ = endQ,
                     totalQuestions = expectedQuestions,
-                    isExtractionMode = compactMarkdown.isNotBlank()
+                    isExtractionMode = compactMarkdown.isNotBlank(),
+                    stageId = questionRoute.stageId,
+                    paperId = questionRoute.paperId
                 )
                 // Add the NTA JEE Main 2027 unit index only for an exact Paper 1 route.
                 // It is explicitly marked NOT APPROVED and cannot be used as official topic mapping.
@@ -194,8 +218,9 @@ object UniversalPdfPipeline {
                 val batchModels = parseGeminiResponse(
                     jsonString = apiResult.responseText,
                     examConfig = examConfig,
-                    stageId = stageId,
-                    subjectId = subjectId,
+                    stageId = questionRoute.stageId,
+                    paperId = questionRoute.paperId,
+                    subjectId = questionRoute.subjectId,
                     batchIndex = batchIndex,
                     existingHashes = existingHashes,
                     actualModel = apiResult.modelVersion,
@@ -314,6 +339,7 @@ object UniversalPdfPipeline {
         jsonString: String,
         examConfig: ExamConfig,
         stageId: String,
+        paperId: String,
         subjectId: String,
         batchIndex: Int,
         existingHashes: Map<String, String>,
@@ -347,7 +373,7 @@ object UniversalPdfPipeline {
                 val options = listOf(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
                 val qIndexInBatch = (batchIndex * 10) + i + 1
-                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch)
+                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch, stageId, paperId)
                 val parsedSecId = item.optString("sectionId").ifBlank { resolvedSection?.sectionId ?: "SECTION_A" }
                 val parsedSecName = item.optString("sectionName").ifBlank { resolvedSection?.sectionName ?: "Section A" }
                 val parsedPosMarks = if (item.has("positiveMarks")) item.optDouble("positiveMarks", 4.0) else (resolvedSection?.positiveMarks ?: 4.0)
@@ -401,7 +427,7 @@ object UniversalPdfPipeline {
                     questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${batchIndex}_$i",
                     examId = examConfig.examId,
                     stageId = stageId,
-                    paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
+                    paperId = paperId,
                     sectionId = parsedSecId,
                     sectionName = parsedSecName,
                     subjectId = subjectId,
