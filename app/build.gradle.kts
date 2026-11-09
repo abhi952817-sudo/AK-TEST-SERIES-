@@ -136,6 +136,8 @@ dependencies {
   testImplementation(libs.androidx.junit)
   testImplementation(libs.androidx.work.testing)
   testImplementation(libs.junit)
+  // Use the JSON-java implementation in local JVM tests; Android framework org.json stubs throw "not mocked".
+  testImplementation("org.json:json:20240303")
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
   testImplementation(libs.roborazzi)
