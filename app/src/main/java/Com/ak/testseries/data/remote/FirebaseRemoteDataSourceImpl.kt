@@ -33,7 +33,17 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
         )
     }
 
-    private val retiredDemoTestIds = setOf("official_neet_ug_mock_01", "official_jee_mains_mock_01", "official_upsc_cds_mock_01", "official_ssc_cgl_mock_01", "official_banking_ibps_mock_01", "official_rrb_ntpc_mock_01", "official_ugc_net_paper1_mock_01", "official_cat_full_mock_01")
+    private val retiredDemoTestIds = setOf(
+        "official_neet_ug_mock_01",
+        "official_jee_mains_mock_01",
+        "official_upsc_cds_mock_01",
+        "official_ssc_cgl_mock_01",
+        "official_banking_ibps_mock_01",
+        "official_rrb_ntpc_mock_01",
+        "official_ugc_net_paper1_mock_01",
+        "official_cat_full_mock_01",
+        "t1", "t2", "t3", "t4", "t5"
+    )
 
     private val firestore: FirebaseFirestore? by lazy {
         try {
