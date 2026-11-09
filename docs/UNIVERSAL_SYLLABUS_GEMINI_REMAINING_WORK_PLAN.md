@@ -254,3 +254,103 @@ Not yet complete:
 - Build and test execution on this branch.
 
 Do not mark mapping as operational until these runtime and verification steps pass.
+
+
+## 7. Gemini credential routing: owner key + user BYOK
+
+### 7.1 Required product behavior
+
+AK TEST SERIES must support two credential sources without creating two prompt systems:
+
+- Owner-managed Gemini: the owner's key is stored as a GitHub Actions Secret for deployment/CI handoff, then provisioned into Firebase Secret Manager for the live backend. The Android APK must never contain this key or read GitHub Secrets.
+- User BYOK: a user can paste a personal Google AI Studio Gemini API key in Settings. The key is held only for that user's request/session or encrypted locally; it is never uploaded to Firestore, analytics, Crashlytics, logs, or source control. If sent through the backend proxy, it is request-scoped, never persisted, and redacted from logs.
+- One prompt contract: both credential sources call the same Gemini request executor with the exact same already-built prompt, system instruction, model policy, response schema, timeout/retry policy and downstream validators. Credential selection changes transport/authentication only, not prompt content or parsing rules.
+- One processing pipeline: PDF extraction, classification, question extraction, syllabus mapping, answer verification, quality checks, duplicate checks and review routing remain common.
+
+### 7.2 Target request flow
+
+```text
+Android UI / Admin PDF flow
+  -> CredentialResolver (OWNER_MANAGED or USER_BYOK)
+  -> Shared GeminiRequest {model, prompt, systemInstruction, responseSchema, taskId}
+  -> Authenticated Firebase Callable Function (Gemini proxy)
+       -> OWNER_MANAGED: Firebase Secret Manager GEMINI_API_KEY
+       -> USER_BYOK: request-scoped key; never persisted
+  -> Google Gemini generateContent
+  -> normalized Gemini response
+  -> same parser + strict task-specific validator
+  -> same private draft / Admin review path
+```
+
+The owner key in GitHub Secrets is not a runtime credential source for an installed Android app. GitHub Actions can use it only during a trusted deployment step to provision/update the Firebase Secret Manager secret. The deployed Cloud Function reads the secret at runtime. Never inject it into Gradle BuildConfig, resources, APK assets, Remote Config or Firestore.
+
+### 7.3 Current audit findings (verified from branch source)
+
+- UniversalPdfPipeline.processPdfForExam currently resolves apiKey ?: BuildConfig.GEMINI_API_KEY.
+- callGeminiApi currently calls Gemini directly from Android using HttpURLConnection.
+- The current request places the key in the URL query string. This commit changes it to the x-goog-api-key request header to reduce URL/log exposure.
+- The Admin PDF screen calls the pipeline without an explicit apiKey; therefore it currently relies on the BuildConfig fallback.
+- .env.example contains only a placeholder. The Android CI workflow copies it to .env; it does not provision a live backend secret.
+- The repository already has a Firebase Functions codebase at backend_functions, configured in firebase.json, so a server-side Gemini proxy can be added there without putting the owner key in the APK.
+- User BYOK settings UI and encrypted key storage are not yet implemented.
+- The live PDF pipeline still does not invoke the new universal syllabus mapping prompt or strict mapping validator.
+
+### 7.4 Implementation phases and acceptance gates
+
+**G1 — Credential contract and storage**
+- Add explicit provider modes: OWNER_MANAGED, USER_BYOK, DISABLED.
+- Add Settings UI: provider selection, masked key entry, Test Key, Save, Replace, Remove, usage warning and current provider status.
+- Store user BYOK locally using Android Keystore-backed encryption; never store it in Firestore, Room question records, logs or crash reports.
+- Never silently fall back from a failed user key to the owner's paid key. Require explicit user choice.
+- Acceptance: key never appears in APK resources/BuildConfig, logs, Firestore or exported backups; clear/remove works; invalid key gives a safe actionable error.
+
+**G2 — Owner-managed server proxy**
+- Add an authenticated Firebase Callable Function in backend_functions using a Firebase Secret Manager secret named GEMINI_API_KEY.
+- Owner-managed mode is Admin-only; verify Firebase Auth and server-side admin claim/owner policy.
+- User BYOK mode may pass the user's key only in the callable request over TLS; do not persist or log it. Prefer request-scoped use and immediate discard.
+- Add request size, model allowlist, timeout, rate limits, per-user quotas, task allowlist and audit metadata that excludes credentials and prompt-sensitive PDF content.
+- Enable Firebase App Check after the Android App Check provider is configured and emulator/test coverage exists.
+- GitHub Actions may provision the Firebase secret during a protected deployment using GitHub Secrets, but the runtime function must read Firebase Secret Manager, not GitHub.
+- Acceptance: owner key is absent from APK and client network calls; non-admin cannot invoke owner mode; BYOK is never stored; unauthenticated calls fail.
+
+**G3 — Shared Gemini executor**
+- Replace direct Android Gemini HTTP calls with one GeminiRequestExecutor interface.
+- Build prompt/system instruction/JSON schema once before credential routing.
+- Implement one backend transport for owner and BYOK credential modes. The provider must not modify prompt text or task parameters.
+- Normalize HTTP errors, quota errors, model-not-found, invalid-key, safety-block and malformed-response results.
+- Use the same model allowlist and retry policy for both modes; no unsupported model-name guessing.
+- Acceptance: tests compare the exact serialized prompt and schema for owner vs BYOK routes; only credential source differs.
+
+**G4 — Settings and Admin integration**
+- Add a visible AI provider status in Settings and Admin PDF processing.
+- User BYOK is opt-in and belongs to the signed-in user/device. Owner-managed mode is shown only to authorized Admins.
+- Add a safe Test Connection action that does not expose key fragments.
+- Admin PDF flow must pass the selected credential mode explicitly; remove the current implicit BuildConfig key fallback only after the backend proxy is live.
+- Acceptance: no silent credential switching, no accidental owner-key use for student requests, and no regression to non-AI app features.
+
+**G5 — Universal PDF pipeline integration**
+- Preserve one shared task/prompt contract for extraction, mapping, answer verification and quality review.
+- Run document classification first; resolve exact exam/stage/paper/subject; resolve only the approved versioned syllabus snapshot.
+- Execute question extraction, then universal mapping as a separate Gemini task, then independent answer verification as a separate task. Do not merge mapping and answer correctness into one field.
+- Strictly validate response JSON against input question IDs and the exact approved syllabus IDs. Fail closed on missing, duplicate, unknown or cross-exam IDs.
+- Persist private drafts with prompt version, model, provider mode (not API key), source hash, syllabus version, validator version and review status.
+- Acceptance: NEET end-to-end tests pass; no approved syllabus means no canonical IDs; no automatic publishing.
+
+**G6 — Test, security review and release**
+- Kotlin unit tests for credential resolution, prompt identity, JSON parsing, mapping and answer conflicts.
+- Firebase Functions unit/emulator tests for auth, owner-only mode, BYOK request handling, quota, rate limit and error normalization.
+- Verify APK/source scans contain no real key; test log redaction and backup exclusion.
+- Run Android unit tests, debug build, backend tests and Firestore/Functions emulator tests.
+- Keep feature branch and draft PR until all gates pass; no production deploy or main merge without separate approval.
+
+### 7.5 Immediate implementation order
+
+1. Build Firebase Gemini proxy and tests.
+2. Build shared Kotlin Gemini executor and remove direct BuildConfig.GEMINI_API_KEY use.
+3. Add encrypted user BYOK settings and Admin-only owner mode.
+4. Connect existing universal document classification and question extraction prompts through the shared executor.
+5. Wire approved syllabus resolver + universal mapping prompt + strict validator.
+6. Add separate answer-key extraction and independent answer-verification stages.
+7. Finish NEET end-to-end verification before enabling JEE on the same engine.
+
+**Do not mark dual-key support complete until G1–G6 pass.** The current header change is a transport hardening step only; it does not make the current BuildConfig owner key safe for production.
