@@ -379,3 +379,13 @@ The owner key in GitHub Secrets is not a runtime credential source for an instal
 - Android build, Kotlin unit tests and backend syntax/emulator tests have not yet been run for this integration batch.
 
 The current default route without a supplied user key selects OWNER_MANAGED and therefore succeeds only for an authenticated authorized Admin after the backend secret is configured and the function is deployed. A normal user must use USER_BYOK after the settings UI is implemented. Do not describe BYOK or owner-managed Gemini as production-ready until the missing gates above pass.
+
+
+### 7.7 Protected GitHub Secrets handoff workflow
+
+A manual-only workflow was added at .github/workflows/deploy-gemini-proxy.yml. It requires the explicit confirm_deploy input and the protected production GitHub Environment. It reads three repository/environment secrets:
+- GEMINI_API_KEY: owner's Google AI Studio key; piped to Firebase Functions Secret Manager and never written to the repository.
+- FIREBASE_PROJECT_ID: target Firebase project ID.
+- FIREBASE_SERVICE_ACCOUNT_JSON: deployment service-account JSON with the required Firebase/Cloud Functions/Secret Manager permissions.
+
+The workflow provisions the Firebase secret and deploys only generateGeminiContent. It is not run automatically and has not been executed. Before enabling it, configure the production Environment protection rules and verify the service account's least-privilege IAM permissions. The running function reads the key from Firebase Secret Manager; it does not read GitHub Secrets directly.
