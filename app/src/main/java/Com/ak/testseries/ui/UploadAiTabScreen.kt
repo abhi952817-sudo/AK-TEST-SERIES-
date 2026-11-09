@@ -2113,10 +2113,8 @@ fun UploadAiTabScreen(viewModel: NEETViewModel) {
                     }
 
                     Button(
-                        onClick = { 
-                            if (isSuccess) viewModel.open180QuestionsForPreview() 
-                            else viewModel.generateTestFromPdf() 
-                        },
+                        onClick = { viewModel.generateTestFromPdf() },
+                        enabled = !isSuccess,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp)
