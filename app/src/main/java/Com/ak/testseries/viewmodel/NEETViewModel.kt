@@ -5444,6 +5444,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String) {
+        if (newTest.questionsCount <= 0 || questionsJsonString.isBlank()) {
+            android.util.Log.w("NEETViewModel", "Test ${newTest.id} was not uploaded: empty question data is not publishable.")
+            return
+        }
         if (!newTest.isPublic) {
             android.util.Log.d("NEETViewModel", "Test ${newTest.id} is PRIVATE. Scoped exclusively to local sandbox and skipped Firestore upload.")
             return
@@ -5672,9 +5676,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             difficulty = "Medium",
             testType = if (isLiveTest) "Live" else genType.value,
             questionsCount = jsonArray.length(),
-            isOfficial = isLiveTest,
-            isVerifiedCommunity = isLiveTest || isAdmin,
-            countsTowardRanking = isLiveTest, // Only official Admin live tests count toward competitive ranking
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            countsTowardRanking = false,
             attemptsCount = 0,
             downloadsCount = 0,
             chapter = primaryChapter,
@@ -5908,13 +5912,39 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Admin Dashboard Upload Actions ---
     fun adminCreateTest(test: TestEntity, questions: List<QuestionEntity>) {
+        if (!isAdmin || questions.isEmpty() || questions.any { !isQuestionContentValid(it) }) {
+            android.util.Log.w("NEETViewModel", "Admin test creation blocked: valid, non-empty question content is required.")
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val questionsJsonString = serializeQuestionsToJson(questions)
-            val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
+            val testWithJson = test.copy(
+                questionsJson = questionsJsonString,
+                questionsCount = questions.size,
+                isOfficial = false,
+                isVerifiedCommunity = false,
+                countsTowardRanking = false,
+                status = if (test.isPublic) "Under Review" else "Draft"
+            )
             repository.insertTest(testWithJson)
             repository.insertQuestions(questions)
             uploadTestToFirestore(testWithJson, questionsJsonString)
         }
+    }
+
+    private fun isQuestionContentValid(question: QuestionEntity): Boolean {
+        val numeric = question.questionType.uppercase() in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT", "INTEGER")
+        val options = listOf(question.optionA, question.optionB, question.optionC, question.optionD)
+        val hasPlaceholder = options.any { option ->
+            listOf("Option A", "Option B", "Option C", "Option D", "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
+        }
+        val optionsValid = if (numeric) options.all { it.isBlank() } || options.all { it.isNotBlank() }
+            else options.all { it.isNotBlank() } && !hasPlaceholder
+        return question.questionText.isNotBlank() &&
+            question.correctAnswer.isNotBlank() &&
+            question.explanation.isNotBlank() &&
+            optionsValid
     }
 
     private fun loadFoldersAndMappings() {
@@ -6817,18 +6847,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     isVerifiedCommunity = false,
                     isPublic = false, // Strictly Private
                     countsTowardRanking = false,
-                    downloadsCount = 1,
+                    downloadsCount = 0,
                     isDownloaded = true,
                     timestamp = System.currentTimeMillis(),
                     status = "Under Review",
-                    aiConfidence = 50,
+                    aiConfidence = 0,
                     uploaderId = currentUid,
                     targetExam = canonicalExam?.examId ?: resolvedExam,
                     examId = canonicalExam?.examId ?: resolvedExam,
                     stageId = canonicalExam?.stages?.firstOrNull()?.stageId,
                     paperId = canonicalExam?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
                     scoringVersion = 1,
-                    durationMinutes = questionEntities.size,
+                    durationMinutes = 0,
                     questionsJson = questionsJsonArray.toString()
                 )
 
