@@ -142,7 +142,30 @@ object UniversalPdfPipeline {
                 ""
             }
         } else ""
-        val isExtractionMode = compactMarkdown.isNotBlank()
+
+        if (compactMarkdown.isBlank()) {
+            onProgress(
+                BatchProgress(
+                    totalBatches = 0,
+                    currentBatch = 0,
+                    processedQuestions = 0,
+                    statusMessage = "PDF text extraction failed or returned no readable content. Gemini extraction was not started and no questions were generated."
+                )
+            )
+            return@withContext emptyList()
+        }
+        if (expectedQuestions < 1 || batchSize < 1) {
+            onProgress(
+                BatchProgress(
+                    totalBatches = 0,
+                    currentBatch = 0,
+                    processedQuestions = 0,
+                    statusMessage = "PDF processing stopped: expected question count and batch size must both be positive."
+                )
+            )
+            return@withContext emptyList()
+        }
+        val isExtractionMode = true
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
         val existingHashes = scopedExistingQuestions.associate { it.duplicateHash to it.questionText }
