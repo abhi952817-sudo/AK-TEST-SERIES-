@@ -5466,7 +5466,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 lowerText.contains("adda247") -> "Adda247"
                 lowerText.contains("unacademy") -> "Unacademy"
                 lowerText.contains("byju") -> "BYJU'S"
-                else -> "Previous Year Paper"
+                else -> "Unknown Source"
             }
 
             // 3. Match Exam-Specific Subjects from UniversalExamRegistry
