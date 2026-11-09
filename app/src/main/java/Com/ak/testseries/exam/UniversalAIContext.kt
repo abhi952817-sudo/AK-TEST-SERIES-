@@ -125,7 +125,37 @@ object UniversalAIContext {
         val diff = examConfig.difficultyRatio
         val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
         val patternList = examConfig.patternRules.joinToString("\n  - ")
-        val sections = getApplicableSections(examConfig, subject, stageId, paperId)
+        val requestedSubject = subject.trim()
+        val routeMatches = examConfig.stages
+            .filter { stageId.isNullOrBlank() || it.stageId == stageId.trim() }
+            .flatMap { stage ->
+                stage.papers
+                    .filter { paperId.isNullOrBlank() || it.paperId == paperId.trim() }
+                    .flatMap { paper ->
+                        paper.subjects.filter {
+                            it.subjectId.equals(requestedSubject, ignoreCase = true) ||
+                                it.subjectName.equals(requestedSubject, ignoreCase = true)
+                        }.map { Triple(stage.stageId, paper.paperId, it.subjectId) }
+                    }
+            }
+        val resolvedRoute = routeMatches.singleOrNull()
+        val resolvedStageId = resolvedRoute?.first
+        val resolvedPaperId = resolvedRoute?.second
+        val resolvedSubjectId = resolvedRoute?.third.orEmpty()
+        val sections = if (resolvedRoute != null) {
+            getApplicableSections(examConfig, subject, resolvedStageId, resolvedPaperId)
+        } else {
+            emptyList()
+        }
+        val questionContract = UniversalPdfPromptContract.buildQuestionGenerationSafetyAddendum(
+            examId = examConfig.examId,
+            stageId = resolvedStageId,
+            paperId = resolvedPaperId,
+            subjectId = resolvedSubjectId,
+            sourceDocumentPresent = compactMarkdownPayload.isNotBlank(),
+            extractionMode = isExtractionMode,
+            approvedSyllabusSnapshotAvailable = false
+        )
         val sectionDetails = if (sections.isNotEmpty()) {
             sections.joinToString("\n") { s ->
                 "  * [${s.sectionId}] \"${s.sectionName}\": ${s.totalQuestions} Questions (${s.compulsoryQuestions} Compulsory) | Type: ${s.questionType.name} (${s.questionType.displayName}) | Scoring: +${s.positiveMarks} correct, -${s.negativeMarks} wrong"
@@ -164,6 +194,8 @@ object UniversalAIContext {
 
         return """
             $systemInstruction
+
+            $questionContract
             
             --------------------------------------------------------------------------------
             $taskObjective
@@ -183,7 +215,7 @@ object UniversalAIContext {
             
             --------------------------------------------------------------------------------
             COMPACT SOURCE MARKDOWN PAYLOAD (Cleaned & Token-Optimized):
-            ${if (compactMarkdownPayload.isNotBlank()) compactMarkdownPayload.take(50000) else "NO_SOURCE_DOCUMENT_SUPPLIED. Generate only clearly labelled GENERAL_PRACTICE questions from the configured exam pattern. Do not claim official syllabus coverage, official weightage, or source-backed PYQ status."}
+            ${if (compactMarkdownPayload.isNotBlank()) compactMarkdownPayload.take(50000) else if (isExtractionMode) "NO_SOURCE_DOCUMENT_SUPPLIED. Extraction is blocked; return no questions." else "NO_SOURCE_DOCUMENT_SUPPLIED. Generate only GENERAL_PRACTICE questions from the configured exam pattern. Do not claim official syllabus coverage, official weightage, or source-backed PYQ status."}
             
             --------------------------------------------------------------------------------
             REQUIRED JSON OUTPUT SCHEMA:
