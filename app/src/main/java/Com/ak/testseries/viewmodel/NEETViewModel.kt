@@ -5364,35 +5364,44 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         if (responseJson != null) {
                             val cleanJson = responseJson.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
                             val jsonObj = JSONObject(cleanJson)
-                            val detectedExam = jsonObj.optString("targetExam", currentTargetExam)
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(detectedExam)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
-                            
-                            val officialDefaultQuestions = examConfig?.let {
-                                Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(it.examName)
-                            } ?: 180
-                            val officialDefaultDuration = examConfig?.let {
-                                Com.ak.testseries.exam.UniversalExamRegistry.getDefaultDurationMinutesForExam(it.examName)
-                            } ?: 180
-                            val officialTotalMarks = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 720.0
+                            val targetExamId = jsonObj.optString("targetExamId").takeIf { it.isNotBlank() && !it.equals("null", true) }
+                            val confidence = jsonObj.optInt("confidence", -1)
+                            val needsUserConfirmation = jsonObj.optBoolean("needsUserConfirmation", true)
+                            if (targetExamId == null || confidence < 60 || needsUserConfirmation) {
+                                val message = "PDF से परीक्षा की पहचान भरोसेमंद तरीके से नहीं हो सकी। कोई NEET या अन्य परीक्षा अपने-आप नहीं चुनी गई। कृपया परीक्षा की पुष्टि करके दोबारा विश्लेषण करें।"
+                                _pdfAnalysisState.value = PdfAnalysisState.Error(message)
+                                aiGenStatusMessage.value = message
+                                return@launch
+                            }
+                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExamById(targetExamId)
+                                ?: run {
+                                    val message = "Gemini ने unregistered exam ID '$targetExamId' लौटाई। कोई default exam लागू नहीं की गई।"
+                                    _pdfAnalysisState.value = PdfAnalysisState.Error(message)
+                                    aiGenStatusMessage.value = message
+                                    return@launch
+                                }
+                            val detectedExam = examConfig.examName
+                            val officialDefaultQuestions = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(examConfig.examName)
+                            val officialDefaultDuration = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultDurationMinutesForExam(examConfig.examName)
+                            val officialTotalMarks = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 0.0
 
-                            val extractedCount = jsonObj.optInt("questionsCount", officialDefaultQuestions)
-                            val extractedDuration = jsonObj.optInt("timerMinutes", officialDefaultDuration)
-                            val extractedMarks = jsonObj.optDouble("totalMarks", officialTotalMarks)
+                            val extractedCount = jsonObj.optInt("questionsCount", -1).takeIf { it > 0 } ?: officialDefaultQuestions
+                            val extractedDuration = jsonObj.optInt("timerMinutes", -1).takeIf { it > 0 } ?: officialDefaultDuration
+                            val extractedMarks = jsonObj.optDouble("totalMarks", -1.0).takeIf { it > 0 } ?: officialTotalMarks
 
                             val result = AnalyzedTestResult(
-                                title = jsonObj.optString("title", "${examConfig?.shortName ?: detectedExam} Practice Test"),
-                                institute = jsonObj.optString("institute", "Previous Year Paper"),
-                                targetExam = examConfig?.examName ?: detectedExam,
-                                subject = jsonObj.optString("subject", examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "Full Syllabus"),
-                                classLevel = jsonObj.optString("classLevel", "All"),
-                                testType = jsonObj.optString("testType", "Full Syllabus"),
-                                chapter = jsonObj.optString("chapter", "Full Syllabus"),
-                                timerMinutes = if (extractedDuration > 0) extractedDuration else officialDefaultDuration,
-                                questionsCount = if (extractedCount > 0) extractedCount else officialDefaultQuestions,
-                                totalMarks = if (extractedMarks > 0) extractedMarks else officialTotalMarks,
-                                language = jsonObj.optString("language", "English"),
-                                confidence = jsonObj.optInt("confidence", 95),
+                                title = jsonObj.optString("title").takeIf { it.isNotBlank() && it != "null" } ?: "${examConfig.shortName} Practice Test",
+                                institute = jsonObj.optString("institute").takeIf { it.isNotBlank() && it != "null" } ?: "Unknown Source",
+                                targetExam = detectedExam,
+                                subject = jsonObj.optString("subject").takeIf { it.isNotBlank() && it != "null" } ?: "Full Syllabus",
+                                classLevel = jsonObj.optString("classLevel").takeIf { it.isNotBlank() && it != "null" } ?: "All",
+                                testType = jsonObj.optString("testType").takeIf { it.isNotBlank() && it != "null" } ?: "Full Syllabus",
+                                chapter = jsonObj.optString("chapter").takeIf { it.isNotBlank() && it != "null" } ?: "Full Syllabus",
+                                timerMinutes = extractedDuration,
+                                questionsCount = extractedCount,
+                                totalMarks = extractedMarks,
+                                language = jsonObj.optString("language").takeIf { it.isNotBlank() && it != "null" } ?: genLanguage.value,
+                                confidence = confidence,
                                 detectedQuestionsCount = localClassification.totalQuestionsDetected,
                                 isQuestionPaperDetected = isQuestionsDetected,
                                 autoRoutedWorkflow = routedWorkflow,
@@ -5414,12 +5423,22 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val lowerText = extractedText.lowercase()
 
             // 1. Detect Target Exam from text across 20 exams
-            val detectedExamConfig = registeredExams.find { exam ->
-                lowerText.contains(exam.examName.lowercase()) ||
-                lowerText.contains(exam.shortName.lowercase()) ||
-                lowerText.contains(exam.examId.lowercase().replace("_", " "))
-            } ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
-              ?: registeredExams.first()
+            val detectedExamConfig = registeredExams
+                .filter { exam ->
+                    lowerText.contains(exam.examName.lowercase()) ||
+                        lowerText.contains(exam.shortName.lowercase()) ||
+                        lowerText.contains(exam.examId.lowercase().replace("_", " "))
+                }
+                .maxByOrNull { exam ->
+                    listOf(exam.examName, exam.shortName, exam.examId.replace("_", " "))
+                        .filter { it.isNotBlank() && lowerText.contains(it.lowercase()) }
+                        .maxOfOrNull { it.length } ?: 0
+                } ?: run {
+                    val message = "PDF में किसी registered exam का स्पष्ट संकेत नहीं मिला। कोई default/पहली परीक्षा नहीं चुनी गई। कृपया परीक्षा का नाम स्पष्ट वाले PDF से दोबारा प्रयास करें या पहले target exam चुनें।"
+                    _pdfAnalysisState.value = PdfAnalysisState.Error(message)
+                    aiGenStatusMessage.value = message
+                    return@launch
+                }
 
             val detectedExamName = detectedExamConfig.examName
 
@@ -5440,7 +5459,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val availableSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(detectedExamName)
             val matchedSubject = availableSubjects.find { subj ->
                 lowerText.contains(subj.lowercase())
-            } ?: availableSubjects.firstOrNull() ?: "Full Syllabus"
+            } ?: "Full Syllabus"
 
             val matchedType = when {
                 lowerText.contains("full test") || lowerText.contains("full syllabus") || lowerText.contains("fts") || lowerText.contains("mock test") -> "Full Syllabus"
