@@ -10,7 +10,7 @@ class SyllabusCatalogTest {
     @Test
     fun testNeetUgSyllabusCatalog() {
         val chapters = SyllabusCatalog.getChapterDetailsForExam("NEET")
-        assertTrue("NEET syllabus should have at least 30 chapters", chapters.size >= 30)
+        assertTrue("NEET UG 2026 syllabus should include the full NMC unit/topic hierarchy", chapters.size >= 50)
 
         val subjects = chapters.map { it.subject }.distinct()
         assertTrue("Should contain Physics", subjects.contains("Physics"))
@@ -18,13 +18,19 @@ class SyllabusCatalogTest {
         assertTrue("Should contain Botany", subjects.contains("Botany"))
         assertTrue("Should contain Zoology", subjects.contains("Zoology"))
 
+        // NTA/NMC do not publish official chapter-wise weightage or expected question counts.
         chapters.forEach { ch ->
             assertTrue("Chapter title should not be blank", ch.chapter.isNotBlank())
-            assertTrue("Weightage percent should be positive", ch.weightagePercent > 0)
-            assertTrue("Priority should be High, Medium, or Core", ch.priority in listOf("High", "Medium", "Core"))
-            assertTrue("Key topics should not be empty", ch.keyTopics.isNotEmpty())
-            assertTrue("Expected questions should be at least 1", ch.totalQuestionsExpected >= 1)
+            assertEquals("Unpublished official weightage must not be fabricated", 0, ch.weightagePercent)
+            assertEquals("Unpublished expected question count must not be fabricated", 0, ch.totalQuestionsExpected)
+            assertEquals("Every NEET entry must be source-versioned", "Official NMC 2026", ch.priority)
+            assertTrue("Official unit topics should not be empty", ch.keyTopics.isNotEmpty())
         }
+        assertEquals(20, chapters.count { it.subject == "Physics" })
+        assertEquals(20, chapters.count { it.subject == "Chemistry" })
+        assertTrue("Biology must be split into the app's Botany/Zoology filters",
+            subjects.containsAll(listOf("Botany", "Zoology")))
+        assertEquals(NeetUg2026Syllabus.VERSION, "NEET_UG_2026_NMC_2025-12-22")
     }
 
     @Test
