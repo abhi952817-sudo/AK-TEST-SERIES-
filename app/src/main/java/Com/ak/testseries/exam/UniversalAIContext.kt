@@ -14,6 +14,56 @@ object UniversalAIContext {
     private const val PROMPT_VERSION = "AKTS_UNIVERSAL_PROMPT_V2"
 
     /**
+     * Builds the exact syllabus scope injected into Gemini generation prompts.
+     * NEET uses the versioned official NMC/NTA 2026 catalog. Other exams must
+     * provide their own independently verified official syllabus source; the
+     * legacy mixed catalog is not silently promoted to an authoritative source.
+     */
+    private fun buildSyllabusScopeInstruction(examConfig: ExamConfig, selectedSubject: String): String {
+        val isNeet = examConfig.examId.contains("NEET", ignoreCase = true) ||
+            examConfig.shortName.contains("NEET", ignoreCase = true)
+        if (!isNeet) {
+            return """
+                SYLLABUS SCOPE STATUS: NO VERIFIED VERSIONED EXAM-SPECIFIC SYLLABUS MODULE IS ATTACHED FOR THIS EXAM.
+                Use only an official syllabus document explicitly supplied with this task and verified by the Admin.
+                Do not treat legacy catalog entries, coaching estimates, inferred topics or model memory as official syllabus.
+                If no official syllabus evidence is supplied, do not invent chapter/topic labels; return NEEDS_REVIEW or an explicit scope error.
+            """.trimIndent()
+        }
+
+        val allUnits = NeetUg2026Syllabus.chapters
+        val normalized = selectedSubject.trim().lowercase()
+        val selectedSubjects = when (normalized) {
+            "", "all", "all subjects", "full syllabus" -> setOf("Physics", "Chemistry", "Botany", "Zoology")
+            "physics", "phy", "phys" -> setOf("Physics")
+            "chemistry", "chem" -> setOf("Chemistry")
+            "biology", "bio" -> setOf("Botany", "Zoology")
+            "botany", "bot" -> setOf("Botany")
+            "zoology", "zoo" -> setOf("Zoology")
+            else -> emptySet()
+        }
+        val units = allUnits.filter { it.subject in selectedSubjects }
+        if (units.isEmpty()) {
+            return "SYLLABUS SCOPE ERROR: '$selectedSubject' does not exactly resolve to a NEET 2026 canonical subject. Do not guess or substitute another subject; return NEEDS_REVIEW."
+        }
+
+        return buildString {
+            appendLine("CANONICAL SYLLABUS SCOPE (STRICT; DO NOT EXPAND)")
+            appendLine("Exam: ${examConfig.examName} (${examConfig.examId})")
+            appendLine("Version: ${NeetUg2026Syllabus.VERSION}")
+            appendLine("Authority: ${NeetUg2026Syllabus.AUTHORITY}")
+            appendLine("Official source: ${NeetUg2026Syllabus.OFFICIAL_SOURCE}")
+            appendLine("Selected subject scope: ${selectedSubjects.joinToString()}")
+            appendLine("Only the following unit and topic labels are valid for generated NEET questions:")
+            units.forEach { unit ->
+                appendLine("SUBJECT: ${unit.subject} | UNIT: ${unit.chapter}")
+                unit.keyTopics.forEach { topic -> appendLine("  - $topic") }
+            }
+            appendLine("Rules: use exact canonical subject/chapter/topic labels; do not create extra chapters, topics or subtopics; do not infer chapter weightage or expected question counts; if a question cannot be mapped exactly, flag it for Admin review instead of assigning the nearest topic.")
+        }.trim()
+    }
+
+    /**
      * Canonical system policy shared by Student and Admin Gemini calls.
      * This asks for verifiable conclusions, not private chain-of-thought.
      */
@@ -57,6 +107,8 @@ object UniversalAIContext {
             appendLine("SOURCE-OF-TRUTH ORDER")
             appendLine("1. The supplied source document and its page content are authoritative for extraction/transcription.")
             appendLine("2. The supplied verified ExamConfig is authoritative for exam identity, allowed question types, section structure, marks, negative marks, language and duration.")
+            appendLine("3. For NEET generation, the versioned NeetUg2026Syllabus catalog is the only allowed syllabus scope. For other exams, use only an explicitly supplied Admin-verified official syllabus module/source; legacy or estimated catalog data is not proof.")
+            appendLine("4. If the syllabus source and ExamConfig conflict, stop and flag the conflict for Admin review. Never silently expand or remap the syllabus.")
             appendLine("3. Use established subject knowledge only to independently solve or explain a well-posed question. Never use it to rewrite, fill in, or contradict source text.")
             appendLine("4. If sources conflict, are incomplete, illegible, ambiguous or outside the configured syllabus, flag the item for review. Never silently guess.")
             appendLine()
@@ -174,6 +226,7 @@ object UniversalAIContext {
         } else {
             "- No matching subject section was found in the supplied ExamConfig. Do not invent a subject, section or scoring rule. Return an explicit error."
         }
+        val syllabusScopeInstruction = buildSyllabusScopeInstruction(examConfig, subject)
         val canonicalSubjectInstruction = if (selectedSubjects.size == 1) {
             "Use subjectId=${selectedSubjects.single().subjectId} for every question."
         } else {
@@ -186,6 +239,7 @@ object UniversalAIContext {
             Exam: ${examConfig.examName}; subject selection: $subject; title: $testTitle
             Stage: ${selectedStage?.stageName ?: "UNRESOLVED"} (${selectedStage?.stageId ?: "UNKNOWN"})
             $canonicalSubjectInstruction
+            $syllabusScopeInstruction
             Configured subject/section IDs:
             $sectionDetails
             Requested maximum for this chunk: $currentChunkSize
@@ -218,6 +272,7 @@ object UniversalAIContext {
             Configured subjects and sections:
             $sectionDetails
             $canonicalSubjectInstruction
+            $syllabusScopeInstruction
 
             Generate original practice questions, not claimed PYQs. Base every question on the supplied source payload and configured syllabus/pattern. Do not introduce facts beyond the supplied material unless they are standard prerequisites needed to make a well-posed question; do not invent source citations.
             The number of each difficulty level should approximate the configured ratio over the whole requested test, not reset incorrectly for every small chunk. If this chunk's assigned range implies a distribution, follow it as closely as integer counts permit.
@@ -296,6 +351,7 @@ object UniversalAIContext {
             5. Each answer was checked; unresolved/conflicting answers are explicitly flagged.
             6. No source text, values, options, diagrams, page references or citations were invented.
             7. English/Hindi meaning and technical notation match.
+            8. For syllabus-scoped generation, chapter and topic use exact labels from the canonical syllabus; out-of-scope or unmappable items are not silently accepted.
             7. No duplicate or near-duplicate questions exist within this batch.
             8. Any uncertainty is represented as needsReview, not hidden.
         """.trimIndent()
