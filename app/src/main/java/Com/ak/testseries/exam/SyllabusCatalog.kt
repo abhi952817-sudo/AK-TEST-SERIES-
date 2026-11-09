@@ -41,7 +41,7 @@ object SyllabusCatalog {
                 subject = ch.subject,
                 chapter = ch.chapter,
                 topics = ch.keyTopics.joinToString(", "),
-                totalTests = maxOf(4, ch.weightagePercent * 2)
+                totalTests = 0 // Live availability is derived from real published tests, never estimated
             )
         }
     }
@@ -63,115 +63,9 @@ object SyllabusCatalog {
     // =========================================================================
     // 1. NEET UG SYLLABUS & WEIGHTAGE (Physics, Chemistry, Botany, Zoology)
     // =========================================================================
-    val neetUgSyllabus = listOf(
-        // --- PHYSICS ---
-        ChapterDetail("NEET", "Physics", "Rotational Motion & System of Particles", "Class 11", 7, "High",
-            listOf("Center of Mass & Velocity", "Torque & Angular Momentum Conservation", "Moment of Inertia Theorems", "Pure Rolling Motion on Incline"), 3),
-        ChapterDetail("NEET", "Physics", "Thermodynamics & Heat Transfer", "Class 11", 8, "High",
-            listOf("First Law of Thermodynamics", "Isothermal, Adiabatic & Isochoric Processes", "Carnot Engine & Efficiency", "Conduction, Convection & Radiation"), 3),
-        ChapterDetail("NEET", "Physics", "Current Electricity", "Class 12", 8, "High",
-            listOf("Ohm's Law, Drift Velocity & Mobility", "Kirchhoff's Laws & Loop Rule", "Wheatstone Bridge & Potentiometer Principle", "Series-Parallel Cells & Resistors"), 3),
-        ChapterDetail("NEET", "Physics", "Optics (Ray & Wave Optics)", "Class 12", 10, "High",
-            listOf("Total Internal Reflection & Critical Angle", "Lens Maker Formula & Prism Deviation", "Young's Double Slit Experiment (YDSE)", "Diffraction & Resolving Power"), 5),
-        ChapterDetail("NEET", "Physics", "Modern Physics & Dual Nature of Radiation", "Class 12", 10, "High",
-            listOf("Photoelectric Equation & Stopping Potential", "de-Broglie Matter Waves", "Bohr Atomic Model & Spectral Series", "Radioactivity & Nuclear Binding Energy"), 5),
-        ChapterDetail("NEET", "Physics", "Electrostatics & Capacitance", "Class 12", 8, "High",
-            listOf("Coulomb's Law in Vector Form", "Electric Dipole & Gauss's Law", "Equipotential Surfaces", "Capacitors with Dielectric Slabs"), 3),
-        ChapterDetail("NEET", "Physics", "Moving Charges & Magnetism", "Class 12", 7, "High",
-            listOf("Biot-Savart Law & Circular Coil Field", "Ampere's Circuital Law", "Magnetic Force on Wire & Charge", "Moving Coil Galvanometer Sensitivity"), 3),
-        ChapterDetail("NEET", "Physics", "Kinematics: 1D & 2D Motion", "Class 11", 6, "Medium",
-            listOf("Equations of Uniform Acceleration", "Projectile Motion & Maximum Range", "Relative Velocity & River-Boat Problems", "Centripetal Acceleration"), 2),
-        ChapterDetail("NEET", "Physics", "Laws of Motion & Friction", "Class 11", 6, "Medium",
-            listOf("Newton's Laws & Free Body Diagrams", "Static, Kinetic & Rolling Friction", "Banking of Curved Tracks", "Connected Pulley-Block Systems"), 2),
-        ChapterDetail("NEET", "Physics", "Electromagnetic Induction & Alternating Current", "Class 12", 7, "Medium",
-            listOf("Faraday's & Lenz's Induction Law", "Self & Mutual Inductance Coefficients", "LCR Series Circuit Resonance", "Power Factor & Step-up/down Transformers"), 3),
-        ChapterDetail("NEET", "Physics", "Semiconductor Electronics & Logic Gates", "Class 12", 6, "High",
-            listOf("Energy Bands (Conductor, Semiconductor, Insulator)", "p-n Junction Diode V-I Characteristics", "Zener Diode Voltage Regulator", "AND, OR, NOT, NAND, NOR Gates"), 3),
-        ChapterDetail("NEET", "Physics", "Gravitation", "Class 11", 5, "Medium",
-            listOf("Newton's Universal Gravitation", "Variation of g with Altitude & Depth", "Gravitational Potential Energy", "Orbital & Escape Velocity"), 2),
-        ChapterDetail("NEET", "Physics", "Work, Energy & Power", "Class 11", 5, "Medium",
-            listOf("Work-Energy Theorem", "Conservative vs Non-Conservative Forces", "Elastic & Inelastic Collisions", "Spring Potential Energy"), 2),
-        ChapterDetail("NEET", "Physics", "Oscillations & Simple Harmonic Motion", "Class 11", 4, "Medium",
-            listOf("Simple Harmonic Motion Differential Equation", "Simple Pendulum Time Period", "Kinetic & Potential Energy in SHM", "Damped & Forced Oscillations"), 2),
-        ChapterDetail("NEET", "Physics", "Waves & Acoustics", "Class 11", 4, "Medium",
-            listOf("Transverse & Longitudinal Wave Equations", "Standing Waves in Open & Closed Organ Pipes", "Beat Frequency Phenomenon", "Doppler Effect in Sound"), 2),
-
-        // --- CHEMISTRY ---
-        ChapterDetail("NEET", "Chemistry", "Chemical Bonding & Molecular Structure", "Class 11", 9, "High",
-            listOf("VSEPR Theory & Molecular Shapes", "Hybridization (sp, sp2, sp3, sp3d, sp3d2)", "Molecular Orbital Theory (Bond Order, Magnetism)", "Hydrogen Bonding & Dipole Moment"), 4),
-        ChapterDetail("NEET", "Chemistry", "Organic Chemistry: Principles & Techniques (GOC)", "Class 11", 8, "High",
-            listOf("IUPAC Nomenclature Rules", "Inductive, Electromeric & Resonance Effects", "Hyperconjugation & Carbocation Stability", "Structural & Stereo Isomerism"), 4),
-        ChapterDetail("NEET", "Chemistry", "Coordination Compounds", "Class 12", 8, "High",
-            listOf("Werner's Theory & Primary/Secondary Valence", "IUPAC Naming of Complexes", "Valence Bond Theory (VBT)", "Crystal Field Splitting in Octahedral/Tetrahedral"), 3),
-        ChapterDetail("NEET", "Chemistry", "Chemical & Ionic Equilibrium", "Class 11", 7, "High",
-            listOf("Law of Mass Action & Kp-Kc Relation", "Le Chatelier's Principle & Stress Response", "pH Calculations for Weak Acids & Bases", "Buffer Solutions & Solubility Product (Ksp)"), 3),
-        ChapterDetail("NEET", "Chemistry", "Aldehydes, Ketones & Carboxylic Acids", "Class 12", 8, "High",
-            listOf("Nucleophilic Addition Reactions", "Aldol & Cannizzaro Condensations", "Tollens' & Fehling's Reagents", "Acidity of Carboxylic Acids & Hell-Volhard Reaction"), 4),
-        ChapterDetail("NEET", "Chemistry", "Thermodynamics & Thermochemistry", "Class 11", 7, "High",
-            listOf("First Law: Work, Heat & Internal Energy", "Enthalpy of Reaction & Hess's Law", "Entropy & Second Law of Thermodynamics", "Gibbs Free Energy & Spontaneity Criteria"), 3),
-        ChapterDetail("NEET", "Chemistry", "Electrochemistry", "Class 12", 7, "High",
-            listOf("Galvanic Cells & Standard Hydrogen Electrode", "Nernst Equation & Cell Potential", "Kohlrausch's Law of Independent Migration", "Faraday's Laws of Electrolysis & Batteries"), 3),
-        ChapterDetail("NEET", "Chemistry", "Solutions & Colligative Properties", "Class 12", 6, "Medium",
-            listOf("Raoult's Law (Ideal & Non-ideal Solutions)", "Relative Lowering of Vapour Pressure", "Elevation in Boiling Point & Depression in Freezing", "Osmotic Pressure & Van't Hoff Factor"), 2),
-        ChapterDetail("NEET", "Chemistry", "Chemical Kinetics", "Class 12", 6, "Medium",
-            listOf("Rate of Reaction & Rate Law Expression", "Order vs Molecularity", "Integrated Rate Equations (Zero & First Order)", "Arrhenius Equation & Activation Energy"), 2),
-        ChapterDetail("NEET", "Chemistry", "Hydrocarbons", "Class 11", 6, "High",
-            listOf("Alkanes: Free Radical Halogenation", "Alkenes: Markownikoff & Anti-Markownikoff Addition", "Ozonolysis of Alkenes", "Benzene: Electrophilic Aromatic Substitution"), 3),
-        ChapterDetail("NEET", "Chemistry", "Alcohols, Phenols & Ethers", "Class 12", 6, "Medium",
-            listOf("Preparation & Lucas Test for Alcohols", "Kolbe's & Reimer-Tiemann Reactions of Phenol", "Williamson's Ether Synthesis", "Cleavage of Ethers by HI"), 2),
-        ChapterDetail("NEET", "Chemistry", "Amines & Nitrogen Compounds", "Class 12", 6, "Medium",
-            listOf("Basicity Order of Aliphatic & Aromatic Amines", "Hinsberg's Test for Distinction", "Hoffmann's Bromamide Degradation", "Diazonium Salt Synthetic Applications"), 2),
-        ChapterDetail("NEET", "Chemistry", "d- and f-Block Elements", "Class 12", 6, "Medium",
-            listOf("Lanthanoid & Actinoid Contraction", "Variable Oxidation States & Color Origin", "Magnetic Moment (Spin-only formula)", "KMnO4 and K2Cr2O7 Redox Reactions"), 2),
-        ChapterDetail("NEET", "Chemistry", "Biomolecules", "Class 12", 5, "Medium",
-            listOf("Monosaccharides: Glucose Structure & Mutarotation", "Amino Acids, Zwitterion & Peptide Linkage", "Primary to Quaternary Protein Structures", "DNA vs RNA & Denaturation"), 2),
-        ChapterDetail("NEET", "Chemistry", "Periodic Classification of Elements", "Class 11", 5, "Core",
-            listOf("Modern Periodic Table Trends", "Ionization Enthalpy & Electron Gain Enthalpy", "Electronegativity Scales (Pauling)", "Atomic, Ionic & Covalent Radii Variations"), 2),
-
-        // --- BOTANY ---
-        ChapterDetail("NEET", "Botany", "Genetics: Principles of Inheritance & Variation", "Class 12", 10, "High",
-            listOf("Mendel's Monohybrid & Dihybrid Crosses", "Incomplete Dominance, Codominance & Multiple Alleles", "Chromosomal Theory of Inheritance", "Linkage, Recombination & Pedigree Charts"), 6),
-        ChapterDetail("NEET", "Botany", "Molecular Basis of Inheritance", "Class 12", 10, "High",
-            listOf("DNA Double Helix Structure & Packaging", "Meselson-Stahl Semiconservative Replication", "Transcription Unit & RNA Processing", "Genetic Code, Translation & Lac Operon"), 6),
-        ChapterDetail("NEET", "Botany", "Photosynthesis in Higher Plants", "Class 11", 8, "High",
-            listOf("Chloroplast Pigments & Action Spectra", "Light Reaction: Photosystem I & II (Z-Scheme)", "Cyclic & Non-Cyclic Photophosphorylation", "Calvin Cycle (C3) & Hatch-Slack Pathway (C4)"), 4),
-        ChapterDetail("NEET", "Botany", "Respiration in Plants", "Class 11", 7, "High",
-            listOf("Glycolysis Steps & ATP Accounting", "Fermentation Pathway", "Krebs Cycle / TCA Cycle Reactions", "Electron Transport System (ETS) & ATP Synthase"), 3),
-        ChapterDetail("NEET", "Botany", "Cell Biology & Cell Cycle", "Class 11", 9, "High",
-            listOf("Prokaryotic vs Eukaryotic Cell Structure", "Endomembrane System (ER, Golgi, Lysosomes)", "Mitochondria & Chloroplast Semi-Autonomous Nature", "Mitosis vs Meiosis & Crossing Over Stages"), 5),
-        ChapterDetail("NEET", "Botany", "Sexual Reproduction in Flowering Plants", "Class 12", 8, "High",
-            listOf("Microsporogenesis & Pollen Grain Wall", "Megasporogenesis & Embryo Sac 7-celled 8-nucleate", "Double Fertilization & Triple Fusion", "Endosperm Development & Apomixis"), 4),
-        ChapterDetail("NEET", "Botany", "Ecosystem & Ecological Pyramids", "Class 12", 8, "High",
-            listOf("Productivity: Primary & Secondary (GPP, NPP)", "Decomposition Process Stages", "Pyramid of Numbers, Biomass & Energy", "Ecological Succession (Hydrarch, Xerarch)"), 4),
-        ChapterDetail("NEET", "Botany", "Plant Growth & Regulators (Phytohormones)", "Class 11", 5, "Medium",
-            listOf("Auxin, Gibberellin & Cytokinin Actions", "Ethylene & Abscisic Acid (Stress Hormone)", "Photoperiodism & Critical Day Length", "Vernalization & Seed Dormancy"), 2),
-        ChapterDetail("NEET", "Botany", "Morphology & Anatomy of Flowering Plants", "Class 11", 7, "Medium",
-            listOf("Root, Stem & Leaf Modifications", "Inflorescence Types (Racemose, Cymose)", "Dicot vs Monocot Stem/Root Anatomy", "Secondary Growth & Cambial Ring"), 3),
-
-        // --- ZOOLOGY ---
-        ChapterDetail("NEET", "Zoology", "Human Physiology: Neural Control & Coordination", "Class 11", 9, "High",
-            listOf("Neuron Structure & Resting Membrane Potential", "Action Potential Generation & Conduction", "Synaptic Transmission (Electrical & Chemical)", "Human Brain Parts & Reflex Arc"), 4),
-        ChapterDetail("NEET", "Zoology", "Human Physiology: Chemical Coordination (Endocrine)", "Class 11", 8, "High",
-            listOf("Hypothalamus & Pituitary Hormones Axis", "Thyroid, Parathyroid & Adrenal Glands", "Insulin, Glucagon & Diabetes Mellitus", "Mechanism of Hormone Action (Peptide vs Steroid)"), 4),
-        ChapterDetail("NEET", "Zoology", "Human Reproduction & Embryonic Development", "Class 12", 8, "High",
-            listOf("Male & Female Reproductive System Anatomy", "Spermatogenesis & Oogenesis Differences", "Hormonal Regulation of Menstrual Cycle", "Fertilization, Cleavage, Blastocyst & Implantation"), 4),
-        ChapterDetail("NEET", "Zoology", "Biotechnology: Principles & Processes", "Class 12", 9, "High",
-            listOf("Restriction Endonucleases (Molecular Scissors)", "Cloning Vectors: pBR322, Plasmids & Competent Host", "Polymerase Chain Reaction (PCR) Steps", "Agarose Gel Electrophoresis & Bioreactors"), 5),
-        ChapterDetail("NEET", "Zoology", "Biotechnology & Its Applications in Medicine", "Class 12", 7, "High",
-            listOf("Genetically Engineered Insulin (Humulin)", "Gene Therapy for ADA Deficiency", "RNA Interference (RNAi) in Pest Resistance", "Bt Crops & Transgenic Animal Models"), 3),
-        ChapterDetail("NEET", "Zoology", "Human Physiology: Circulation & Body Fluids", "Class 11", 7, "High",
-            listOf("Blood Composition, ABO & Rh Incompatibility", "Human Heart Anatomy & Conducting System (SA node)", "Cardiac Cycle, Cardiac Output & Blood Pressure", "Electrocardiogram (ECG) Waves Interpretation"), 3),
-        ChapterDetail("NEET", "Zoology", "Human Physiology: Excretory Products & Elimination", "Class 11", 7, "High",
-            listOf("Nephron Structure: Cortical vs Juxtamedullary", "Urine Formation: Filtration, Reabsorption, Secretion", "Counter-Current Multiplier Mechanism in Henle's Loop", "Regulation by ADH, RAAS & ANF"), 3),
-        ChapterDetail("NEET", "Zoology", "Animal Kingdom: Classification & Phyla", "Class 11", 7, "Medium",
-            listOf("Levels of Organization, Symmetry & Coelom Types", "Porifera, Cnidaria, Platyhelminthes & Annelida", "Arthropoda (Largest Phylum) & Mollusca Features", "Chordata Subphyla & Vertebrata Classes"), 3),
-        ChapterDetail("NEET", "Zoology", "Reproductive Health & Infertility Solutions", "Class 12", 6, "Medium",
-            listOf("Contraceptive Methods (Barrier, IUD, Hormonal)", "Medical Termination of Pregnancy (MTP Act)", "Sexually Transmitted Infections (STIs)", "Assisted Reproductive Technologies (IVF, ZIFT, ICSI)"), 2),
-        ChapterDetail("NEET", "Zoology", "Human Health & Disease", "Class 12", 7, "High",
-            listOf("Infectious Diseases (Typhoid, Pneumonia, Malaria Lifecycle)", "Innate vs Acquired Immunity (B-cells & T-cells)", "Antibody Structure & Types (IgG, IgA, IgM, IgE)", "Cancer Characteristics & AIDS Mechanism"), 3),
-        ChapterDetail("NEET", "Zoology", "Evolution & Darwinian Theories", "Class 12", 6, "Medium",
-            listOf("Origin of Life: Miller-Urey Experiment", "Homologous vs Analogous Organs (Divergent/Convergent)", "Natural Selection & Industrial Melanism", "Hardy-Weinberg Equilibrium Principle & Human Evolution"), 2)
-    )
+    // Official NEET UG 2026 syllabus: versioned NMC/UGMEB curriculum.
+    // Do not store estimated chapter weightage or fabricated expected test counts.
+    val neetUgSyllabus = NeetUg2026Syllabus.chapters
 
     // =========================================================================
     // 2. JEE MAINS SYLLABUS & WEIGHTAGE (Physics, Chemistry, Mathematics)
