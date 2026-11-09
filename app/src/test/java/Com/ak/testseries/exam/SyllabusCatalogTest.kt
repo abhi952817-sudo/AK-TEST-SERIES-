@@ -1,5 +1,6 @@
 package Com.ak.testseries.exam
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -10,7 +11,7 @@ class SyllabusCatalogTest {
     @Test
     fun testNeetUgSyllabusCatalog() {
         val chapters = SyllabusCatalog.getChapterDetailsForExam("NEET")
-        assertTrue("NEET syllabus should have at least 30 chapters", chapters.size >= 30)
+        assertTrue("NEET UG 2026 must expose the detailed NMC unit/topic catalog", chapters.size >= 50)
 
         val subjects = chapters.map { it.subject }.distinct()
         assertTrue("Should contain Physics", subjects.contains("Physics"))
@@ -18,13 +19,17 @@ class SyllabusCatalogTest {
         assertTrue("Should contain Botany", subjects.contains("Botany"))
         assertTrue("Should contain Zoology", subjects.contains("Zoology"))
 
+        // NTA/NMC do not notify chapter-wise weightage or per-chapter test counts.
         chapters.forEach { ch ->
             assertTrue("Chapter title should not be blank", ch.chapter.isNotBlank())
-            assertTrue("Weightage percent should be positive", ch.weightagePercent > 0)
-            assertTrue("Priority should be High, Medium, or Core", ch.priority in listOf("High", "Medium", "Core"))
-            assertTrue("Key topics should not be empty", ch.keyTopics.isNotEmpty())
-            assertTrue("Expected questions should be at least 1", ch.totalQuestionsExpected >= 1)
+            assertEquals("Do not fabricate official chapter weightage", 0, ch.weightagePercent)
+            assertEquals("Do not fabricate expected question counts", 0, ch.totalQuestionsExpected)
+            assertEquals("Syllabus must be tagged with official version", "Official NMC 2026", ch.priority)
+            assertTrue("Topic list must not be empty", ch.keyTopics.isNotEmpty())
         }
+        assertEquals(20, chapters.count { it.subject == "Physics" })
+        assertEquals(20, chapters.count { it.subject == "Chemistry" })
+        assertEquals("NEET_UG_2026_NMC_2025-12-22", NeetUg2026Syllabus.VERSION)
     }
 
     @Test
@@ -77,7 +82,7 @@ class SyllabusCatalogTest {
             assertTrue("Chapter name should not be blank", entity.chapter.isNotBlank())
             assertTrue("Subject should not be blank", entity.subject.isNotBlank())
             assertTrue("Topics string should not be blank", entity.topics.isNotBlank())
-            assertTrue("Total tests should be positive", entity.totalTests > 0)
+            assertEquals("Availability must be calculated from real tests, not syllabus estimates", 0, entity.totalTests)
         }
     }
 }
