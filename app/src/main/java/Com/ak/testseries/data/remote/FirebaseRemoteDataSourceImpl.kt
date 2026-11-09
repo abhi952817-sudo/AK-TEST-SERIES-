@@ -87,7 +87,13 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
         val liveTestsListener = firestore!!.collection("LiveTests").addSnapshotListener { snapshot, error ->
             if (error != null) return@addSnapshotListener
             if (snapshot != null) {
-                val newLiveTests = snapshot.documents.mapNotNull { doc ->
+                val newLiveTests = snapshot.documents
+                    .filter { doc ->
+                        doc.getBoolean("isPublic") == true &&
+                            doc.getString("status") == "Published" &&
+                            (doc.getLong("questionsCount") ?: 0L) > 0L
+                    }
+                    .mapNotNull { doc ->
                     try {
                         TestEntity(
                             id = doc.id,
