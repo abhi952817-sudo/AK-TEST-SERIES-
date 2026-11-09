@@ -45,11 +45,19 @@ object UniversalAIContext {
     /**
      * Finds the applicable sections for a given subject within the exam configuration.
      */
-    fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
-        val allSubjects = examConfig.stages.flatMap { it.papers.flatMap { p -> p.subjects } }
+    fun isKnownSubject(examConfig: ExamConfig, subject: String): Boolean {
         val requestedSubject = subject.trim()
-        if (requestedSubject.isBlank()) return emptyList()
-        val matchingSubject = allSubjects.firstOrNull {
+        if (requestedSubject.isBlank()) return false
+        return examConfig.stages.flatMap { it.papers.flatMap { p -> p.subjects } }.any {
+            it.subjectName.equals(requestedSubject, ignoreCase = true) ||
+                it.subjectId.equals(requestedSubject, ignoreCase = true)
+        }
+    }
+
+    fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
+        val requestedSubject = subject.trim()
+        if (!isKnownSubject(examConfig, requestedSubject)) return emptyList()
+        val matchingSubject = examConfig.stages.flatMap { it.papers.flatMap { p -> p.subjects } }.firstOrNull {
             it.subjectName.equals(requestedSubject, ignoreCase = true) ||
                 it.subjectId.equals(requestedSubject, ignoreCase = true)
         }
