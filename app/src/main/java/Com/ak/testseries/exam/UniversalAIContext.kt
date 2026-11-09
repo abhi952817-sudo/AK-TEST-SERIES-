@@ -39,9 +39,33 @@ object UniversalAIContext {
             }
             appendLine("5. DEFAULT OPTIONS: ${examConfig.defaultOptionCount} options for MCQs (or 0 for Numerical/NAT/TITA questions).")
             appendLine("6. NEEDS IMAGE: Set 'needsImage': true whenever the question requires a diagram, circuit, graph, or illustration.")
+            if (examConfig.examId == "neet_ug") {
+                appendLine()
+                appendLine(buildNeetQuestionStyleAndAnswerContract())
+            }
         }.trim()
     }
 
+    /** NEET-only generation and answer-solving rules. */
+    fun buildNeetQuestionStyleAndAnswerContract(): String = listOf(
+        "NEET UG QUESTION STYLE (NEET ONLY):",
+        "Biology: NCERT-first facts, definitions, examples, tables, diagrams, processes, sequences, genetics and statement understanding; stay within approved syllabus.",
+        "Physics: concept and equation application, units/dimensions, graphs and solvable numericals only within approved syllabus.",
+        "Chemistry: distinguish Physical, Organic and Inorganic; verify equations, structures, reagents, conditions and reaction logic.",
+        "Use a balanced cognitive mix: NCERT recall, conceptual understanding, application, statement analysis, diagram/graph interpretation and numerical solving. Do not claim official style quotas.",
+        "Standard NEET format: exactly four distinct options A-D and exactly one correct answer. No assertion-reason, match, multi-select or numerical-entry unless a separately configured practice mode explicitly permits it.",
+        "Difficulty: follow configured target ratio. Easy=direct NCERT/foundation; Medium=linked concepts/moderate calculation; Hard=multi-concept reasoning within syllabus. Length and obscure trivia do not define difficulty.",
+        "Provide faithful English and Hindi; preserve scientific terms, symbols, units, equations and meaning. Without approved syllabus snapshot, do not claim official mapping or invent chapter weightage.",
+        "ANSWER EXTRACTION: keep printed sourceAnswer separate from independently solved independentAnswer. Record source page/question evidence when available.",
+        "Solve from stem, data, diagram and options; independently test all four options and confirm exactly one correct option. Never copy the printed key as independent verification.",
+        "Physics solution: formula, substitution, calculation, unit and final option; check dimensions, sign, significant figures and arithmetic.",
+        "Physical Chemistry: equation, substitution, units and calculation. Organic/Inorganic: verify reaction, reagent, condition, structure, oxidation state, trend or NCERT fact.",
+        "Biology: verify NCERT-level fact, sequence, location, function, relation or diagram label; do not add unsupported claims.",
+        "If independentAnswer conflicts with sourceAnswer, set answerStatus=ANSWER_KEY_CONFLICT and NEEDS_REVIEW. If data is incomplete/ambiguous, set INSUFFICIENT_QUESTION_DATA and never guess.",
+        "If no printed key exists but a defensible solution exists, set INDEPENDENTLY_SOLVED_NOT_SOURCE_KEY_VERIFIED.",
+        "Return concise solutionSteps and verificationSummary only, never private chain-of-thought. Keep sourceAnswer, independentAnswer and finalAnswer separate; set finalAnswer only after valid independent solution and no unresolved conflict.",
+        "Answer verification is separate from question quality and difficulty scoring."
+    ).joinToString("\\n")
     /**
      * Finds the applicable sections for a given subject within the exam configuration.
      */
