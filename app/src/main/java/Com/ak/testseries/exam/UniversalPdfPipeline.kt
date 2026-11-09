@@ -162,12 +162,32 @@ object UniversalPdfPipeline {
                     totalQuestions = expectedQuestions,
                     isExtractionMode = compactMarkdown.isNotBlank()
                 )
+                // Add the NTA JEE Main 2027 unit index only for an exact Paper 1 route.
+                // It is explicitly marked NOT APPROVED and cannot be used as official topic mapping.
+                val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId }
+                val selectedPaper = selectedStage?.papers?.singleOrNull { paper ->
+                    paper.subjects.any { it.subjectId == subjectId.trim() }
+                }
+                val jeeMainUnitContext = if (
+                    examConfig.examId == JeeMain2027SyllabusIndex.EXAM_ID &&
+                    stageId == JeeMain2027SyllabusIndex.STAGE_ID &&
+                    selectedPaper?.paperId == JeeMain2027SyllabusIndex.PAPER_ID
+                ) {
+                    UniversalPdfPromptContract.buildJeeMain2027UnitIndexContext(subjectId.trim())
+                } else {
+                    ""
+                }
+                val promptWithSyllabusContext = if (jeeMainUnitContext.isNotBlank()) {
+                    "$prompt\\n\\n$jeeMainUnitContext"
+                } else {
+                    prompt
+                }
                 val systemInstruction = UniversalAIContext.buildSystemInstruction(examConfig)
 
                 // Call Gemini API if key is available
                 var batchModels: List<UniversalQuestionModel>? = null
                 if (!effectiveApiKey.isNullOrBlank()) {
-                    val apiResult = callGeminiApi(effectiveApiKey, prompt, systemInstruction)
+                    val apiResult = callGeminiApi(effectiveApiKey, promptWithSyllabusContext, systemInstruction)
                     if (apiResult != null) {
                         val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Gemini API Generation"
                         batchModels = parseGeminiResponse(
