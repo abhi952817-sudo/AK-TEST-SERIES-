@@ -6723,7 +6723,11 @@ fun AdminTestGenerationContent(viewModel: NEETViewModel) {
                                 timestamp = System.currentTimeMillis(),
                                 imageUrl = imageUrl.ifEmpty { null }
                             )
-                            viewModel.addNewTest(newTest) // Need to define this in viewModel
+                            android.widget.Toast.makeText(
+                                context,
+                                "Empty test shells are disabled. Add real questions through the PDF/Gemini review workflow before creating a test.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(40.dp),
