@@ -65,4 +65,33 @@ class UniversalPdfPromptContractTest {
         assertTrue(UniversalAIContext.getApplicableSections(neet, "not-a-real-subject").isEmpty())
         assertTrue(UniversalAIContext.getApplicableSections(neet, "").isEmpty())
     }
+
+    @Test
+    fun syllabusAwareGenerationRequiresVersionedSnapshotAndNeverPublishes() {
+        val prompt = UniversalPdfPromptContract.buildSyllabusAwareQuestionGenerationPrompt(
+            examId = "jee_main",
+            syllabusVersion = null,
+            paperId = "jee_main_p1",
+            subjectId = "physics",
+            approvedSyllabusJson = "",
+            questionCount = 500,
+            language = "Hindi + English"
+        )
+        assertTrue(prompt.contains("NO_APPROVED_VERSION"))
+        assertTrue(prompt.contains("OFFICIAL_SYLLABUS_MATCHING_ENABLED: false"))
+        assertTrue(prompt.contains("REQUESTED_QUESTION_COUNT: 180"))
+        assertTrue(prompt.contains("publishAllowed must always be false"))
+        assertTrue(prompt.contains("Do not mix JEE Main and JEE Advanced"))
+    }
+
+    @Test
+    fun bareJeeAliasIsRejectedInsteadOfSilentlySelectingMain() {
+        assertNull(UniversalExamRegistry.findExamByNameOrShortName("JEE"))
+        assertEquals("jee_main", UniversalExamRegistry.findExamByNameOrShortName("JEE Main")?.examId)
+        assertEquals("jee_advanced", UniversalExamRegistry.findExamByNameOrShortName("JEE Advanced")?.examId)
+        assertEquals("UNKNOWN", UniversalExamRegistry.getCanonicalExamKey("JEE"))
+        assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("JEE Main"))
+        assertEquals("JEE_ADVANCED", UniversalExamRegistry.getCanonicalExamKey("JEE Advanced"))
+    }
+
 }
