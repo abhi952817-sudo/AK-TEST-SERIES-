@@ -1404,47 +1404,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         return qJsonArray.toString()
     }
 
-    private fun createSampleQuestionsForTest(test: TestEntity): List<QuestionEntity> {
-        val questions = mutableListOf<QuestionEntity>()
-        val count = if (test.questionsCount > 0) test.questionsCount else 10
-        for (i in 0 until count) {
-            questions.add(
-                QuestionEntity(
-                    id = "${test.id}_q${i}",
-                    testId = test.id,
-                    questionText = "${test.subject} Question ${i + 1} (${test.chapter.ifEmpty { "General" }})",
-                    optionA = "Option A",
-                    optionB = "Option B",
-                    optionC = "Option C",
-                    optionD = "Option D",
-                    correctAnswer = "A",
-                    explanation = "Explanation for Question ${i + 1}",
-                    subject = test.subject,
-                    chapter = test.chapter,
-                    topic = test.topic,
-                    questionTextHi = "${test.subject} प्रश्न ${i + 1} (${test.chapter.ifEmpty { "सामान्य" }})",
-                    optionAHi = "विकल्प A",
-                    optionBHi = "विकल्प B",
-                    optionCHi = "विकल्प C",
-                    optionDHi = "विकल्प D",
-                    explanationHi = "प्रश्न ${i + 1} का व्याख्यात्मक उत्तर"
-                )
-            )
-        }
-        return questions
-    }
-
-    fun addNewTest(test: TestEntity) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val questions = createSampleQuestionsForTest(test)
-            val questionsJsonString = serializeQuestionsToJson(questions)
-            val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
-            repository.insertTest(testWithJson)
-            repository.insertQuestions(questions)
-            uploadTestToFirestore(testWithJson, questionsJsonString)
-        }
-    }
-
     fun scheduleLiveTest(
         title: String,
         subject: String,
@@ -1457,8 +1416,23 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         targetExam: String = "NEET UG",
         customQuestions: List<QuestionEntity>? = null
     ) {
-        if (customQuestions.isNullOrEmpty() && pdfUri == null) {
-            android.util.Log.w("NEETViewModel", "Live test creation blocked: no source PDF or verified questions supplied.")
+        if (!isAdmin || customQuestions.isNullOrEmpty()) {
+            android.util.Log.w("NEETViewModel", "Live test creation blocked: admin-supplied, non-empty questions are required. PDF-only input must pass the Universal PDF/Gemini review workflow first.")
+            return
+        }
+        val invalidLiveQuestions = customQuestions.filter { question ->
+            val isNumeric = question.questionType.uppercase() in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT")
+            val options = listOf(question.optionA, question.optionB, question.optionC, question.optionD)
+            val optionsValid = if (isNumeric) options.all { it.isBlank() } || options.all { it.isNotBlank() }
+                else options.all { it.isNotBlank() } && options.none { option ->
+                    listOf("Option A", "Option B", "Option C", "Option D", "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                        .any { option.trim().equals(it, ignoreCase = true) }
+                }
+            question.questionText.isBlank() || question.correctAnswer.isBlank() ||
+                question.explanation.isBlank() || !optionsValid
+        }
+        if (invalidLiveQuestions.isNotEmpty()) {
+            android.util.Log.w("NEETViewModel", "Live test creation blocked: ${invalidLiveQuestions.size} incomplete or placeholder questions.")
             return
         }
         viewModelScope.launch(Dispatchers.IO) {
@@ -1466,13 +1440,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val db = firestoreDb
                 val testId = "live_" + System.currentTimeMillis()
 
-                val questions = if (!customQuestions.isNullOrEmpty()) {
-                    customQuestions.mapIndexed { idx, q -> q.copy(id = "${testId}_q$idx", testId = testId) }
-                } else {
-                    emptyList()
-                }
+                val questions = customQuestions.mapIndexed { idx, q -> q.copy(id = "${testId}_q$idx", testId = testId) }
                 val questionsJsonString = serializeQuestionsToJson(questions)
-                val effectiveQCount = if (questions.isNotEmpty()) questions.size else questionsCount
+                val effectiveQCount = questions.size
 
                 val testData = hashMapOf(
                     "id" to testId,
@@ -1521,19 +1491,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     android.util.Log.e("NEETViewModel", "Error broadcasting live test notification: ${ne.message}")
                 }
 
-                // Trigger AI Extraction if PDF was uploaded
-                if (finalPdfUrl.isNotEmpty()) {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        val keys = getGeminiApiKeys()
-                        val apiKey = if (keys.isNotEmpty()) keys.first().second else ""
-                        Com.ak.testseries.utils.GeminiPdfExtractor.processPdfWithGemini(
-                            pdfUrl = finalPdfUrl,
-                            testId = testId,
-                            apiKey = apiKey,
-                            totalQuestionsExpected = effectiveQCount
-                        )
-                    }
-                }
 
                 val roomTest = TestEntity(
                     id = testId,
@@ -1547,15 +1504,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     difficulty = "Medium",
                     testType = "Live",
                     questionsCount = effectiveQCount,
-                    isOfficial = true,
-                    isVerifiedCommunity = true,
+                    isOfficial = false,
+                    isVerifiedCommunity = false,
+                    countsTowardRanking = false,
                     classLevel = classLevel,
                     targetExam = targetExam,
                     chapter = chapter,
                     timestamp = System.currentTimeMillis(),
                     imageUrl = null,
                     questionsJson = questionsJsonString,
-                    isPublic = true
+                    isPublic = true,
+                    status = "Published"
                 )
                 repository.insertTest(roomTest)
                 if (questions.isNotEmpty()) {
