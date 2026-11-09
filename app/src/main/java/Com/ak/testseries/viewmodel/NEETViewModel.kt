@@ -4657,15 +4657,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
 
-                    if (allQuestionsList.isNotEmpty()) {
+                    if (allQuestionsList.size == totalQuestions) {
                         val combinedArray = org.json.JSONArray()
                         for (obj in allQuestionsList) {
                             combinedArray.put(obj)
                         }
-                        saveGeneratedTest(combinedArray.toString())
-                        recordDailyGeneration()
-                        aiGenStatusMessage.value = "Successfully generated ${allQuestionsList.size} questions!"
-                        _aiGenState.value = AiGenerationState.Success
+                        val saved = saveGeneratedTest(combinedArray.toString())
+                        if (saved) {
+                            recordDailyGeneration()
+                            aiGenStatusMessage.value = "Successfully generated ${allQuestionsList.size} questions for private review."
+                            _aiGenState.value = AiGenerationState.Success
+                        }
                         return@launch
                     }
                 } catch (e: Exception) {
@@ -5548,9 +5550,45 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun saveGeneratedTest(jsonString: String) = withContext(Dispatchers.IO) {
+    private suspend fun saveGeneratedTest(jsonString: String): Boolean = withContext(Dispatchers.IO) {
         val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val jsonArray = JSONArray(cleanJson)
+        if (jsonArray.length() == 0) {
+            _aiGenState.value = AiGenerationState.Error("Gemini returned an empty question set. Nothing was saved.")
+            aiGenStatusMessage.value = "Empty Gemini response. No test was created."
+            return@withContext false
+        }
+        val numericTypes = setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT", "INTEGER")
+        val invalidQuestionNumbers = mutableListOf<Int>()
+        for (index in 0 until jsonArray.length()) {
+            val q = jsonArray.optJSONObject(index)
+            if (q == null) {
+                invalidQuestionNumbers.add(index + 1)
+                continue
+            }
+            val text = q.optString("questionTextEn").ifBlank { q.optString("questionText") }
+            val optionKeys = listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn")
+            val options = optionKeys.map { key -> q.optString(key).ifBlank { q.optString(key.removeSuffix("En")) } }
+            val questionType = q.optString("questionType", "MCQ").uppercase()
+            val isNumeric = questionType in numericTypes
+            val answer = q.optString("correctAnswer").trim()
+            val explanation = q.optString("explanationEn").ifBlank { q.optString("explanation") }.ifBlank { q.optString("reasoning") }
+            val hasPlaceholder = options.any { option ->
+                listOf("Option A", "Option B", "Option C", "Option D", "Option E",
+                    "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                    .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
+            }
+            val optionsValid = if (isNumeric) options.all { it.isBlank() } || options.all { it.isNotBlank() }
+                else options.all { it.isNotBlank() } && !hasPlaceholder
+            if (text.isBlank() || answer.isBlank() || explanation.isBlank() || !optionsValid) {
+                invalidQuestionNumbers.add(index + 1)
+            }
+        }
+        if (invalidQuestionNumbers.isNotEmpty()) {
+            _aiGenState.value = AiGenerationState.Error("Gemini returned incomplete or placeholder question data.")
+            aiGenStatusMessage.value = "Test blocked. Invalid question numbers: ${invalidQuestionNumbers.joinToString(", ")}. No test was saved."
+            return@withContext false
+        }
         val testId = "ai_" + System.currentTimeMillis()
 
         val questions = mutableListOf<QuestionEntity>()
@@ -5559,15 +5597,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         
         for (i in 0 until jsonArray.length()) {
             val qObj = jsonArray.getJSONObject(i)
-            val qChapter = qObj.optString("chapter", "General Dynamics")
-            val qTopic = qObj.optString("topic", "General Topic")
+            val qChapter = qObj.optString("chapter", "")
+            val qTopic = qObj.optString("topic", "")
             
             if (i == 0) {
                 primaryChapter = qChapter
                 primaryTopic = qTopic
             }
             
-            val qTextEn = qObj.optString("questionTextEn", "Question Text")
+            val qTextEn = qObj.optString("questionTextEn").ifBlank { qObj.optString("questionText") }
             val qTextHi = qObj.optString("questionTextHi", "")
             val reasoning = qObj.optString("reasoning", "")
             val expEn = qObj.optString("explanationEn", "").ifBlank { reasoning }
@@ -5599,10 +5637,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     id = "${testId}_q${i}",
                     testId = testId,
                     questionText = qTextEn,
-                    optionA = qObj.optString("optionAEn", "Option A"),
-                    optionB = qObj.optString("optionBEn", "Option B"),
-                    optionC = qObj.optString("optionCEn", "Option C"),
-                    optionD = qObj.optString("optionDEn", "Option D"),
+                    optionA = qObj.optString("optionAEn").ifBlank { qObj.optString("optionA") },
+                    optionB = qObj.optString("optionBEn").ifBlank { qObj.optString("optionB") },
+                    optionC = qObj.optString("optionCEn").ifBlank { qObj.optString("optionC") },
+                    optionD = qObj.optString("optionDEn").ifBlank { qObj.optString("optionD") },
                     optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
@@ -5685,8 +5723,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             topic = primaryTopic,
             questionsJson = questionsJsonString,
             uploaderId = authenticatedUid,
-            isPublic = genIsPublic.value,
-            status = initialStatus
+            isPublic = false,
+            status = if (genIsPublic.value || isLiveTest) "Under Review" else "Published"
         )
 
         repository.insertTest(newTest)
@@ -5759,6 +5797,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             android.util.Log.e("NEETViewModel", "Automatic community share failed (test preserved): ${e.localizedMessage}", e)
         }
+        true
     }
 
     private fun saveQuestionsJsonToInternalStorage(testId: String, questionsJsonString: String) {
