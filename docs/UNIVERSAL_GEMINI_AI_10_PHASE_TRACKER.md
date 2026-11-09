@@ -183,3 +183,10 @@ Implementation branch commits:
 - Offline exam marker matching now uses token boundaries for short names/IDs, preventing substring false positives such as matching `NET` inside unrelated words. Commit: `ae007f71a13bbc9263b9c1d72f79b8b4f04fcf71`.
 - Admin PDF pipeline no longer substitutes unrelated bundled-catalog questions when the uploaded PDF is unreadable or the local parser finds fewer questions. Only questions parsed from the supplied PDF can enter this PDF extraction fallback; missing source items remain missing and the batch stays incomplete. Commit: `fa236669d09976a30a838e6f49194904c519f7a7`.
 - Exam marker matching was tightened with token boundaries to avoid false positives from short exam acronyms embedded inside unrelated words. Commit: `ae007f71a13bbc9263b9c1d72f79b8b4f04fcf71`.
+## CI failure triage and test-environment fixes — 2026-11-09
+
+- Inspected prior workflow run `42476938214`: Java/Kotlin compilation and test compilation completed; `:app:testDebugUnitTest` failed with 15/321 tests. Fourteen Gemini validator failures shared Android framework `org.json` local-JVM stub runtime exceptions (`GeminiResponseValidatorTest`), not 14 distinct validator logic failures.
+- Added `testImplementation("org.json:json:20240303")` so local JVM tests use a real JSON implementation. Commit: `90e869e571bdc9bd09f121c7e65a7ca8ede5a8d3`.
+- The remaining `CrashResilienceTest` failure originated from Robolectric's default SDK provider. Pinned that test class to SDK 35 without changing production targetSdk 36. Commit: `5275945e464f2c7323b998ef6dabd87da7d40611`.
+- The latest changes have not yet been verified by a fresh completed CI run. Do not infer that the 15 failures are fixed until `:app:testDebugUnitTest` and `:app:assembleDebug` complete on the latest feature-branch head.
+- PDF pipeline source/catalog separation was committed as `aa81acb85f32e5d92153e517dd3cf8e8ce0ae316`.
