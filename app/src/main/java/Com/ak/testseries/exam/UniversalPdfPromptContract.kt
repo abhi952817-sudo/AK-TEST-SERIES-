@@ -138,4 +138,59 @@ object UniversalPdfPromptContract {
             Return ONLY valid JSON. Set "publishAllowed": false and "status": "DRAFT_REVIEW".
         """.trimIndent()
     }
+
+    /**
+     * Question-generation prompt with a resolved, versioned syllabus snapshot.
+     * Callers must resolve the exact exam/version/paper/subject before invoking this.
+     * An empty or unapproved snapshot deliberately blocks official-syllabus claims.
+     */
+    fun buildSyllabusAwareQuestionGenerationPrompt(
+        examId: String,
+        syllabusVersion: String?,
+        paperId: String,
+        subjectId: String,
+        approvedSyllabusJson: String,
+        questionCount: Int,
+        language: String
+    ): String {
+        val safeCount = questionCount.coerceIn(1, 180)
+        val hasApprovedSnapshot = !syllabusVersion.isNullOrBlank() && approvedSyllabusJson.isNotBlank()
+        return """
+            ${SAFETY}
+
+            CONTRACT_VERSION: ${VERSION}
+            TASK: Generate exam-aligned questions using only the supplied approved syllabus snapshot.
+            EXAM_ID: ${examId}
+            SYLLABUS_VERSION: ${syllabusVersion ?: "NO_APPROVED_VERSION"}
+            PAPER_ID: ${paperId}
+            SUBJECT_ID: ${subjectId}
+            OUTPUT_LANGUAGE: ${language}
+            REQUESTED_QUESTION_COUNT: ${safeCount}
+            OFFICIAL_SYLLABUS_MATCHING_ENABLED: ${hasApprovedSnapshot}
+
+            CANONICAL_SYLLABUS_SNAPSHOT:
+            ${approvedSyllabusJson.take(50000).ifBlank { "NO_APPROVED_SYLLABUS_SNAPSHOT" }}
+
+            HARD RULES:
+            - Use only exact chapterId/topicId values present in the supplied snapshot.
+            - Never infer missing topics from NCERT, coaching notes, previous-year trends or model memory.
+            - Do not mix JEE Main and JEE Advanced, papers, years, stages or subjects.
+            - Every question must include sourceTopicIds, syllabusVersion and coverageType.
+            - If no approved snapshot is supplied, generate only explicitly labelled GENERAL_PRACTICE
+              when the caller allows it; otherwise return BLOCKED_NO_APPROVED_SYLLABUS.
+            - Do not invent official weightage, question distribution or marking rules.
+            - Verify answer, options, units, numerical precision and explanation consistency.
+            - Return structured JSON only. No hidden reasoning or chain-of-thought.
+            - Every result is a private draft; publishAllowed must always be false.
+
+            REQUIRED RESPONSE FIELDS:
+            contractVersion, examId, syllabusVersion, paperId, subjectId,
+            status, questions[], unmappedItems[], validationErrors[], publishAllowed.
+            Each question: questionId, questionType, difficulty, questionText,
+            questionTextHi, options, optionsHi, correctAnswer, explanation,
+            explanationHi, positiveMarks, negativeMarks, chapterId, topicId,
+            sourceTopicIds, coverageType, verificationSummary.
+        """.trimIndent()
+    }
+
 }
