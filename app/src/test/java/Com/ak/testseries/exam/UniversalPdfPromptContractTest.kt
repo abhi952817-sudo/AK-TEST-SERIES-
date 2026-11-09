@@ -1,6 +1,5 @@
 package Com.ak.testseries.exam
 
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -59,9 +58,8 @@ class UniversalPdfPromptContractTest {
 
     @Test
     fun unknownSubjectDoesNotSilentlyFallBackToFirstConfiguredSubject() {
-        val neet = UniversalExamRegistry.getExam("neet_ug")
-        assertTrue(neet != null)
-        assertTrue(UniversalAIContext.isKnownSubject(neet!!, "physics"))
+        val neet = UniversalExamRegistry.getExam("neet_ug") ?: error("NEET registry entry missing")
+        assertTrue(UniversalAIContext.isKnownSubject(neet, "physics"))
         assertTrue(UniversalAIContext.getApplicableSections(neet, "physics").isNotEmpty())
         assertFalse(UniversalAIContext.isKnownSubject(neet, "not-a-real-subject"))
         assertTrue(UniversalAIContext.getApplicableSections(neet, "not-a-real-subject").isEmpty())
