@@ -43,4 +43,5 @@ object QuestionJsonSerializer {
         val array = JSONArray()
         questions.forEach { question -> array.put(JSONObject(toMap(question))) }
         return array.toString()
-    }}
+    }
+}
