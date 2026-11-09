@@ -12,6 +12,8 @@ import kotlinx.coroutines.tasks.await
 
 class FirebaseRemoteDataSourceImpl : RemoteDataSource {
 
+    private val retiredDemoTestIds = setOf("official_neet_ug_mock_01", "official_jee_mains_mock_01", "official_upsc_cds_mock_01", "official_ssc_cgl_mock_01", "official_banking_ibps_mock_01", "official_rrb_ntpc_mock_01", "official_ugc_net_paper1_mock_01", "official_cat_full_mock_01")
+
     private val firestore: FirebaseFirestore? by lazy {
         try {
             FirestoreHelper.getInstance()
@@ -32,11 +34,13 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
         val testsListener = firestore!!.collection("Tests_Data").addSnapshotListener { snapshot, error ->
             if (error != null) return@addSnapshotListener
             if (snapshot != null) {
-                val newTests = snapshot.documents.mapNotNull { doc ->
+                val newTests = snapshot.documents
+                    .filterNot { it.id in retiredDemoTestIds }
+                    .mapNotNull { doc ->
                     try {
                         val isOfficialVal = doc.getBoolean("isOfficial") ?: false
                         val statusVal = doc.getString("status") ?: if (isOfficialVal) "Published" else "Draft"
-                        val isPublicVal = doc.getBoolean("isPublic") ?: (isOfficialVal || statusVal == "Published")
+                        val isPublicVal = doc.getBoolean("isPublic") ?: false
                         TestEntity(
                             id = doc.id,
                             title = doc.getString("title") ?: "Unknown Test",
@@ -54,7 +58,7 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             isPublic = isPublicVal,
                             status = statusVal,
                             uploaderId = doc.getString("uploaderId") ?: doc.getString("creatorId") ?: "",
-                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: true,
+                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: false,
                             targetExam = doc.getString("targetExam") ?: "NEET",
                             durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 0,
                             classLevel = doc.getString("classLevel") ?: "11th",
