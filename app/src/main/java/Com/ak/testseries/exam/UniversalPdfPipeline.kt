@@ -429,147 +429,92 @@ object UniversalPdfPipeline {
         stageId: String,
         subjectId: String,
         batchIndex: Int,
-        batchSize: Int,
         existingHashes: Map<String, String>,
         actualModel: String = "UNAVAILABLE",
         actualSource: String = "UNAVAILABLE"
     ): List<UniversalQuestionModel> {
+        val envelope = try {
+            GeminiResponseContract.parseEnvelope(jsonString)
+        } catch (e: Exception) {
+            android.util.Log.e("UniversalPdfPipeline", "Rejected Gemini response envelope: ${e.message}")
+            return emptyList()
+        }
         val resultList = mutableListOf<UniversalQuestionModel>()
-        try {
-            val responseReport = GeminiResponseValidator.parseResponse(
-                raw = jsonString,
-                examConfig = examConfig,
-                expectedSubjectId = subjectId
+        for (i in 0 until envelope.questions.length()) {
+            val item = envelope.questions.optJSONObject(i) ?: continue
+            val qText = item.optString("questionTextEn").ifBlank { item.optString("questionText") }.trim()
+            if (qText.isBlank()) continue
+            val qIndexInBatch = (batchIndex * 10) + i + 1
+            val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch)
+            val contractCheck = GeminiResponseContract.validateQuestion(
+                item, examConfig, subjectId, qIndexInBatch,
+                actualSource.contains("Extract", ignoreCase = true)
             )
-            if (!responseReport.isUsable) return emptyList()
-            val jsonArray = responseReport.questions
-
-            for (i in 0 until jsonArray.length()) {
-                val item = jsonArray.getJSONObject(i)
-                val qText = item.optString("questionTextEn").ifBlank { item.optString("questionText") }
-                if (qText.isBlank()) continue
-
-                val optA = item.optString("optionAEn").ifBlank { item.optString("optionA") }
-                val optB = item.optString("optionBEn").ifBlank { item.optString("optionB") }
-                val optC = item.optString("optionCEn").ifBlank { item.optString("optionC") }
-                val optD = item.optString("optionDEn").ifBlank { item.optString("optionD") }
-                val optE = item.optString("optionEEn").ifBlank { item.optString("optionE") }
-                val options = listOf(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
-
-                val qIndexInBatch = (batchIndex * batchSize) + i + 1
-                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch) ?: continue
-                val parsedSecId = item.optString("sectionId")
-                val parsedSecName = item.optString("sectionName")
-                if (parsedSecId != resolvedSection.sectionId || parsedSecName != resolvedSection.sectionName) continue
-                val parsedPosMarks = item.optDouble("positiveMarks", Double.NaN)
-                val parsedNegMarks = item.optDouble("negativeMarks", Double.NaN)
-                if (!parsedPosMarks.isFinite() || !parsedNegMarks.isFinite() ||
-                    kotlin.math.abs(parsedPosMarks - resolvedSection.positiveMarks) > 0.000001 ||
-                    kotlin.math.abs(parsedNegMarks - resolvedSection.negativeMarks) > 0.000001
-                ) continue
-
-                val diffStr = item.optString("difficulty", "MEDIUM").uppercase()
-                val diffLevel = when {
-                    diffStr.contains("EASY") -> DifficultyLevel.EASY
-                    diffStr.contains("HARD") -> DifficultyLevel.HARD
-                    else -> DifficultyLevel.MEDIUM
-                }
-
-                val qTypeStr = item.optString("questionType").uppercase()
-                val parsedQType = when {
-                    qTypeStr == "MCQ_MULTIPLE" -> QuestionType.MCQ_MULTIPLE
-                    qTypeStr == "MCQ_SINGLE" -> QuestionType.MCQ_SINGLE
-                    qTypeStr.contains("STATEMENT_I") || qTypeStr.contains("STATEMENT_1") -> QuestionType.STATEMENT_I_II
-                    qTypeStr.contains("ASSERTION") -> QuestionType.ASSERTION_REASON
-                    qTypeStr.contains("MATCH") -> QuestionType.MATCH_LIST_I_II
-                    qTypeStr.contains("MULTI") -> QuestionType.MULTI_STATEMENT
-                    qTypeStr.contains("NUMERICAL") || qTypeStr.contains("NAT") || qTypeStr.contains("NVQ") -> QuestionType.NUMERICAL_VALUE
-                    qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
-                    qTypeStr.contains("GRAPH") -> QuestionType.GRAPH
-                    qTypeStr.contains("DIRECT") || qTypeStr.contains("MCQ") -> QuestionType.DIRECT_MCQ
-                    else -> runCatching { QuestionType.valueOf(qTypeStr) }.getOrNull()
-                        ?: resolvedSection?.questionType ?: continue
-                }
-
-                val isOptionFree = parsedQType in setOf(QuestionType.NUMERICAL_VALUE, QuestionType.NUMERICAL, QuestionType.TITA, QuestionType.DESCRIPTIVE)
-                val finalOptions = if (isOptionFree) emptyList() else options
-                val expectedOptions = resolvedSection?.optionsCount ?: examConfig.defaultOptionCount
-                if (!isOptionFree && finalOptions.size != expectedOptions.coerceIn(2, 5)) continue
-
-                val rawAnswer = item.optString("correctAnswer", "").trim()
-                val correctAnswer = if (isOptionFree) rawAnswer else rawAnswer.uppercase()
-                val sourceAnswer = item.optString("sourceAnswer", "").takeIf { it.isNotBlank() && it != "null" }
-                val explanation = item.optString("explanationEn").ifBlank { item.optString("explanation") }
-
-                val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
-                val dupResult = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, existingHashes)
-                val validation = QuestionValidationEngine.validateQuestion(
-                    questionText = qText,
-                    options = finalOptions,
-                    correctAnswer = correctAnswer,
-                    sourceAnswer = sourceAnswer,
-                    explanation = explanation,
-                    hasDiagramAttached = false,
-                    duplicateResult = dupResult,
-                    questionType = parsedQType,
-                    expectedOptionCount = expectedOptions
-                )
-
-                val model = UniversalQuestionModel(
+            val parsedType = runCatching { QuestionType.valueOf(item.optString("questionType").uppercase()) }
+                .getOrNull() ?: resolvedSection?.questionType ?: QuestionType.DIRECT_MCQ
+            val optionKeys = listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn", "optionEEn")
+            val options = optionKeys.map { key ->
+                item.optString(key).ifBlank { item.optString(key.removeSuffix("En")) }
+            }.filter { it.isNotBlank() }
+            val numerical = parsedType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA)
+            val finalOptions = if (numerical) emptyList() else options
+            val answer = if (item.isNull("correctAnswer")) "" else item.optString("correctAnswer").trim()
+            val sourceAnswer = item.optString("sourceAnswer").takeIf { it.isNotBlank() && !it.equals("null", true) }
+            val explanation = item.optString("explanationEn").ifBlank { item.optString("explanation") }
+            val sectionId = item.optString("sectionId").takeIf { it.isNotBlank() && it != "null" } ?: resolvedSection?.sectionId.orEmpty()
+            val sectionName = item.optString("sectionName").takeIf { it.isNotBlank() && it != "null" } ?: resolvedSection?.sectionName.orEmpty()
+            val positiveMarks = if (item.has("positiveMarks") && !item.isNull("positiveMarks")) item.optDouble("positiveMarks", 0.0) else resolvedSection?.positiveMarks ?: 0.0
+            val negativeMarks = if (item.has("negativeMarks") && !item.isNull("negativeMarks")) item.optDouble("negativeMarks", 0.0) else resolvedSection?.negativeMarks ?: 0.0
+            val difficulty = runCatching { DifficultyLevel.valueOf(item.optString("difficulty").uppercase()) }
+                .getOrDefault(DifficultyLevel.MEDIUM)
+            val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
+            val duplicate = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, existingHashes)
+            val validation = QuestionValidationEngine.validateQuestion(
+                qText, finalOptions, answer, explanation, false, duplicate, sourceAnswer,
+                parsedType, resolvedSection?.optionsCount ?: examConfig.defaultOptionCount
+            )
+            val reviewReasons = (validation.issues + contractCheck.reasons + envelope.errors).distinct()
+            val requiresReview = !contractCheck.accepted || envelope.status == "NEEDS_REVIEW" ||
+                item.optBoolean("needsReview", false) ||
+                validation.status in setOf(ValidationStatus.NEEDS_REVIEW, ValidationStatus.REJECTED, ValidationStatus.DUPLICATE)
+            resultList.add(
+                UniversalQuestionModel(
                     questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${batchIndex}_$i",
                     examId = examConfig.examId,
                     stageId = stageId,
-                    paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
-                    sectionId = parsedSecId,
-                    sectionName = parsedSecName,
+                    paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId.orEmpty(),
+                    sectionId = sectionId,
+                    sectionName = sectionName,
                     subjectId = subjectId,
                     questionText = qText,
-                    questionTextHi = item.optString("questionTextHi").takeIf { it.isNotBlank() },
+                    questionTextHi = item.optString("questionTextHi").takeIf { it.isNotBlank() && it != "null" },
                     options = finalOptions,
-                    optionsHi = if (finalOptions.isEmpty()) null else listOfNotNull(
-                        item.optString("optionAHi").takeIf { it.isNotBlank() },
-                        item.optString("optionBHi").takeIf { it.isNotBlank() },
-                        item.optString("optionCHi").takeIf { it.isNotBlank() },
-                        item.optString("optionDHi").takeIf { it.isNotBlank() },
-                        item.optString("optionEHi").takeIf { it.isNotBlank() }
-                    ).takeIf { it.size == finalOptions.size },
-                    correctAnswer = correctAnswer,
+                    optionsHi = if (finalOptions.isEmpty()) null else listOf("optionAHi", "optionBHi", "optionCHi", "optionDHi", "optionEHi")
+                        .take(finalOptions.size).map { item.optString(it) }
+                        .takeIf { values -> values.size == finalOptions.size && values.all { it.isNotBlank() } },
+                    correctAnswer = answer,
                     sourceAnswer = sourceAnswer,
                     explanation = explanation,
-                    explanationHi = item.optString("explanationHi").takeIf { it.isNotBlank() },
-                    difficulty = diffLevel,
-                    questionType = parsedQType,
-                    positiveMarks = parsedPosMarks,
-                    negativeMarks = parsedNegMarks,
+                    explanationHi = item.optString("explanationHi").takeIf { it.isNotBlank() && it != "null" },
+                    difficulty = difficulty,
+                    questionType = parsedType,
+                    positiveMarks = positiveMarks,
+                    negativeMarks = negativeMarks,
                     difficultyScore = validation.difficultyScore,
-                    qualityScore = validation.qualityScore,
+                    qualityScore = if (requiresReview) minOf(validation.qualityScore, 59) else validation.qualityScore,
                     qualityMetrics = validation.qualityMetrics,
-                    validationStatus = validation.status,
-                    validationReasons = validation.issues,
+                    validationStatus = if (requiresReview) ValidationStatus.NEEDS_REVIEW else validation.status,
+                    validationReasons = reviewReasons,
                     duplicateHash = hash,
                     sourceName = actualSource,
-                    // Never invent a source page from the batch number.
-                    sourcePage = item.optInt("sourcePageStart", -1).takeIf { it > 0 } ?: -1,
+                    sourcePage = item.optInt("sourcePageStart", batchIndex + 1),
+                    isOfficialPYQ = item.optBoolean("isOfficialPYQ", false),
                     questionVersion = 1,
                     validationVersion = 1,
                     generationModel = actualModel,
-                    generationTimestamp = System.currentTimeMillis(),
-                    provenanceType = item.optString("provenanceType", ""),
-                    answerStatus = item.optString("answerStatus", ""),
-                    answerConfidence = item.optDouble("answerConfidence", 0.0).toInt(),
-                    verificationSummary = item.optString("verificationSummary", ""),
-                    sourcePageEnd = item.optInt("sourcePageEnd", -1).takeIf { it > 0 },
-                    needsReview = item.optBoolean("needsReview", true) || validation.status != ValidationStatus.APPROVED,
-                    reviewReasons = (
-                        (item.optJSONArray("reviewReasons")?.let { reasons ->
-                            (0 until reasons.length()).mapNotNull { index -> reasons.optString(index).takeIf { it.isNotBlank() } }
-                        } ?: emptyList()) + validation.issues
-                    ).distinct()
+                    generationTimestamp = System.currentTimeMillis()
                 )
-                resultList.add(model)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+            )
         }
         return resultList
     }
