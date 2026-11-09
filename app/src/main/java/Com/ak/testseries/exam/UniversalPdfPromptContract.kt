@@ -201,7 +201,7 @@ object UniversalPdfPromptContract {
     fun buildJeeMain2027UnitIndexContext(subjectId: String): String {
         val units = JeeMain2027SyllabusIndex.unitsForSubject(subjectId)
         if (units.isEmpty()) return ""
-        val unitLines = units.joinToString("\\n") {
+        val unitLines = units.joinToString("\n") {
             "- ${it.unitId}: ${it.titleEn} | Hindi: ${it.titleHi} | NTA PDF page: ${it.sourcePdfPage}"
         }
         return """
