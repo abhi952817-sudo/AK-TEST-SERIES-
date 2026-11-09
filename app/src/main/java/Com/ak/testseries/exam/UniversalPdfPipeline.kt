@@ -185,7 +185,12 @@ object UniversalPdfPipeline {
                 // Call Gemini API if key is available
                 var batchModels: List<UniversalQuestionModel>? = null
                 if (canUseGemini) {
-                    val apiResult = callGeminiApi(effectiveApiKey, promptWithSyllabusContext, systemInstruction)
+                    val apiResult = callGeminiApi(
+                        apiKey = effectiveApiKey,
+                        prompt = promptWithSyllabusContext,
+                        systemInstruction = systemInstruction,
+                        taskType = if (compactMarkdown.isNotBlank()) "question_extraction" else "question_generation"
+                    )
                     if (apiResult != null) {
                         val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Gemini API Generation"
                         batchModels = parseGeminiResponse(
@@ -232,7 +237,7 @@ object UniversalPdfPipeline {
                         """.trimIndent()
 
                         try {
-                            val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null)
+                            val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null, "question_generation")
                             if (regenResult != null) {
                                 val regenQuestions = parseGeminiResponse(
                                     jsonString = regenResult.responseText,
@@ -559,14 +564,15 @@ object UniversalPdfPipeline {
     private suspend fun callGeminiApi(
         apiKey: String?,
         prompt: String,
-        systemInstruction: String?
+        systemInstruction: String?,
+        taskType: String = "question_generation"
     ): GeminiApiExecutionResult? {
         return try {
             val result = GeminiRequestExecutor.execute(
                 prompt = prompt,
                 systemInstruction = systemInstruction,
                 userApiKey = apiKey,
-                taskType = "question_generation"
+                taskType = taskType
             )
             GeminiApiExecutionResult(
                 responseText = result.responseText,
