@@ -5667,7 +5667,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         if (genIsPublic.value && (currentAuthUser == null || authenticatedUid.isBlank())) {
             _aiGenState.value = AiGenerationState.Error("Please sign in to publish this test to the Community.")
-            return@withContext
+            return@withContext false
         }
 
         val questionsJsonString = qJsonArray.toString()
