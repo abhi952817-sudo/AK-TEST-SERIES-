@@ -20,6 +20,32 @@ class QuestionGenerationRouteResolverTest {
     }
 
     @Test
+    fun resolvesSubjectOnlyInsideTheExplicitStageAndPaper() {
+        val result = QuestionGenerationRouteResolver.resolve(
+            examQuery = "neet_ug",
+            subjectQuery = "physics",
+            stageId = "neet_main",
+            paperId = "neet_paper_1"
+        )
+        assertNotNull(result.route)
+        assertEquals("neet_main", result.route?.stageId)
+        assertEquals("neet_paper_1", result.route?.paperId)
+        assertEquals("physics", result.route?.subjectId)
+    }
+
+    @Test
+    fun rejectsAStageOrPaperThatDoesNotExistInsteadOfBorrowingTheFirstPaper() {
+        val result = QuestionGenerationRouteResolver.resolve(
+            examQuery = "neet_ug",
+            subjectQuery = "physics",
+            stageId = "wrong_stage",
+            paperId = "wrong_paper"
+        )
+        assertNull(result.route)
+        assertTrue(result.error.orEmpty().contains("not configured"))
+    }
+
+    @Test
     fun rejectsUnknownOrAmbiguousExamInsteadOfFallingBackToNeet() {
         val result = QuestionGenerationRouteResolver.resolve("JEE", "Physics")
         assertNull(result.route)
