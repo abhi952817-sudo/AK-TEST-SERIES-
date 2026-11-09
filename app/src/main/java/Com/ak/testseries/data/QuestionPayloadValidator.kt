@@ -49,7 +49,7 @@ object QuestionPayloadValidator {
             val type = question.optString("questionType", "MCQ").uppercase()
             val options = listOf("A", "B", "C", "D", "E").take(optionCount).map { letter ->
                 question.optString("option$letter")
-                    .ifBlank { question.optString("option\${letter}En") }
+                    .ifBlank { question.optString("option${letter}En") }
                     .trim()
             }
 
