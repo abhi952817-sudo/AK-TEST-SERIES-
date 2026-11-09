@@ -93,7 +93,7 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: false,
                             targetExam = doc.getString("targetExam") ?: "",
                             durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 0,
-                            classLevel = doc.getString("classLevel") ?: "11th",
+                            classLevel = doc.getString("classLevel") ?: "All",
                             chapter = doc.getString("chapter") ?: "",
                             topic = doc.getString("topic") ?: "",
                             timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
