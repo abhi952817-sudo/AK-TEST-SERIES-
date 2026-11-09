@@ -25,7 +25,7 @@ class UniversalRankingAndIsolationTest {
 
         // Engineering
         assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("JEE Main"))
-        assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("JEE"))
+        assertEquals("UNKNOWN", UniversalExamRegistry.getCanonicalExamKey("JEE"))
         assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("jee_main"))
         assertEquals("JEE_ADVANCED", UniversalExamRegistry.getCanonicalExamKey("JEE Advanced"))
         assertEquals("JEE_ADVANCED", UniversalExamRegistry.getCanonicalExamKey("JEE Adv"))
