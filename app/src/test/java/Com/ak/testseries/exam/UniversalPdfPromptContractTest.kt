@@ -1,6 +1,8 @@
 package Com.ak.testseries.exam
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -93,5 +95,19 @@ class UniversalPdfPromptContractTest {
         assertEquals("JEE_MAIN", UniversalExamRegistry.getCanonicalExamKey("JEE Main"))
         assertEquals("JEE_ADVANCED", UniversalExamRegistry.getCanonicalExamKey("JEE Advanced"))
     }
+
+
+    @Test
+    fun jeeMainUnitIndexPromptIsExplicitlyNonApprovedAndPaperScoped() {
+        val physics = UniversalPdfPromptContract.buildJeeMain2027UnitIndexContext("physics")
+        assertTrue(physics.contains("JEE_MAIN_2027_PRELIMINARY_UNIT_INDEX"))
+        assertTrue(physics.contains("SOURCE_IDENTIFIED_NOT_APPROVED"))
+        assertTrue(physics.contains("physics_unit_01"))
+        assertTrue(physics.contains("Experimental Skills"))
+        assertTrue(physics.contains("Detailed official subtopics"))
+        assertFalse(physics.contains("APPROVED"))
+        assertTrue(UniversalPdfPromptContract.buildJeeMain2027UnitIndexContext("biology").isEmpty())
+    }
+
 
 }
