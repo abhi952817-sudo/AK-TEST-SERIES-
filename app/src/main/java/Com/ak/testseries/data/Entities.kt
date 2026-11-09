@@ -20,9 +20,9 @@ data class TestEntity(
     val questionsCount: Int,
     val isOfficial: Boolean, // Official Admin badge
     val isVerifiedCommunity: Boolean, // Verified Community badge
-    val isPublic: Boolean = true, // Whether test is public or private
-    val countsTowardRanking: Boolean = true, // Qualifying test for competitive ranking
-    val rating: Float = 4.5f,
+    val isPublic: Boolean = false, // Fail closed: tests are private until explicitly approved
+    val countsTowardRanking: Boolean = false, // Ranking eligibility must be explicitly approved
+    val rating: Float = 0.0f,
     val rating1Count: Int = 0,
     val rating2Count: Int = 0,
     val rating3Count: Int = 0,
@@ -33,12 +33,12 @@ data class TestEntity(
     val isDownloaded: Boolean = false,
     val isBookmarked: Boolean = false,
     val timestamp: Long = System.currentTimeMillis(),
-    val status: String = "Published", // "Draft", "Under Review", "Published"
-    val aiConfidence: Int = 98,
-    val uploaderId: String = "anonymous", // e.g. 98%
+    val status: String = "Draft", // "Draft", "Under Review", "Published"
+    val aiConfidence: Int = 0,
+    val uploaderId: String = "",
 
     // Deep Mapping Extensions
-    val targetExam: String = "NEET",
+    val targetExam: String = "",
     val durationMinutes: Int = 0,
     val classLevel: String = "All", // "11th", "12th", "Dropper", "All"
     val chapter: String = "All",
