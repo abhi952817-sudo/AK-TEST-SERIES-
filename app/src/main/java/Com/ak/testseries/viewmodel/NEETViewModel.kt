@@ -6484,6 +6484,40 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         durationMinutes: Int = 0
     ) {
         if (!isAdmin) return
+        if (questions.isEmpty()) {
+            aiGenStatusMessage.value = "Cannot save an empty test. No dummy questions were inserted."
+            return
+        }
+        val numericTypes = setOf("NUMERICAL_VALUE", "NUMERICAL", "TITA")
+        val invalidQuestions = questions.filter { question ->
+            val requiredTextPresent = question.questionText.isNotBlank() &&
+                question.correctAnswer.isNotBlank() &&
+                question.subjectId.isNotBlank() &&
+                question.explanation.isNotBlank()
+            val isNumeric = question.questionType.name in numericTypes
+            val optionsValid = if (isNumeric) {
+                question.options.all { it.isNotBlank() }
+            } else {
+                question.options.size in 4..5 &&
+                    question.options.all { it.isNotBlank() } &&
+                    question.options.none { option ->
+                        listOf("Option A", "Option B", "Option C", "Option D", "Option E",
+                            "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                            .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
+                    }
+            }
+            !requiredTextPresent || !optionsValid
+        }
+        if (invalidQuestions.isNotEmpty()) {
+            aiGenStatusMessage.value = "Test blocked: ${invalidQuestions.size} question(s) contain missing data or placeholder options."
+            return
+        }
+        val isPublicTest = genIsPublic.value && questions.all {
+            it.validationStatus == Com.ak.testseries.exam.ValidationStatus.APPROVED
+        }
+        if (genIsPublic.value && !isPublicTest) {
+            aiGenStatusMessage.value = "Saved as private review draft. Every question must be approved before public release."
+        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val testId = "universal_${System.currentTimeMillis()}"
@@ -6495,23 +6529,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
                     title = "$examName - Universal Mock Test",
-                    description = "High-accuracy AI extracted test conforming to $examName pattern.",
+                    description = "AI-generated draft. Source, answer and quality review are required before public release.",
                     institute = "AK Exam Portal",
-                    batchName = "2026 Official Pattern",
+                    batchName = "AI Review Draft",
                     facultyName = "Exam Panel",
                     language = "Hindi / English",
                     subject = subjectStr,
                     difficulty = diffStr,
                     testType = "Mock Test",
                     questionsCount = questions.size,
-                    isOfficial = true,
-                    isVerifiedCommunity = true,
+                    isOfficial = false,
+                    isVerifiedCommunity = false,
+                    isPublic = isPublicTest,
+                    countsTowardRanking = false,
                     targetExam = examConfig?.examId ?: examName,
                     examId = examConfig?.examId ?: examName,
                     stageId = examConfig?.stages?.firstOrNull()?.stageId,
                     paperId = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
                     scoringVersion = 1,
-                    status = "Published",
+                    status = if (isPublicTest) "Published" else "Under Review",
                     durationMinutes = durationMinutes
                 )
 
@@ -6522,10 +6558,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qObj = org.json.JSONObject()
                     qObj.put("id", qId)
                     qObj.put("questionTextEn", uq.questionText)
-                    qObj.put("optionAEn", uq.options.getOrElse(0) { "Option A" })
-                    qObj.put("optionBEn", uq.options.getOrElse(1) { "Option B" })
-                    qObj.put("optionCEn", uq.options.getOrElse(2) { "Option C" })
-                    qObj.put("optionDEn", uq.options.getOrElse(3) { "Option D" })
+                    qObj.put("optionAEn", uq.options.getOrElse(0) { "" })
+                    qObj.put("optionBEn", uq.options.getOrElse(1) { "" })
+                    qObj.put("optionCEn", uq.options.getOrElse(2) { "" })
+                    qObj.put("optionDEn", uq.options.getOrElse(3) { "" })
                     uq.options.getOrNull(4)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionEEn", it) }
                     if (!uq.questionTextHi.isNullOrBlank()) qObj.put("questionTextHi", uq.questionTextHi)
                     uq.optionsHi?.getOrNull(0)?.let { qObj.put("optionAHi", it) }
@@ -6537,9 +6573,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("explanationEn", uq.explanation)
                     if (!uq.explanationHi.isNullOrBlank()) qObj.put("explanationHi", uq.explanationHi)
                     qObj.put("subject", uq.subjectId)
-                    qObj.put("chapter", uq.topicId.ifBlank { "Chapter 1" })
+                    qObj.put("chapter", uq.chapterName.ifBlank { uq.chapterId })
                     qObj.put("questionType", uq.questionType.name)
-                    qObj.put("section", uq.sectionId.ifBlank { "SECTION_A" })
+                    qObj.put("section", uq.sectionId)
                     qObj.put("sectionName", uq.sectionName)
                     qObj.put("positiveMarks", uq.positiveMarks)
                     qObj.put("negativeMarks", uq.negativeMarks)
@@ -6550,15 +6586,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         id = qId,
                         testId = testId,
                         questionText = uq.questionText,
-                        optionA = uq.options.getOrElse(0) { "Option A" },
-                        optionB = uq.options.getOrElse(1) { "Option B" },
-                        optionC = uq.options.getOrElse(2) { "Option C" },
-                        optionD = uq.options.getOrElse(3) { "Option D" },
+                        optionA = uq.options.getOrElse(0) { "" },
+                        optionB = uq.options.getOrElse(1) { "" },
+                        optionC = uq.options.getOrElse(2) { "" },
+                        optionD = uq.options.getOrElse(3) { "" },
                         optionE = uq.options.getOrNull(4)?.takeIf { it.isNotBlank() },
                         correctAnswer = uq.correctAnswer,
                         explanation = uq.explanation,
                         subject = uq.subjectId,
-                        chapter = uq.topicId.ifBlank { "Chapter 1" },
+                        chapter = uq.chapterName.ifBlank { uq.chapterId },
                         topic = uq.topicId,
                         difficulty = diffStr,
                         questionTextHi = uq.questionTextHi,
@@ -6569,13 +6605,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionEHi = uq.optionsHi?.getOrNull(4)?.takeIf { it.isNotBlank() },
                         explanationHi = uq.explanationHi,
                         questionType = uq.questionType.name,
-                        section = uq.sectionId.ifBlank { "SECTION_A" },
+                        section = uq.sectionId,
                         imageUrl = uq.diagramUrl
                     )
                 }
 
-                // 1. Save Locally strictly in local Room DB
-                val isPublicTest = genIsPublic.value
+                // Save locally as a review draft unless every question is explicitly approved.
                 val finalTestEntity = testEntity.copy(isPublic = isPublicTest, questionsJson = qJsonArray.toString())
                 repository.insertTest(finalTestEntity)
                 repository.insertQuestions(questionEntities)
