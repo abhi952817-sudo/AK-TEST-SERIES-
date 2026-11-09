@@ -4403,6 +4403,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 aiGenStatusMessage.value = disabledMsg
                 return@launch
             }
+
+            // Resolve the exact exam + subject route before making any Gemini request.
+            // Never silently route an unknown exam to NEET or an unknown subject to the first configured subject.
+            val routeResolution = Com.ak.testseries.exam.QuestionGenerationRouteResolver.resolve(
+                examQuery = genTargetExam.value,
+                subjectQuery = genSubject.value
+            )
+            val questionRoute = routeResolution.route
+            if (questionRoute == null) {
+                val routeError = routeResolution.error
+                    ?: "Question generation stopped: exam and subject route could not be resolved."
+                _aiGenState.value = AiGenerationState.Error(routeError)
+                aiGenStatusMessage.value = routeError
+                return@launch
+            }
             if (!isAdmin && _dailyGenerationsCount.value >= _dailyFreeTestLimit.value) {
                 _dailyUploadLimitUsed.value = true
                 val limitMsg = "Daily free generation limit reached (${_dailyFreeTestLimit.value} test/day). Watch an ad to unlock an extra generation!"
@@ -4496,13 +4511,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 "AI processing Pages $startPage-$endPage (Chunk ${chunkIndex + 1}/$totalPageChunks)..."
                             }
 
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                            val examConfig = questionRoute.examConfig
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = genSubject.value.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects" },
+                                subject = questionRoute.subjectName,
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = chunkMarkdown, // Send current page chunk with answer key reference
                                 currentChunkSize = currentChunkQuestions,
