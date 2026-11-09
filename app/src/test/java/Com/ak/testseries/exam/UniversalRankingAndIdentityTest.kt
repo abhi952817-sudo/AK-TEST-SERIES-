@@ -23,7 +23,7 @@ class UniversalRankingAndIdentityTest {
             "NEET" to "NEET",
             "neet_ug" to "NEET",
             "JEE Main" to "JEE_MAIN",
-            "JEE" to "JEE_MAIN",
+            "JEE" to "UNKNOWN",
             "jee_main" to "JEE_MAIN",
             "JEE Advanced" to "JEE_ADVANCED",
             "JEE Adv" to "JEE_ADVANCED",
