@@ -151,7 +151,7 @@ data class SyllabusEntity(
     val subject: String, // "Physics", "Chemistry", "Biology"
     val chapter: String,
     val topics: String = "",
-    val totalTests: Int = 12
+    val totalTests: Int = 0 // Live count must be computed from real accessible tests
 )
 
 object SyllabusData {
