@@ -142,6 +142,7 @@ object UniversalPdfPipeline {
                 ""
             }
         } else ""
+        val isExtractionMode = compactMarkdown.isNotBlank()
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
         val existingHashes = scopedExistingQuestions.associate { it.duplicateHash to it.questionText }
@@ -180,7 +181,7 @@ object UniversalPdfPipeline {
                     startQ = startQ,
                     endQ = endQ,
                     totalQuestions = expectedQuestions,
-                    isExtractionMode = compactMarkdown.isNotBlank(),
+                    isExtractionMode = isExtractionMode,
                     stageId = questionRoute.stageId,
                     paperId = questionRoute.paperId
                 )
@@ -212,7 +213,7 @@ object UniversalPdfPipeline {
                     apiKey = effectiveApiKey,
                     prompt = promptWithSyllabusContext,
                     systemInstruction = systemInstruction,
-                    taskType = if (compactMarkdown.isNotBlank()) "question_extraction" else "question_generation"
+                    taskType = if (isExtractionMode) "question_extraction" else "question_generation"
                 )
                 val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Gemini API Generation"
                 val batchModels = parseGeminiResponse(
@@ -222,6 +223,7 @@ object UniversalPdfPipeline {
                     paperId = questionRoute.paperId,
                     subjectId = questionRoute.subjectId,
                     batchIndex = batchIndex,
+                    batchSize = batchSize,
                     existingHashes = existingHashes,
                     actualModel = apiResult.modelVersion,
                     actualSource = source
@@ -234,73 +236,101 @@ object UniversalPdfPipeline {
 
                 if (batchModels.isNotEmpty()) {
                     var finalBatch = batchModels
-                    val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
 
-                    if (!initialValidation.isCompliant && initialValidation.deficientLevels.isNotEmpty()) {
-                        // Attempt targeted regeneration for deficient difficulty types
-                        val deficientLevel = initialValidation.deficientLevels.first()
-                        val neededCount = when (deficientLevel) {
-                            DifficultyLevel.EASY -> (initialValidation.targetEasyCount - initialValidation.easyCount).coerceIn(1, 3)
-                            DifficultyLevel.MEDIUM -> (initialValidation.targetMediumCount - initialValidation.mediumCount).coerceIn(1, 3)
-                            DifficultyLevel.HARD -> (initialValidation.targetHardCount - initialValidation.hardCount).coerceIn(1, 3)
-                        }
+                    // Difficulty balancing applies only to newly generated practice questions.
+                    // Source extraction must preserve the original paper and must never invent replacement questions.
+                    if (!isExtractionMode) {
+                        val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
 
-                        onProgress(
-                            BatchProgress(
-                                totalBatches = totalBatches,
-                                currentBatch = currentBatchNumber,
-                                processedQuestions = extractedQuestions.size,
-                                statusMessage = "Batch $currentBatchNumber: Rebalancing difficulty (${deficientLevel.name} deficient)..."
-                            )
-                        )
-
-                        val targetedPrompt = """
-                            ${UniversalAIContext.buildSystemInstruction(examConfig)}
-                            Generate exactly $neededCount high-quality ${deficientLevel.name} difficulty questions for ${examConfig.examName} ($subjectId).
-                            Difficulty requirement: Strictly ${deficientLevel.name} level questions only.
-                            Output strictly a valid JSON array of questions matching schema.
-                        """.trimIndent()
-
-                        try {
-                            val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null, "question_generation")
-                            val regenQuestions = parseGeminiResponse(
-                                jsonString = regenResult.responseText,
-                                examConfig = examConfig,
-                                stageId = stageId,
-                                subjectId = subjectId,
-                                batchIndex = batchIndex,
-                                existingHashes = existingHashes,
-                                actualModel = regenResult.modelVersion,
-                                actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
-                            ).filter { it.difficulty == deficientLevel }
-
-                            if (regenQuestions.isNotEmpty()) {
-                                val excessLevel = initialValidation.excessLevels.firstOrNull()
-                                val mutableBatch = finalBatch.toMutableList()
-                                var replaced = 0
-                                for (idx in mutableBatch.indices) {
-                                    if (replaced < regenQuestions.size && (excessLevel == null || mutableBatch[idx].difficulty == excessLevel)) {
-                                        mutableBatch[idx] = regenQuestions[replaced]
-                                        replaced++
-                                    }
-                                }
-                                finalBatch = mutableBatch
+                        if (!initialValidation.isCompliant && initialValidation.deficientLevels.isNotEmpty()) {
+                            val deficientLevel = initialValidation.deficientLevels.first()
+                            val neededCount = when (deficientLevel) {
+                                DifficultyLevel.EASY -> (initialValidation.targetEasyCount - initialValidation.easyCount).coerceIn(1, 3)
+                                DifficultyLevel.MEDIUM -> (initialValidation.targetMediumCount - initialValidation.mediumCount).coerceIn(1, 3)
+                                DifficultyLevel.HARD -> (initialValidation.targetHardCount - initialValidation.hardCount).coerceIn(1, 3)
                             }
-                        } catch (e: Exception) {
-                            // Targeted regeneration error fallback to status tagging
-                        }
-                    }
 
-                    // Post-check: Never silently accept incorrect ratios!
-                    val postValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
-                    if (!postValidation.isCompliant) {
-                        finalBatch = finalBatch.map { q ->
-                            val updatedReasons = (q.validationReasons + listOf("⚠ Ratio Mismatch: ${postValidation.issueDescription}")).distinct()
-                            q.copy(
-                                validationStatus = ValidationStatus.NEEDS_REVIEW,
-                                validationReasons = updatedReasons,
-                                qualityScore = (q.qualityScore - 15).coerceAtLeast(40)
+                            onProgress(
+                                BatchProgress(
+                                    totalBatches = totalBatches,
+                                    currentBatch = currentBatchNumber,
+                                    processedQuestions = extractedQuestions.size,
+                                    statusMessage = "Batch $currentBatchNumber: Rebalancing difficulty (${deficientLevel.name} deficient)..."
+                                )
                             )
+
+                            val baseRegenerationPrompt = UniversalAIContext.buildDynamicGenerationPrompt(
+                                examConfig = examConfig,
+                                subject = questionRoute.subjectName,
+                                testTitle = "${examConfig.shortName} Diagnostic Paper",
+                                compactMarkdownPayload = "",
+                                currentChunkSize = neededCount,
+                                startQ = startQ,
+                                endQ = startQ + neededCount - 1,
+                                totalQuestions = expectedQuestions,
+                                isExtractionMode = false,
+                                stageId = questionRoute.stageId,
+                                paperId = questionRoute.paperId
+                            )
+                            val targetedPrompt = """
+                                $baseRegenerationPrompt
+
+                                TARGETED DIFFICULTY REGENERATION:
+                                Generate exactly $neededCount questions of ${deficientLevel.name} difficulty only.
+                                Keep the exact exam, stage, paper, subject, configured section types, options and marking rules.
+                                Do not return questions of any other difficulty.
+                            """.trimIndent()
+
+                            try {
+                                val regenResult = callGeminiApi(
+                                    effectiveApiKey,
+                                    targetedPrompt,
+                                    UniversalAIContext.buildSystemInstruction(examConfig),
+                                    "question_generation"
+                                )
+                                val regenQuestions = parseGeminiResponse(
+                                    jsonString = regenResult.responseText,
+                                    examConfig = examConfig,
+                                    stageId = questionRoute.stageId,
+                                    paperId = questionRoute.paperId,
+                                    subjectId = questionRoute.subjectId,
+                                    batchIndex = batchIndex,
+                                    batchSize = batchSize,
+                                    existingHashes = existingHashes,
+                                    actualModel = regenResult.modelVersion,
+                                    actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
+                                ).filter { it.difficulty == deficientLevel }
+
+                                if (regenQuestions.isNotEmpty()) {
+                                    val excessLevel = initialValidation.excessLevels.firstOrNull()
+                                    val mutableBatch = finalBatch.toMutableList()
+                                    var replaced = 0
+                                    for (idx in mutableBatch.indices) {
+                                        if (replaced < regenQuestions.size &&
+                                            (excessLevel == null || mutableBatch[idx].difficulty == excessLevel)
+                                        ) {
+                                            mutableBatch[idx] = regenQuestions[replaced]
+                                            replaced++
+                                        }
+                                    }
+                                    finalBatch = mutableBatch
+                                }
+                            } catch (e: Exception) {
+                                // Keep the original valid batch and report the mismatch below.
+                            }
+                        }
+
+                        val postValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
+                        if (!postValidation.isCompliant) {
+                            finalBatch = finalBatch.map { question ->
+                                val updatedReasons = (question.validationReasons +
+                                    listOf("⚠ Ratio Mismatch: ${postValidation.issueDescription}")).distinct()
+                                question.copy(
+                                    validationStatus = ValidationStatus.NEEDS_REVIEW,
+                                    validationReasons = updatedReasons,
+                                    qualityScore = (question.qualityScore - 15).coerceAtLeast(40)
+                                )
+                            }
                         }
                     }
 
@@ -342,6 +372,7 @@ object UniversalPdfPipeline {
         paperId: String,
         subjectId: String,
         batchIndex: Int,
+        batchSize: Int,
         existingHashes: Map<String, String>,
         actualModel: String = "UNAVAILABLE",
         actualSource: String = "UNAVAILABLE"
@@ -372,7 +403,7 @@ object UniversalPdfPipeline {
                 val optE = item.optString("optionEEn").ifBlank { item.optString("optionE") }
                 val options = listOf(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
-                val qIndexInBatch = (batchIndex * 10) + i + 1
+                val qIndexInBatch = (batchIndex * batchSize) + i + 1
                 val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch, stageId, paperId)
                 val parsedSecId = item.optString("sectionId").ifBlank { resolvedSection?.sectionId ?: "SECTION_A" }
                 val parsedSecName = item.optString("sectionName").ifBlank { resolvedSection?.sectionName ?: "Section A" }
