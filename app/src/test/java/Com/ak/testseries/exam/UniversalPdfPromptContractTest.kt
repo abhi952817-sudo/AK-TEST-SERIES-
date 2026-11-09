@@ -61,7 +61,9 @@ class UniversalPdfPromptContractTest {
     fun unknownSubjectDoesNotSilentlyFallBackToFirstConfiguredSubject() {
         val neet = UniversalExamRegistry.getExam("neet_ug")
         assertTrue(neet != null)
-        assertTrue(UniversalAIContext.getApplicableSections(neet!!, "physics").isNotEmpty())
+        assertTrue(UniversalAIContext.isKnownSubject(neet!!, "physics"))
+        assertTrue(UniversalAIContext.getApplicableSections(neet, "physics").isNotEmpty())
+        assertFalse(UniversalAIContext.isKnownSubject(neet, "not-a-real-subject"))
         assertTrue(UniversalAIContext.getApplicableSections(neet, "not-a-real-subject").isEmpty())
         assertTrue(UniversalAIContext.getApplicableSections(neet, "").isEmpty())
     }
