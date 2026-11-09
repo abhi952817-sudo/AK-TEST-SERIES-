@@ -193,4 +193,34 @@ object UniversalPdfPromptContract {
         """.trimIndent()
     }
 
+
+    /**
+     * Adds the NTA JEE Main 2027 Paper 1 unit index as a NON-APPROVED routing hint.
+     * This is intentionally not a substitute for the full official subtopic snapshot.
+     */
+    fun buildJeeMain2027UnitIndexContext(subjectId: String): String {
+        val units = JeeMain2027SyllabusIndex.unitsForSubject(subjectId)
+        if (units.isEmpty()) return ""
+        val unitLines = units.joinToString("\\n") {
+            "- ${it.unitId}: ${it.titleEn} | Hindi: ${it.titleHi} | NTA PDF page: ${it.sourcePdfPage}"
+        }
+        return """
+            JEE_MAIN_2027_PRELIMINARY_UNIT_INDEX (NOT APPROVED; UNIT HEADINGS ONLY):
+            Source issuer: ${JeeMain2027SyllabusIndex.SOURCE_ISSUER}
+            Source: ${JeeMain2027SyllabusIndex.SOURCE_URL}
+            Exam ID: jee_main
+            Version: JEE_MAIN_2027
+            Stage: jee_paper_1
+            Paper: jee_main_p1
+            Subject: ${subjectId}
+            Approval state: SOURCE_IDENTIFIED_NOT_APPROVED
+            The following headings are a navigation index only. Detailed official subtopics
+            have not yet been transcribed and human-approved. Do not claim complete syllabus
+            matching, do not infer subtopics, and do not mark any question officially mapped
+            from a heading alone. Use these only to flag likely unit candidates for Admin review.
+            $unitLines
+        """.trimIndent()
+    }
+
+
 }
