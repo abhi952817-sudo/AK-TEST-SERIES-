@@ -82,7 +82,13 @@ object GeminiResponseContract {
 
         val rawType = requiredText("questionType").uppercase()
         val questionType = runCatching { QuestionType.valueOf(rawType) }.getOrNull()
-        if (questionType == null || questionType !in examConfig.supportedQuestionTypes) {
+        val configuredTypes = examConfig.supportedQuestionTypes
+        val typeSupported = questionType != null && configuredTypes.any { configured ->
+            configured == questionType ||
+                (configured in setOf(QuestionType.DIRECT_MCQ, QuestionType.MCQ_SINGLE) && questionType in setOf(QuestionType.DIRECT_MCQ, QuestionType.MCQ_SINGLE)) ||
+                (configured in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA) && questionType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA))
+        }
+        if (!typeSupported) {
             reasons.add("Question type is missing or not supported by this exam.")
         }
 
