@@ -3659,7 +3659,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                                 optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                                 explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                                questionType = qObj.optString("questionType", "MCQ"),
+                                questionType = qObj.optString("questionType"),
                                 section = qObj.optString("section", "SECTION_A"),
                                 needsImage = qObj.optBoolean("needsImage", false),
                                 imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
@@ -5524,6 +5524,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             return@withContext false
         }
         val numericTypes = setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT", "INTEGER")
+        val expectedOptionCount = questionRoute.examConfig.defaultOptionCount.coerceIn(4, 5)
+        val configuredSections = questionRoute.examConfig.stages
+            .firstOrNull { it.stageId == questionRoute.stageId }
+            ?.papers?.firstOrNull { it.paperId == questionRoute.paperId }
+            ?.subjects?.singleOrNull { it.subjectId == questionRoute.subjectId }
+            ?.sections.orEmpty()
+        if (configuredSections.isEmpty()) {
+            _aiGenState.value = AiGenerationState.Error("Selected exam paper has no configured section rules.")
+            aiGenStatusMessage.value = "Test blocked. No section or marking fallback was applied."
+            return@withContext false
+        }
+
         val invalidQuestionNumbers = mutableListOf<Int>()
         for (index in 0 until jsonArray.length()) {
             val q = jsonArray.optJSONObject(index)
@@ -5532,7 +5544,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 continue
             }
             val text = q.optString("questionTextEn").ifBlank { q.optString("questionText") }
-            val expectedOptionCount = questionRoute.examConfig.defaultOptionCount.coerceIn(4, 5)
             val optionKeys = if (expectedOptionCount == 5) {
                 listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn", "optionEEn")
             } else {
@@ -5541,7 +5552,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val options = optionKeys.map { key ->
                 q.optString(key).ifBlank { q.optString(key.removeSuffix("En")) }
             }
-            val questionType = q.optString("questionType", "MCQ").uppercase()
+            val questionType = q.optString("questionType").uppercase()
             val isNumeric = questionType in numericTypes
             val answer = q.optString("correctAnswer").trim()
             val explanation = q.optString("explanationEn").ifBlank { q.optString("explanation") }.ifBlank { q.optString("reasoning") }
@@ -5551,22 +5562,52 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
             }
             val optionsValid = if (isNumeric) {
-                options.all { it.isBlank() } || options.all { it.isNotBlank() && !hasPlaceholder } && options.map { it.trim().lowercase() }.distinct().size == options.size
+                options.all { it.isBlank() }
             } else {
                 options.all { it.isNotBlank() } && !hasPlaceholder &&
                     options.map { it.trim().lowercase() }.distinct().size == options.size
             }
-            val numericAnswer = answer.toDoubleOrNull()?.isFinite() == true
             val allowedAnswers = if (expectedOptionCount == 5) setOf("A", "B", "C", "D", "E", "1", "2", "3", "4", "5")
                 else setOf("A", "B", "C", "D", "1", "2", "3", "4")
-            val answerValid = if (isNumeric) numericAnswer else answer.uppercase() in allowedAnswers
-            if (text.isBlank() || answer.isBlank() || explanation.isBlank() || !optionsValid || !answerValid) {
+            val answerTokens = answer.uppercase()
+                .replace(Regex("\\bAND\\b"), ",")
+                .split(Regex("[,;|\\s]+"))
+                .filter { it.isNotBlank() }
+            val isMultipleAnswer = questionType.contains("MULTIPLE") || questionType.contains("MULTI_SELECT")
+            val numericAnswer = answer.toDoubleOrNull()?.isFinite() == true
+            val answerValid = when {
+                isNumeric -> numericAnswer
+                isMultipleAnswer -> answerTokens.isNotEmpty() && answerTokens.all { it in allowedAnswers }
+                else -> answer.uppercase() in allowedAnswers
+            }
+            val sectionId = q.optString("sectionId").ifBlank { q.optString("section") }
+            val section = configuredSections.singleOrNull { it.sectionId == sectionId }
+            val positiveMarks = q.optDouble("positiveMarks", Double.NaN)
+            val negativeMarks = q.optDouble("negativeMarks", Double.NaN)
+            val sectionMatchesPattern = section != null &&
+                section.questionType.name.equals(questionType, ignoreCase = true) &&
+                kotlin.math.abs(section.positiveMarks - positiveMarks) < 0.0001 &&
+                kotlin.math.abs(section.negativeMarks - negativeMarks) < 0.0001
+
+            if (text.isBlank() || answer.isBlank() || explanation.isBlank() ||
+                questionType.isBlank() || !optionsValid || !answerValid || !sectionMatchesPattern
+            ) {
                 invalidQuestionNumbers.add(index + 1)
             }
         }
         if (invalidQuestionNumbers.isNotEmpty()) {
             _aiGenState.value = AiGenerationState.Error("Gemini returned incomplete or placeholder question data.")
             aiGenStatusMessage.value = "Test blocked. Invalid question numbers: ${invalidQuestionNumbers.joinToString(", ")}. No test was saved."
+            return@withContext false
+        }
+        if (!Com.ak.testseries.data.QuestionPayloadValidator.isValid(
+                rawJson = jsonArray.toString(),
+                expectedCount = jsonArray.length(),
+                expectedOptionCount = expectedOptionCount
+            )
+        ) {
+            _aiGenState.value = AiGenerationState.Error("Gemini question payload failed strict validation.")
+            aiGenStatusMessage.value = "Test blocked. Duplicate, incomplete, placeholder or invalid answer data was detected."
             return@withContext false
         }
         val testId = "ai_" + System.currentTimeMillis()
