@@ -299,6 +299,49 @@ object UniversalPdfPromptContract {
 
 
     /**
+     * Shared fail-closed rules appended to every Gemini question-generation and extraction prompt.
+     * The caller retains ownership of the concrete JSON schema to avoid incompatible response formats.
+     */
+    fun buildQuestionGenerationSafetyAddendum(
+        examId: String,
+        stageId: String?,
+        paperId: String?,
+        subjectId: String,
+        sourceDocumentPresent: Boolean,
+        extractionMode: Boolean,
+        approvedSyllabusSnapshotAvailable: Boolean = false
+    ): String {
+        val routeResolved = examId.isNotBlank() && !stageId.isNullOrBlank() &&
+            !paperId.isNullOrBlank() && subjectId.isNotBlank()
+        return """
+            ${SAFETY}
+
+            CONTRACT_VERSION: ${VERSION}
+            QUESTION_ROUTE:
+            - examId: ${examId.ifBlank { "UNRESOLVED" }}
+            - stageId: ${stageId?.takeIf { it.isNotBlank() } ?: "UNRESOLVED"}
+            - paperId: ${paperId?.takeIf { it.isNotBlank() } ?: "UNRESOLVED"}
+            - subjectId: ${subjectId.ifBlank { "UNRESOLVED" }}
+            ROUTE_RESOLVED: ${routeResolved}
+            SOURCE_DOCUMENT_PRESENT: ${sourceDocumentPresent}
+            EXTRACTION_MODE: ${extractionMode}
+            APPROVED_SYLLABUS_SNAPSHOT_AVAILABLE: ${approvedSyllabusSnapshotAvailable}
+
+            HARD QUESTION RULES:
+            1. If ROUTE_RESOLVED is false, stop and return no questions. Never borrow another exam, stage, paper, subject, section or marking scheme.
+            2. In EXTRACTION_MODE, transcribe only questions visibly present in the supplied source. If SOURCE_DOCUMENT_PRESENT is false, return no questions. Never create filler questions to reach the requested count.
+            3. Outside EXTRACTION_MODE, create original practice questions only for the exact resolved route and configured exam pattern.
+            4. If APPROVED_SYLLABUS_SNAPSHOT_AVAILABLE is false, classify the output only as GENERAL_PRACTICE. Do not claim official syllabus coverage, official weightage, official PYQ status or source verification.
+            5. Never invent source names, exam years, page numbers, answer-key evidence or citations.
+            6. Independently verify every answer, numerical value, unit, option set and explanation. If any item is ambiguous or unverified, exclude it or flag it for review; do not guess.
+            7. Do not emit placeholder options, repeated options, duplicate questions or incomplete questions.
+            8. Preserve the exact exam-specific option count, question type, section and marks supplied by the caller.
+            9. Return only the caller's requested JSON array schema. Do not wrap it in a new object or add prose.
+            10. Every generated/extracted item remains a private draft. publishAllowed is always false.
+        """.trimIndent()
+    }
+
+    /**
      * Adds the NTA JEE Main 2027 Paper 1 unit index as a NON-APPROVED routing hint.
      * This is intentionally not a substitute for the full official subtopic snapshot.
      */
