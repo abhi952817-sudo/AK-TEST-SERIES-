@@ -233,3 +233,24 @@ Balance must be calculated for the complete requested paper, not independently p
 - Golden tests cover known valid and invalid questions with human-reviewed expected ratings.
 
 **Order of work:** (A) complete JEE Main detailed syllabus and independent JEE Advanced version module; (B) wire exact approved resolver into Gemini runtime; (C) finish the question-rating engine; (D) replace current rebalancer with paper-level quota allocation; (E) run regression and build/CI. Do not skip from A to production or merge unfinished phases.
+
+## Universal question-to-syllabus mapping prompt (NEET first)
+
+Implementation update:
+- Added `UniversalPdfPromptContract.buildUniversalQuestionMappingPrompt(...)`.
+- The prompt is exam-neutral. NEET is the first planned runtime route; JEE and other exams reuse the same mapping contract only with their own exact approved syllabus snapshots.
+- Mapping is restricted to exact IDs in the approved versioned hierarchy. No fuzzy IDs, invented chapters/topics, or inferred official status.
+- Mapping depth is evidence-based: chapter-only matches remain chapter-only; topic/subtopic IDs stay null when not supported.
+- Each input question must appear exactly once in the mapping result. Mapping preserves question content and does not attempt answer verification.
+- Missing/unapproved syllabus blocks canonical mapping. Raw labels may be returned only as non-canonical discovery candidates.
+- Every result remains private and reviewable; `officialPromotionAllowed=false` and `publishAllowed=false`.
+- Added unit tests for NEET-first use, exact-ID-only mapping, one-to-one question preservation, and no-snapshot blocking.
+
+Not yet complete:
+- Runtime invocation from the PDF pipeline after extraction.
+- Strict JSON parsing and validation of mapping response against the actual input question IDs and approved syllabus IDs.
+- Persistence of mapping results and mapping provenance.
+- Admin review/approval workflow and coverage aggregation.
+- Build and test execution on this branch.
+
+Do not mark mapping as operational until these runtime and verification steps pass.
