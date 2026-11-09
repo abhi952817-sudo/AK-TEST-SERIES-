@@ -14,32 +14,22 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
 
     private fun hasValidQuestionPayload(doc: com.google.firebase.firestore.DocumentSnapshot): Boolean {
         val expectedCount = doc.getLong("questionsCount")?.toInt() ?: return false
-        if (expectedCount <= 0) return false
         val rawJson = doc.getString("questionsJson")?.takeIf { it.isNotBlank() } ?: return false
-        val questions = try { org.json.JSONArray(rawJson) } catch (_: Exception) { return false }
-        if (questions.length() != expectedCount) return false
-        val numericTypes = setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT", "INTEGER")
-        val placeholders = setOf(
-            "option a", "option b", "option c", "option d", "option e",
-            "distractor option a", "distractor option b", "distractor option c", "distractor option d"
-        )
-        for (index in 0 until questions.length()) {
-            val question = questions.optJSONObject(index) ?: return false
-            val text = question.optString("questionText").ifBlank { question.optString("questionTextEn") }.trim()
-            if (text.isBlank() || text.equals("Question Text", true) ||
-                text.startsWith("Practice Question", true)) return false
-            val type = question.optString("questionType", "MCQ").uppercase()
-            val options = listOf("A", "B", "C", "D").map { letter ->
-                question.optString("option$letter").ifBlank { question.optString("option${letter}En") }.trim()
-            }
-            val optionsValid = if (type in numericTypes) {
-                options.all { it.isBlank() } || options.all { it.isNotBlank() }
-            } else {
-                options.all { it.isNotBlank() } && options.none { it.lowercase() in placeholders }
-            }
-            if (!optionsValid) return false
+
+        // Canonical identity wins. Legacy targetExam names are accepted only when no examId exists.
+        val examId = doc.getString("examId")?.trim().orEmpty()
+        val examConfig = if (examId.isNotBlank()) {
+            Com.ak.testseries.exam.UniversalExamRegistry.getExamById(examId) ?: return false
+        } else {
+            val legacyExamName = doc.getString("targetExam")?.takeIf { it.isNotBlank() } ?: return false
+            Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(legacyExamName) ?: return false
         }
-        return true
+
+        return QuestionPayloadValidator.isValid(
+            rawJson = rawJson,
+            expectedCount = expectedCount,
+            expectedOptionCount = examConfig.defaultOptionCount
+        )
     }
 
     private val retiredDemoTestIds = setOf("official_neet_ug_mock_01", "official_jee_mains_mock_01", "official_upsc_cds_mock_01", "official_ssc_cgl_mock_01", "official_banking_ibps_mock_01", "official_rrb_ntpc_mock_01", "official_ugc_net_paper1_mock_01", "official_cat_full_mock_01")
