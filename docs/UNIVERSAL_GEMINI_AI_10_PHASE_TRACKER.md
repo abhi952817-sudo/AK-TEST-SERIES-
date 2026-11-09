@@ -198,3 +198,14 @@ Implementation branch commits:
 - Latest available CI evidence is run `42476938214`, which compiled production and test sources but failed the unit-test task (15/321). Test-environment fixes have since been committed; the current push-triggered run has no status entries exposed by the connected status endpoint. Fresh green CI is still required.
 - Release gate remains CLOSED until the latest branch head passes `:app:testDebugUnitTest` and `:app:assembleDebug`, followed by Student/Admin E2E, Firestore rules and real-PDF checks.
 - Remaining open work: direct PDF bytes/File API support, consolidating separate Gemini HTTP transports, server-enforced quota/token-cost telemetry, and full multi-exam E2E/regression verification.
+
+
+## Follow-up correctness fixes — 2026-11-09
+
+- Fixed UniversalPdfPipeline.resolveSectionForIndex(): invalid indexes and indexes beyond configured section capacity now return null instead of borrowing the last section. Section resolution is scoped to the requested stage.
+- Admin Gemini prompt construction now passes the selected stageId; parser section indexing now uses the actual batchSize rather than a hardcoded 10.
+- Fixed ExamFormatStandardizer: removed synthetic SECTION_A, guessed exam-wide +4/-1 defaults and fabricated Option A…Option E values. Unknown subjects/sections, mismatched section/type/marks, and incomplete/duplicate option sets are excluded rather than silently rewritten.
+- Added ExamFormatStandardizerSafetyTest covering unknown subject, unknown section, missing options and valid configured question preservation. Existing UniversalPdfPipelineSectionResolutionTest already covers out-of-range and unknown-subject resolution.
+- Commits: 95c6bf1432ea98b1cba9b8dbf3b5418afa1c76a8 (stage-aware section resolution and real batch indexing); 903a7ad15e085c97e2d516e8adc51bb6bf2e624d (remove synthetic format defaults); c12e00f861fdb56de3eb541fe7476faf7376ca23 (standardizer safety tests).
+- Verification status: source changes and tests are committed to the feature branch. GitHub status endpoint currently exposes no check runs for these push commits; no green build/test result is claimed. Exact-head Android unit tests and debug APK build remain mandatory before any phase is marked complete.
+- Safety: main remains untouched. No PR merge, Firebase deployment, production migration, rules/index deployment or public release was performed.
