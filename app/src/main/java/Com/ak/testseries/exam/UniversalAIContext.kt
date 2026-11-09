@@ -47,9 +47,12 @@ object UniversalAIContext {
      */
     fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
         val allSubjects = examConfig.stages.flatMap { it.papers.flatMap { p -> p.subjects } }
-        val matchingSubject = allSubjects.find { 
-            it.subjectName.equals(subject, ignoreCase = true) || it.subjectId.equals(subject, ignoreCase = true) 
-        } ?: allSubjects.firstOrNull()
+        val requestedSubject = subject.trim()
+        if (requestedSubject.isBlank()) return emptyList()
+        val matchingSubject = allSubjects.firstOrNull {
+            it.subjectName.equals(requestedSubject, ignoreCase = true) ||
+                it.subjectId.equals(requestedSubject, ignoreCase = true)
+        }
         return matchingSubject?.sections ?: emptyList()
     }
 
@@ -78,7 +81,7 @@ object UniversalAIContext {
                 "  * [${s.sectionId}] \"${s.sectionName}\": ${s.totalQuestions} Questions (${s.compulsoryQuestions} Compulsory) | Type: ${s.questionType.name} (${s.questionType.displayName}) | Scoring: +${s.positiveMarks} correct, -${s.negativeMarks} wrong"
             }
         } else {
-            "  * Default Section: +4.0 correct, -1.0 wrong | Type: ${examConfig.supportedQuestionTypes.firstOrNull()?.name ?: "MCQ_SINGLE"}"
+            "  * UNRESOLVED SUBJECT: No exact subjectId/subjectName match exists. Do not guess a subject, section, question type, or marking scheme. Return NEEDS_REVIEW."
         }
 
         val taskObjective = if (isExtractionMode) {
@@ -117,6 +120,7 @@ object UniversalAIContext {
             
             --------------------------------------------------------------------------------
             STRICT NO-FORMAT-MIXING CONSTRAINTS:
+            0. SUBJECT RESOLUTION: ${if (sections.isEmpty()) "STOP: the requested subject '$subject' does not exactly match a configured subject. Do not generate questions. Return a review-required error payload." else "Use only the exact configured subject and its sections."}
             1. CONSISTENT SECTION STRUCTURE: Each question MUST be assigned its appropriate sectionId, sectionName, positiveMarks, and negativeMarks exactly matching the exam configuration.
             2. NO TYPE POLLUTION:
                - If the section specifies NUMERICAL_VALUE / NVQ / NAT: Provide a single numerical problem without multiple-choice options (options empty or omitted), with exact numerical answer in 'correctAnswer'. Do NOT include A, B, C, D choices.
@@ -141,7 +145,7 @@ object UniversalAIContext {
                 "positiveMarks": 4.0,
                 "negativeMarks": 1.0,
                 "questionType": "MCQ_SINGLE",
-                "reasoning": "Step-by-step verification proving the correct answer according to official curriculum and showing why distractors are wrong.",
+                "verificationSummary": "Concise factual verification summary; never private chain-of-thought.",
                 "questionTextEn": "English question text",
                 ${if (examConfig.language.contains("Hindi")) "\"questionTextHi\": \"Hindi translation of question\"," else ""}
                 "optionAEn": "Option A (English)",
@@ -202,7 +206,7 @@ object UniversalAIContext {
                 "questionText": "exact text",
                 "options": ["A", "B", "C", "D"],
                 "correctAnswer": "A",
-                "explanation": "Independent step-by-step derivation",
+                "explanation": "Concise, learner-facing explanation",
                 "difficulty": "MEDIUM",
                 "hasMissingOptions": false,
                 "hasMissingDiagram": false,
