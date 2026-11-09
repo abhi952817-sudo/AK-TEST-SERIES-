@@ -255,17 +255,12 @@ object UniversalPdfPipeline {
                         OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, stageId)
                     } else emptyList()
 
-                    val bundledExamTests = BundledExamCatalog.getBundledTestsForExam(examConfig.examName)
-                    val bundledQuestions = bundledExamTests.flatMap { it.second }
-
+                    // This is a PDF pipeline: if the supplied PDF cannot be read,
+                    // do not substitute unrelated bundled questions and imply they came from it.
                     for (i in 1..questionsInThisBatch) {
                         val qIndex = (batchIndex * batchSize) + i
                         val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
-                        // Never mix unrelated bundled catalog items into a PDF extraction.
-                        val bundledCandidate = if (compactMarkdown.isBlank()) {
-                            bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
-                        } else null
-                        if (markdownCandidate == null && bundledCandidate == null) continue
+                        if (markdownCandidate == null) continue
 
                         val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex)
                         val qType = resolvedSection?.questionType ?: markdownCandidate?.questionType ?: continue
@@ -276,25 +271,12 @@ object UniversalPdfPipeline {
                         val posMark = resolvedSection?.positiveMarks ?: markdownCandidate?.positiveMarks ?: continue
                         val negMark = resolvedSection?.negativeMarks ?: markdownCandidate?.negativeMarks ?: continue
 
-                        val questionText = markdownCandidate?.questionText?.takeIf { it.isNotBlank() }
-                            ?: bundledCandidate?.questionText?.takeIf { it.isNotBlank() } ?: continue
-                        val options = if (markdownCandidate?.options?.isNotEmpty() == true) {
-                            markdownCandidate.options
-                        } else {
-                            listOfNotNull(
-                                bundledCandidate?.optionA?.takeIf { it.isNotBlank() },
-                                bundledCandidate?.optionB?.takeIf { it.isNotBlank() },
-                                bundledCandidate?.optionC?.takeIf { it.isNotBlank() },
-                                bundledCandidate?.optionD?.takeIf { it.isNotBlank() },
-                                bundledCandidate?.optionE?.takeIf { it.isNotBlank() }
-                            )
-                        }
+                        val questionText = markdownCandidate.questionText.takeIf { it.isNotBlank() } ?: continue
+                        val options = markdownCandidate.options
                         val isOptionFree = qType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA, QuestionType.DESCRIPTIVE)
                         if (!isOptionFree && options.size < examConfig.defaultOptionCount.coerceIn(2, 5)) continue
-                        val correctAnswer = markdownCandidate?.correctAnswer?.takeIf { it.isNotBlank() }
-                            ?: bundledCandidate?.correctAnswer?.takeIf { it.isNotBlank() } ?: continue
-                        val explanation = markdownCandidate?.explanation?.takeIf { it.isNotBlank() }
-                            ?: bundledCandidate?.explanation?.takeIf { it.isNotBlank() } ?: continue
+                        val correctAnswer = markdownCandidate.correctAnswer.takeIf { it.isNotBlank() } ?: continue
+                        val explanation = markdownCandidate.explanation
 
                         val hash = DuplicateDetectionEngine.generateNormalizedHash(questionText, options)
                         val dupResult = DuplicateDetectionEngine.checkDuplicate(questionText, options, existingHashes)
