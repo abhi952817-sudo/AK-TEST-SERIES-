@@ -12,10 +12,10 @@ data class ChapterDetail(
     val subject: String,
     val chapter: String,
     val classLevel: String = "Class 12",
-    val weightagePercent: Int, // e.g. 8 for 8%
-    val priority: String = "High", // "High", "Medium", "Core"
+    val weightagePercent: Int, // 0 when the exam authority has not published official chapter weightage
+    val priority: String = "High", // e.g. "High", "Medium", "Core", or an authority/version label
     val keyTopics: List<String> = emptyList(),
-    val totalQuestionsExpected: Int = 2
+    val totalQuestionsExpected: Int = 2 // 0 when no official chapter-level count is published
 )
 
 object SyllabusCatalog {
