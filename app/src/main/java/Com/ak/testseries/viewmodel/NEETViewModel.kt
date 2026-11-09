@@ -2569,6 +2569,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val mockIds = setOf("t1", "t2", "t3", "t4", "t5")
                 currentTests.forEach { test ->
                     if (test.id in mockIds) {
+                        db.questionDao().deleteQuestionsForTest(test.id)
                         repository.deleteTest(test)
                     }
                 }
