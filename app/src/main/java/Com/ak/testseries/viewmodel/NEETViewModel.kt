@@ -1455,6 +1455,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "durationMinutes" to durationMinutes,
                     "questionsCount" to effectiveQCount,
                     "isLive" to true,
+                    "isPublic" to true,
+                    "status" to "Published",
+                    "isOfficial" to false,
+                    "isVerifiedCommunity" to false,
+                    "countsTowardRanking" to false,
+                    "sourceType" to "ADMIN_SUPPLIED_QUESTIONS",
                     "timestamp" to System.currentTimeMillis(),
                     "questionsJson" to questionsJsonString
                 )
