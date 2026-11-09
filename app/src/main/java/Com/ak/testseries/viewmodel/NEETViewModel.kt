@@ -5937,8 +5937,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                             optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                             explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                            questionType = qObj.optString("questionType", "MCQ"),
-                            section = qObj.optString("section", "SECTION_A"),
+                            questionType = qObj.optString("questionType"),
+                            section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
                             needsImage = qObj.optBoolean("needsImage", false),
                             imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
                         )
