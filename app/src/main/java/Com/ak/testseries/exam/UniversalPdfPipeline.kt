@@ -124,6 +124,7 @@ object UniversalPdfPipeline {
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
         val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
         val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() }
+        var generationFailed = false
 
         // Process in controlled batches to save API tokens and maintain reliability
         for (batchIndex in (resumeFromBatch - 1) until totalBatches) {
@@ -206,7 +207,7 @@ object UniversalPdfPipeline {
                     )
                 }
 
-                if (!batchModels.isNullOrEmpty()) {
+                if (batchModels.isNotEmpty()) {
                     var finalBatch = batchModels
                     val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
 
@@ -237,30 +238,28 @@ object UniversalPdfPipeline {
 
                         try {
                             val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null, "question_generation")
-                            if (regenResult != null) {
-                                val regenQuestions = parseGeminiResponse(
-                                    jsonString = regenResult.responseText,
-                                    examConfig = examConfig,
-                                    stageId = stageId,
-                                    subjectId = subjectId,
-                                    batchIndex = batchIndex,
-                                    existingHashes = existingHashes,
-                                    actualModel = regenResult.modelVersion,
-                                    actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
-                                ).filter { it.difficulty == deficientLevel }
+                            val regenQuestions = parseGeminiResponse(
+                                jsonString = regenResult.responseText,
+                                examConfig = examConfig,
+                                stageId = stageId,
+                                subjectId = subjectId,
+                                batchIndex = batchIndex,
+                                existingHashes = existingHashes,
+                                actualModel = regenResult.modelVersion,
+                                actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
+                            ).filter { it.difficulty == deficientLevel }
 
-                                if (regenQuestions.isNotEmpty()) {
-                                    val excessLevel = initialValidation.excessLevels.firstOrNull()
-                                    val mutableBatch = finalBatch.toMutableList()
-                                    var replaced = 0
-                                    for (idx in mutableBatch.indices) {
-                                        if (replaced < regenQuestions.size && (excessLevel == null || mutableBatch[idx].difficulty == excessLevel)) {
-                                            mutableBatch[idx] = regenQuestions[replaced]
-                                            replaced++
-                                        }
+                            if (regenQuestions.isNotEmpty()) {
+                                val excessLevel = initialValidation.excessLevels.firstOrNull()
+                                val mutableBatch = finalBatch.toMutableList()
+                                var replaced = 0
+                                for (idx in mutableBatch.indices) {
+                                    if (replaced < regenQuestions.size && (excessLevel == null || mutableBatch[idx].difficulty == excessLevel)) {
+                                        mutableBatch[idx] = regenQuestions[replaced]
+                                        replaced++
                                     }
-                                    finalBatch = mutableBatch
                                 }
+                                finalBatch = mutableBatch
                             }
                         } catch (e: Exception) {
                             // Targeted regeneration error fallback to status tagging
@@ -283,6 +282,7 @@ object UniversalPdfPipeline {
                     extractedQuestions.addAll(finalBatch)
                 }
             } catch (e: Exception) {
+                generationFailed = true
                 onProgress(
                     BatchProgress(
                         totalBatches = totalBatches,
@@ -296,7 +296,7 @@ object UniversalPdfPipeline {
             delay(500)
         }
 
-        if (extractedQuestions.size >= expectedQuestions) {
+        if (!generationFailed && extractedQuestions.size >= expectedQuestions) {
             onProgress(
                 BatchProgress(
                     totalBatches = totalBatches,
