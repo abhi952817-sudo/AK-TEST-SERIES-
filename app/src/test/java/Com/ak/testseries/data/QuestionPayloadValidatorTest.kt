@@ -38,6 +38,12 @@ class QuestionPayloadValidatorTest {
     }
 
     @Test
+    fun rejectsUnexpectedFifthOptionForFourOptionExam() {
+        val payload = JSONArray().put(mcq(includeOptionE = true)).toString()
+        assertFalse(QuestionPayloadValidator.isValid(payload, expectedCount = 1, expectedOptionCount = 4))
+    }
+
+    @Test
     fun rejectsFiveOptionExamQuestionWhenOptionEIsMissing() {
         val payload = JSONArray().put(mcq()).toString()
         assertFalse(QuestionPayloadValidator.isValid(payload, expectedCount = 1, expectedOptionCount = 5))
