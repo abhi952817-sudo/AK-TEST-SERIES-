@@ -20,7 +20,12 @@ object QuestionGenerationRouteResolver {
         val error: String? = null
     )
 
-    fun resolve(examQuery: String, subjectQuery: String): Resolution {
+    fun resolve(
+        examQuery: String,
+        subjectQuery: String,
+        stageId: String? = null,
+        paperId: String? = null
+    ): Resolution {
         val normalizedExam = examQuery.trim()
         val normalizedSubject = subjectQuery.trim()
 
@@ -38,22 +43,28 @@ object QuestionGenerationRouteResolver {
             return Resolution(error = "Question generation stopped: ${examConfig.examName} is currently inactive.")
         }
 
-        val matches = examConfig.stages.flatMap { stage ->
-            stage.papers.flatMap { paper ->
-                paper.subjects.filter { subject ->
-                    subject.subjectId.equals(normalizedSubject, ignoreCase = true) ||
-                        subject.subjectName.equals(normalizedSubject, ignoreCase = true)
-                }.map { subject ->
-                    Route(
-                        examConfig = examConfig,
-                        stageId = stage.stageId,
-                        paperId = paper.paperId,
-                        subjectId = subject.subjectId,
-                        subjectName = subject.subjectName
-                    )
-                }
+        val requestedStageId = stageId?.trim().orEmpty()
+        val requestedPaperId = paperId?.trim().orEmpty()
+        val matches = examConfig.stages
+            .filter { requestedStageId.isBlank() || it.stageId == requestedStageId }
+            .flatMap { stage ->
+                stage.papers
+                    .filter { requestedPaperId.isBlank() || it.paperId == requestedPaperId }
+                    .flatMap { paper ->
+                        paper.subjects.filter { subject ->
+                            subject.subjectId.equals(normalizedSubject, ignoreCase = true) ||
+                                subject.subjectName.equals(normalizedSubject, ignoreCase = true)
+                        }.map { subject ->
+                            Route(
+                                examConfig = examConfig,
+                                stageId = stage.stageId,
+                                paperId = paper.paperId,
+                                subjectId = subject.subjectId,
+                                subjectName = subject.subjectName
+                            )
+                        }
+                    }
             }
-        }
 
         return when (matches.size) {
             1 -> Resolution(route = matches.single())
