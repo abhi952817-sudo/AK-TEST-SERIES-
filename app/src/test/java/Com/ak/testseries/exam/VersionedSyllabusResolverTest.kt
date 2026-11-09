@@ -56,4 +56,17 @@ class VersionedSyllabusResolverTest {
         assertNull(VersionedSyllabusResolver.exactKey("jee_main", "JEE_MAIN_2027", null, "jee_main_p1", "physics"))
         assertNotNull(VersionedSyllabusResolver.exactKey("jee_main", "JEE_MAIN_2027", "jee_paper_1", "jee_main_p1", "physics"))
     }
+
+    @Test
+    fun jeeMain2027IndexHasSeparatePaper1UnitCountsAndUniqueIds() {
+        assertTrue(JeeMain2027SyllabusIndex.hasExpectedUnitCounts())
+        assertEquals(20, JeeMain2027SyllabusIndex.unitsForSubject("physics").size)
+        assertEquals(20, JeeMain2027SyllabusIndex.unitsForSubject("chemistry").size)
+        assertEquals(14, JeeMain2027SyllabusIndex.unitsForSubject("mathematics").size)
+        assertTrue(JeeMain2027SyllabusIndex.allUnits.all { it.examId == "jee_main" })
+        assertTrue(JeeMain2027SyllabusIndex.allUnits.all { it.paperId == "jee_main_p1" })
+        assertEquals("SOURCE_IDENTIFIED_NOT_APPROVED", JeeMain2027SyllabusIndex.APPROVAL_STATE)
+        assertTrue(JeeMain2027SyllabusIndex.unitsForSubject("biology").isEmpty())
+    }
+
 }
