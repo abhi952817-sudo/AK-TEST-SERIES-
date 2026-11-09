@@ -2302,15 +2302,6 @@ fun NcertTabScreen(viewModel: NEETViewModel) {
     }
 }
 
-suspend fun processPdfWithGemini(uri: Uri) {
-    // Placeholder function that converts Uri to format acceptable by Gemini API
-    // e.g., converting to byte array or using a File provider
-    // Note: Do NOT save this PDF file into Room Database. Only send to AI and discard.
-    
-    // Simulate AI reading the PDF
-    kotlinx.coroutines.delay(2500)
-}
-
 // ==========================================
 // 🤖 SUB-TAB 4: AI PDF GENERATOR (Refactored to Com.ak.testseries.ui.UploadAiTabScreen)
 // ==========================================
@@ -2447,11 +2438,11 @@ fun ReportIssueDialog(viewModel: NEETViewModel) {
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                TextButton(onClick = { /* Simulated Image Picker */ }) {
-                    Icon(androidx.compose.material.icons.Icons.Default.Image, contentDescription = "Upload Image")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringRes("Attach Clearer Diagram Reference"))
-                }
+                Text(
+                    stringRes("Image attachment is not available in this report form yet."),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
