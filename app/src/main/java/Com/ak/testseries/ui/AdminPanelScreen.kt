@@ -27,6 +27,9 @@ import com.google.firebase.Firebase
 import com.google.firebase.database.database
 import kotlinx.coroutines.launch
 import Com.ak.testseries.viewmodel.NEETViewModel
+import Com.ak.testseries.exam.UniversalExamRegistry
+import Com.ak.testseries.exam.UniversalPdfPipeline
+import androidx.compose.ui.platform.LocalContext
 
 
 
@@ -57,6 +60,9 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
     
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    var isAnalyzingPdf by remember { mutableStateOf(false) }
+    var pdfReviewSummary by remember { mutableStateOf("") }
 
     AdminSectionCard(
         title = stringRes("Upload & Schedule Live Test"),
@@ -169,6 +175,68 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
                 }
             }
         }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            enabled = pdfUri != null && !isAnalyzingPdf,
+            onClick = {
+                val selectedUri = pdfUri
+                if (selectedUri == null) {
+                    coroutineScope.launch { snackbarHostState.showSnackbar("पहले PDF चुनें।") }
+                } else {
+                    val examConfig = UniversalExamRegistry.getExam("NEET UG")
+                    val apiKey = viewModel.getGeminiApiKeys().firstOrNull()?.second
+                    if (examConfig == null || apiKey.isNullOrBlank()) {
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Exam configuration या Admin Gemini API key उपलब्ध नहीं है।")
+                        }
+                    } else {
+                        isAnalyzingPdf = true
+                        pdfReviewSummary = ""
+                        coroutineScope.launch {
+                            try {
+                                val result = UniversalPdfPipeline.processAdminUploadedPdf(
+                                    context = context,
+                                    pdfUri = selectedUri,
+                                    examConfig = examConfig,
+                                    apiKey = apiKey,
+                                    selectedSubject = subject
+                                )
+                                pdfReviewSummary = buildString {
+                                    append("स्थिति: ${result.status}\\n")
+                                    result.error?.let { append("कारण: $it\\n") }
+                                    result.routing?.let { append("\\nPDF Classification:\\n").append(it.toString(2)) }
+                                    result.analysis?.let { append("\\nAI Draft (अभी प्रकाशित नहीं):\\n").append(it.toString(2)) }
+                                }
+                                snackbarHostState.showSnackbar(
+                                    if (result.status == "DRAFT_REVIEW") "AI Draft तैयार है। Admin Review आवश्यक है।"
+                                    else "PDF को Admin Review में भेजा गया।"
+                                )
+                            } catch (e: Exception) {
+                                pdfReviewSummary = "PDF processing failed: ${e.message ?: "unknown error"}"
+                                snackbarHostState.showSnackbar("PDF analysis असफल रहा।")
+                            } finally {
+                                isAnalyzingPdf = false
+                            }
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (isAnalyzingPdf) "Gemini PDF जाँच रहा है..." else "Gemini से PDF जाँचें (Draft Only)")
+        }
+
+        if (pdfReviewSummary.isNotBlank()) {
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Admin Review Result", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(pdfReviewSummary, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
