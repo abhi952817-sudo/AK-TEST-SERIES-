@@ -11,6 +11,8 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const geminiProxy = require("./geminiProxy");
+exports.generateGeminiContent = geminiProxy;
 
 exports.normalizeExamKey = normalizeExamKey;
 
