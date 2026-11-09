@@ -57,7 +57,13 @@ fun UniversalExamAdminScreen(
     var selectedTab by remember { mutableStateOf(0) } // 0: 20 Exams, 1: Process PDF, 2: Review Questions
     val allExams = remember { mutableStateListOf(*UniversalExamRegistry.getAllExams().toTypedArray()) }
     var selectedExam by remember { mutableStateOf(allExams.first()) }
-    var selectedSubjectId by remember { mutableStateOf(selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectId ?: "") }
+    var selectedStageId by remember { mutableStateOf(selectedExam.stages.firstOrNull()?.stageId.orEmpty()) }
+    var selectedPaperId by remember {
+        mutableStateOf(selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.paperId.orEmpty())
+    }
+    var selectedSubjectId by remember {
+        mutableStateOf(selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectId.orEmpty())
+    }
 
     var pdfUri by remember { mutableStateOf<Uri?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
@@ -135,9 +141,29 @@ fun UniversalExamAdminScreen(
                 1 -> ProcessPdfTab(
                     exams = allExams.filter { it.active },
                     selectedExam = selectedExam,
-                    onSelectExam = {
-                        selectedExam = it
-                        selectedSubjectId = it.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectId ?: ""
+                    onSelectExam = { exam ->
+                        selectedExam = exam
+                        val firstStage = exam.stages.firstOrNull()
+                        val firstPaper = firstStage?.papers?.firstOrNull()
+                        selectedStageId = firstStage?.stageId.orEmpty()
+                        selectedPaperId = firstPaper?.paperId.orEmpty()
+                        selectedSubjectId = firstPaper?.subjects?.firstOrNull()?.subjectId.orEmpty()
+                    },
+                    selectedStageId = selectedStageId,
+                    onSelectStage = { stageId ->
+                        val stage = selectedExam.stages.firstOrNull { it.stageId == stageId }
+                        val firstPaper = stage?.papers?.firstOrNull()
+                        selectedStageId = stageId
+                        selectedPaperId = firstPaper?.paperId.orEmpty()
+                        selectedSubjectId = firstPaper?.subjects?.firstOrNull()?.subjectId.orEmpty()
+                    },
+                    selectedPaperId = selectedPaperId,
+                    onSelectPaper = { paperId ->
+                        val paper = selectedExam.stages
+                            .firstOrNull { it.stageId == selectedStageId }
+                            ?.papers?.firstOrNull { it.paperId == paperId }
+                        selectedPaperId = paperId
+                        selectedSubjectId = paper?.subjects?.firstOrNull()?.subjectId.orEmpty()
                     },
                     selectedSubjectId = selectedSubjectId,
                     onSelectSubject = { selectedSubjectId = it },
@@ -162,6 +188,8 @@ fun UniversalExamAdminScreen(
                                     pdfUri = pdfUri!!,
                                     examConfig = selectedExam,
                                     subjectId = selectedSubjectId,
+                                    stageId = selectedStageId,
+                                    paperId = selectedPaperId,
                                     expectedQuestions = 20,
                                     isAiEnabled = isAiEnabled,
                                     onProgress = { prog ->
@@ -183,6 +211,8 @@ fun UniversalExamAdminScreen(
                 2 -> QuestionReviewTab(
                     questions = extractedQuestions,
                     examConfig = selectedExam,
+                    selectedStageId = selectedStageId,
+                    selectedPaperId = selectedPaperId,
                     onApprove = { q ->
                         val idx = extractedQuestions.indexOf(q)
                         if (idx != -1) {
@@ -304,6 +334,10 @@ fun ProcessPdfTab(
     exams: List<ExamConfig>,
     selectedExam: ExamConfig,
     onSelectExam: (ExamConfig) -> Unit,
+    selectedStageId: String,
+    onSelectStage: (String) -> Unit,
+    selectedPaperId: String,
+    onSelectPaper: (String) -> Unit,
     selectedSubjectId: String,
     onSelectSubject: (String) -> Unit,
     pdfUri: Uri?,
@@ -331,9 +365,42 @@ fun ProcessPdfTab(
         }
 
         item {
-            Text("Step 2: Select Subject / Paper", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Step 2: Select Exam Stage", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
-            val subjects = selectedExam.stages.firstOrNull()?.papers?.firstOrNull()?.subjects ?: emptyList()
+            val stages = selectedExam.stages
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(stages) { stage ->
+                    FilterChip(
+                        selected = stage.stageId == selectedStageId,
+                        onClick = { onSelectStage(stage.stageId) },
+                        label = { Text(stage.stageName) }
+                    )
+                }
+            }
+        }
+
+        item {
+            Text("Step 3: Select Paper", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            val papers = selectedExam.stages.firstOrNull { it.stageId == selectedStageId }?.papers ?: emptyList()
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(papers) { paper ->
+                    FilterChip(
+                        selected = paper.paperId == selectedPaperId,
+                        onClick = { onSelectPaper(paper.paperId) },
+                        label = { Text(paper.paperName) }
+                    )
+                }
+            }
+        }
+
+        item {
+            Text("Step 4: Select Subject", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            val subjects = selectedExam.stages
+                .firstOrNull { it.stageId == selectedStageId }
+                ?.papers?.firstOrNull { it.paperId == selectedPaperId }
+                ?.subjects ?: emptyList()
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(subjects) { subj ->
                     FilterChip(
@@ -346,7 +413,7 @@ fun ProcessPdfTab(
         }
 
         item {
-            Text("Step 3: Source PDF Document", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Step 5: Source PDF Document", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedCard(
                 modifier = Modifier.fillMaxWidth().clickable { onPickPdf() },
@@ -409,6 +476,8 @@ fun ProcessPdfTab(
 fun QuestionReviewTab(
     questions: List<UniversalQuestionModel>,
     examConfig: ExamConfig,
+    selectedStageId: String,
+    selectedPaperId: String,
     onApprove: (UniversalQuestionModel) -> Unit,
     onReject: (UniversalQuestionModel) -> Unit,
     onAttachDiagram: (UniversalQuestionModel) -> Unit,
@@ -416,7 +485,10 @@ fun QuestionReviewTab(
 ) {
     val approvedCount = questions.count { it.validationStatus == ValidationStatus.APPROVED }
     
-    val tableDuration = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: (if (approvedCount > 0) approvedCount else 60)
+    val tableDuration = examConfig.stages
+        .firstOrNull { it.stageId == selectedStageId }
+        ?.papers?.firstOrNull { it.paperId == selectedPaperId }
+        ?.durationMinutes ?: (if (approvedCount > 0) approvedCount else 60)
     var durationMinutes by remember(examConfig) { mutableStateOf(tableDuration.toString()) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
