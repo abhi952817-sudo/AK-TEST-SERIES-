@@ -69,6 +69,46 @@ class UniversalPdfPromptContractTest {
     }
 
     @Test
+    fun universalQuestionMappingUsesOnlyApprovedExactIdsAndPreservesEveryQuestion() {
+        val prompt = UniversalPdfPromptContract.buildUniversalQuestionMappingPrompt(
+            examId = "neet_ug",
+            stageId = "neet_main",
+            paperId = "neet_paper_1",
+            subjectId = "biology",
+            syllabusVersion = "NEET_APPROVED_TEST_VERSION",
+            approvedSyllabusJson = """{"chapters":[{"chapterId":"bio_ch_01","chapterName":"The Living World","topics":[{"topicId":"bio_topic_01","topicName":"What is living?"}]}]}""",
+            questionsJson = """[{"questionId":"q-101","questionText":"Which feature defines living organisms?"}]"""
+        )
+        assertTrue(prompt.contains("UNIVERSAL and exam-neutral"))
+        assertTrue(prompt.contains("EXAM_ID: neet_ug"))
+        assertTrue(prompt.contains("bio_ch_01"))
+        assertTrue(prompt.contains("bio_topic_01"))
+        assertTrue(prompt.contains("Never create, rename, approximate, fuzzy-match"))
+        assertTrue(prompt.contains("Ensure every input question appears exactly once"))
+        assertTrue(prompt.contains("officialPromotionAllowed"))
+        assertTrue(prompt.contains("publishAllowed"))
+        assertTrue(prompt.contains("answer verification is a separate contract"))
+    }
+
+    @Test
+    fun universalQuestionMappingBlocksCanonicalIdsWithoutApprovedSnapshot() {
+        val prompt = UniversalPdfPromptContract.buildUniversalQuestionMappingPrompt(
+            examId = "jee_main",
+            stageId = "jee_paper_1",
+            paperId = "jee_main_p1",
+            subjectId = "physics",
+            syllabusVersion = null,
+            approvedSyllabusJson = "",
+            questionsJson = """[{"questionId":"q-202","questionText":"Sample extracted item"}]"""
+        )
+        assertTrue(prompt.contains("NO_APPROVED_VERSION"))
+        assertTrue(prompt.contains("NO_APPROVED_SYLLABUS_SNAPSHOT"))
+        assertTrue(prompt.contains("canonical IDs must be null"))
+        assertTrue(prompt.contains("BLOCKED_NO_APPROVED_SYLLABUS"))
+        assertFalse(prompt.contains("NEET UG QUESTION STYLE"))
+    }
+
+    @Test
     fun neetSystemInstructionContainsSubjectStylesAndIndependentAnswerVerification() {
         val neet = UniversalExamRegistry.getExam("neet_ug") ?: error("NEET registry entry missing")
         val prompt = UniversalAIContext.buildSystemInstruction(neet)
