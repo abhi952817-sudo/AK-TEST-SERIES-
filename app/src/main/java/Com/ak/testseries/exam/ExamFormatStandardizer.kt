@@ -40,67 +40,43 @@ object ExamFormatStandardizer {
         examConfig: ExamConfig,
         subjectId: String,
         questions: List<UniversalQuestionModel>,
-        durationMinutes: Int = 0
+        durationMinutes: Int = 0,
+        stageId: String? = null
     ): StandardizedExamPaper {
-        val applicableSections = UniversalAIContext.getApplicableSections(examConfig, subjectId)
-        val defaultSection = SectionConfig(
-            sectionId = "SECTION_A",
-            sectionName = "Section A",
-            totalQuestions = questions.size.coerceAtLeast(1),
-            compulsoryQuestions = questions.size.coerceAtLeast(1),
-            positiveMarks = UniversalExamRegistry.getMarkingSchemeForExam(examConfig.examName).first,
-            negativeMarks = UniversalExamRegistry.getMarkingSchemeForExam(examConfig.examName).second,
-            questionType = examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
-        )
-        val sectionsToUse = if (applicableSections.isNotEmpty()) applicableSections else listOf(defaultSection)
+        // Never invent a section or marking scheme when the selected exam/subject is unresolved.
+        val sectionsToUse = UniversalAIContext.getApplicableSections(examConfig, subjectId, stageId)
 
         val groupedQuestions = mutableMapOf<String, MutableList<UniversalQuestionModel>>()
         sectionsToUse.forEach { groupedQuestions[it.sectionId] = mutableListOf() }
 
         questions.forEachIndexed { index, q ->
-            val section = UniversalPdfPipeline.resolveSectionForIndex(examConfig, subjectId, index + 1)
-                ?: sectionsToUse.first()
+            val section = UniversalPdfPipeline.resolveSectionForIndex(examConfig, subjectId, index + 1, stageId)
+                ?: return@forEachIndexed
+            // A question already tagged for a different section, type or scoring rule is not silently reassigned.
+            if (q.sectionId != section.sectionId || q.questionType != section.questionType ||
+                kotlin.math.abs(q.positiveMarks - section.positiveMarks) > 0.000001 ||
+                kotlin.math.abs(q.negativeMarks - section.negativeMarks) > 0.000001
+            ) return@forEachIndexed
 
-            val isNumerical = (section.questionType == QuestionType.NUMERICAL_VALUE ||
-                    section.questionType == QuestionType.NUMERICAL ||
-                    section.questionType == QuestionType.TITA)
-
-            // Strictly sanitize options to prevent format pollution while preserving 5-option formats for Banking
-            val isFiveOption = examConfig.defaultOptionCount == 5 || q.options.size >= 5
-            val sanitizedOptions = if (isNumerical) {
+            val isOptionFree = section.questionType in setOf(
+                QuestionType.NUMERICAL_VALUE, QuestionType.NUMERICAL, QuestionType.TITA, QuestionType.DESCRIPTIVE
+            )
+            val expectedOptions = section.optionsCount.coerceIn(0, 5)
+            val sanitizedOptions = if (isOptionFree) {
+                if (q.options.isNotEmpty()) return@forEachIndexed
                 emptyList()
-            } else if (isFiveOption) {
-                if (q.options.size == 5) {
-                    q.options
-                } else {
-                    listOf(
-                        q.options.getOrElse(0) { "Option A" },
-                        q.options.getOrElse(1) { "Option B" },
-                        q.options.getOrElse(2) { "Option C" },
-                        q.options.getOrElse(3) { "Option D" },
-                        q.options.getOrElse(4) { "Option E" }
-                    )
-                }
-            } else if (q.options.size == 4) {
-                q.options
             } else {
-                listOf(
-                    q.options.getOrElse(0) { "Option A" },
-                    q.options.getOrElse(1) { "Option B" },
-                    q.options.getOrElse(2) { "Option C" },
-                    q.options.getOrElse(3) { "Option D" }
-                )
+                if (q.options.size != expectedOptions || q.options.any { it.isBlank() } ||
+                    q.options.map { it.trim().lowercase() }.distinct().size != q.options.size
+                ) return@forEachIndexed
+                q.options
             }
 
             val standardizedQ = q.copy(
                 examId = examConfig.examId,
-                sectionId = section.sectionId,
                 sectionName = section.sectionName,
-                questionType = section.questionType,
-                positiveMarks = section.positiveMarks,
-                negativeMarks = section.negativeMarks,
                 options = sanitizedOptions,
-                optionsHi = if (isNumerical) null else q.optionsHi
+                optionsHi = if (isOptionFree) null else q.optionsHi
             )
 
             groupedQuestions.getOrPut(section.sectionId) { mutableListOf() }.add(standardizedQ)
@@ -127,7 +103,7 @@ object ExamFormatStandardizer {
         }
 
         val resolvedDuration = if (durationMinutes > 0) durationMinutes else {
-            examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: 180
+            (examConfig.stages.firstOrNull { stageId.isNullOrBlank() || it.stageId == stageId }?.papers?.firstOrNull()?.durationMinutes ?: 0)
         }
 
         return StandardizedExamPaper(
@@ -137,7 +113,7 @@ object ExamFormatStandardizer {
             category = examConfig.category,
             durationMinutes = resolvedDuration,
             totalMarks = totalMarksCalculated,
-            totalQuestions = questions.size,
+            totalQuestions = sectionGroups.sumOf { it.questions.size },
             sectionGroups = sectionGroups,
             metadata = mapOf(
                 "subject" to subjectId,
