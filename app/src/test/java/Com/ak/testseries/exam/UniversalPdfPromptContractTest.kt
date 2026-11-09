@@ -154,6 +154,50 @@ class UniversalPdfPromptContractTest {
 
 
     @Test
+    fun questionGenerationContractBlocksExtractionWithoutSourceAndNeverClaimsOfficialScope() {
+        val extraction = UniversalPdfPromptContract.buildQuestionGenerationSafetyAddendum(
+            examId = "neet_ug",
+            stageId = "neet_main",
+            paperId = "neet_paper_1",
+            subjectId = "physics",
+            sourceDocumentPresent = false,
+            extractionMode = true,
+            approvedSyllabusSnapshotAvailable = false
+        )
+        assertTrue(extraction.contains("ROUTE_RESOLVED: true"))
+        assertTrue(extraction.contains("SOURCE_DOCUMENT_PRESENT: false"))
+        assertTrue(extraction.contains("return no questions"))
+        assertTrue(extraction.contains("publishAllowed is always false"))
+
+        val generated = UniversalPdfPromptContract.buildQuestionGenerationSafetyAddendum(
+            examId = "jee_main",
+            stageId = "jee_main_stage",
+            paperId = "jee_main_p1",
+            subjectId = "physics",
+            sourceDocumentPresent = false,
+            extractionMode = false,
+            approvedSyllabusSnapshotAvailable = false
+        )
+        assertTrue(generated.contains("GENERAL_PRACTICE"))
+        assertTrue(generated.contains("Do not claim official syllabus coverage"))
+        assertTrue(generated.contains("Never borrow another exam"))
+    }
+
+    @Test
+    fun questionGenerationContractRejectsUnresolvedPaperIdentity() {
+        val prompt = UniversalPdfPromptContract.buildQuestionGenerationSafetyAddendum(
+            examId = "neet_ug",
+            stageId = null,
+            paperId = null,
+            subjectId = "physics",
+            sourceDocumentPresent = true,
+            extractionMode = true
+        )
+        assertTrue(prompt.contains("ROUTE_RESOLVED: false"))
+        assertTrue(prompt.contains("stop and return no questions"))
+    }
+
+    @Test
     fun jeeMainUnitIndexPromptIsExplicitlyNonApprovedAndPaperScoped() {
         val physics = UniversalPdfPromptContract.buildJeeMain2027UnitIndexContext("physics")
         assertTrue(physics.contains("JEE_MAIN_2027_PRELIMINARY_UNIT_INDEX"))
