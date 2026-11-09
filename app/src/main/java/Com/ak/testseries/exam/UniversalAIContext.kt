@@ -78,14 +78,30 @@ object UniversalAIContext {
         }
     }
 
-    fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
+    fun getApplicableSections(
+        examConfig: ExamConfig,
+        subject: String,
+        stageId: String? = null,
+        paperId: String? = null
+    ): List<SectionConfig> {
         val requestedSubject = subject.trim()
         if (!isKnownSubject(examConfig, requestedSubject)) return emptyList()
-        val matchingSubject = examConfig.stages.flatMap { it.papers.flatMap { p -> p.subjects } }.firstOrNull {
-            it.subjectName.equals(requestedSubject, ignoreCase = true) ||
-                it.subjectId.equals(requestedSubject, ignoreCase = true)
-        }
-        return matchingSubject?.sections ?: emptyList()
+        val requestedStageId = stageId?.trim().orEmpty()
+        val requestedPaperId = paperId?.trim().orEmpty()
+        val matches = examConfig.stages
+            .filter { requestedStageId.isBlank() || it.stageId == requestedStageId }
+            .flatMap { stage ->
+                stage.papers
+                    .filter { requestedPaperId.isBlank() || it.paperId == requestedPaperId }
+                    .flatMap { paper ->
+                        paper.subjects.filter {
+                            it.subjectName.equals(requestedSubject, ignoreCase = true) ||
+                                it.subjectId.equals(requestedSubject, ignoreCase = true)
+                        }
+                    }
+            }
+        // Ambiguous subject routes must not inherit the first paper's section/scoring rules.
+        return matches.singleOrNull()?.sections ?: emptyList()
     }
 
     /**
@@ -101,13 +117,15 @@ object UniversalAIContext {
         startQ: Int,
         endQ: Int,
         totalQuestions: Int,
-        isExtractionMode: Boolean = false
+        isExtractionMode: Boolean = false,
+        stageId: String? = null,
+        paperId: String? = null
     ): String {
         val systemInstruction = buildSystemInstruction(examConfig)
         val diff = examConfig.difficultyRatio
         val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
         val patternList = examConfig.patternRules.joinToString("\n  - ")
-        val sections = getApplicableSections(examConfig, subject)
+        val sections = getApplicableSections(examConfig, subject, stageId, paperId)
         val sectionDetails = if (sections.isNotEmpty()) {
             sections.joinToString("\n") { s ->
                 "  * [${s.sectionId}] \"${s.sectionName}\": ${s.totalQuestions} Questions (${s.compulsoryQuestions} Compulsory) | Type: ${s.questionType.name} (${s.questionType.displayName}) | Scoring: +${s.positiveMarks} correct, -${s.negativeMarks} wrong"
@@ -165,7 +183,7 @@ object UniversalAIContext {
             
             --------------------------------------------------------------------------------
             COMPACT SOURCE MARKDOWN PAYLOAD (Cleaned & Token-Optimized):
-            ${if (compactMarkdownPayload.isNotBlank()) compactMarkdownPayload.take(50000) else "Source: Standard Official Syllabus for $subject in ${examConfig.examName}."}
+            ${if (compactMarkdownPayload.isNotBlank()) compactMarkdownPayload.take(50000) else "NO_SOURCE_DOCUMENT_SUPPLIED. Generate only clearly labelled GENERAL_PRACTICE questions from the configured exam pattern. Do not claim official syllabus coverage, official weightage, or source-backed PYQ status."}
             
             --------------------------------------------------------------------------------
             REQUIRED JSON OUTPUT SCHEMA:
