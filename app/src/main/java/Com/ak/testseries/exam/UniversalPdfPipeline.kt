@@ -2,15 +2,12 @@ package Com.ak.testseries.exam
 
 import android.content.Context
 import android.net.Uri
-import Com.ak.testseries.BuildConfig
 import Com.ak.testseries.utils.CompactMarkdownFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Universal PDF Processing Pipeline
@@ -126,7 +123,8 @@ object UniversalPdfPipeline {
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
         val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
-        val effectiveApiKey = apiKey ?: BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
+        val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() }
+        val canUseGemini = true // Owner-managed calls are authorized by the backend; BYOK is optional.
 
         // Process in controlled batches to save API tokens and maintain reliability
         for (batchIndex in (resumeFromBatch - 1) until totalBatches) {
@@ -186,7 +184,7 @@ object UniversalPdfPipeline {
 
                 // Call Gemini API if key is available
                 var batchModels: List<UniversalQuestionModel>? = null
-                if (!effectiveApiKey.isNullOrBlank()) {
+                if (canUseGemini) {
                     val apiResult = callGeminiApi(effectiveApiKey, promptWithSyllabusContext, systemInstruction)
                     if (apiResult != null) {
                         val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Gemini API Generation"
@@ -208,7 +206,7 @@ object UniversalPdfPipeline {
                     var finalBatch = batchModels
                     val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
 
-                    if (!initialValidation.isCompliant && !effectiveApiKey.isNullOrBlank() && initialValidation.deficientLevels.isNotEmpty()) {
+                    if (!initialValidation.isCompliant && canUseGemini && initialValidation.deficientLevels.isNotEmpty()) {
                         // Attempt targeted regeneration for deficient difficulty types
                         val deficientLevel = initialValidation.deficientLevels.first()
                         val neededCount = when (deficientLevel) {
@@ -559,75 +557,25 @@ object UniversalPdfPipeline {
     )
 
     private suspend fun callGeminiApi(
-        apiKey: String,
+        apiKey: String?,
         prompt: String,
         systemInstruction: String?
-    ): GeminiApiExecutionResult? = withContext(Dispatchers.IO) {
-        val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
-        for (modelName in candidateModels) {
-            try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                // Keep credentials out of URLs, which may be retained in proxy/server logs.
-                conn.setRequestProperty("x-goog-api-key", apiKey)
-                conn.connectTimeout = 45000
-                conn.readTimeout = 45000
-                conn.doOutput = true
-
-                val jsonReq = JSONObject().apply {
-                    if (!systemInstruction.isNullOrBlank()) {
-                        put("systemInstruction", JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("text", systemInstruction)
-                                })
-                            })
-                        })
-                    }
-                    put("contents", JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("text", prompt)
-                                })
-                            })
-                        })
-                    })
-                    put("generationConfig", JSONObject().apply {
-                        put("responseMimeType", "application/json")
-                    })
-                }
-
-                conn.outputStream.use { os ->
-                    os.write(jsonReq.toString().toByteArray(Charsets.UTF_8))
-                }
-
-                if (conn.responseCode == 200) {
-                    val responseStr = conn.inputStream.bufferedReader().use { it.readText() }
-                    val respObj = JSONObject(responseStr)
-                    val returnedVersion = respObj.optString("modelVersion").takeIf { it.isNotBlank() } ?: "UNAVAILABLE"
-                    val candidates = respObj.optJSONArray("candidates")
-                    if (candidates != null && candidates.length() > 0) {
-                        val content = candidates.getJSONObject(0).optJSONObject("content")
-                        val parts = content?.optJSONArray("parts")
-                        if (parts != null && parts.length() > 0) {
-                            val text = parts.getJSONObject(0).optString("text")
-                            if (text.isNotBlank()) {
-                                return@withContext GeminiApiExecutionResult(
-                                    responseText = text,
-                                    modelName = modelName,
-                                    modelVersion = returnedVersion
-                                )
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                // try next model
-            }
+    ): GeminiApiExecutionResult? {
+        return try {
+            val result = GeminiRequestExecutor.execute(
+                prompt = prompt,
+                systemInstruction = systemInstruction,
+                userApiKey = apiKey,
+                taskType = "question_generation"
+            )
+            GeminiApiExecutionResult(
+                responseText = result.responseText,
+                modelName = result.modelName,
+                modelVersion = result.modelVersion
+            )
+        } catch (_: Exception) {
+            null
         }
-        return@withContext null
     }
+
 }
