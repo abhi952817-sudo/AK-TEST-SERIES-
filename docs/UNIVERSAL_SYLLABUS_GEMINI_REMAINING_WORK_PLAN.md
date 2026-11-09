@@ -354,3 +354,28 @@ The owner key in GitHub Secrets is not a runtime credential source for an instal
 7. Finish NEET end-to-end verification before enabling JEE on the same engine.
 
 **Do not mark dual-key support complete until G1–G6 pass.** The current header change is a transport hardening step only; it does not make the current BuildConfig owner key safe for production.
+
+
+### 7.6 Implementation status after initial integration pass (2026-11-09)
+
+**Code added on the feature branch:**
+- Added backend_functions/geminiProxy.js as an authenticated Firebase Callable Function using Firebase Functions v2 and a Firebase Secret Manager parameter named GEMINI_API_KEY.
+- Owner-managed credential mode is restricted to the verified owner email or an Admin custom claim.
+- User BYOK credential mode accepts a request-scoped key, does not write it to Firestore, and uses the same Gemini generateContent request path.
+- Added a per-user minute rate limit, prompt/model/task allowlists, request-size limits and normalized key/quota/service errors.
+- Added app/src/main/java/Com/ak/testseries/exam/GeminiRequestExecutor.kt as the shared Android transport.
+- Updated UniversalPdfPipeline to call the shared Firebase proxy for both ordinary extraction/generation and targeted difficulty regeneration. The pipeline no longer reads BuildConfig.GEMINI_API_KEY.
+- Moved the direct Gemini API key from URL query string to the x-goog-api-key header in the transitional direct-call code before replacing the pipeline call path.
+- Registered generateGeminiContent in backend_functions/index.js.
+
+**Still not complete / not yet verified:**
+- User BYOK Settings UI, Android Keystore-backed local storage, Test Key, Replace and Remove controls.
+- Firebase Secret Manager provisioning for GEMINI_API_KEY. A GitHub Actions Secret alone is not available to a running Cloud Function; a protected deployment workflow must provision the Firebase secret, or it must be set manually in Firebase.
+- Firebase Functions deployment and emulator tests. The new callable is not live until deployed.
+- Firebase App Check enforcement and production rate/quota policy review.
+- Strict structured response schema wiring from every task contract.
+- Runtime calls to the document classification, approved syllabus resolver, universal mapping prompt and independent answer-verification prompt.
+- Strict mapping/answer JSON parsing, persistence and private review workflow.
+- Android build, Kotlin unit tests and backend syntax/emulator tests have not yet been run for this integration batch.
+
+The current default route without a supplied user key selects OWNER_MANAGED and therefore succeeds only for an authenticated authorized Admin after the backend secret is configured and the function is deployed. A normal user must use USER_BYOK after the settings UI is implemented. Do not describe BYOK or owner-managed Gemini as production-ready until the missing gates above pass.
