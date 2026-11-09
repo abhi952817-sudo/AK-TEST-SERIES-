@@ -6745,85 +6745,21 @@ fun AdminDashboardContent(viewModel: NEETViewModel) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Rounded.CloudUpload,
-                        contentDescription = "Sync",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Official Mock Tests & Question Bank",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+                Text(
+                    "Verified Test Import",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Publish full-length NEET UG (200Q) & JEE Mains (90Q) bilingual tests to cloud database for all students.",
+                    "Demo tests are no longer seeded or published. Add tests through the source-PDF/Gemini workflow and complete review before publication.",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            isSyncing = true
-                            syncStatus = "Publishing to Firestore Tests_Data..."
-                            viewModel.syncBundledTestsToCloud { success, error ->
-                                isSyncing = false
-                                if (success) {
-                                    syncStatus = "Published successfully! Available to all students."
-                                    android.widget.Toast.makeText(context, "All Official Tests Published to Cloud!", android.widget.Toast.LENGTH_LONG).show()
-                                } else {
-                                    syncStatus = "Failed: ${error ?: "Unknown error"}"
-                                    android.widget.Toast.makeText(context, "Sync Failed: $error", android.widget.Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        },
-                        enabled = !isSyncing,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Publishing...", fontSize = 12.sp)
-                        } else {
-                            Icon(Icons.Rounded.CloudDone, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Publish to Cloud", fontSize = 12.sp)
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            viewModel.seedBundledMockTestsIfNeeded()
-                            android.widget.Toast.makeText(context, "Local Mock Tests Seeded!", android.widget.Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Seed Local DB", fontSize = 12.sp)
-                    }
-                }
-                if (syncStatus != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        syncStatus!!,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (syncStatus!!.startsWith("Failed")) Color.Red else MaterialTheme.colorScheme.primary
-                    )
-                }
             }
         }
 
@@ -7121,89 +7057,6 @@ fun AdminAiManagerContent(viewModel: NEETViewModel) {
         
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Offline Mock Fallback Switch Card (Config/admin_settings -> offlineMockFallbackEnabled)
-        val isOfflineMockFallbackEnabled by viewModel.isOfflineMockFallbackEnabled.collectAsStateWithLifecycle()
-        var isUpdatingMockFallback by remember { mutableStateOf(false) }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(if (isOfflineMockFallbackEnabled) Color(0xFFDCFCE7) else Color(0xFFF1F5F9), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Rounded.Storage, 
-                            contentDescription = null, 
-                            tint = if (isOfflineMockFallbackEnabled) Color(0xFF16A34A) else Color.Gray, 
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.padding(end = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Offline Mock Fallback", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = if (isOfflineMockFallbackEnabled) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
-                            ) {
-                                Text(
-                                    if (isOfflineMockFallbackEnabled) "ON" else "OFF",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isOfflineMockFallbackEnabled) Color(0xFF15803D) else Color(0xFFB91C1C),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            if (isOfflineMockFallbackEnabled) 
-                                "ON: Existing mock fallback can be used when real AI generation fails." 
-                            else 
-                                "OFF: No mock/fake test generation; show an error instead.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 15.sp
-                        )
-                    }
-                }
-
-                Switch(
-                    checked = isOfflineMockFallbackEnabled,
-                    enabled = !isUpdatingMockFallback,
-                    onCheckedChange = { newState ->
-                        isUpdatingMockFallback = true
-                        viewModel.setOfflineMockFallbackEnabled(newState) { success, errorMsg ->
-                            isUpdatingMockFallback = false
-                            if (!success) {
-                                android.widget.Toast.makeText(context, errorMsg ?: "Failed to update Offline Mock Fallback setting", android.widget.Toast.LENGTH_LONG).show()
-                            } else {
-                                val status = if (newState) "Offline Mock Fallback Enabled (ON)" else "Offline Mock Fallback Disabled (OFF)"
-                                android.widget.Toast.makeText(context, status, android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    colors = androidx.compose.material3.SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF16A34A)
-                    )
-                )
-            }
-        }
-        
         Spacer(modifier = Modifier.height(24.dp))
         
         Text("Active Capabilities", fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
