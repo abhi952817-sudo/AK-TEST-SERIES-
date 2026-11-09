@@ -95,7 +95,7 @@ object UniversalExamRegistry {
             ExamConfig(
                 examId = "jee_main",
                 examName = "JEE Main",
-                shortName = "JEE",
+                shortName = "JEE Main",
                 category = "Engineering Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
@@ -1123,7 +1123,8 @@ object UniversalExamRegistry {
         return when {
             q.contains("neet") -> "NEET"
             q.contains("jee adv") || q == "jee_advanced" -> "JEE_ADVANCED"
-            q.contains("jee main") || q == "jee_main" || q.contains("jee") -> "JEE_MAIN"
+            q.contains("jee main") || q == "jee_main" -> "JEE_MAIN"
+            q == "jee" -> "UNKNOWN"
             q.contains("gate") -> "GATE"
             q.contains("cuet") -> "CUET"
             q.contains("upsc") || q.contains("civil services") -> "UPSC"
@@ -1156,6 +1157,8 @@ object UniversalExamRegistry {
 
     fun findExamByNameOrShortName(query: String): ExamConfig? {
         val q = query.trim().lowercase()
+        // "JEE" alone is ambiguous between Main and Advanced; never guess.
+        if (q == "jee") return null
         val exact = defaultExams.values.find {
             it.examName.lowercase() == q ||
             it.shortName.lowercase() == q ||
