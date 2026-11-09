@@ -199,8 +199,19 @@ fun UniversalExamAdminScreen(
                                 extractedQuestions.clear()
                                 extractedQuestions.addAll(results)
                                 isProcessing = false
-                                selectedTab = 2 // Move to review
-                                Toast.makeText(context, "Extracted ${results.size} questions successfully!", Toast.LENGTH_SHORT).show()
+                                if (results.isEmpty()) {
+                                    val failureMessage = progressStatus.ifBlank {
+                                        "Gemini returned no valid questions. No test was created."
+                                    }
+                                    Toast.makeText(context, failureMessage, Toast.LENGTH_LONG).show()
+                                    return@launch
+                                }
+                                selectedTab = 2 // Move to review only when Gemini returned question candidates
+                                Toast.makeText(
+                                    context,
+                                    "Gemini returned ${results.size} questions for review. ${progressStatus}",
+                                    Toast.LENGTH_LONG
+                                ).show()
                             } catch (e: Exception) {
                                 isProcessing = false
                                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
