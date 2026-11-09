@@ -170,3 +170,13 @@ Implementation branch commits:
 - Main HEAD: `d2feae47f908b705209c27b8e61e624f94c400d7` (unchanged).
 - Feature branch latest observed HEAD before this tracker update: `af110ff02cf741e5b2ce46d2db586ed4fff437f7`.
 - Latest workflow observed: `42476938214`; it had not yet reached unit-test or APK-build steps. No build/test success is claimed.
+## Follow-up hardening — 2026-11-09
+
+- Admin UniversalPdfPipeline.parseGeminiResponse() remains wired to the existing GeminiResponseValidator; the parser preserves source key, answer status/confidence, provenance, verification summary, source-page range and review metadata.
+- Admin validation now passes the requested subjectId into the validator. A section ID that exists under another subject can no longer satisfy the current subject's validation by coincidence.
+- Student PDF metadata recognition now requires a registered canonical targetExamId, confidence >= 60 and needsUserConfirmation=false before using the Gemini result. Unknown IDs and ambiguous results stop with an explicit error instead of silently selecting the current exam or NEET.
+- Offline metadata heuristics now require an explicit exam-name/short-name/ID match in extracted text. The previous fallback to the selected exam or first registry entry has been removed. Subject detection no longer substitutes the first configured subject.
+- The legacy GeminiPdfExtractor remains disabled with a Needs Review status because it does not submit verified PDF bytes/configuration; its former synthetic question fallback is not allowed to mark a test Ready.
+- Added a regression test proving that a question from a different subject is rejected even when the exam configuration is otherwise valid.
+- Commits in this follow-up: 45b38e91868ebeca8b60a43db11909a962f266cb (restore shared Admin validator integration), c8ee7fd9cdf4380c44e1c67bd5ff17766df35232 (remove redundant validator), 65c930017f802a8b1215e51ecb932c632f981580 (Admin subject scoping), 00dc733f9a64f727ea07d14984aedb18a912c995 (evidence-based exam recognition), 0855d47ae46ed8ebf3583aad0c336db39872b63b (subject-scope regression test).
+- Verification: source-level inspection only. No Android build, unit tests, emulator run or CI pass is claimed for these latest commits. Main remains unchanged; no merge, PR or deployment was performed.
