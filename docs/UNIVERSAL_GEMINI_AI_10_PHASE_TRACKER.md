@@ -190,3 +190,4 @@ Implementation branch commits:
 - The remaining `CrashResilienceTest` failure originated from Robolectric's default SDK provider. Pinned that test class to SDK 35 without changing production targetSdk 36. Commit: `5275945e464f2c7323b998ef6dabd87da7d40611`.
 - The latest changes have not yet been verified by a fresh completed CI run. Do not infer that the 15 failures are fixed until `:app:testDebugUnitTest` and `:app:assembleDebug` complete on the latest feature-branch head.
 - PDF pipeline source/catalog separation was committed as `aa81acb85f32e5d92153e517dd3cf8e8ce0ae316`.
+- Offline metadata no longer labels an unrecognized source as a "Previous Year Paper"; it now reports `Unknown Source` unless the document contains an explicit recognized institute/source marker. Commit: `4234c78893a52b7fad0ffe473a5a3aefa1e765ac`.
