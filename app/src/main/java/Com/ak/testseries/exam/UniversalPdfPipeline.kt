@@ -57,6 +57,17 @@ object UniversalPdfPipeline {
         isAiEnabled: Boolean = true,
         onProgress: (BatchProgress) -> Unit = {}
     ): List<UniversalQuestionModel> = withContext(Dispatchers.IO) {
+        if (!UniversalAIContext.isKnownSubject(examConfig, subjectId)) {
+            onProgress(
+                BatchProgress(
+                    totalBatches = 0,
+                    currentBatch = 0,
+                    processedQuestions = 0,
+                    statusMessage = "PDF processing stopped: subject '$subjectId' is blank or not configured for ${examConfig.examName}. Admin review is required."
+                )
+            )
+            return@withContext emptyList()
+        }
         if (!isAiEnabled) {
             onProgress(
                 BatchProgress(
@@ -142,7 +153,7 @@ object UniversalPdfPipeline {
                 // Dynamically build the prompt injecting aiSystemInstruction, pattern rules, and compact Markdown
                 val prompt = UniversalAIContext.buildDynamicGenerationPrompt(
                     examConfig = examConfig,
-                    subject = subjectId.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "Core Domain" },
+                    subject = subjectId.trim(),
                     testTitle = "${examConfig.shortName} Diagnostic Paper",
                     compactMarkdownPayload = compactMarkdown,
                     currentChunkSize = questionsInThisBatch,
