@@ -40,6 +40,7 @@ class AccountSwitchingPrivacyTest {
             isOfficial = true,
             isVerifiedCommunity = false,
             isPublic = true,
+            status = "Published",
             uploaderId = "official_admin"
         )
 
@@ -149,6 +150,7 @@ class AccountSwitchingPrivacyTest {
             isOfficial = true,
             isVerifiedCommunity = true,
             isPublic = true,
+            status = "Published",
             uploaderId = "official_admin"
         )
 
