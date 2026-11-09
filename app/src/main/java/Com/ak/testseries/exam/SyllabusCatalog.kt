@@ -55,7 +55,7 @@ object SyllabusCatalog {
                 subject = ch.subject,
                 chapter = ch.chapter,
                 topics = ch.keyTopics.joinToString(", "),
-                totalTests = maxOf(4, ch.weightagePercent * 2)
+                totalTests = 0 // Live availability must come from real published tests, never estimates
             )
         }
     }
