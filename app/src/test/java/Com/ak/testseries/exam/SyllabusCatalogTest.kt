@@ -33,20 +33,15 @@ class SyllabusCatalogTest {
     }
 
     @Test
-    fun testJeeMainSyllabusCatalog() {
-        val chapters = SyllabusCatalog.getChapterDetailsForExam("JEE_MAINS")
-        assertTrue("JEE syllabus should have at least 25 chapters", chapters.size >= 25)
-
-        val subjects = chapters.map { it.subject }.distinct()
-        assertTrue("Should contain Mathematics", subjects.contains("Mathematics"))
-        assertTrue("Should contain Physics", subjects.contains("Physics"))
-        assertTrue("Should contain Chemistry", subjects.contains("Chemistry"))
-
-        chapters.forEach { ch ->
-            assertTrue("Chapter title should not be blank", ch.chapter.isNotBlank())
-            assertTrue("Weightage should be positive", ch.weightagePercent > 0)
-            assertTrue("Key topics should not be empty", ch.keyTopics.isNotEmpty())
-        }
+    fun testUnverifiedLegacyJeeCatalogIsNotExposedAsOfficialSyllabus() {
+        assertTrue(
+            "Legacy JEE chapter list must not be presented as official JEE Main 2027",
+            SyllabusCatalog.getChapterDetailsForExam("JEE Main").isEmpty()
+        )
+        assertTrue(JeeMain2027SyllabusIndex.hasExpectedUnitCounts())
+        assertEquals(20, JeeMain2027SyllabusIndex.physics.size)
+        assertEquals(20, JeeMain2027SyllabusIndex.chemistry.size)
+        assertEquals(14, JeeMain2027SyllabusIndex.mathematics.size)
     }
 
     @Test
