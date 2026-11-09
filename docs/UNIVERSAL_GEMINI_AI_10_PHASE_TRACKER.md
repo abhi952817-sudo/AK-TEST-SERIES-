@@ -191,3 +191,10 @@ Implementation branch commits:
 - The latest changes have not yet been verified by a fresh completed CI run. Do not infer that the 15 failures are fixed until `:app:testDebugUnitTest` and `:app:assembleDebug` complete on the latest feature-branch head.
 - PDF pipeline source/catalog separation was committed as `aa81acb85f32e5d92153e517dd3cf8e8ce0ae316`.
 - Offline metadata no longer labels an unrecognized source as a "Previous Year Paper"; it now reports `Unknown Source` unless the document contains an explicit recognized institute/source marker. Commit: `4234c78893a52b7fad0ffe473a5a3aefa1e765ac`.
+## Current branch checkpoint — 2026-11-09
+
+- Feature branch checkpoint: `389dbe62780ccc46ab10f9f5b6e3b135c9ecdd2c`.
+- Main remains `d2feae47f908b705209c27b8e61e624f94c400d7`; compare result is ahead by 255 commits and behind by 0. No merge, PR or deployment.
+- Latest available CI evidence is run `42476938214`, which compiled production and test sources but failed the unit-test task (15/321). Test-environment fixes have since been committed; the current push-triggered run has no status entries exposed by the connected status endpoint. Fresh green CI is still required.
+- Release gate remains CLOSED until the latest branch head passes `:app:testDebugUnitTest` and `:app:assembleDebug`, followed by Student/Admin E2E, Firestore rules and real-PDF checks.
+- Remaining open work: direct PDF bytes/File API support, consolidating separate Gemini HTTP transports, server-enforced quota/token-cost telemetry, and full multi-exam E2E/regression verification.
