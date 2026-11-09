@@ -107,3 +107,9 @@ The JEE Main index is a verified **unit-heading/source-page index**, not yet the
 
 ### Build/CI
 No workflow run or commit status was returned for the latest feature-branch test commit at the time of this update. Therefore build and unit-test success are **not verified**. Do not merge this branch to main or enable the incomplete JEE module in production.
+
+
+### Additional safety correction
+- The legacy positive-weightage JEE list is no longer returned by `SyllabusCatalog.getChapterDetailsForExam(...)` and is excluded from `getAllSyllabusEntities()`. It remains legacy source code only and must not be presented as the official 2027 syllabus.
+- Regression tests were updated so JEE Main cannot appear to have an approved chapter catalog until the full versioned module is reviewed.
+- The new 54-unit index is separate from the legacy list. It is not yet a full detailed topic tree and is not approved for Gemini syllabus matching.
