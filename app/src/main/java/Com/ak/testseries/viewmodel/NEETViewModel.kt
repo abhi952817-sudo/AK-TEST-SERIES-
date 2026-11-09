@@ -5730,11 +5730,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             questionsJson = questionsJsonString,
             uploaderId = authenticatedUid,
             targetExam = questionRoute.examConfig.examName,
-            durationMinutes = questionRoute.examConfig.findPaper(questionRoute.paperId)?.durationMinutes ?: 0,
+            durationMinutes = questionRoute.examConfig.stages
+                .flatMap { it.papers }
+                .firstOrNull { it.paperId == questionRoute.paperId }
+                ?.durationMinutes ?: 0,
             examId = questionRoute.examConfig.examId,
             stageId = questionRoute.stageId,
             paperId = questionRoute.paperId,
-            isPublic = genIsPublic.value,
+            isPublic = genIsPublic.value || isLiveTest,
             status = initialStatus
         )
 
