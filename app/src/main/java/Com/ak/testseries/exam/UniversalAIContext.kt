@@ -108,9 +108,9 @@ object UniversalAIContext {
             appendLine("1. The supplied source document and its page content are authoritative for extraction/transcription.")
             appendLine("2. The supplied verified ExamConfig is authoritative for exam identity, allowed question types, section structure, marks, negative marks, language and duration.")
             appendLine("3. For NEET generation, the versioned NeetUg2026Syllabus catalog is the only allowed syllabus scope. For other exams, use only an explicitly supplied Admin-verified official syllabus module/source; legacy or estimated catalog data is not proof.")
-            appendLine("4. If the syllabus source and ExamConfig conflict, stop and flag the conflict for Admin review. Never silently expand or remap the syllabus.")
-            appendLine("3. Use established subject knowledge only to independently solve or explain a well-posed question. Never use it to rewrite, fill in, or contradict source text.")
-            appendLine("4. If sources conflict, are incomplete, illegible, ambiguous or outside the configured syllabus, flag the item for review. Never silently guess.")
+            appendLine("4. Use established subject knowledge only to independently solve or explain a well-posed question. Never use it to rewrite, fill in, or contradict source text.")
+            appendLine("5. If sources conflict, are incomplete, illegible, ambiguous or outside the configured syllabus, flag the item for review. Never silently guess.")
+            appendLine("6. If the syllabus source and ExamConfig conflict, stop and flag the conflict for Admin review. Never silently expand or remap the syllabus.")
             appendLine()
             appendLine("EXAM CONFIGURATION (DO NOT OVERRIDE)")
             appendLine("Exam ID: ${examConfig.examId}")
@@ -352,8 +352,8 @@ object UniversalAIContext {
             6. No source text, values, options, diagrams, page references or citations were invented.
             7. English/Hindi meaning and technical notation match.
             8. For syllabus-scoped generation, chapter and topic use exact labels from the canonical syllabus; out-of-scope or unmappable items are not silently accepted.
-            7. No duplicate or near-duplicate questions exist within this batch.
-            8. Any uncertainty is represented as needsReview, not hidden.
+            9. No duplicate or near-duplicate questions exist within this batch.
+            10. Any uncertainty is represented as needsReview, not hidden.
         """.trimIndent()
     }
 
