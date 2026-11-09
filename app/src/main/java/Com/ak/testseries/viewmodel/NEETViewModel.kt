@@ -5425,13 +5425,27 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             // 1. Detect Target Exam from text across 20 exams
             val detectedExamConfig = registeredExams
                 .filter { exam ->
-                    lowerText.contains(exam.examName.lowercase()) ||
-                        lowerText.contains(exam.shortName.lowercase()) ||
-                        lowerText.contains(exam.examId.lowercase().replace("_", " "))
+                    listOf(exam.examName, exam.shortName, exam.examId.replace("_", " ")).any { term ->
+                        val normalizedTerm = term.trim().lowercase()
+                        normalizedTerm.isNotBlank() && if (normalizedTerm.any { it.isWhitespace() }) {
+                            lowerText.contains(normalizedTerm)
+                        } else {
+                            Regex("(?<![a-z0-9])${Regex.escape(normalizedTerm)}(?![a-z0-9])")
+                                .containsMatchIn(lowerText)
+                        }
+                    }
                 }
                 .maxByOrNull { exam ->
                     listOf(exam.examName, exam.shortName, exam.examId.replace("_", " "))
-                        .filter { it.isNotBlank() && lowerText.contains(it.lowercase()) }
+                        .filter { term ->
+                            val normalizedTerm = term.trim().lowercase()
+                            normalizedTerm.isNotBlank() && if (normalizedTerm.any { it.isWhitespace() }) {
+                                lowerText.contains(normalizedTerm)
+                            } else {
+                                Regex("(?<![a-z0-9])${Regex.escape(normalizedTerm)}(?![a-z0-9])")
+                                    .containsMatchIn(lowerText)
+                            }
+                        }
                         .maxOfOrNull { it.length } ?: 0
                 } ?: run {
                     val message = "PDF में किसी registered exam का स्पष्ट संकेत नहीं मिला। कोई default/पहली परीक्षा नहीं चुनी गई। कृपया परीक्षा का नाम स्पष्ट वाले PDF से दोबारा प्रयास करें या पहले target exam चुनें।"
