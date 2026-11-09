@@ -2820,16 +2820,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 """.trimIndent()
                 try {
                     val resultText = callGeminiApiForQuestionsWithFallback(prompt)
-                    aiAnalysisResult = resultText ?: "Analyzed with standard guidelines."
-                    _reportErrorResponse.value = resultText ?: "Failed to analyze question. Rate limit exceeded."
+                    aiAnalysisResult = resultText ?: "AI analysis unavailable. Manual review required."
+                    _reportErrorResponse.value = resultText ?: "AI analysis unavailable. Manual review required."
                 } catch (e: Exception) {
                     aiAnalysisResult = "Error in AI: ${e.message}"
                     _reportErrorResponse.value = "Failed to analyze question. Error: ${e.message}"
                 }
             } else {
-                delay(1500)
-                aiAnalysisResult = "Simulated evaluation: No obvious flaw found."
-                _reportErrorResponse.value = "This is a simulated AI analysis. The question appears to be correct based on standard concepts. No errors found."
+                aiAnalysisResult = "AI analysis unavailable. Manual review required."
+                _reportErrorResponse.value = "Gemini is unavailable or no API key is configured. This report has been sent for manual review; no simulated result was produced."
             }
             _reportErrorLoading.value = false
 
@@ -5831,6 +5830,39 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.Main) { onError("JSON array is empty") }
                     return@launch
                 }
+                val invalidQuestionNumbers = mutableListOf<Int>()
+                for (i in 0 until jsonArray.length()) {
+                    val qObj = jsonArray.optJSONObject(i)
+                    if (qObj == null) {
+                        invalidQuestionNumbers.add(i + 1)
+                        continue
+                    }
+                    val qText = qObj.optString("questionText").ifBlank { qObj.optString("questionTextEn") }
+                    val options = listOf(
+                        qObj.optString("optionA").ifBlank { qObj.optString("optionAEn") },
+                        qObj.optString("optionB").ifBlank { qObj.optString("optionBEn") },
+                        qObj.optString("optionC").ifBlank { qObj.optString("optionCEn") },
+                        qObj.optString("optionD").ifBlank { qObj.optString("optionDEn") }
+                    )
+                    val answer = qObj.optString("correctAnswer").trim()
+                    val explanation = qObj.optString("explanation").ifBlank { qObj.optString("explanationEn") }
+                    val numeric = qObj.optString("questionType", "MCQ").uppercase() in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT")
+                    val hasPlaceholder = options.any { option ->
+                        listOf("Option A", "Option B", "Option C", "Option D", "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                            .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
+                    }
+                    val optionsValid = if (numeric) options.all { it.isBlank() } || options.all { it.isNotBlank() }
+                        else options.all { it.isNotBlank() } && !hasPlaceholder
+                    if (qText.isBlank() || answer.isBlank() || explanation.isBlank() || !optionsValid) {
+                        invalidQuestionNumbers.add(i + 1)
+                    }
+                }
+                if (invalidQuestionNumbers.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        onError("Import blocked. Questions with missing or placeholder data: ${invalidQuestionNumbers.joinToString(", ")}")
+                    }
+                    return@launch
+                }
                 val testId = "local_p_" + System.currentTimeMillis()
                 val questions = mutableListOf<QuestionEntity>()
 
@@ -5840,16 +5872,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         QuestionEntity(
                             id = qObj.optString("id", "${testId}_q${i}"),
                             testId = testId,
-                            questionText = qObj.optString("questionText", qObj.optString("questionTextEn", "Question ${i + 1}")),
-                            optionA = qObj.optString("optionA", qObj.optString("optionAEn", "Option A")),
-                            optionB = qObj.optString("optionB", qObj.optString("optionBEn", "Option B")),
-                            optionC = qObj.optString("optionC", qObj.optString("optionCEn", "Option C")),
-                            optionD = qObj.optString("optionD", qObj.optString("optionDEn", "Option D")),
-                            correctAnswer = qObj.optString("correctAnswer", "").uppercase().take(1),
+                            questionText = qObj.optString("questionText").ifBlank { qObj.optString("questionTextEn") },
+                            optionA = qObj.optString("optionA").ifBlank { qObj.optString("optionAEn") },
+                            optionB = qObj.optString("optionB").ifBlank { qObj.optString("optionBEn") },
+                            optionC = qObj.optString("optionC").ifBlank { qObj.optString("optionCEn") },
+                            optionD = qObj.optString("optionD").ifBlank { qObj.optString("optionDEn") },
+                            correctAnswer = qObj.optString("correctAnswer").trim().let { if (it.matches(Regex("[A-Ea-e]"))) it.uppercase() else it },
                             explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")),
                             subject = qObj.optString("subject", subject),
-                            chapter = qObj.optString("chapter", "Local Practice"),
-                            topic = qObj.optString("topic", "Pre-formatted"),
+                            chapter = qObj.optString("chapter", ""),
+                            topic = qObj.optString("topic", ""),
                             difficulty = qObj.optString("difficulty", "Medium"),
                             questionTextHi = qObj.optString("questionTextHi", "").takeIf { it.isNotEmpty() },
                             optionAHi = qObj.optString("optionAHi", "").takeIf { it.isNotEmpty() },
@@ -5880,19 +5912,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     questionsCount = questions.size,
                     isOfficial = false,
                     isVerifiedCommunity = false,
-                    isPublic = isPublic,
+                    isPublic = false,
                     countsTowardRanking = false,
-                    rating = 5.0f,
+                    rating = 0.0f,
                     attemptsCount = 0,
-                    downloadsCount = 1,
+                    downloadsCount = 0,
                     isDownloaded = true,
                     isBookmarked = false,
                     timestamp = System.currentTimeMillis(),
-                    status = "Published",
-                    aiConfidence = 100,
+                    status = if (isPublic) "Under Review" else "Published",
+                    aiConfidence = 0,
                     uploaderId = currentUid,
                     targetExam = _userProfile.value.targetExam,
-                    durationMinutes = questions.size,
+                    durationMinutes = 0,
                     questionsJson = cleanJson
                 )
 
