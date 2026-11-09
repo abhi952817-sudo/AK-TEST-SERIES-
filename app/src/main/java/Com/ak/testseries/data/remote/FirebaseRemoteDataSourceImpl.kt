@@ -36,6 +36,7 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
             if (snapshot != null) {
                 val newTests = snapshot.documents
                     .filterNot { it.id in retiredDemoTestIds }
+                    .filter { it.getBoolean("isPublic") == true && it.getString("status") == "Published" }
                     .mapNotNull { doc ->
                     try {
                         val isOfficialVal = doc.getBoolean("isOfficial") ?: false
