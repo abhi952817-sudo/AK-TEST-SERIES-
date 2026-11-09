@@ -65,7 +65,17 @@ object QuestionPayloadValidator {
                 } else {
                     setOf("A", "B", "C", "D", "1", "2", "3", "4")
                 }
-                if (answer.uppercase() !in validAnswers) return false
+                val answerTokens = answer.uppercase()
+                    .replace(Regex("\\bAND\\b"), ",")
+                    .split(Regex("[,;|\\s]+"))
+                    .filter { it.isNotBlank() }
+                val isMultipleAnswer = type.contains("MULTIPLE") || type.contains("MULTI_SELECT")
+                val answerValid = if (isMultipleAnswer) {
+                    answerTokens.isNotEmpty() && answerTokens.all { it in validAnswers }
+                } else {
+                    answer.uppercase() in validAnswers
+                }
+                if (!answerValid) return false
             }
         }
         return true
