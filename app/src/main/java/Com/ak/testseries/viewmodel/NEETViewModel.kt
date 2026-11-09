@@ -4611,7 +4611,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         for (obj in allQuestionsList) {
                             combinedArray.put(obj)
                         }
-                        val saved = saveGeneratedTest(combinedArray.toString(), questionRoute)
+                        val saved = saveGeneratedTest(
+                            combinedArray.toString(),
+                            questionRoute,
+                            isExtractionMode = isPrivatePdfExtraction
+                        )
                         if (saved) {
                             recordDailyGeneration()
                             aiGenStatusMessage.value = "Successfully generated ${allQuestionsList.size} questions for private review."
@@ -5509,7 +5513,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun saveGeneratedTest(
         jsonString: String,
-        questionRoute: Com.ak.testseries.exam.QuestionGenerationRouteResolver.Route
+        questionRoute: Com.ak.testseries.exam.QuestionGenerationRouteResolver.Route,
+        isExtractionMode: Boolean
     ): Boolean = withContext(Dispatchers.IO) {
         val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val jsonArray = JSONArray(cleanJson)
@@ -5681,10 +5686,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         val isLiveTest = genIsLive.value
         val initialStatus = if (isAdmin || isLiveTest) "Published" else if (genIsPublic.value) "Under Review" else "Published"
+        val provenanceNote = if (isExtractionMode) {
+            "Gemini-verified extraction from the uploaded source PDF. Source questions were transcribed; missing questions were not invented."
+        } else {
+            "Gemini-generated GENERAL_PRACTICE questions. This is not an official PYQ or an officially syllabus-verified paper."
+        }
+        val baseDescription = if (isLiveTest) {
+            "Live Scheduled Test on ${genLiveScheduledTime.value}"
+        } else {
+            genDescription.value.trim()
+        }
+        val finalDescription = listOf(baseDescription, provenanceNote)
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n")
+
         val newTest = TestEntity(
             id = testId,
             title = genTestName.value,
-            description = if (isLiveTest) "Live Scheduled Test on ${genLiveScheduledTime.value}" else genDescription.value,
+            description = finalDescription,
             institute = if (isLiveTest) "Admin Live" else genInstitute.value,
             batchName = genBatch.value,
             facultyName = genFaculty.value,
