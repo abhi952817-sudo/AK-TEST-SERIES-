@@ -4522,7 +4522,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 startQ = startQ,
                                 endQ = endQ,
                                 totalQuestions = totalQuestions,
-                                isExtractionMode = isPrivatePdfExtraction
+                                isExtractionMode = isPrivatePdfExtraction,
+                                stageId = questionRoute.stageId,
+                                paperId = questionRoute.paperId
                             )
                             val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
 
@@ -4595,7 +4597,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 startQ = startQ,
                                 endQ = endQ,
                                 totalQuestions = totalQuestions,
-                                isExtractionMode = isPrivatePdfExtraction
+                                isExtractionMode = isPrivatePdfExtraction,
+                                stageId = questionRoute.stageId,
+                                paperId = questionRoute.paperId
                             )
                             val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
 
