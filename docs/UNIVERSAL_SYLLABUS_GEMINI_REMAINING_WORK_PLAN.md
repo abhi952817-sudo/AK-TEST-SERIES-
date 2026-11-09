@@ -168,3 +168,68 @@ An exam is marked **SYLLABUS_READY** only when:
 - security and end-to-end tests pass.
 
 Until then, its status must remain `SOURCE_IDENTIFIED`, `TRANSCRIBED`, `PENDING_REVIEW` or `SYLLABUS_NOT_LOADED`, as appropriate. Never display an incomplete module as official or complete.
+
+## 6. Next phase reserved: generated-question rating + balanced paper engine
+
+This phase starts only after the JEE syllabus source tree is transcribed, structurally tested and exact-version resolver integration is safe. It must not be mixed into syllabus approval.
+
+### 6.1 Question rating (0–100), not a single AI opinion
+
+Each generated question receives a transparent multi-dimensional score. The score is a review aid, not proof that the answer is correct.
+
+| Dimension | Weight | What is measured |
+|---|---:|---|
+| Answer correctness | 25 | Independent solution/check, answer-option consistency, numerical tolerance and unit correctness |
+| Syllabus alignment | 20 | Exact approved topic IDs, scope and version match |
+| Conceptual quality | 15 | Tests the intended concept, not irrelevant wording or trivia |
+| Clarity and completeness | 10 | Unambiguous stem, sufficient data, no missing conditions |
+| Explanation quality | 10 | Valid derivation, steps, units and consistency with answer |
+| Option/distractor quality | 8 | Plausible distinct distractors; no duplicate or giveaway options |
+| Exam-pattern fit | 7 | Question type, marks, format and level fit the selected exam/paper |
+| Originality / duplication | 5 | Exact/near-duplicate risk against existing question bank |
+
+Rules:
+- Hard failures override the numeric score: missing/contradictory answer, invalid numeric answer, wrong canonical exam/paper, unapproved topic claimed as official, missing required diagram, malformed options or confirmed duplicate cannot be auto-approved.
+- A high score never overrides a hard failure or human approval gate.
+- Store per-dimension scores, evidence, validator version, model name/version, prompt version, timestamp and review outcome. Do not store only a final opaque number.
+- Suggested routing: 90–100 eligible for priority human review; 75–89 standard review; 60–74 correction required; below 60 reject/regenerate. These are proposed thresholds and require calibration on a labelled sample before production use.
+- Difficulty (Easy/Medium/Hard) is separate from quality. A poor question is not made good by being difficult.
+- Do not treat Gemini self-reported confidence as independent answer verification.
+
+### 6.2 Balanced generation algorithm
+
+Balance must be calculated for the complete requested paper, not independently per small API batch.
+
+1. Resolve the exact exam, version, stage, paper, subject, section, question type and marking scheme first.
+2. Build target counts using a deterministic largest-remainder allocation so Easy + Medium + Hard exactly equals requested count. Respect exam-specific configured ratios; never invent a ratio when the exam configuration is missing.
+3. Build a second allocation for topic coverage from the approved syllabus snapshot. Use explicit Admin targets or a documented sampling policy; do not invent official chapter weightage.
+4. Apply question-type and section quotas from the exam's verified pattern. A question cannot be counted in a section that does not support its type.
+5. Generate in batches, but maintain one paper-level ledger of accepted, rejected, duplicate, deficient and remaining slots.
+6. Validate every candidate, then select candidates against the remaining quotas. Do not replace arbitrary questions or silently substitute an excess difficulty category.
+7. Regenerate only the exact missing slots, with prompt constraints for the missing level/topic/type. Deduplicate regenerated candidates against both the current paper and the existing bank.
+8. If a quota cannot be met, return a partial draft with explicit unmet counts and NEEDS_REVIEW; never fabricate questions or mislabel difficulty to force a pass.
+9. Re-run final whole-paper checks: exact question count, exact marks, duration, section constraints, difficulty distribution, topic coverage, answer validation, duplicate checks and no cross-exam contamination.
+10. Preserve all generation attempts and validation outcomes for audit. Only Admin approval can publish.
+
+### 6.3 Known current defects to fix in that phase
+
+- Existing validateBatchDifficulty uses a tolerance that can allow a paper to pass despite materially incorrect small-batch ratios.
+- The current PDF pipeline rebalances only the first deficient difficulty level and may replace the first available excess-level question, or an arbitrary question when no excess level is found. This does not guarantee exact quotas.
+- Current heuristic difficulty estimation uses question length, numbers and keyword counts; it is not a reliable difficulty classifier by itself.
+- Current quality score averages six coarse checks and assigns source confidence as 100 by default. This can overstate confidence and must be replaced by evidence-backed dimensions.
+- Current parser can infer paper ID from the first configured paper rather than the exact selected paper. The exact route must be passed through and persisted.
+- Current batch indexing assumes a batch size of 10 in response parsing; this must use the actual configured batch size to avoid section/index drift.
+
+### 6.4 Required tests and release gates
+
+- Largest-remainder allocations sum exactly to requested count for all supported ratios and counts, including 1, 2, 3, 7, 20, 75 and 180.
+- Difficulty/type/section/topic quotas never overlap or exceed paper capacity.
+- Regeneration cannot increase the count beyond requested count and cannot replace a valid candidate without a recorded reason.
+- Impossible quotas return explicit unmet slots; no silent fallback or fabricated questions.
+- Duplicate candidates are excluded across all batches and prior bank records.
+- Hard failures cannot be auto-approved regardless of numeric rating.
+- Wrong exam/version/paper/subject and unapproved syllabus nodes fail closed.
+- Final paper totals, marks, negative marking, timer and section rules match the verified exam configuration.
+- Golden tests cover known valid and invalid questions with human-reviewed expected ratings.
+
+**Order of work:** (A) complete JEE Main detailed syllabus and independent JEE Advanced version module; (B) wire exact approved resolver into Gemini runtime; (C) finish the question-rating engine; (D) replace current rebalancer with paper-level quota allocation; (E) run regression and build/CI. Do not skip from A to production or merge unfinished phases.
