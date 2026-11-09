@@ -33,9 +33,9 @@ object QuestionGenerationRouteResolver {
 
         val examConfig = UniversalExamRegistry.getExamById(normalizedExam)
             ?: UniversalExamRegistry.findExamByNameOrShortName(normalizedExam)
-            ?: return Resolution(error = "Question generation stopped: '\${normalizedExam}' is unknown or ambiguous. Select an exact exam.")
+            ?: return Resolution(error = "Question generation stopped: '${normalizedExam}' is unknown or ambiguous. Select an exact exam.")
         if (!examConfig.active) {
-            return Resolution(error = "Question generation stopped: \${examConfig.examName} is currently inactive.")
+            return Resolution(error = "Question generation stopped: ${examConfig.examName} is currently inactive.")
         }
 
         val matches = examConfig.stages.flatMap { stage ->
@@ -57,8 +57,8 @@ object QuestionGenerationRouteResolver {
 
         return when (matches.size) {
             1 -> Resolution(route = matches.single())
-            0 -> Resolution(error = "Question generation stopped: '\${normalizedSubject}' is not configured for \${examConfig.examName}. No questions were generated.")
-            else -> Resolution(error = "Question generation stopped: '\${normalizedSubject}' exists in \${matches.size} papers/stages of \${examConfig.examName}. Select a specific paper/stage before generating questions.")
+            0 -> Resolution(error = "Question generation stopped: '${normalizedSubject}' is not configured for ${examConfig.examName}. No questions were generated.")
+            else -> Resolution(error = "Question generation stopped: '${normalizedSubject}' exists in ${matches.size} papers/stages of ${examConfig.examName}. Select a specific paper/stage before generating questions.")
         }
     }
 }
