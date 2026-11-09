@@ -5448,8 +5448,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             android.util.Log.w("NEETViewModel", "Test ${newTest.id} was not uploaded: empty question data is not publishable.")
             return
         }
-        if (!newTest.isPublic) {
-            android.util.Log.d("NEETViewModel", "Test ${newTest.id} is PRIVATE. Scoped exclusively to local sandbox and skipped Firestore upload.")
+        if (!newTest.isPublic || newTest.status != "Published") {
+            android.util.Log.d("NEETViewModel", "Test ${newTest.id} is private or awaiting review. Firestore publication skipped.")
             return
         }
         try {
