@@ -9,39 +9,38 @@ import org.json.JSONObject
  */
 object QuestionJsonSerializer {
 
+    fun toMap(question: QuestionEntity): Map<String, Any?> = linkedMapOf<String, Any?>(
+        "id" to question.id,
+        "testId" to question.testId,
+        "questionText" to question.questionText,
+        "optionA" to question.optionA,
+        "optionB" to question.optionB,
+        "optionC" to question.optionC,
+        "optionD" to question.optionD,
+        "correctAnswer" to question.correctAnswer,
+        "explanation" to question.explanation,
+        "subject" to question.subject,
+        "chapter" to question.chapter,
+        "topic" to question.topic,
+        "difficulty" to question.difficulty,
+        "isBookmarked" to question.isBookmarked,
+        "questionTextHi" to (question.questionTextHi ?: ""),
+        "optionAHi" to (question.optionAHi ?: ""),
+        "optionBHi" to (question.optionBHi ?: ""),
+        "optionCHi" to (question.optionCHi ?: ""),
+        "optionDHi" to (question.optionDHi ?: ""),
+        "optionEHi" to (question.optionEHi ?: ""),
+        "explanationHi" to (question.explanationHi ?: ""),
+        "questionType" to question.questionType,
+        "section" to question.section,
+        "needsImage" to question.needsImage,
+        "imageUrl" to (question.imageUrl ?: "")
+    ).apply {
+        question.optionE?.let { this["optionE"] = it }
+    }
+
     fun serialize(questions: List<QuestionEntity>): String {
         val array = JSONArray()
-        questions.forEach { question ->
-            val item = JSONObject().apply {
-                put("id", question.id)
-                put("testId", question.testId)
-                put("questionText", question.questionText)
-                put("optionA", question.optionA)
-                put("optionB", question.optionB)
-                put("optionC", question.optionC)
-                put("optionD", question.optionD)
-                question.optionE?.let { put("optionE", it) }
-                put("correctAnswer", question.correctAnswer)
-                put("explanation", question.explanation)
-                put("subject", question.subject)
-                put("chapter", question.chapter)
-                put("topic", question.topic)
-                put("difficulty", question.difficulty)
-                put("isBookmarked", question.isBookmarked)
-                put("questionTextHi", question.questionTextHi ?: "")
-                put("optionAHi", question.optionAHi ?: "")
-                put("optionBHi", question.optionBHi ?: "")
-                put("optionCHi", question.optionCHi ?: "")
-                put("optionDHi", question.optionDHi ?: "")
-                put("optionEHi", question.optionEHi ?: "")
-                put("explanationHi", question.explanationHi ?: "")
-                put("questionType", question.questionType)
-                put("section", question.section)
-                put("needsImage", question.needsImage)
-                put("imageUrl", question.imageUrl ?: "")
-            }
-            array.put(item)
-        }
+        questions.forEach { question -> array.put(JSONObject(toMap(question))) }
         return array.toString()
-    }
-}
+    }}
