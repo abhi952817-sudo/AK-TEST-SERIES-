@@ -30,8 +30,14 @@ object UniversalPdfPipeline {
     /**
      * Resolves the section configuration for a question based on its sequential index in the subject.
      */
-    fun resolveSectionForIndex(examConfig: ExamConfig, subjectId: String, qIndexInSubject: Int): SectionConfig? {
-        val sections = UniversalAIContext.getApplicableSections(examConfig, subjectId)
+    fun resolveSectionForIndex(
+        examConfig: ExamConfig,
+        subjectId: String,
+        qIndexInSubject: Int,
+        stageId: String? = null
+    ): SectionConfig? {
+        if (qIndexInSubject <= 0) return null
+        val sections = UniversalAIContext.getApplicableSections(examConfig, subjectId, stageId)
         if (sections.isEmpty()) return null
         var runningCount = 0
         for (sec in sections) {
@@ -40,7 +46,7 @@ object UniversalPdfPipeline {
                 return sec
             }
         }
-        return sections.lastOrNull()
+        return null
     }
 
     suspend fun processPdfForExam(
@@ -149,7 +155,8 @@ object UniversalPdfPipeline {
                     startQ = startQ,
                     endQ = endQ,
                     totalQuestions = expectedQuestions,
-                    isExtractionMode = compactMarkdown.isNotBlank()
+                    isExtractionMode = compactMarkdown.isNotBlank(),
+                    stageId = stageId
                 )
                 val systemInstruction = UniversalAIContext.buildSystemInstruction(examConfig)
 
@@ -165,6 +172,7 @@ object UniversalPdfPipeline {
                             stageId = stageId,
                             subjectId = subjectId,
                             batchIndex = batchIndex,
+                            batchSize = batchSize,
                             existingHashes = existingHashes,
                             actualModel = apiResult.modelVersion,
                             actualSource = source
@@ -212,6 +220,7 @@ object UniversalPdfPipeline {
                                     stageId = stageId,
                                     subjectId = subjectId,
                                     batchIndex = batchIndex,
+                                    batchSize = batchSize,
                                     existingHashes = existingHashes,
                                     actualModel = regenResult.modelVersion,
                                     actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
@@ -262,7 +271,7 @@ object UniversalPdfPipeline {
                         val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
                         if (markdownCandidate == null) continue
 
-                        val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex)
+                        val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex, stageId)
                         val qType = resolvedSection?.questionType ?: markdownCandidate?.questionType ?: continue
                         val secId = resolvedSection?.sectionId
                             ?: markdownCandidate?.sectionId?.takeIf { it.isNotBlank() } ?: continue
@@ -384,6 +393,7 @@ object UniversalPdfPipeline {
         stageId: String,
         subjectId: String,
         batchIndex: Int,
+        batchSize: Int,
         existingHashes: Map<String, String>,
         actualModel: String = "UNAVAILABLE",
         actualSource: String = "UNAVAILABLE"
@@ -410,8 +420,8 @@ object UniversalPdfPipeline {
                 val optE = item.optString("optionEEn").ifBlank { item.optString("optionE") }
                 val options = listOf(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
-                val qIndexInBatch = (batchIndex * 10) + i + 1
-                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch)
+                val qIndexInBatch = (batchIndex * batchSize) + i + 1
+                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch, stageId)
                 val parsedSecId = item.optString("sectionId").takeIf { it.isNotBlank() && it != "null" } ?: resolvedSection?.sectionId ?: continue
                 val parsedSecName = item.optString("sectionName").takeIf { it.isNotBlank() && it != "null" } ?: resolvedSection?.sectionName ?: continue
                 val parsedPosMarks = if (item.has("positiveMarks") && !item.isNull("positiveMarks")) item.optDouble("positiveMarks", Double.NaN) else resolvedSection?.positiveMarks ?: continue
