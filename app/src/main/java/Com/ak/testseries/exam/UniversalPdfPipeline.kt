@@ -186,16 +186,16 @@ object UniversalPdfPipeline {
                 )
                 // Add the NTA JEE Main 2027 unit index only for an exact Paper 1 route.
                 // It is explicitly marked NOT APPROVED and cannot be used as official topic mapping.
-                val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId }
+                val selectedStage = examConfig.stages.singleOrNull { it.stageId == questionRoute.stageId }
                 val selectedPaper = selectedStage?.papers?.singleOrNull { paper ->
-                    paper.subjects.any { it.subjectId == subjectId.trim() }
+                    paper.subjects.any { it.subjectId == questionRoute.subjectId }
                 }
                 val jeeMainUnitContext = if (
                     examConfig.examId == JeeMain2027SyllabusIndex.EXAM_ID &&
-                    stageId == JeeMain2027SyllabusIndex.STAGE_ID &&
+                    questionRoute.stageId == JeeMain2027SyllabusIndex.STAGE_ID &&
                     selectedPaper?.paperId == JeeMain2027SyllabusIndex.PAPER_ID
                 ) {
-                    UniversalPdfPromptContract.buildJeeMain2027UnitIndexContext(subjectId.trim())
+                    UniversalPdfPromptContract.buildJeeMain2027UnitIndexContext(questionRoute.subjectId)
                 } else {
                     ""
                 }
