@@ -4584,13 +4584,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 val endIdx = if (chunkIndex == totalChunks - 1) fullSourceText.length else ((chunkIndex + 1) * sliceLen).coerceAtMost(fullSourceText.length)
                                 fullSourceText.substring(startIdx, endIdx)
                             }
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                            val examConfig = questionRoute.examConfig
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = genSubject.value.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects" },
+                                subject = questionRoute.subjectName,
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = rawSourceText,
                                 currentChunkSize = currentChunkSize,
