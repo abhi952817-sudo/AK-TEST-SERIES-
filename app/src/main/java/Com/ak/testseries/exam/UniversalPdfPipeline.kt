@@ -407,7 +407,8 @@ object UniversalPdfPipeline {
         try {
             val responseReport = GeminiResponseValidator.parseResponse(
                 raw = jsonString,
-                examConfig = examConfig
+                examConfig = examConfig,
+                expectedSubjectId = subjectId
             )
             if (!responseReport.isUsable) return emptyList()
             val jsonArray = responseReport.questions
