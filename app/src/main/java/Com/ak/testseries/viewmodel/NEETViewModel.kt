@@ -1370,38 +1370,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun serializeQuestionsToJson(questions: List<QuestionEntity>): String {
-        val qJsonArray = org.json.JSONArray()
-        for (q in questions) {
-            val qObj = org.json.JSONObject()
-            qObj.put("id", q.id)
-            qObj.put("testId", q.testId)
-            qObj.put("questionText", q.questionText)
-            qObj.put("optionA", q.optionA)
-            qObj.put("optionB", q.optionB)
-            qObj.put("optionC", q.optionC)
-            qObj.put("optionD", q.optionD)
-            q.optionE?.let { qObj.put("optionE", it) }
-            qObj.put("correctAnswer", q.correctAnswer)
-            qObj.put("explanation", q.explanation)
-            qObj.put("subject", q.subject)
-            qObj.put("chapter", q.chapter)
-            qObj.put("topic", q.topic)
-            qObj.put("difficulty", q.difficulty)
-            qObj.put("isBookmarked", q.isBookmarked)
-            qObj.put("questionTextHi", q.questionTextHi ?: "")
-            qObj.put("optionAHi", q.optionAHi ?: "")
-            qObj.put("optionBHi", q.optionBHi ?: "")
-            qObj.put("optionCHi", q.optionCHi ?: "")
-            qObj.put("optionDHi", q.optionDHi ?: "")
-            qObj.put("optionEHi", q.optionEHi ?: "")
-            qObj.put("explanationHi", q.explanationHi ?: "")
-            qObj.put("questionType", q.questionType)
-            qObj.put("section", q.section)
-            qObj.put("needsImage", q.needsImage)
-            qObj.put("imageUrl", q.imageUrl ?: "")
-            qJsonArray.put(qObj)
-        }
-        return qJsonArray.toString()
+        return Com.ak.testseries.data.QuestionJsonSerializer.serialize(questions)
     }
 
     fun scheduleLiveTest(
