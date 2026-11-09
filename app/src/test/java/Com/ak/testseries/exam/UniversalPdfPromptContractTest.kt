@@ -69,6 +69,22 @@ class UniversalPdfPromptContractTest {
     }
 
     @Test
+    fun neetSystemInstructionContainsSubjectStylesAndIndependentAnswerVerification() {
+        val neet = UniversalExamRegistry.getExam("neet_ug") ?: error("NEET registry entry missing")
+        val prompt = UniversalAIContext.buildSystemInstruction(neet)
+        assertTrue(prompt.contains("NEET UG QUESTION STYLE"))
+        assertTrue(prompt.contains("NCERT-first"))
+        assertTrue(prompt.contains("exactly four distinct options A-D"))
+        assertTrue(prompt.contains("independentAnswer"))
+        assertTrue(prompt.contains("ANSWER_KEY_CONFLICT"))
+        assertTrue(prompt.contains("INSUFFICIENT_QUESTION_DATA"))
+        assertTrue(prompt.contains("private chain-of-thought"))
+
+        val jee = UniversalExamRegistry.getExam("jee_main") ?: error("JEE Main registry entry missing")
+        assertFalse(UniversalAIContext.buildSystemInstruction(jee).contains("NEET UG QUESTION STYLE"))
+    }
+
+    @Test
     fun syllabusAwareGenerationRequiresVersionedSnapshotAndNeverPublishes() {
         val prompt = UniversalPdfPromptContract.buildSyllabusAwareQuestionGenerationPrompt(
             examId = "jee_main",
