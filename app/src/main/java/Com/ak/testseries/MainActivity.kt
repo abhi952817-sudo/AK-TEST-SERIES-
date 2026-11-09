@@ -6777,41 +6777,14 @@ fun AdminDashboardContent(viewModel: NEETViewModel) {
 }
 
 @Composable
-fun ServiceSparklineCard(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier.height(80.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
-    ) {
-        Column(modifier = Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Text(title, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = color)
-            // Mock Sparkline
-            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxWidth().height(16.dp)) {
-                val path = androidx.compose.ui.graphics.Path()
-                val width = size.width
-                val height = size.height
-                path.moveTo(0f, height * 0.8f)
-                path.lineTo(width * 0.2f, height * 0.6f)
-                path.lineTo(width * 0.4f, height * 0.7f)
-                path.lineTo(width * 0.6f, height * 0.3f)
-                path.lineTo(width * 0.8f, height * 0.5f)
-                path.lineTo(width, height * 0.1f)
-                drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
-            }
-        }
-    }
-}
-
-@Composable
 fun AdminConfigItem(
     title: String,
     value: String,
     onValueChange: (String) -> Unit,
     isActive: Boolean,
     onActiveChange: (Boolean) -> Unit,
-    usagePercentage: Float,
-    usageText: String,
+    usagePercentage: Float? = null,
+    usageText: String = "Usage data unavailable",
     isPassword: Boolean = true
 ) {
     Card(
@@ -6837,25 +6810,30 @@ fun AdminConfigItem(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Middle: Circular Progress Tracking
+                // Usage metrics are hidden until a real provider measurement is connected.
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(50.dp)) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            progress = { 1f },
-                            modifier = Modifier.fillMaxSize(),
-                            color = Color.LightGray.copy(alpha = 0.5f),
-                            strokeWidth = 4.dp
-                        )
-                        androidx.compose.material3.CircularProgressIndicator(
-                            progress = { usagePercentage },
-                            modifier = Modifier.fillMaxSize(),
-                            color = if (usagePercentage > 0.8f) Color.Red else Color.Green,
-                            strokeWidth = 4.dp
-                        )
-                        Text("${(usagePercentage * 100).toInt()}%", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    if (usagePercentage != null) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(50.dp)) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                progress = { 1f },
+                                modifier = Modifier.fillMaxSize(),
+                                color = Color.LightGray.copy(alpha = 0.5f),
+                                strokeWidth = 4.dp
+                            )
+                            androidx.compose.material3.CircularProgressIndicator(
+                                progress = { usagePercentage.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxSize(),
+                                color = if (usagePercentage > 0.8f) Color.Red else Color.Green,
+                                strokeWidth = 4.dp
+                            )
+                            Text("${(usagePercentage * 100).toInt()}%", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(usageText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text("N/A", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Usage not connected", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(usageText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -6887,7 +6865,7 @@ fun AdminConfigItem(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Secured via GitHub Secrets",
+                    text = "Provider credential status is not verified here",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
@@ -7475,8 +7453,6 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
             onValueChange = { firebaseJson = it },
             isActive = isFirebaseActive,
             onActiveChange = { isFirebaseActive = it },
-            usagePercentage = 0.40f, // Mock memory tracking
-            usageText = "{memory_usage}",
             isPassword = true
         )
 
@@ -7487,8 +7463,6 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
             onValueChange = { appwriteProjectId = it },
             isActive = isAppwriteActive,
             onActiveChange = { isAppwriteActive = it },
-            usagePercentage = 0.05f, // Mock storage tracking
-            usageText = "{storage_usage}",
             isPassword = true
         )
     }
@@ -7499,12 +7473,6 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
 // ==========================================
 @Composable
 fun NcertProgressChart(selectedLanguage: AppLanguage, onClick: () -> Unit = {}) {
-    val totalChapters = 30
-    val completedChapters = 12 // Mock progress, ideally from ViewModel
-    val pendingChapters = totalChapters - completedChapters
-    
-    val progress = completedChapters.toFloat() / totalChapters.toFloat()
-    
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
@@ -7520,54 +7488,15 @@ fun NcertProgressChart(selectedLanguage: AppLanguage, onClick: () -> Unit = {}) 
                 englishFontWeight = FontWeight.Bold,
                 hindiFontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                // Donut Chart
-                Box(
-                    modifier = Modifier.size(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val primaryColor = MaterialTheme.colorScheme.primary
-                    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                    
-                    androidx.compose.foundation.Canvas(modifier = Modifier.size(100.dp)) {
-                        drawArc(
-                            color = trackColor,
-                            startAngle = 0f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 12.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                        )
-                        drawArc(
-                            color = primaryColor,
-                            startAngle = -90f,
-                            sweepAngle = 360f * progress,
-                            useCenter = false,
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 12.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                        )
-                    }
-                    
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${(progress * 100).toInt()}%",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-                
-                // Legend
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    LegendItem(color = MaterialTheme.colorScheme.primary, text = "Completed ($completedChapters)")
-                    LegendItem(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), text = "Pending ($pendingChapters)")
-                }
-            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                if (selectedLanguage == AppLanguage.HINDI)
+                    "अभी वास्तविक अध्याय-प्रगति डेटा उपलब्ध नहीं है। कोई नमूना प्रतिशत नहीं दिखाया जा रहा है।"
+                else
+                    "Actual chapter progress is not connected yet. Sample percentages are not displayed.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
