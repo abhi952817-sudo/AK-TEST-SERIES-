@@ -56,6 +56,9 @@ interface TestDao {
 
     @Delete
     suspend fun deleteTest(test: TestEntity)
+
+    @Query("DELETE FROM tests WHERE id IN (:testIds)")
+    suspend fun deleteTestsByIds(testIds: List<String>)
 }
 
 @Dao
@@ -77,6 +80,9 @@ interface QuestionDao {
 
     @Query("DELETE FROM questions WHERE testId = :testId")
     suspend fun deleteQuestionsForTest(testId: String)
+
+    @Query("DELETE FROM questions WHERE testId IN (:testIds)")
+    suspend fun deleteQuestionsForTests(testIds: List<String>)
 }
 
 @Dao

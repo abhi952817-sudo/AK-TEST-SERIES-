@@ -25,7 +25,7 @@ object SyllabusCatalog {
         return when {
             upper.contains("ADVANCED") || upper == "JEE_ADVANCED" -> emptyList() // Isolated: JEE Advanced verified chapter catalog is distinct from JEE Main
             upper.contains("NEET") || upper.contains("MEDICAL") -> neetUgSyllabus
-            upper.contains("JEE") || upper.contains("IIT") || upper.contains("ENGINEERING") -> jeeMainSyllabus
+            upper.contains("JEE") || upper.contains("IIT") || upper.contains("ENGINEERING") -> emptyList() // Legacy JEE entries are not an approved year-specific official syllabus; use VersionedSyllabusResolver only after review.
             upper.contains("CDS") || upper.contains("UPSC") || upper.contains("NDA") || upper.contains("DEFEN") -> upscCdsSyllabus
             upper.contains("SSC") || upper.contains("CGL") || upper.contains("GOVT") -> sscCglSyllabus
             else -> emptyList()
@@ -47,7 +47,7 @@ object SyllabusCatalog {
     }
 
     fun getAllSyllabusEntities(): List<SyllabusEntity> {
-        val all = neetUgSyllabus + jeeMainSyllabus + upscCdsSyllabus + sscCglSyllabus
+        val all = neetUgSyllabus + upscCdsSyllabus + sscCglSyllabus // Exclude unverified legacy JEE entries from the canonical syllabus list.
         return all.mapIndexed { idx, ch ->
             SyllabusEntity(
                 id = "${ch.examId.lowercase()}_${ch.subject.lowercase().replace(" ", "_")}_${idx + 1}",

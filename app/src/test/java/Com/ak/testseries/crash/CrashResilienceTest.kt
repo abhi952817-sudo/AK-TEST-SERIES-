@@ -13,7 +13,7 @@ import java.io.File
 import kotlin.coroutines.EmptyCoroutineContext
 
 @RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE)
+@Config(manifest = Config.NONE, sdk = [35])
 class CrashResilienceTest {
 
     private lateinit var context: Context

@@ -691,9 +691,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val _isGlobalAiEnabled = MutableStateFlow(true)
     val isGlobalAiEnabled: StateFlow<Boolean> = _isGlobalAiEnabled.asStateFlow()
 
-    private val _isOfflineMockFallbackEnabled = MutableStateFlow(false)
-    val isOfflineMockFallbackEnabled: StateFlow<Boolean> = _isOfflineMockFallbackEnabled.asStateFlow()
-
     private val _dailyFreeTestLimit = MutableStateFlow(1)
     val dailyFreeTestLimit: StateFlow<Int> = _dailyFreeTestLimit.asStateFlow()
 
@@ -720,8 +717,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         _masterPrivateSwitch.value = isMasterPrivate
                         val isAiActive = snapshot.getBoolean("globalAiEnabled") ?: true
                         _isGlobalAiEnabled.value = isAiActive
-                        val mockFallback = snapshot.getBoolean("offlineMockFallbackEnabled") ?: false
-                        _isOfflineMockFallbackEnabled.value = mockFallback
                         val limit = snapshot.getLong("dailyFreeTestLimit")?.toInt() ?: 1
                         val safeLimit = if (limit > 0) limit else 1
                         _dailyFreeTestLimit.value = safeLimit
@@ -730,33 +725,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
         } catch (e: Exception) {
             e.printStackTrace()
-        }
-    }
-
-    fun setOfflineMockFallbackEnabled(enabled: Boolean, onResult: ((Boolean, String?) -> Unit)? = null) {
-        if (!isAdmin) {
-            onResult?.invoke(false, "Unauthorized: Admin privileges required")
-            return
-        }
-        val previous = _isOfflineMockFallbackEnabled.value
-        _isOfflineMockFallbackEnabled.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val db = firestoreDb
-                val data = hashMapOf<String, Any>("offlineMockFallbackEnabled" to enabled)
-                db.collection("Config").document("admin_settings")
-                    .set(data, com.google.firebase.firestore.SetOptions.merge())
-                    .await()
-                withContext(Dispatchers.Main) {
-                    onResult?.invoke(true, null)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    _isOfflineMockFallbackEnabled.value = previous
-                    onResult?.invoke(false, e.localizedMessage ?: "Failed to update offline mock fallback setting")
-                }
-            }
         }
     }
 
@@ -954,8 +922,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         // Start real-time test and questions synchronization with Firestore
         viewModelScope.launch(Dispatchers.IO) {
+            // Remove only the eight known bundled demo tests from local storage.
+            // Attempt history is deliberately preserved.
+            val retiredDemoTestIds = listOf("official_neet_ug_mock_01", "official_jee_mains_mock_01", "official_upsc_cds_mock_01", "official_ssc_cgl_mock_01", "official_banking_ibps_mock_01", "official_rrb_ntpc_mock_01", "official_ugc_net_paper1_mock_01", "official_cat_full_mock_01")
+            db.questionDao().deleteQuestionsForTests(retiredDemoTestIds)
+            db.testDao().deleteTestsByIds(retiredDemoTestIds)
             testRepository.syncTests()
-            seedBundledMockTestsIfNeeded()
             seedSyllabusIfNeeded()
         }
 
@@ -1398,79 +1370,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun serializeQuestionsToJson(questions: List<QuestionEntity>): String {
-        val qJsonArray = org.json.JSONArray()
-        for (q in questions) {
-            val qObj = org.json.JSONObject()
-            qObj.put("id", q.id)
-            qObj.put("testId", q.testId)
-            qObj.put("questionText", q.questionText)
-            qObj.put("optionA", q.optionA)
-            qObj.put("optionB", q.optionB)
-            qObj.put("optionC", q.optionC)
-            qObj.put("optionD", q.optionD)
-            q.optionE?.let { qObj.put("optionE", it) }
-            qObj.put("correctAnswer", q.correctAnswer)
-            qObj.put("explanation", q.explanation)
-            qObj.put("subject", q.subject)
-            qObj.put("chapter", q.chapter)
-            qObj.put("topic", q.topic)
-            qObj.put("difficulty", q.difficulty)
-            qObj.put("isBookmarked", q.isBookmarked)
-            qObj.put("questionTextHi", q.questionTextHi ?: "")
-            qObj.put("optionAHi", q.optionAHi ?: "")
-            qObj.put("optionBHi", q.optionBHi ?: "")
-            qObj.put("optionCHi", q.optionCHi ?: "")
-            qObj.put("optionDHi", q.optionDHi ?: "")
-            qObj.put("optionEHi", q.optionEHi ?: "")
-            qObj.put("explanationHi", q.explanationHi ?: "")
-            qObj.put("questionType", q.questionType)
-            qObj.put("section", q.section)
-            qObj.put("needsImage", q.needsImage)
-            qObj.put("imageUrl", q.imageUrl ?: "")
-            qJsonArray.put(qObj)
-        }
-        return qJsonArray.toString()
-    }
-
-    private fun createSampleQuestionsForTest(test: TestEntity): List<QuestionEntity> {
-        val questions = mutableListOf<QuestionEntity>()
-        val count = if (test.questionsCount > 0) test.questionsCount else 10
-        for (i in 0 until count) {
-            questions.add(
-                QuestionEntity(
-                    id = "${test.id}_q${i}",
-                    testId = test.id,
-                    questionText = "${test.subject} Question ${i + 1} (${test.chapter.ifEmpty { "General" }})",
-                    optionA = "Option A",
-                    optionB = "Option B",
-                    optionC = "Option C",
-                    optionD = "Option D",
-                    correctAnswer = "A",
-                    explanation = "Explanation for Question ${i + 1}",
-                    subject = test.subject,
-                    chapter = test.chapter,
-                    topic = test.topic,
-                    questionTextHi = "${test.subject} प्रश्न ${i + 1} (${test.chapter.ifEmpty { "सामान्य" }})",
-                    optionAHi = "विकल्प A",
-                    optionBHi = "विकल्प B",
-                    optionCHi = "विकल्प C",
-                    optionDHi = "विकल्प D",
-                    explanationHi = "प्रश्न ${i + 1} का व्याख्यात्मक उत्तर"
-                )
-            )
-        }
-        return questions
-    }
-
-    fun addNewTest(test: TestEntity) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val questions = createSampleQuestionsForTest(test)
-            val questionsJsonString = serializeQuestionsToJson(questions)
-            val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
-            repository.insertTest(testWithJson)
-            repository.insertQuestions(questions)
-            uploadTestToFirestore(testWithJson, questionsJsonString)
-        }
+        return Com.ak.testseries.data.QuestionJsonSerializer.serialize(questions)
     }
 
     fun scheduleLiveTest(
@@ -1485,22 +1385,33 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         targetExam: String = "NEET UG",
         customQuestions: List<QuestionEntity>? = null
     ) {
+        if (!isAdmin || customQuestions.isNullOrEmpty()) {
+            android.util.Log.w("NEETViewModel", "Live test creation blocked: admin-supplied, non-empty questions are required. PDF-only input must pass the Universal PDF/Gemini review workflow first.")
+            return
+        }
+        val invalidLiveQuestions = customQuestions.filter { question ->
+            val isNumeric = question.questionType.uppercase() in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT")
+            val options = listOf(question.optionA, question.optionB, question.optionC, question.optionD)
+            val optionsValid = if (isNumeric) options.all { it.isBlank() } || options.all { it.isNotBlank() }
+                else options.all { it.isNotBlank() } && options.none { option ->
+                    listOf("Option A", "Option B", "Option C", "Option D", "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                        .any { option.trim().equals(it, ignoreCase = true) }
+                }
+            question.questionText.isBlank() || question.correctAnswer.isBlank() ||
+                question.explanation.isBlank() || !optionsValid
+        }
+        if (invalidLiveQuestions.isNotEmpty()) {
+            android.util.Log.w("NEETViewModel", "Live test creation blocked: ${invalidLiveQuestions.size} incomplete or placeholder questions.")
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val db = firestoreDb
                 val testId = "live_" + System.currentTimeMillis()
 
-                val questions = if (!customQuestions.isNullOrEmpty()) {
-                    customQuestions.mapIndexed { idx, q -> q.copy(id = "${testId}_q$idx", testId = testId) }
-                } else if (pdfUri == null) {
-                    buildDynamicQuestionsForExam(targetExam, subject, testId).take(questionsCount).ifEmpty {
-                        emptyList()
-                    }
-                } else {
-                    emptyList()
-                }
+                val questions = customQuestions.mapIndexed { idx, q -> q.copy(id = "${testId}_q$idx", testId = testId) }
                 val questionsJsonString = serializeQuestionsToJson(questions)
-                val effectiveQCount = if (questions.isNotEmpty()) questions.size else questionsCount
+                val effectiveQCount = questions.size
 
                 val testData = hashMapOf(
                     "id" to testId,
@@ -1513,6 +1424,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "durationMinutes" to durationMinutes,
                     "questionsCount" to effectiveQCount,
                     "isLive" to true,
+                    "isPublic" to true,
+                    "status" to "Published",
+                    "isOfficial" to false,
+                    "isVerifiedCommunity" to false,
+                    "countsTowardRanking" to false,
+                    "sourceType" to "ADMIN_SUPPLIED_QUESTIONS",
                     "timestamp" to System.currentTimeMillis(),
                     "questionsJson" to questionsJsonString
                 )
@@ -1525,7 +1442,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         val downloadUrl = storageRef.downloadUrl.await()
                         finalPdfUrl = downloadUrl.toString()
                         testData["pdfUrl"] = finalPdfUrl
-                        testData["processingStatus"] = "Pending Extraction"
+                        testData["processingStatus"] = "Source PDF attached; supplied questions await review"
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -1549,19 +1466,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     android.util.Log.e("NEETViewModel", "Error broadcasting live test notification: ${ne.message}")
                 }
 
-                // Trigger AI Extraction if PDF was uploaded
-                if (finalPdfUrl.isNotEmpty()) {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        val keys = getGeminiApiKeys()
-                        val apiKey = if (keys.isNotEmpty()) keys.first().second else ""
-                        Com.ak.testseries.utils.GeminiPdfExtractor.processPdfWithGemini(
-                            pdfUrl = finalPdfUrl,
-                            testId = testId,
-                            apiKey = apiKey,
-                            totalQuestionsExpected = effectiveQCount
-                        )
-                    }
-                }
 
                 val roomTest = TestEntity(
                     id = testId,
@@ -1575,15 +1479,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     difficulty = "Medium",
                     testType = "Live",
                     questionsCount = effectiveQCount,
-                    isOfficial = true,
-                    isVerifiedCommunity = true,
+                    isOfficial = false,
+                    isVerifiedCommunity = false,
+                    countsTowardRanking = false,
                     classLevel = classLevel,
                     targetExam = targetExam,
                     chapter = chapter,
                     timestamp = System.currentTimeMillis(),
                     imageUrl = null,
                     questionsJson = questionsJsonString,
-                    isPublic = true
+                    isPublic = true,
+                    status = "Published"
                 )
                 repository.insertTest(roomTest)
                 if (questions.isNotEmpty()) {
@@ -2590,125 +2496,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val pdfCropperInitialPage = MutableStateFlow(0)
     var pdfCropCallback: ((String) -> Unit)? = null
 
-    fun open180QuestionsForPreview() {
-        viewModelScope.launch(Dispatchers.IO) {
-            if (previewQuestions.value.isEmpty()) {
-                val list = mutableListOf<QuestionEntity>()
-                val testId = "preview_180_" + System.currentTimeMillis()
-                
-                // Physics Q1 to Q45
-                for (i in 1..45) {
-                    list.add(
-                        QuestionEntity(
-                            id = "${testId}_phy_$i",
-                            testId = testId,
-                            questionText = "Q$i (Physics): Two point charges q1 and q2 are separated by distance r. What is the electrostatic force between them in vacuum?\nप्रश्न $i (भौतिकी): दो बिंदु आवेश q1 और q2 दूरी r पर स्थित हैं। निर्वात में उनके बीच वैद्युत बल क्या है?",
-                            optionA = "A) F = k*(q1*q2)/r²",
-                            optionB = "B) F = k*(q1*q2)/r",
-                            optionC = "C) F = k*(q1+q2)/r²",
-                            optionD = "D) F = zero",
-                            correctAnswer = "A",
-                            explanation = "According to Coulomb's Law, electrostatic force F = k*(q1*q2)/r².\nकूलाम के नियम अनुसार वैद्युत बल F = k*(q1*q2)/r² होता है।",
-                            subject = "Physics",
-                            chapter = "Electrostatics & Magnetism",
-                            questionTextHi = "प्रश्न $i (भौतिकी): दो बिंदु आवेश q1 और q2 दूरी r पर स्थित हैं। निर्वात में उनके बीच वैद्युत बल क्या है?",
-                            optionAHi = "A) F = k*(q1*q2)/r²",
-                            optionBHi = "B) F = k*(q1*q2)/r",
-                            optionCHi = "C) F = k*(q1+q2)/r²",
-                            optionDHi = "D) F = शून्य",
-                            explanationHi = "कूलाम के नियम अनुसार वैद्युत बल F = k*(q1*q2)/r² होता है।",
-                            section = if (i <= 35) "SECTION_A" else "SECTION_B"
-                        )
-                    )
-                }
-
-                // Chemistry Q46 to Q90
-                for (i in 46..90) {
-                    val qNum = i - 45
-                    list.add(
-                        QuestionEntity(
-                            id = "${testId}_chem_$i",
-                            testId = testId,
-                            questionText = "Q$i (Chemistry): Which of the following orbital has spherical symmetry?\nप्रश्न $i (रसायन विज्ञान): निम्नलिखित में से किस कक्षक में गोल सममिति (Spherical Symmetry) होती है?",
-                            optionA = "A) s-orbital / s-कक्षक",
-                            optionB = "B) p-orbital / p-कक्षक",
-                            optionC = "C) d-orbital / d-कक्षक",
-                            optionD = "D) f-orbital / f-कक्षक",
-                            correctAnswer = "A",
-                            explanation = "s-orbitals are non-directional and spherical in shape.\ns-कक्षक की आकृति गोलाकार और अदिशात्मक होती है।",
-                            subject = "Chemistry",
-                            chapter = "Atomic Structure & Periodic Table",
-                            questionTextHi = "प्रश्न $i (रसायन विज्ञान): निम्नलिखित में से किस कक्षक में गोल सममिति होती है?",
-                            optionAHi = "A) s-कक्षक",
-                            optionBHi = "B) p-कक्षक",
-                            optionCHi = "C) d-कक्षक",
-                            optionDHi = "D) f-कक्षक",
-                            explanationHi = "s-कक्षक की आकृति गोलाकार और अदिशात्मक होती है।",
-                            section = if (qNum <= 35) "SECTION_A" else "SECTION_B"
-                        )
-                    )
-                }
-
-                // Botany Q91 to Q135
-                for (i in 91..135) {
-                    val qNum = i - 90
-                    list.add(
-                        QuestionEntity(
-                            id = "${testId}_bot_$i",
-                            testId = testId,
-                            questionText = "Q$i (Botany): In C4 plants, initial carbon dioxide fixation occurs in which cells?\nप्रश्न $i (वनस्पति विज्ञान): C4 पौधों में प्राथमिक कार्बन डाइऑक्साइड स्थिरीकरण किन कोशिकाओं में होता है?",
-                            optionA = "A) Mesophyll cells / पर्णमध्योतक (Mesophyll) कोशिकाएं",
-                            optionB = "B) Bundle sheath cells / पूल आच्छद (Bundle sheath) कोशिकाएं",
-                            optionC = "C) Epidermal cells / बाह्यत्वचा कोशिकाएं",
-                            optionD = "D) Guard cells / द्वार कोशिकाएं",
-                            correctAnswer = "A",
-                            explanation = "In C4 plants, CO2 is fixed by PEP carboxylase in mesophyll cells to form oxaloacetic acid.\nC4 पौधों में मेसोफिल कोशिकाओं में PEP कार्बोक्सिलेज़ द्वारा CO2 स्थिरीकरण होता है।",
-                            subject = "Biology",
-                            chapter = "Plant Physiology - Photosynthesis",
-                            questionTextHi = "प्रश्न $i (वनस्पति विज्ञान): C4 पौधों में प्राथमिक CO2 स्थिरीकरण किन कोशिकाओं में होता है?",
-                            optionAHi = "A) मेसोफिल (Mesophyll) कोशिकाएं",
-                            optionBHi = "B) बंडल शीथ (Bundle Sheath) कोशिकाएं",
-                            optionCHi = "C) बाह्यत्वचा कोशिकाएं",
-                            optionDHi = "D) द्वार कोशिकाएं",
-                            explanationHi = "C4 पौधों में मेसोफिल कोशिकाओं में PEP कार्बोक्सिलेज़ द्वारा CO2 स्थिरीकरण होता है।",
-                            section = if (qNum <= 35) "SECTION_A" else "SECTION_B"
-                        )
-                    )
-                }
-
-                // Zoology Q136 to Q180
-                for (i in 136..180) {
-                    val qNum = i - 135
-                    list.add(
-                        QuestionEntity(
-                            id = "${testId}_zoo_$i",
-                            testId = testId,
-                            questionText = "Q$i (Zoology): Which hormone triggers ovulation in humans?\nप्रश्न $i (प्राणि विज्ञान): मनुष्यों में अंडोत्सर्ग (Ovulation) को कौन सा हार्मोन प्रेरित करता है?",
-                            optionA = "A) Luteinizing Hormone (LH) / ल्यूटिनाइजिंग हार्मोन (LH)",
-                            optionB = "B) Follicle Stimulating Hormone (FSH) / फॉलिकल स्टिम्युलेटिंग हार्मोन (FSH)",
-                            optionC = "C) Progesterone / प्रोजेस्टेरोन",
-                            optionD = "D) Estrogen / एस्ट्रोजन",
-                            correctAnswer = "A",
-                            explanation = "Rapid secretion of LH leads to LH surge mid-cycle, inducing rupture of Graafian follicle and ovulation.\nLH के तीव्र स्राव (LH Surge) से परिपक्व ग्रैफियन पुटक फट जाता है और अंडोत्सर्ग होता है।",
-                            subject = "Biology",
-                            chapter = "Human Reproduction & Physiology",
-                            questionTextHi = "प्रश्न $i (प्राणि विज्ञान): मनुष्यों में अंडोत्सर्ग को कौन सा हार्मोन प्रेरित करता है?",
-                            optionAHi = "A) ल्यूटिनाइजिंग हार्मोन (LH)",
-                            optionBHi = "B) फॉलिकल स्टिम्युलेटिंग हार्मोन (FSH)",
-                            optionCHi = "C) प्रोजेस्टेरोन",
-                            optionDHi = "D) एस्ट्रोजन",
-                            explanationHi = "LH के तीव्र स्राव से ग्रैफियन पुटक फट जाता है और अंडोत्सर्ग होता है।",
-                            section = if (qNum <= 35) "SECTION_A" else "SECTION_B"
-                        )
-                    )
-                }
-
-                previewQuestions.value = list
-            }
-            show180QuestionsDialog.value = true
-        }
-    }
-
     fun close180QuestionsDialog() {
         show180QuestionsDialog.value = false
     }
@@ -2751,6 +2538,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val mockIds = setOf("t1", "t2", "t3", "t4", "t5")
                 currentTests.forEach { test ->
                     if (test.id in mockIds) {
+                        db.questionDao().deleteQuestionsForTest(test.id)
                         repository.deleteTest(test)
                     }
                 }
@@ -2967,16 +2755,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 """.trimIndent()
                 try {
                     val resultText = callGeminiApiForQuestionsWithFallback(prompt)
-                    aiAnalysisResult = resultText ?: "Analyzed with standard guidelines."
-                    _reportErrorResponse.value = resultText ?: "Failed to analyze question. Rate limit exceeded."
+                    aiAnalysisResult = resultText ?: "AI analysis unavailable. Manual review required."
+                    _reportErrorResponse.value = resultText ?: "AI analysis unavailable. Manual review required."
                 } catch (e: Exception) {
                     aiAnalysisResult = "Error in AI: ${e.message}"
                     _reportErrorResponse.value = "Failed to analyze question. Error: ${e.message}"
                 }
             } else {
-                delay(1500)
-                aiAnalysisResult = "Simulated evaluation: No obvious flaw found."
-                _reportErrorResponse.value = "This is a simulated AI analysis. The question appears to be correct based on standard concepts. No errors found."
+                aiAnalysisResult = "AI analysis unavailable. Manual review required."
+                _reportErrorResponse.value = "Gemini is unavailable or no API key is configured. This report has been sent for manual review; no simulated result was produced."
             }
             _reportErrorLoading.value = false
 
@@ -3872,7 +3659,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                                 optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                                 explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                                questionType = qObj.optString("questionType", "MCQ"),
+                                questionType = qObj.optString("questionType"),
                                 section = qObj.optString("section", "SECTION_A"),
                                 needsImage = qObj.optBoolean("needsImage", false),
                                 imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
@@ -4585,6 +4372,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 aiGenStatusMessage.value = disabledMsg
                 return@launch
             }
+
+            // Resolve the exact exam + subject route before making any Gemini request.
+            // Never silently route an unknown exam to NEET or an unknown subject to the first configured subject.
+            val routeResolution = Com.ak.testseries.exam.QuestionGenerationRouteResolver.resolve(
+                examQuery = genTargetExam.value,
+                subjectQuery = genSubject.value
+            )
+            val questionRoute = routeResolution.route
+            if (questionRoute == null) {
+                val routeError = routeResolution.error
+                    ?: "Question generation stopped: exam and subject route could not be resolved."
+                _aiGenState.value = AiGenerationState.Error(routeError)
+                aiGenStatusMessage.value = routeError
+                return@launch
+            }
             if (!isAdmin && _dailyGenerationsCount.value >= _dailyFreeTestLimit.value) {
                 _dailyUploadLimitUsed.value = true
                 val limitMsg = "Daily free generation limit reached (${_dailyFreeTestLimit.value} test/day). Watch an ad to unlock an extra generation!"
@@ -4678,20 +4480,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 "AI processing Pages $startPage-$endPage (Chunk ${chunkIndex + 1}/$totalPageChunks)..."
                             }
 
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                            val examConfig = questionRoute.examConfig
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = genSubject.value.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects" },
+                                subject = questionRoute.subjectName,
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = chunkMarkdown, // Send current page chunk with answer key reference
                                 currentChunkSize = currentChunkQuestions,
                                 startQ = startQ,
                                 endQ = endQ,
                                 totalQuestions = totalQuestions,
-                                isExtractionMode = isPrivatePdfExtraction
+                                isExtractionMode = isPrivatePdfExtraction,
+                                stageId = questionRoute.stageId,
+                                paperId = questionRoute.paperId
                             )
                             val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
 
@@ -4753,20 +4555,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 val endIdx = if (chunkIndex == totalChunks - 1) fullSourceText.length else ((chunkIndex + 1) * sliceLen).coerceAtMost(fullSourceText.length)
                                 fullSourceText.substring(startIdx, endIdx)
                             }
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                            val examConfig = questionRoute.examConfig
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = genSubject.value.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects" },
+                                subject = questionRoute.subjectName,
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = rawSourceText,
                                 currentChunkSize = currentChunkSize,
                                 startQ = startQ,
                                 endQ = endQ,
                                 totalQuestions = totalQuestions,
-                                isExtractionMode = isPrivatePdfExtraction
+                                isExtractionMode = isPrivatePdfExtraction,
+                                stageId = questionRoute.stageId,
+                                paperId = questionRoute.paperId
                             )
                             val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
 
@@ -4804,15 +4606,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
 
-                    if (allQuestionsList.isNotEmpty()) {
+                    if (allQuestionsList.size == totalQuestions) {
                         val combinedArray = org.json.JSONArray()
                         for (obj in allQuestionsList) {
                             combinedArray.put(obj)
                         }
-                        saveGeneratedTest(combinedArray.toString())
-                        recordDailyGeneration()
-                        aiGenStatusMessage.value = "Successfully generated ${allQuestionsList.size} questions!"
-                        _aiGenState.value = AiGenerationState.Success
+                        val saved = saveGeneratedTest(
+                            combinedArray.toString(),
+                            questionRoute,
+                            isExtractionMode = isPrivatePdfExtraction
+                        )
+                        if (saved) {
+                            recordDailyGeneration()
+                            aiGenStatusMessage.value = "Successfully generated ${allQuestionsList.size} questions for private review."
+                            _aiGenState.value = AiGenerationState.Success
+                        }
                         return@launch
                     }
                 } catch (e: Exception) {
@@ -4820,21 +4628,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // Fallback: Generate structured realistic mock test if API is unavailable and fallback is enabled by Admin
-            if (_isOfflineMockFallbackEnabled.value) {
-                generateMockAiTest()
-                recordDailyGeneration()
-                aiGenStatusMessage.value = "Generated offline fallback mock test!"
-                _aiGenState.value = AiGenerationState.Success
+            val errorMsg = if (!hasApiKey) {
+                "Gemini generation unavailable: no API key is configured. No offline or mock questions were generated."
             } else {
-                val errorMsg = if (!hasApiKey) {
-                    "AI generation is unavailable (no API keys configured) and Offline Mock Fallback is disabled by Admin."
-                } else {
-                    "AI generation failed to extract questions and Offline Mock Fallback is disabled by Admin."
-                }
-                _aiGenState.value = AiGenerationState.Error(errorMsg)
-                aiGenStatusMessage.value = errorMsg
+                "Gemini could not return a valid question set. No offline or mock questions were generated."
             }
+            _aiGenState.value = AiGenerationState.Error(errorMsg)
+            aiGenStatusMessage.value = errorMsg
         }
     }
 
@@ -5176,8 +4976,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 lowerText.contains(exam.shortName.lowercase()) ||
                 lowerText.contains(exam.examId.lowercase().replace("_", " "))
             } ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
-              ?: registeredExams.first()
 
+            if (detectedExamConfig == null) {
+                _pdfAnalysisState.value = PdfAnalysisState.Error(
+                    "Gemini analysis is unavailable and the document does not contain a reliable exam identifier. No test metadata was guessed."
+                )
+                return@launch
+            }
             val detectedExamName = detectedExamConfig.examName
 
             // 2. Detect Institute / Source
@@ -5190,14 +4995,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 lowerText.contains("adda247") -> "Adda247"
                 lowerText.contains("unacademy") -> "Unacademy"
                 lowerText.contains("byju") -> "BYJU'S"
-                else -> "Previous Year Paper"
+                else -> "Unknown source"
             }
 
             // 3. Match Exam-Specific Subjects from UniversalExamRegistry
             val availableSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(detectedExamName)
             val matchedSubject = availableSubjects.find { subj ->
                 lowerText.contains(subj.lowercase())
-            } ?: availableSubjects.firstOrNull() ?: "Full Syllabus"
+            } ?: availableSubjects.firstOrNull() ?: "Unidentified"
 
             val matchedType = when {
                 lowerText.contains("full test") || lowerText.contains("full syllabus") || lowerText.contains("fts") || lowerText.contains("mock test") -> "Full Syllabus"
@@ -5205,12 +5010,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 else -> "Single Chapter"
             }
 
-            val defaultQuestions = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(detectedExamName)
-            val defaultDuration = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultDurationMinutesForExam(detectedExamName)
-            val defaultMarks = detectedExamConfig.stages.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 100.0
-
-            val finalQuestionsCount = if (matchedType == "Full Syllabus") defaultQuestions else (defaultQuestions / 3).coerceAtLeast(25)
-            val finalDuration = if (matchedType == "Full Syllabus") defaultDuration else 60
+            // Use only quantities actually detected in the uploaded document.
+            // Exam-pattern defaults are not document evidence and must not become fake test metadata.
+            val finalQuestionsCount = localClassification.totalQuestionsDetected
+            val finalDuration = 0
+            val detectedMarks = 0.0
 
             val matchedTitle = "${matchedInstitute} ${detectedExamConfig.shortName} ${matchedType} - ${matchedSubject}"
             val result = AnalyzedTestResult(
@@ -5223,9 +5027,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 chapter = if (matchedType == "Full Syllabus") "Full Syllabus" else "Important Topics",
                 timerMinutes = finalDuration,
                 questionsCount = finalQuestionsCount,
-                totalMarks = defaultMarks,
+                totalMarks = detectedMarks,
                 language = if (lowerText.contains("hindi") || lowerText.any { it.code in 0x0900..0x097F }) "Hindi" else "English",
-                confidence = 80,
+                confidence = 35,
                 detectedQuestionsCount = localClassification.totalQuestionsDetected,
                 isQuestionPaperDetected = isQuestionsDetected,
                 autoRoutedWorkflow = routedWorkflow,
@@ -5639,8 +5443,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String) {
-        if (!newTest.isPublic) {
-            android.util.Log.d("NEETViewModel", "Test ${newTest.id} is PRIVATE. Scoped exclusively to local sandbox and skipped Firestore upload.")
+        if (newTest.questionsCount <= 0 || questionsJsonString.isBlank()) {
+            android.util.Log.w("NEETViewModel", "Test ${newTest.id} was not uploaded: empty question data is not publishable.")
+            return
+        }
+        if (!newTest.isPublic || newTest.status != "Published") {
+            android.util.Log.d("NEETViewModel", "Test ${newTest.id} is private or awaiting review. Firestore publication skipped.")
             return
         }
         try {
@@ -5703,9 +5511,105 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun saveGeneratedTest(jsonString: String) = withContext(Dispatchers.IO) {
+    private suspend fun saveGeneratedTest(
+        jsonString: String,
+        questionRoute: Com.ak.testseries.exam.QuestionGenerationRouteResolver.Route,
+        isExtractionMode: Boolean
+    ): Boolean = withContext(Dispatchers.IO) {
         val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val jsonArray = JSONArray(cleanJson)
+        if (jsonArray.length() == 0) {
+            _aiGenState.value = AiGenerationState.Error("Gemini returned an empty question set. Nothing was saved.")
+            aiGenStatusMessage.value = "Empty Gemini response. No test was created."
+            return@withContext false
+        }
+        val numericTypes = setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT", "INTEGER")
+        val expectedOptionCount = questionRoute.examConfig.defaultOptionCount.coerceIn(4, 5)
+        val configuredSections = questionRoute.examConfig.stages
+            .firstOrNull { it.stageId == questionRoute.stageId }
+            ?.papers?.firstOrNull { it.paperId == questionRoute.paperId }
+            ?.subjects?.singleOrNull { it.subjectId == questionRoute.subjectId }
+            ?.sections.orEmpty()
+        if (configuredSections.isEmpty()) {
+            _aiGenState.value = AiGenerationState.Error("Selected exam paper has no configured section rules.")
+            aiGenStatusMessage.value = "Test blocked. No section or marking fallback was applied."
+            return@withContext false
+        }
+
+        val invalidQuestionNumbers = mutableListOf<Int>()
+        for (index in 0 until jsonArray.length()) {
+            val q = jsonArray.optJSONObject(index)
+            if (q == null) {
+                invalidQuestionNumbers.add(index + 1)
+                continue
+            }
+            val text = q.optString("questionTextEn").ifBlank { q.optString("questionText") }
+            val optionKeys = if (expectedOptionCount == 5) {
+                listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn", "optionEEn")
+            } else {
+                listOf("optionAEn", "optionBEn", "optionCEn", "optionDEn")
+            }
+            val options = optionKeys.map { key ->
+                q.optString(key).ifBlank { q.optString(key.removeSuffix("En")) }
+            }
+            val questionType = q.optString("questionType").uppercase()
+            val isNumeric = questionType in numericTypes
+            val answer = q.optString("correctAnswer").trim()
+            val explanation = q.optString("explanationEn").ifBlank { q.optString("explanation") }.ifBlank { q.optString("reasoning") }
+            val hasPlaceholder = options.any { option ->
+                listOf("Option A", "Option B", "Option C", "Option D", "Option E",
+                    "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D", "Distractor Option E")
+                    .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
+            }
+            val optionsValid = if (isNumeric) {
+                options.all { it.isBlank() }
+            } else {
+                options.all { it.isNotBlank() } && !hasPlaceholder &&
+                    options.map { it.trim().lowercase() }.distinct().size == options.size
+            }
+            val allowedAnswers = if (expectedOptionCount == 5) setOf("A", "B", "C", "D", "E", "1", "2", "3", "4", "5")
+                else setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            val answerTokens = answer.uppercase()
+                .replace(Regex("\\bAND\\b"), ",")
+                .split(Regex("[,;|\\s]+"))
+                .filter { it.isNotBlank() }
+            val isMultipleAnswer = questionType.contains("MULTIPLE") || questionType.contains("MULTI_SELECT")
+            val numericAnswer = answer.toDoubleOrNull()?.isFinite() == true
+            val answerValid = when {
+                isNumeric -> numericAnswer
+                isMultipleAnswer -> answerTokens.isNotEmpty() && answerTokens.all { it in allowedAnswers }
+                else -> answer.uppercase() in allowedAnswers
+            }
+            val sectionId = q.optString("sectionId").ifBlank { q.optString("section") }
+            val section = configuredSections.singleOrNull { it.sectionId == sectionId }
+            val positiveMarks = q.optDouble("positiveMarks", Double.NaN)
+            val negativeMarks = q.optDouble("negativeMarks", Double.NaN)
+            val sectionMatchesPattern = section != null &&
+                section.questionType.name.equals(questionType, ignoreCase = true) &&
+                kotlin.math.abs(section.positiveMarks - positiveMarks) < 0.0001 &&
+                kotlin.math.abs(section.negativeMarks - negativeMarks) < 0.0001
+
+            if (text.isBlank() || answer.isBlank() || explanation.isBlank() ||
+                questionType.isBlank() || !optionsValid || !answerValid || !sectionMatchesPattern
+            ) {
+                invalidQuestionNumbers.add(index + 1)
+            }
+        }
+        if (invalidQuestionNumbers.isNotEmpty()) {
+            _aiGenState.value = AiGenerationState.Error("Gemini returned incomplete or placeholder question data.")
+            aiGenStatusMessage.value = "Test blocked. Invalid question numbers: ${invalidQuestionNumbers.joinToString(", ")}. No test was saved."
+            return@withContext false
+        }
+        if (!Com.ak.testseries.data.QuestionPayloadValidator.isValid(
+                rawJson = jsonArray.toString(),
+                expectedCount = jsonArray.length(),
+                expectedOptionCount = expectedOptionCount
+            )
+        ) {
+            _aiGenState.value = AiGenerationState.Error("Gemini question payload failed strict validation.")
+            aiGenStatusMessage.value = "Test blocked. Duplicate, incomplete, placeholder or invalid answer data was detected."
+            return@withContext false
+        }
         val testId = "ai_" + System.currentTimeMillis()
 
         val questions = mutableListOf<QuestionEntity>()
@@ -5714,15 +5618,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         
         for (i in 0 until jsonArray.length()) {
             val qObj = jsonArray.getJSONObject(i)
-            val qChapter = qObj.optString("chapter", "General Dynamics")
-            val qTopic = qObj.optString("topic", "General Topic")
+            val qChapter = qObj.optString("chapter", "")
+            val qTopic = qObj.optString("topic", "")
             
             if (i == 0) {
                 primaryChapter = qChapter
                 primaryTopic = qTopic
             }
             
-            val qTextEn = qObj.optString("questionTextEn", "Question Text")
+            val qTextEn = qObj.optString("questionTextEn").ifBlank { qObj.optString("questionText") }
             val qTextHi = qObj.optString("questionTextHi", "")
             val reasoning = qObj.optString("reasoning", "")
             val expEn = qObj.optString("explanationEn", "").ifBlank { reasoning }
@@ -5754,14 +5658,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     id = "${testId}_q${i}",
                     testId = testId,
                     questionText = qTextEn,
-                    optionA = qObj.optString("optionAEn", "Option A"),
-                    optionB = qObj.optString("optionBEn", "Option B"),
-                    optionC = qObj.optString("optionCEn", "Option C"),
-                    optionD = qObj.optString("optionDEn", "Option D"),
+                    optionA = qObj.optString("optionAEn").ifBlank { qObj.optString("optionA") },
+                    optionB = qObj.optString("optionBEn").ifBlank { qObj.optString("optionB") },
+                    optionC = qObj.optString("optionCEn").ifBlank { qObj.optString("optionC") },
+                    optionD = qObj.optString("optionDEn").ifBlank { qObj.optString("optionD") },
                     optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
-                    subject = genSubject.value,
+                    subject = questionRoute.subjectName,
                     chapter = qChapter,
                     topic = qTopic,
                     questionTextHi = qTextHi.takeIf { it.isNotEmpty() },
@@ -5771,6 +5675,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                     optionEHi = qObj.optString("optionEHi", "").takeIf { it.isNotEmpty() },
                     explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
+                    questionType = qObj.optString("questionType", "MCQ"),
+                    section = qObj.optString("sectionId").ifBlank {
+                        qObj.optString("section", "SECTION_A")
+                    },
                     needsImage = finalNeedsImage,
                     imageUrl = finalImageUrl
                 )
@@ -5811,7 +5719,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         if (genIsPublic.value && (currentAuthUser == null || authenticatedUid.isBlank())) {
             _aiGenState.value = AiGenerationState.Error("Please sign in to publish this test to the Community.")
-            return@withContext
+            return@withContext false
         }
 
         val questionsJsonString = qJsonArray.toString()
@@ -5819,28 +5727,50 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         val isLiveTest = genIsLive.value
         val initialStatus = if (isAdmin || isLiveTest) "Published" else if (genIsPublic.value) "Under Review" else "Published"
+        val provenanceNote = if (isExtractionMode) {
+            "Gemini-verified extraction from the uploaded source PDF. Source questions were transcribed; missing questions were not invented."
+        } else {
+            "Gemini-generated GENERAL_PRACTICE questions. This is not an official PYQ or an officially syllabus-verified paper."
+        }
+        val baseDescription = if (isLiveTest) {
+            "Live Scheduled Test on ${genLiveScheduledTime.value}"
+        } else {
+            genDescription.value.trim()
+        }
+        val finalDescription = listOf(baseDescription, provenanceNote)
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n")
+
         val newTest = TestEntity(
             id = testId,
             title = genTestName.value,
-            description = if (isLiveTest) "Live Scheduled Test on ${genLiveScheduledTime.value}" else genDescription.value,
+            description = finalDescription,
             institute = if (isLiveTest) "Admin Live" else genInstitute.value,
             batchName = genBatch.value,
             facultyName = genFaculty.value,
             language = genLanguage.value,
-            subject = genSubject.value,
+            subject = questionRoute.subjectName,
             difficulty = "Medium",
             testType = if (isLiveTest) "Live" else genType.value,
             questionsCount = jsonArray.length(),
-            isOfficial = isLiveTest,
-            isVerifiedCommunity = isLiveTest || isAdmin,
-            countsTowardRanking = isLiveTest, // Only official Admin live tests count toward competitive ranking
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            countsTowardRanking = false,
             attemptsCount = 0,
             downloadsCount = 0,
             chapter = primaryChapter,
             topic = primaryTopic,
             questionsJson = questionsJsonString,
             uploaderId = authenticatedUid,
-            isPublic = genIsPublic.value,
+            targetExam = questionRoute.examConfig.examName,
+            durationMinutes = questionRoute.examConfig.stages
+                .flatMap { it.papers }
+                .firstOrNull { it.paperId == questionRoute.paperId }
+                ?.durationMinutes ?: 0,
+            examId = questionRoute.examConfig.examId,
+            stageId = questionRoute.stageId,
+            paperId = questionRoute.paperId,
+            isPublic = genIsPublic.value || isLiveTest,
             status = initialStatus
         )
 
@@ -5914,6 +5844,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             android.util.Log.e("NEETViewModel", "Automatic community share failed (test preserved): ${e.localizedMessage}", e)
         }
+        true
     }
 
     private fun saveQuestionsJsonToInternalStorage(testId: String, questionsJsonString: String) {
@@ -5947,6 +5878,39 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.Main) { onError("JSON array is empty") }
                     return@launch
                 }
+                val invalidQuestionNumbers = mutableListOf<Int>()
+                for (i in 0 until jsonArray.length()) {
+                    val qObj = jsonArray.optJSONObject(i)
+                    if (qObj == null) {
+                        invalidQuestionNumbers.add(i + 1)
+                        continue
+                    }
+                    val qText = qObj.optString("questionText").ifBlank { qObj.optString("questionTextEn") }
+                    val options = listOf(
+                        qObj.optString("optionA").ifBlank { qObj.optString("optionAEn") },
+                        qObj.optString("optionB").ifBlank { qObj.optString("optionBEn") },
+                        qObj.optString("optionC").ifBlank { qObj.optString("optionCEn") },
+                        qObj.optString("optionD").ifBlank { qObj.optString("optionDEn") }
+                    )
+                    val answer = qObj.optString("correctAnswer").trim()
+                    val explanation = qObj.optString("explanation").ifBlank { qObj.optString("explanationEn") }
+                    val numeric = qObj.optString("questionType", "MCQ").uppercase() in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT")
+                    val hasPlaceholder = options.any { option ->
+                        listOf("Option A", "Option B", "Option C", "Option D", "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                            .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
+                    }
+                    val optionsValid = if (numeric) options.all { it.isBlank() } || options.all { it.isNotBlank() }
+                        else options.all { it.isNotBlank() } && !hasPlaceholder
+                    if (qText.isBlank() || answer.isBlank() || explanation.isBlank() || !optionsValid) {
+                        invalidQuestionNumbers.add(i + 1)
+                    }
+                }
+                if (invalidQuestionNumbers.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        onError("Import blocked. Questions with missing or placeholder data: ${invalidQuestionNumbers.joinToString(", ")}")
+                    }
+                    return@launch
+                }
                 val testId = "local_p_" + System.currentTimeMillis()
                 val questions = mutableListOf<QuestionEntity>()
 
@@ -5956,16 +5920,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         QuestionEntity(
                             id = qObj.optString("id", "${testId}_q${i}"),
                             testId = testId,
-                            questionText = qObj.optString("questionText", qObj.optString("questionTextEn", "Question ${i + 1}")),
-                            optionA = qObj.optString("optionA", qObj.optString("optionAEn", "Option A")),
-                            optionB = qObj.optString("optionB", qObj.optString("optionBEn", "Option B")),
-                            optionC = qObj.optString("optionC", qObj.optString("optionCEn", "Option C")),
-                            optionD = qObj.optString("optionD", qObj.optString("optionDEn", "Option D")),
-                            correctAnswer = qObj.optString("correctAnswer", "").uppercase().take(1),
+                            questionText = qObj.optString("questionText").ifBlank { qObj.optString("questionTextEn") },
+                            optionA = qObj.optString("optionA").ifBlank { qObj.optString("optionAEn") },
+                            optionB = qObj.optString("optionB").ifBlank { qObj.optString("optionBEn") },
+                            optionC = qObj.optString("optionC").ifBlank { qObj.optString("optionCEn") },
+                            optionD = qObj.optString("optionD").ifBlank { qObj.optString("optionDEn") },
+                            correctAnswer = qObj.optString("correctAnswer").trim().let { if (it.matches(Regex("[A-Ea-e]"))) it.uppercase() else it },
                             explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")),
                             subject = qObj.optString("subject", subject),
-                            chapter = qObj.optString("chapter", "Local Practice"),
-                            topic = qObj.optString("topic", "Pre-formatted"),
+                            chapter = qObj.optString("chapter", ""),
+                            topic = qObj.optString("topic", ""),
                             difficulty = qObj.optString("difficulty", "Medium"),
                             questionTextHi = qObj.optString("questionTextHi", "").takeIf { it.isNotEmpty() },
                             optionAHi = qObj.optString("optionAHi", "").takeIf { it.isNotEmpty() },
@@ -5973,8 +5937,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                             optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                             explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                            questionType = qObj.optString("questionType", "MCQ"),
-                            section = qObj.optString("section", "SECTION_A"),
+                            questionType = qObj.optString("questionType"),
+                            section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
                             needsImage = qObj.optBoolean("needsImage", false),
                             imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
                         )
@@ -5996,19 +5960,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     questionsCount = questions.size,
                     isOfficial = false,
                     isVerifiedCommunity = false,
-                    isPublic = isPublic,
+                    isPublic = false,
                     countsTowardRanking = false,
-                    rating = 5.0f,
+                    rating = 0.0f,
                     attemptsCount = 0,
-                    downloadsCount = 1,
+                    downloadsCount = 0,
                     isDownloaded = true,
                     isBookmarked = false,
                     timestamp = System.currentTimeMillis(),
-                    status = "Published",
-                    aiConfidence = 100,
+                    status = if (isPublic) "Under Review" else "Published",
+                    aiConfidence = 0,
                     uploaderId = currentUid,
                     targetExam = _userProfile.value.targetExam,
-                    durationMinutes = questions.size,
+                    durationMinutes = 0,
                     questionsJson = cleanJson
                 )
 
@@ -6027,637 +5991,46 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun buildDynamicQuestionsForExam(targetExam: String, subject: String, testId: String): List<QuestionEntity> {
-        val upper = targetExam.uppercase()
-        val questions = mutableListOf<QuestionEntity>()
-
-        when {
-            upper.contains("BANK") || upper.contains("IBPS") || upper.contains("SBI") -> {
-                val bankItems = listOf(
-                    Triple("If a sum doubles itself in 5 years at simple interest, in how many years will it become 4 times at the same rate?", "यदि कोई राशि साधारण ब्याज पर 5 वर्षों में दोगुनी हो जाती है, तो उसी दर पर कितने वर्षों में वह 4 गुनी हो जाएगी?", "15 years"),
-                    Triple("In a class of 60 students, the ratio of boys to girls is 3:2. If 10 more girls join, what is the new ratio?", "60 विद्यार्थियों की एक कक्षा में लड़कों और लड़कियों का अनुपात 3:2 है। यदि 10 और लड़कियाँ शामिल हो जाएँ, तो नया अनुपात क्या होगा?", "6:5"),
-                    Triple("Statements: All pens are books. All books are pencils.\nConclusion: All pens are pencils.", "कथन: सभी पेन किताबें हैं। सभी किताबें पेंसिल हैं।\nनिष्कर्ष: सभी पेन पेंसिल हैं।", "Conclusion follows"),
-                    Triple("Choose the correctly spelt word from the options:", "दिए गए विकल्पों में से सही वर्तनी वाला शब्द चुनें:", "Accommodate"),
-                    Triple("What is the next number in the sequence: 4, 9, 25, 49, 121, ?", "श्रृंखला में अगली संख्या ज्ञात करें: 4, 9, 25, 49, 121, ?", "169")
-                )
-                bankItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "Banking aptitude question (+1.0 for correct, -0.25 penalty).",
-                            subject = subject.ifBlank { "Quantitative Aptitude" },
-                            chapter = "Banking Core Topics",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("RAILWAY") || upper.contains("RRB") || upper.contains("NTPC") || upper.contains("ALP") || upper.contains("GROUP D") -> {
-                val rrbItems = listOf(
-                    Triple("Which organelle is known as the powerhouse of the cell?", "कोशिका का पावरहाउस किस कोशिकांग को कहा जाता है?", "Mitochondria (माइटोकॉन्ड्रिया)"),
-                    Triple("What is the acceleration due to gravity on the surface of the Earth?", "पृथ्वी की सतह पर गुरुत्वीय त्वरण का मान क्या होता है?", "9.8 m/s²"),
-                    Triple("Find the LCM of 24, 36 and 40.", "24, 36 और 40 का ल.स.प. (LCM) ज्ञात कीजिए।", "360"),
-                    Triple("Which country hosted the first Asian Games in 1951?", "1951 में पहले एशियाई खेलों की मेजबानी किस देश ने की थी?", "India (भारत)"),
-                    Triple("Which chemical element has the atomic number 1?", "किस रासायनिक तत्व की परमाणु संख्या 1 है?", "Hydrogen (हाइड्रोजन)")
-                )
-                rrbItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "RRB NTPC question (+1.0 for correct, -0.33 penalty).",
-                            subject = subject.ifBlank { "General Science" },
-                            chapter = "Railway General Syllabus",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("SSC") || upper.contains("CGL") || upper.contains("CHSL") || upper.contains("MTS") -> {
-                val sscItems = listOf(
-                    Triple("If a + 1/a = 3, find the value of a³ + 1/a³.", "यदि a + 1/a = 3 है, तो a³ + 1/a³ का मान ज्ञात कीजिए।", "18"),
-                    Triple("Which Part of the Indian Constitution contains the Directive Principles of State Policy (DPSP)?", "भारतीय संविधान के किस भाग में राज्य के नीति निदेशक तत्व शामिल हैं?", "Part IV (भाग IV)"),
-                    Triple("Select the antonym of the given word: BENEVOLENT", "दिए गए शब्द का विलोम शब्द चुनें: BENEVOLENT", "Malevolent"),
-                    Triple("The Battle of Plassey was fought in which year?", "प्लासी का युद्ध किस वर्ष लड़ा गया था?", "1757"),
-                    Triple("Find the odd one out among the given options:", "दिए गए विकल्पों में से विषम का चयन करें:", "Ohm-meter")
-                )
-                sscItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "SSC CGL Tier-1 question (+2.0 for correct, -0.50 penalty).",
-                            subject = subject.ifBlank { "General Studies" },
-                            chapter = "SSC Core Modules",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("CAT") || upper.contains("MANAGEMENT") -> {
-                val catItems = listOf(
-                    Triple("A train traveling at 72 km/h crosses a man standing on a platform in 15 seconds. Find the length of the train.", "QA TSD: Length = 72 * (5/18) * 15 = 300 meters.", "300 meters"),
-                    Triple("Find the maximum value of f(x) = -2x² + 8x - 3.", "QA Algebra: Max at x = -b/2a = 8/4 = 2. f(2) = -8 + 16 - 3 = 5.", "5"),
-                    Triple("How many trailing zeros are in the expansion of 100!?", "QA Number Theory: [100/5] + [100/25] = 20 + 4 = 24 zeros.", "24"),
-                    Triple("TITA Question: If log_3(x) = 4, enter the value of x.", "QA TITA: x = 3^4 = 81.", "81")
-                )
-                catItems.forEachIndexed { i, (qEn, exp, ans) ->
-                    val isTita = i == 3
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qEn,
-                            optionA = if (isTita) "" else ans,
-                            optionAHi = if (isTita) "" else ans,
-                            optionB = if (isTita) "" else "10",
-                            optionBHi = if (isTita) "" else "10",
-                            optionC = if (isTita) "" else "15",
-                            optionCHi = if (isTita) "" else "15",
-                            optionD = if (isTita) "" else "20",
-                            optionDHi = if (isTita) "" else "20",
-                            correctAnswer = ans,
-                            explanation = exp,
-                            subject = subject.ifBlank { "Quantitative Ability" },
-                            chapter = "CAT Core Modules",
-                            section = "SECTION_A",
-                            difficulty = "Hard",
-                            questionType = if (isTita) "TITA" else "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("UGC") || upper.contains("NET") || upper.contains("CTET") -> {
-                val ugcItems = listOf(
-                    Triple("Which statistical tool is used to test the significance of difference between two sample means?", "दो प्रतिदर्श माध्यों के बीच अंतर की सार्थकता का परीक्षण करने के लिए किस सांख्यिकीय उपकरण का उपयोग किया जाता है?", "t-test (टी-परीक्षण)"),
-                    Triple("Which of the following belongs to non-probability sampling techniques?", "निम्नलिखित में से कौन गैर-संभाव्यता प्रतिचयन तकनीकों से संबंधित है?", "Purposive Sampling (सोद्देश्य प्रतिचयन)"),
-                    Triple("What is the full form of URL in computer networks?", "कंप्यूटर नेटवर्क में URL का पूर्ण रूप क्या है?", "Uniform Resource Locator"),
-                    Triple("Which atmospheric layer absorbs harmful ultraviolet (UV) radiation from the Sun?", "वायुमंडल की कौन सी परत सूर्य से आने वाली हानिकारक पराबैंगनी किरणों को अवशोषित करती है?", "Stratosphere / Ozone layer (समताप मंडल)")
-                )
-                ugcItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Distractor Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Distractor Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Distractor Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "UGC NET Paper 1 Question (+2.0 correct, 0.0 penalty).",
-                            subject = subject.ifBlank { "Teaching & Research Aptitude" },
-                            chapter = "Paper 1 Syllabus",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("JEE") -> {
-                val jeeItems = listOf(
-                    Triple("The dimensional formula of Planck's constant is:", "प्लांक नियतांक का विमीय सूत्र है:", "[ML²T⁻¹]"),
-                    Triple("A projectile is fired at an angle of 45° with kinetic energy K. What is its kinetic energy at the highest point?", "एक प्रक्षेप्य को 45° के कोण पर गतिज ऊर्जा K के साथ प्रक्षेपित किया जाता है। उच्चतम बिंदु पर इसकी गतिज ऊर्जा क्या होगी?", "K / 2"),
-                    Triple("The electric potential at the center of a uniformly charged conducting sphere of radius R and charge Q is:", "त्रिज्या R और आवेश Q वाले एकसमान आवेशित चालक गोले के केंद्र पर विद्युत विभव होता है:", "kQ / R"),
-                    Triple("[SECTION B - NUMERICAL]\nA body of mass 2 kg moving at 4 m/s collides elastically with a stationary body of mass 2 kg. Find the velocity of the second body after collision in m/s.", "द्रव्यमान 2 kg का एक पिंड 4 m/s की चाल से चलते हुए स्थिर 2 kg के पिंड से प्रत्यास्थ टक्कर करता है। टक्कर के बाद दूसरे पिंड का वेग (m/s) ज्ञात कीजिए।", "4")
-                )
-                jeeItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    val isNum = i == 3
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = if (isNum) "4" else ans,
-                            optionAHi = if (isNum) "4" else ans,
-                            optionB = "2",
-                            optionBHi = "2",
-                            optionC = "8",
-                            optionCHi = "8",
-                            optionD = "Zero",
-                            optionDHi = "शून्य",
-                            correctAnswer = ans,
-                            explanation = "JEE Main authoritative problem (+4.0 correct, -1.0 penalty).",
-                            subject = subject.ifBlank { "Physics" },
-                            chapter = "Mechanics & Electrostatics",
-                            section = if (isNum) "SECTION_B" else "SECTION_A",
-                            difficulty = "Hard",
-                            questionType = if (isNum) "NUMERICAL" else "MCQ"
-                        )
-                    )
-                }
-            }
-            else -> {
-                // NEET UG default
-                val neetItems = listOf(
-                    Triple("Which of the following organelles is responsible for cellular respiration in eukaryotes?", "यूकेरियोट्स में कोशिकीय श्वसन के लिए निम्नलिखित में से कौन सा कोशिकांग उत्तरदायी है?", "Mitochondria (माइटोकॉन्ड्रिया)"),
-                    Triple("In Mendelian monohybrid cross, the phenotypic ratio in F2 generation is:", "मेंडेलियन एकसंकर संकरण में, F2 पीढ़ी में लक्षणप्ररूपी अनुपात होता है:", "3 : 1"),
-                    Triple("The dimensional formula of gravitational constant G is:", "सार्वत्रिक गुरुत्वाकर्षण नियतांक G का विमीय सूत्र है:", "[M⁻¹L³T⁻²]"),
-                    Triple("The pH of human blood under normal physiological conditions is approximately:", "सामान्य शारीरिक परिस्थितियों में मानव रक्त का pH लगभग होता है:", "7.4"),
-                    Triple("Which hormone is primarily responsible for the 'fight or flight' response in humans?", "मनुष्यों में 'करो या मरो' अनुक्रिया के लिए मुख्य रूप से कौन सा हार्मोन उत्तरदायी है?", "Adrenaline (एपिनेफ्रीन / एड्रेनालिन)")
-                )
-                neetItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "NEET UG NCERT authoritative syllabus question (+4.0 correct, -1.0 penalty).",
-                            subject = subject.ifBlank { "Biology" },
-                            chapter = "NCERT Core Curriculum",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-        }
-        return questions
-    }
-
-    private suspend fun generateMockAiTest() = withContext(Dispatchers.IO) {
-        val testId = "ai_mock_" + System.currentTimeMillis()
-        val targetExamName = genTargetExam.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET UG" } }
-        val effectiveSubject = genSubject.value.ifBlank {
-            when {
-                targetExamName.contains("BANK", ignoreCase = true) || targetExamName.contains("IBPS", ignoreCase = true) || targetExamName.contains("SBI", ignoreCase = true) -> "Quantitative Aptitude"
-                targetExamName.contains("RAILWAY", ignoreCase = true) || targetExamName.contains("RRB", ignoreCase = true) -> "General Science"
-                targetExamName.contains("SSC", ignoreCase = true) -> "Quantitative Aptitude"
-                targetExamName.contains("UPSC", ignoreCase = true) || targetExamName.contains("CDS", ignoreCase = true) || targetExamName.contains("NDA", ignoreCase = true) -> "General Studies"
-                targetExamName.contains("CAT", ignoreCase = true) -> "Quantitative Ability"
-                targetExamName.contains("UGC", ignoreCase = true) || targetExamName.contains("NET", ignoreCase = true) -> "Teaching & Research Aptitude"
-                targetExamName.contains("JEE", ignoreCase = true) -> "Physics"
-                else -> "Physics"
-            }
-        }
-        val sampleQuestions = buildDynamicQuestionsForExam(targetExamName, effectiveSubject, testId)
-        if (false) {
-        val isJee = genTargetExam.value == "JEE"
-        val sampleQuestions = if (isJee) {
-            listOf(
-                // 5 SECTION_A MCQ questions
-                QuestionEntity(
-                    id = "${testId}_q1",
-                    testId = testId,
-                    questionText = "An electrostatic field line is a continuous curve. That is, a field line cannot have sudden breaks because:\n\nएक स्थिर-विद्युत बल रेखा एक सतत वक्र होती है। अर्थात्, एक बल रेखा में अचानक व्यवधान नहीं हो सकते क्योंकि:",
-                    optionA = "Electric field is zero everywhere / विद्युत क्षेत्र हर जगह शून्य होता है",
-                    optionB = "Moving charges create sudden leaps / गतिशील आवेश अचानक छलांग लगाते हैं",
-                    optionC = "A charge experiences a continuous force, so field lines are continuous / एक आवेश निरंतर बल का अनुभव करता है, इसलिए रेखाएं सतत होती हैं",
-                    optionD = "None of the above / उपरोक्त में से कोई नहीं",
-                    correctAnswer = "C",
-                    explanation = "An electric field line represents the path of a positive test charge. Since force acts continuously on a charge in an electric field, the field lines cannot have sudden breaks.",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields",
-                    questionType = "MCQ",
-                    section = "SECTION_A"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q2",
-                    testId = testId,
-                    questionText = "The electric potential at a point on the axial line of an electric dipole is:\n\nएक विद्युत द्विध्रुव के अक्षीय रेखा पर स्थित किसी बिंदु पर विद्युत विभव होता है:",
-                    optionA = "Zero / शून्य",
-                    optionB = "kp/r²",
-                    optionC = "kp/r",
-                    optionD = "2kp/r²",
-                    correctAnswer = "B",
-                    explanation = "The potential V at an axial point r of a dipole of dipole moment p is V = kp/r² where k = 1 / 4πε₀.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "MCQ",
-                    section = "SECTION_A"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q3",
-                    testId = testId,
-                    questionText = "The capacitance of a parallel plate capacitor does NOT depend on:\n\nएक समानांतर प्लेट संधारित्र की धारिता किस पर निर्भर नहीं करती है?",
-                    optionA = "Area of plates / प्लेटों के क्षेत्रफल पर",
-                    optionB = "Distance between plates / प्लेटों के बीच की दूरी पर",
-                    optionC = "Medium between plates / प्लेटों के बीच के माध्यम पर",
-                    optionD = "Metal used for plates / प्लेटों के लिए उपयोग की जाने वाली धातु पर",
-                    correctAnswer = "D",
-                    explanation = "Capacitance C = K ε₀ A / d. It depends on plate area (A), plate separation (d), and the dielectric medium (K). It does not depend on the metal of the plates.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "MCQ",
-                    section = "SECTION_A"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q4",
-                    testId = testId,
-                    questionText = "Two point charges +3μC and +8μC repel each other with a force of 40N. If a charge of -5μC is added to each, the force between them will become:\n\nदो बिंदु आवेश +3μC और +8μC एक दूसरे को 40N के बल से प्रतिकर्षित करते हैं। यदि प्रत्येक में -5μC का आवेश जोड़ दिया जाए, तो उनके बीच बल हो जाएगा:",
-                    optionA = "10N attractive / 10N आकर्षक",
-                    optionB = "10N repulsive / 10N प्रतिकर्षक",
-                    optionC = "20N attractive / 20N आकर्षक",
-                    optionD = "Zero / शून्य",
-                    correctAnswer = "A",
-                    explanation = "Initial force F₁ = k (3)(8) / r² = 24k/r² = 40N. New charges: q₁' = 3 - 5 = -2μC, q₂' = 8 - 5 = +3μC. New force F₂ = k (-2)(3) / r² = -6k/r² (negative denotes attraction). Since 6 is 1/4 of 24, F₂ = 40 / 4 = 10N (attractive).",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields",
-                    questionType = "MCQ",
-                    section = "SECTION_A"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q5",
-                    testId = testId,
-                    questionText = "The unit of electric flux is:\n\nविद्युत फ्लक्स का मात्रक है:",
-                    optionA = "Weber / वेबर",
-                    optionB = "Newton/Coulomb / न्यूटन/कूलाम",
-                    optionC = "Volt-meter / वोल्ट-मीटर",
-                    optionD = "Ampere / एम्पियर",
-                    correctAnswer = "C",
-                    explanation = "Electric flux Φ = E.A. Units: (N/C) * m² = (V/m) * m² = Volt-meter.",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields",
-                    questionType = "MCQ",
-                    section = "SECTION_A"
-                ),
-                // 10 SECTION_B Numerical questions
-                QuestionEntity(
-                    id = "${testId}_q6",
-                    testId = testId,
-                    questionText = "Calculated capacitance (in pF) value of a parallel plate capacitor in air with plate area 6 cm² and distance 3 mm is:\n\nवायु में एक समानांतर प्लेट संधारित्र की धारिता (pF में) की गणना करें जिसका प्लेट क्षेत्रफल 6 cm² और दूरी 3 mm है:",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "1.77",
-                    explanation = "C = ε₀ A / d = (8.85 * 10^-12 * 6 * 10^-4) / (3 * 10^-3) = 1.77 pF.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q7",
-                    testId = testId,
-                    questionText = "What is the net electric dipole moment (in C-m) of two charges +2μC and -2μC separated by 5 mm?\n\n5 mm की दूरी पर स्थित दो आवेशों +2μC और -2μC का कुल विद्युत द्विध्रुव आघूर्ण (C-m में, 10^-8 की घात में) कितना है?",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "1.0",
-                    explanation = "p = q * 2l = 2 * 10^-6 * 5 * 10^-3 = 10^-8 C-m. Hence value in 10^-8 scale is 1.0.",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q8",
-                    testId = testId,
-                    questionText = "Find the work done (in Joules) in bringing a charge of 3C through a potential difference of 15V.\n\n15V के विभवांतर से 3C के आवेश को लाने में किया गया कार्य (जूल में) ज्ञात कीजिए।",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "45",
-                    explanation = "W = Q * V = 3 * 15 = 45 Joules.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q9",
-                    testId = testId,
-                    questionText = "Calculate the equivalent resistance (in ohms) of three 15-ohm resistors connected in parallel.\n\nसमानांतर क्रम में जुड़े तीन 15-ओम के प्रतिरोधकों का समतुल्य प्रतिरोध (ओम में) ज्ञात कीजिए।",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "5",
-                    explanation = "1/Rp = 1/15 + 1/15 + 1/15 = 3/15 = 1/5 => Rp = 5 ohms.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q10",
-                    testId = testId,
-                    questionText = "Find the force (in N) between two charges of 2C separated by 2m in a medium of dielectric constant K = 9.\n\nपरावैद्युतांक K = 9 के माध्यम में 2m की दूरी पर स्थित 2C के दो आवेशों के बीच बल (N में, 10^9 की घात में) ज्ञात कीजिए।",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "1.0",
-                    explanation = "F = (1/K) * (k * q1 * q2 / r^2) = (1/9) * (9 * 10^9 * 2 * 2 / 4) = 10^9 N = 1.0 * 10^9 N.",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q11",
-                    testId = testId,
-                    questionText = "Find the electric field intensity (in N/C) at a distance of 3m from a point charge of 9 nC in vacuum.\n\nनिर्वात में 9 nC के बिंदु आवेश से 3m की दूरी पर विद्युत क्षेत्र की तीव्रता (N/C में) ज्ञात कीजिए।",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "9",
-                    explanation = "E = k * q / r^2 = 9 * 10^9 * 9 * 10^-9 / 9 = 9 N/C.",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q12",
-                    testId = testId,
-                    questionText = "A capacitor of 10 μF is charged to 100V. Find the electrostatic energy (in Joules) stored in it.\n\nएक 10 μF के संधारित्र को 100V तक आवेशित किया जाता है। इसमें संचित स्थिर-विद्युत ऊर्जा (जूल में) ज्ञात कीजिए।",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "0.05",
-                    explanation = "U = 0.5 * C * V^2 = 0.5 * 10^-5 * 10000 = 0.05 Joules.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q13",
-                    testId = testId,
-                    questionText = "A current of 2A flows through a conductor of resistance 5 ohms for 10 seconds. Find the heat energy (in Joules) produced.\n\n5 ओम के प्रतिरोध वाले चालक से 2A की धारा 10 सेकंड तक प्रवाहित होती है। उत्पन्न ऊष्मा ऊर्जा (जूल में) ज्ञात कीजिए।",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "200",
-                    explanation = "H = I^2 * R * t = 4 * 5 * 10 = 200 Joules.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q14",
-                    testId = testId,
-                    questionText = "What is the potential difference (in V) across a 4 μF capacitor to store a charge of 80 μC?\n\n80 μC का आवेश संचित करने के लिए 4 μF के संधारित्र पर कितना विभवांतर (V में) होना चाहिए?",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "20",
-                    explanation = "V = Q / C = 80 / 4 = 20 V.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q15",
-                    testId = testId,
-                    questionText = "Two capacitors of 3 μF and 6 μF are connected in series. Find the equivalent capacitance (in μF).\n\nश्रेणी क्रम में जुड़े 3 μF और 6 μF के दो संधारित्रों की समतुल्य धारिता (μF में) ज्ञात कीजिए।",
-                    optionA = "", optionB = "", optionC = "", optionD = "",
-                    correctAnswer = "2",
-                    explanation = "1/Cs = 1/3 + 1/6 = 3/6 = 1/2 => Cs = 2 μF.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential",
-                    questionType = "NUMERICAL",
-                    section = "SECTION_B"
-                )
-            )
-        } else {
-            listOf(
-                QuestionEntity(
-                    id = "${testId}_q1",
-                    testId = testId,
-                    questionText = "An electrostatic field line is a continuous curve. That is, a field line cannot have sudden breaks because:\n\nएक स्थिर-विद्युत बल रेखा एक सतत वक्र होती है। अर्थात्, एक बल रेखा में अचानक व्यवधान नहीं हो सकते क्योंकि:",
-                    optionA = "Electric field is zero everywhere / विद्युत क्षेत्र हर जगह शून्य होता है",
-                    optionB = "Moving charges create sudden leaps / गतिशील आवेश अचानक छलांग लगाते हैं",
-                    optionC = "A charge experiences a continuous force, so field lines are continuous / एक आवेश निरंतर बल का अनुभव करता है, इसलिए रेखाएं सतत होती हैं",
-                    optionD = "None of the above / उपरोक्त में से कोई नहीं",
-                    correctAnswer = "C",
-                    explanation = "An electric field line represents the path of a positive test charge. Since force acts continuously on a charge in an electric field, the field lines cannot have sudden breaks.",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q2",
-                    testId = testId,
-                    questionText = "The electric potential at a point on the axial line of an electric dipole is:\n\nएक विद्युत द्विध्रुव के अक्षीय रेखा पर स्थित किसी बिंदु पर विद्युत विभव होता है:",
-                    optionA = "Zero / शून्य",
-                    optionB = "kp/r²",
-                    optionC = "kp/r",
-                    optionD = "2kp/r²",
-                    correctAnswer = "B",
-                    explanation = "The potential V at an axial point r of a dipole of dipole moment p is V = kp/r² where k = 1 / 4πε₀.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q3",
-                    testId = testId,
-                    questionText = "The capacitance of a parallel plate capacitor does NOT depend on:\n\nएक समानांतर प्लेट संधारित्र की धारिता किस पर निर्भर नहीं करती है?",
-                    optionA = "Area of plates / प्लेटों के क्षेत्रफल पर",
-                    optionB = "Distance between plates / प्लेटों के बीच की दूरी पर",
-                    optionC = "Medium between plates / प्लेटों के बीच के माध्यम पर",
-                    optionD = "Metal used for plates / प्लेटों के लिए उपयोग की जाने वाली धातु पर",
-                    correctAnswer = "D",
-                    explanation = "Capacitance C = K ε₀ A / d. It depends on plate area (A), plate separation (d), and the dielectric medium (K). It does not depend on the metal of the plates.",
-                    subject = genSubject.value,
-                    chapter = "Electrostatic Potential"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q4",
-                    testId = testId,
-                    questionText = "Two point charges +3μC and +8μC repel each other with a force of 40N. If a charge of -5μC is added to each, the force between them will become:\n\nदो बिंदु आवेश +3μC और +8μC एक दूसरे को 40N के बल से प्रतिकर्षित करते हैं। यदि प्रत्येक में -5μC का आवेश जोड़ दिया जाए, तो उनके बीच बल हो जाएगा:",
-                    optionA = "10N attractive / 10N आकर्षक",
-                    optionB = "10N repulsive / 10N प्रतिकर्षक",
-                    optionC = "20N attractive / 20N आकर्षक",
-                    optionD = "Zero / शून्य",
-                    correctAnswer = "A",
-                    explanation = "Initial force F₁ = k (3)(8) / r² = 24k/r² = 40N. New charges: q₁' = 3 - 5 = -2μC, q₂' = 8 - 5 = +3μC. New force F₂ = k (-2)(3) / r² = -6k/r² (negative denotes attraction). Since 6 is 1/4 of 24, F₂ = 40 / 4 = 10N (attractive).",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields"
-                ),
-                QuestionEntity(
-                    id = "${testId}_q5",
-                    testId = testId,
-                    questionText = "The unit of electric flux is:\n\nविद्युत फ्लक्स का मात्रक है:",
-                    optionA = "Weber / वेबर",
-                    optionB = "Newton/Coulomb / न्यूटन/कूलाम",
-                    optionC = "Volt-meter / वोल्ट-मीटर",
-                    optionD = "Ampere / एम्पियर",
-                    correctAnswer = "C",
-                    explanation = "Electric flux Φ = E.A. Units: (N/C) * m² = (V/m) * m² = Volt-meter.",
-                    subject = genSubject.value,
-                    chapter = "Electric Charges and Fields"
-                )
-            )
-        }
-        }
-
-        // Serialize sampleQuestions to JSON array string
-        val qJsonArray = JSONArray()
-        for (q in sampleQuestions) {
-            val qObj = JSONObject()
-            qObj.put("id", q.id)
-            qObj.put("testId", q.testId)
-            qObj.put("questionText", q.questionText)
-            qObj.put("optionA", q.optionA)
-            qObj.put("optionB", q.optionB)
-            qObj.put("optionC", q.optionC)
-            qObj.put("optionD", q.optionD)
-            qObj.put("correctAnswer", q.correctAnswer)
-            qObj.put("explanation", q.explanation)
-            qObj.put("subject", q.subject)
-            qObj.put("chapter", q.chapter)
-            qObj.put("topic", q.topic)
-            qObj.put("questionTextHi", q.questionTextHi ?: "")
-            qObj.put("optionAHi", q.optionAHi ?: "")
-            qObj.put("optionBHi", q.optionBHi ?: "")
-            qObj.put("optionCHi", q.optionCHi ?: "")
-            qObj.put("optionDHi", q.optionDHi ?: "")
-            qObj.put("explanationHi", q.explanationHi ?: "")
-            qObj.put("questionType", q.questionType)
-            qObj.put("section", q.section)
-            qJsonArray.put(qObj)
-        }
-        val questionsJsonString = qJsonArray.toString()
-
-        val currentAuthUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-        val authenticatedUid = currentAuthUser?.uid ?: currentUserId.value
-
-        val generatedTest = TestEntity(
-            id = testId,
-            title = genTestName.value,
-            description = genDescription.value,
-            institute = genInstitute.value,
-            batchName = genBatch.value,
-            facultyName = genFaculty.value,
-            language = genLanguage.value,
-            subject = genSubject.value,
-            difficulty = "Medium",
-            testType = genType.value,
-            targetExam = genTargetExam.value,
-            questionsCount = sampleQuestions.size,
-            isOfficial = false,
-            isVerifiedCommunity = true,
-            attemptsCount = 1,
-            downloadsCount = 0,
-            questionsJson = questionsJsonString,
-            uploaderId = authenticatedUid.ifEmpty { "anonymous" },
-            isPublic = genIsPublic.value
-        )
-
-        repository.insertTest(generatedTest)
-        repository.insertQuestions(sampleQuestions)
-        
-        // Upload to Firestore in real-time
-        uploadTestToFirestore(generatedTest, questionsJsonString)
-        
-        withContext(Dispatchers.Main) {
-            val folderId = currentFolderId.value
-            moveTestToFolder(testId, folderId)
-        }
-
-        // Auto-share to Community if enabled (failure isolated, preserves isPublic, reuses shareTestToCommunity)
-        try {
-            val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: authenticatedUid
-            if (Com.ak.testseries.ui.CommunityShareManager.shouldAutoShareNewTests(
-                    autoShareEnabled = autoShareToCommunity.value,
-                    isLiveTest = false,
-                    uploaderId = generatedTest.uploaderId,
-                    currentUid = currentUid,
-                    isPublic = generatedTest.isPublic
-                )
-            ) {
-                shareTestToCommunity(generatedTest)
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("NEETViewModel", "Automatic community share failed (test preserved): ${e.localizedMessage}", e)
-        }
-    }
-
     fun resetAiGenState() {
         _aiGenState.value = AiGenerationState.Idle
     }
 
     // --- Admin Dashboard Upload Actions ---
     fun adminCreateTest(test: TestEntity, questions: List<QuestionEntity>) {
+        if (!isAdmin || questions.isEmpty() || questions.any { !isQuestionContentValid(it) }) {
+            android.util.Log.w("NEETViewModel", "Admin test creation blocked: valid, non-empty question content is required.")
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val questionsJsonString = serializeQuestionsToJson(questions)
-            val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
+            val testWithJson = test.copy(
+                questionsJson = questionsJsonString,
+                questionsCount = questions.size,
+                isOfficial = false,
+                isVerifiedCommunity = false,
+                countsTowardRanking = false,
+                isPublic = false,
+                status = if (test.isPublic) "Under Review" else "Draft"
+            )
             repository.insertTest(testWithJson)
             repository.insertQuestions(questions)
             uploadTestToFirestore(testWithJson, questionsJsonString)
         }
+    }
+
+    private fun isQuestionContentValid(question: QuestionEntity): Boolean {
+        val numeric = question.questionType.uppercase() in setOf("NUMERICAL", "NUMERICAL_VALUE", "TITA", "NAT", "INTEGER")
+        val options = listOf(question.optionA, question.optionB, question.optionC, question.optionD)
+        val hasPlaceholder = options.any { option ->
+            listOf("Option A", "Option B", "Option C", "Option D", "Distractor Option A", "Distractor Option B", "Distractor Option C", "Distractor Option D")
+                .any { placeholder -> option.trim().equals(placeholder, ignoreCase = true) }
+        }
+        val optionsValid = if (numeric) options.all { it.isBlank() } || options.all { it.isNotBlank() }
+            else options.all { it.isNotBlank() } && !hasPlaceholder
+        return question.questionText.isNotBlank() &&
+            question.correctAnswer.isNotBlank() &&
+            question.explanation.isNotBlank() &&
+            optionsValid
     }
 
     private fun loadFoldersAndMappings() {
@@ -7217,72 +6590,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun seedBundledMockTestsIfNeeded(targetExam: String? = null) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val exam = targetExam ?: _userProfile.value.targetExam
-                val bundled = Com.ak.testseries.exam.BundledExamCatalog.getBundledTestsForExam(exam)
-                for ((testEntity, questions) in bundled) {
-                    val existing = repository.getTestById(testEntity.id)
-                    if (existing == null) {
-                        repository.saveTestWithQuestions(testEntity, questions)
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    fun syncBundledTestsToCloud(onComplete: ((Boolean, String?) -> Unit)? = null) {
-        if (!isAdmin) {
-            onComplete?.invoke(false, "Admin privileges required.")
-            return
-        }
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val db = firestoreDb
-                val allBundled = Com.ak.testseries.exam.BundledExamCatalog.getAllBundledTests()
-                for ((test, questions) in allBundled) {
-                    // 1. Ensure saved locally
-                    repository.saveTestWithQuestions(test, questions)
-
-                    // 2. Publish to Firestore Tests_Data
-                    val testData = hashMapOf<String, Any>(
-                        "title" to test.title,
-                        "description" to test.description,
-                        "institute" to test.institute,
-                        "batchName" to test.batchName,
-                        "facultyName" to test.facultyName,
-                        "language" to test.language,
-                        "subject" to test.subject,
-                        "difficulty" to test.difficulty,
-                        "testType" to test.testType,
-                        "questionsCount" to test.questionsCount,
-                        "isOfficial" to true,
-                        "isVerifiedCommunity" to true,
-                        "isPublic" to true,
-                        "countsTowardRanking" to true,
-                        "status" to "Published",
-                        "targetExam" to test.targetExam,
-                        "durationMinutes" to test.durationMinutes,
-                        "timestamp" to System.currentTimeMillis(),
-                        "questionsJson" to (test.questionsJson ?: "")
-                    )
-                    db.collection("Tests_Data").document(test.id).set(testData).await()
-                }
-                withContext(Dispatchers.Main) {
-                    onComplete?.invoke(true, null)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    onComplete?.invoke(false, e.localizedMessage ?: "Failed to sync bundled tests to cloud")
-                }
-            }
-        }
-    }
-
     fun seedSyllabusIfNeeded(targetExam: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -7323,34 +6630,101 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         durationMinutes: Int = 0
     ) {
         if (!isAdmin) return
+        if (questions.isEmpty()) {
+            aiGenStatusMessage.value = "Cannot save an empty test. No dummy questions were inserted."
+            return
+        }
+        val firstQuestion = questions.first()
+        val routeResolution = Com.ak.testseries.exam.QuestionGenerationRouteResolver.resolve(
+            examQuery = examName,
+            subjectQuery = firstQuestion.subjectId,
+            stageId = firstQuestion.stageId,
+            paperId = firstQuestion.paperId
+        )
+        val questionRoute = routeResolution.route
+        if (questionRoute == null) {
+            aiGenStatusMessage.value = routeResolution.error
+                ?: "Test blocked: exact exam, stage, paper and subject identity could not be resolved."
+            return
+        }
+
+        val mixedRouteQuestions = questions.filter { question ->
+            question.examId != questionRoute.examConfig.examId ||
+                question.stageId != questionRoute.stageId ||
+                question.paperId != questionRoute.paperId ||
+                question.subjectId != questionRoute.subjectId
+        }
+        if (mixedRouteQuestions.isNotEmpty()) {
+            aiGenStatusMessage.value = "Test blocked: questions from different exams, stages, papers or subjects cannot be combined."
+            return
+        }
+
+        val configuredSections = questionRoute.examConfig.stages
+            .firstOrNull { it.stageId == questionRoute.stageId }
+            ?.papers?.firstOrNull { it.paperId == questionRoute.paperId }
+            ?.subjects?.singleOrNull { it.subjectId == questionRoute.subjectId }
+            ?.sections.orEmpty()
+        if (configuredSections.isEmpty()) {
+            aiGenStatusMessage.value = "Test blocked: the selected subject has no configured section and marking rules."
+            return
+        }
+
+        val invalidQuestions = questions.filter { question ->
+            val section = configuredSections.singleOrNull { it.sectionId == question.sectionId }
+            val requiredTextPresent = question.questionText.isNotBlank() &&
+                question.correctAnswer.isNotBlank() &&
+                question.explanation.isNotBlank()
+            val sectionMatchesPattern = section != null &&
+                section.questionType == question.questionType &&
+                kotlin.math.abs(section.positiveMarks - question.positiveMarks) < 0.0001 &&
+                kotlin.math.abs(section.negativeMarks - question.negativeMarks) < 0.0001
+            !requiredTextPresent || !sectionMatchesPattern
+        }
+        if (invalidQuestions.isNotEmpty()) {
+            aiGenStatusMessage.value = "Test blocked: ${invalidQuestions.size} question(s) do not match the selected paper's section, question type or marking rules."
+            return
+        }
+        val isPublicTest = genIsPublic.value && questions.all {
+            it.validationStatus == Com.ak.testseries.exam.ValidationStatus.APPROVED
+        }
+        if (genIsPublic.value && !isPublicTest) {
+            aiGenStatusMessage.value = "Saved as private review draft. Every question must be approved before public release."
+        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val testId = "universal_${System.currentTimeMillis()}"
                 
-                val subjectStr = questions.firstOrNull()?.subjectId?.replaceFirstChar { it.uppercase() } ?: "General"
-                val diffStr = questions.firstOrNull()?.difficulty?.name ?: "Medium"
-                
-                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examName)
+                val subjectStr = questionRoute.subjectName
+                val diffStr = questions.first().difficulty.name
+                val authenticatedUploaderId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+                if (authenticatedUploaderId.isBlank()) {
+                    aiGenStatusMessage.value = "Test blocked: an authenticated admin account is required to save or publish this test."
+                    return@launch
+                }
+
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
                     title = "$examName - Universal Mock Test",
-                    description = "High-accuracy AI extracted test conforming to $examName pattern.",
+                    description = "Gemini-verified extraction from the uploaded PDF. Admin approval is required for public release; official PYQ status is not implied.",
                     institute = "AK Exam Portal",
-                    batchName = "2026 Official Pattern",
+                    batchName = "AI Review Draft",
                     facultyName = "Exam Panel",
                     language = "Hindi / English",
                     subject = subjectStr,
                     difficulty = diffStr,
                     testType = "Mock Test",
                     questionsCount = questions.size,
-                    isOfficial = true,
-                    isVerifiedCommunity = true,
-                    targetExam = examConfig?.examId ?: examName,
-                    examId = examConfig?.examId ?: examName,
-                    stageId = examConfig?.stages?.firstOrNull()?.stageId,
-                    paperId = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
+                    isOfficial = false,
+                    isVerifiedCommunity = false,
+                    isPublic = isPublicTest,
+                    countsTowardRanking = false,
+                    uploaderId = authenticatedUploaderId,
+                    targetExam = questionRoute.examConfig.examName,
+                    examId = questionRoute.examConfig.examId,
+                    stageId = questionRoute.stageId,
+                    paperId = questionRoute.paperId,
                     scoringVersion = 1,
-                    status = "Published",
+                    status = if (isPublicTest) "Published" else "Under Review",
                     durationMinutes = durationMinutes
                 )
 
@@ -7361,10 +6735,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qObj = org.json.JSONObject()
                     qObj.put("id", qId)
                     qObj.put("questionTextEn", uq.questionText)
-                    qObj.put("optionAEn", uq.options.getOrElse(0) { "Option A" })
-                    qObj.put("optionBEn", uq.options.getOrElse(1) { "Option B" })
-                    qObj.put("optionCEn", uq.options.getOrElse(2) { "Option C" })
-                    qObj.put("optionDEn", uq.options.getOrElse(3) { "Option D" })
+                    qObj.put("optionAEn", uq.options.getOrElse(0) { "" })
+                    qObj.put("optionBEn", uq.options.getOrElse(1) { "" })
+                    qObj.put("optionCEn", uq.options.getOrElse(2) { "" })
+                    qObj.put("optionDEn", uq.options.getOrElse(3) { "" })
                     uq.options.getOrNull(4)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionEEn", it) }
                     if (!uq.questionTextHi.isNullOrBlank()) qObj.put("questionTextHi", uq.questionTextHi)
                     uq.optionsHi?.getOrNull(0)?.let { qObj.put("optionAHi", it) }
@@ -7376,12 +6750,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("explanationEn", uq.explanation)
                     if (!uq.explanationHi.isNullOrBlank()) qObj.put("explanationHi", uq.explanationHi)
                     qObj.put("subject", uq.subjectId)
-                    qObj.put("chapter", uq.topicId.ifBlank { "Chapter 1" })
+                    qObj.put("chapter", uq.chapterName.ifBlank { uq.chapterId })
                     qObj.put("questionType", uq.questionType.name)
-                    qObj.put("section", uq.sectionId.ifBlank { "SECTION_A" })
+                    qObj.put("section", uq.sectionId)
+                    qObj.put("sectionId", uq.sectionId)
                     qObj.put("sectionName", uq.sectionName)
                     qObj.put("positiveMarks", uq.positiveMarks)
                     qObj.put("negativeMarks", uq.negativeMarks)
+                    qObj.put("sourceName", uq.sourceName)
+                    qObj.put("sourcePage", uq.sourcePage)
+                    qObj.put("generationModel", uq.generationModel)
+                    qObj.put("isOfficialPYQ", uq.isOfficialPYQ)
                     if (!uq.diagramUrl.isNullOrEmpty()) qObj.put("imageUrl", uq.diagramUrl)
                     qJsonArray.put(qObj)
                     
@@ -7389,15 +6768,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         id = qId,
                         testId = testId,
                         questionText = uq.questionText,
-                        optionA = uq.options.getOrElse(0) { "Option A" },
-                        optionB = uq.options.getOrElse(1) { "Option B" },
-                        optionC = uq.options.getOrElse(2) { "Option C" },
-                        optionD = uq.options.getOrElse(3) { "Option D" },
+                        optionA = uq.options.getOrElse(0) { "" },
+                        optionB = uq.options.getOrElse(1) { "" },
+                        optionC = uq.options.getOrElse(2) { "" },
+                        optionD = uq.options.getOrElse(3) { "" },
                         optionE = uq.options.getOrNull(4)?.takeIf { it.isNotBlank() },
                         correctAnswer = uq.correctAnswer,
                         explanation = uq.explanation,
                         subject = uq.subjectId,
-                        chapter = uq.topicId.ifBlank { "Chapter 1" },
+                        chapter = uq.chapterName.ifBlank { uq.chapterId },
                         topic = uq.topicId,
                         difficulty = diffStr,
                         questionTextHi = uq.questionTextHi,
@@ -7408,14 +6787,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionEHi = uq.optionsHi?.getOrNull(4)?.takeIf { it.isNotBlank() },
                         explanationHi = uq.explanationHi,
                         questionType = uq.questionType.name,
-                        section = uq.sectionId.ifBlank { "SECTION_A" },
+                        section = uq.sectionId,
                         imageUrl = uq.diagramUrl
                     )
                 }
 
-                // 1. Save Locally strictly in local Room DB
-                val isPublicTest = genIsPublic.value
-                val finalTestEntity = testEntity.copy(isPublic = isPublicTest, questionsJson = qJsonArray.toString())
+                val questionPayloadJson = qJsonArray.toString()
+                val payloadIsValid = Com.ak.testseries.data.QuestionPayloadValidator.isValid(
+                    rawJson = questionPayloadJson,
+                    expectedCount = questions.size,
+                    expectedOptionCount = questionRoute.examConfig.defaultOptionCount
+                )
+                if (!payloadIsValid) {
+                    aiGenStatusMessage.value = "Test blocked: Gemini question payload failed the final option, answer, explanation, duplicate or count validation."
+                    return@launch
+                }
+
+                // Save locally as a review draft unless every question is explicitly approved.
+                val finalTestEntity = testEntity.copy(isPublic = isPublicTest, questionsJson = questionPayloadJson)
                 repository.insertTest(finalTestEntity)
                 repository.insertQuestions(questionEntities)
                 saveQuestionsJsonToInternalStorage(testId, qJsonArray.toString())
@@ -7448,6 +6837,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             "isOfficial" to finalTestEntity.isOfficial,
                             "isVerifiedCommunity" to finalTestEntity.isVerifiedCommunity,
                             "isPublic" to true,
+                            "status" to finalTestEntity.status,
+                            "countsTowardRanking" to false,
                             "classLevel" to finalTestEntity.classLevel,
                             "targetExam" to finalTestEntity.targetExam,
                             "durationMinutes" to finalTestEntity.durationMinutes,
@@ -7591,18 +6982,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     isVerifiedCommunity = false,
                     isPublic = false, // Strictly Private
                     countsTowardRanking = false,
-                    downloadsCount = 1,
+                    downloadsCount = 0,
                     isDownloaded = true,
                     timestamp = System.currentTimeMillis(),
                     status = "Under Review",
-                    aiConfidence = 50,
+                    aiConfidence = 0,
                     uploaderId = currentUid,
                     targetExam = canonicalExam?.examId ?: resolvedExam,
                     examId = canonicalExam?.examId ?: resolvedExam,
                     stageId = canonicalExam?.stages?.firstOrNull()?.stageId,
                     paperId = canonicalExam?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
                     scoringVersion = 1,
-                    durationMinutes = questionEntities.size,
+                    durationMinutes = 0,
                     questionsJson = questionsJsonArray.toString()
                 )
 

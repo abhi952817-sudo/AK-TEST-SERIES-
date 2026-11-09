@@ -1,6 +1,7 @@
 package Com.ak.testseries.data.remote
 
 import Com.ak.testseries.data.TestEntity
+import Com.ak.testseries.data.QuestionPayloadValidator
 import Com.ak.testseries.domain.source.AppConfig
 import Com.ak.testseries.domain.source.RemoteDataSource
 import Com.ak.testseries.domain.source.UserProfile
@@ -11,6 +12,38 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 class FirebaseRemoteDataSourceImpl : RemoteDataSource {
+
+    private fun hasValidQuestionPayload(doc: com.google.firebase.firestore.DocumentSnapshot): Boolean {
+        val expectedCount = doc.getLong("questionsCount")?.toInt() ?: return false
+        val rawJson = doc.getString("questionsJson")?.takeIf { it.isNotBlank() } ?: return false
+
+        // Canonical identity wins. Legacy targetExam names are accepted only when no examId exists.
+        val examId = doc.getString("examId")?.trim().orEmpty()
+        val examConfig = if (examId.isNotBlank()) {
+            Com.ak.testseries.exam.UniversalExamRegistry.getExamById(examId) ?: return false
+        } else {
+            val legacyExamName = doc.getString("targetExam")?.takeIf { it.isNotBlank() } ?: return false
+            Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(legacyExamName) ?: return false
+        }
+
+        return QuestionPayloadValidator.isValid(
+            rawJson = rawJson,
+            expectedCount = expectedCount,
+            expectedOptionCount = examConfig.defaultOptionCount
+        )
+    }
+
+    private val retiredDemoTestIds = setOf(
+        "official_neet_ug_mock_01",
+        "official_jee_mains_mock_01",
+        "official_upsc_cds_mock_01",
+        "official_ssc_cgl_mock_01",
+        "official_banking_ibps_mock_01",
+        "official_rrb_ntpc_mock_01",
+        "official_ugc_net_paper1_mock_01",
+        "official_cat_full_mock_01",
+        "t1", "t2", "t3", "t4", "t5"
+    )
 
     private val firestore: FirebaseFirestore? by lazy {
         try {
@@ -32,11 +65,15 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
         val testsListener = firestore!!.collection("Tests_Data").addSnapshotListener { snapshot, error ->
             if (error != null) return@addSnapshotListener
             if (snapshot != null) {
-                val newTests = snapshot.documents.mapNotNull { doc ->
+                val newTests = snapshot.documents
+                    .filterNot { it.id in retiredDemoTestIds }
+                    .filter { it.getBoolean("isPublic") == true && it.getString("status") == "Published" }
+                    .filter { hasValidQuestionPayload(it) }
+                    .mapNotNull { doc ->
                     try {
                         val isOfficialVal = doc.getBoolean("isOfficial") ?: false
                         val statusVal = doc.getString("status") ?: if (isOfficialVal) "Published" else "Draft"
-                        val isPublicVal = doc.getBoolean("isPublic") ?: (isOfficialVal || statusVal == "Published")
+                        val isPublicVal = doc.getBoolean("isPublic") ?: false
                         TestEntity(
                             id = doc.id,
                             title = doc.getString("title") ?: "Unknown Test",
@@ -47,17 +84,17 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             language = doc.getString("language") ?: "English",
                             subject = doc.getString("subject") ?: "Unknown Subject",
                             difficulty = doc.getString("difficulty") ?: "Medium",
-                            testType = doc.getString("testType") ?: "Mock Test",
+                            testType = doc.getString("testType") ?: "Unknown",
                             questionsCount = doc.getLong("questionsCount")?.toInt() ?: 0,
                             isOfficial = isOfficialVal,
                             isVerifiedCommunity = doc.getBoolean("isVerifiedCommunity") ?: false,
                             isPublic = isPublicVal,
                             status = statusVal,
                             uploaderId = doc.getString("uploaderId") ?: doc.getString("creatorId") ?: "",
-                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: true,
-                            targetExam = doc.getString("targetExam") ?: "NEET",
+                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: false,
+                            targetExam = doc.getString("targetExam") ?: "",
                             durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 0,
-                            classLevel = doc.getString("classLevel") ?: "11th",
+                            classLevel = doc.getString("classLevel") ?: "All",
                             chapter = doc.getString("chapter") ?: "",
                             topic = doc.getString("topic") ?: "",
                             timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
@@ -82,7 +119,14 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
         val liveTestsListener = firestore!!.collection("LiveTests").addSnapshotListener { snapshot, error ->
             if (error != null) return@addSnapshotListener
             if (snapshot != null) {
-                val newLiveTests = snapshot.documents.mapNotNull { doc ->
+                val newLiveTests = snapshot.documents
+                    .filter { doc ->
+                        doc.getBoolean("isPublic") == true &&
+                            doc.getString("status") == "Published" &&
+                            (doc.getLong("questionsCount") ?: 0L) > 0L &&
+                            hasValidQuestionPayload(doc)
+                    }
+                    .mapNotNull { doc ->
                     try {
                         TestEntity(
                             id = doc.id,
@@ -96,16 +140,18 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             difficulty = "Medium",
                             testType = "Live",
                             questionsCount = doc.getLong("questionsCount")?.toInt() ?: 0,
-                            isOfficial = true,
-                            isVerifiedCommunity = true,
-                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: true,
-                            classLevel = doc.getString("classLevel") ?: "11th",
+                            isOfficial = doc.getBoolean("isOfficial") ?: false,
+                            isVerifiedCommunity = doc.getBoolean("isVerifiedCommunity") ?: false,
+                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: false,
+                            isPublic = true,
+                            status = "Published",
+                            classLevel = doc.getString("classLevel") ?: "All",
                             chapter = doc.getString("chapter") ?: "",
                             topic = "",
                             timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
                             imageUrl = null,
                             questionsJson = doc.getString("questionsJson"),
-                            targetExam = doc.getString("targetExam") ?: "NEET",
+                            targetExam = doc.getString("targetExam") ?: "",
                             examId = doc.getString("examId"),
                             stageId = doc.getString("stageId"),
                             paperId = doc.getString("paperId"),

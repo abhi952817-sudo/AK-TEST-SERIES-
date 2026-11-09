@@ -3,6 +3,7 @@ package Com.ak.testseries.exam
 import Com.ak.testseries.data.AttemptEntity
 import Com.ak.testseries.data.QuestionEntity
 import Com.ak.testseries.data.TestEntity
+import Com.ak.testseries.data.QuestionJsonSerializer
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -364,33 +365,26 @@ class Phase82ExamIdentityAndOptionETest {
     }
 
     @Test
-    fun testBundledExamCatalogPreservesCanonicalExamIdentity() {
-        val (neetTest, _) = BundledExamCatalog.getNeetUgMockTest1()
-        assertEquals("neet_ug", neetTest.examId)
-        assertEquals("neet_ug_main", neetTest.stageId)
-        assertEquals("neet_ug_paper", neetTest.paperId)
-        assertEquals(1, neetTest.scoringVersion)
+    fun testUniversalExamRegistryExposesCanonicalExamAndPaperIdentity() {
+        val neet = UniversalExamRegistry.getExam("neet_ug") ?: error("NEET registry entry missing")
+        assertEquals("neet_ug", neet.examId)
+        assertEquals("neet_main", neet.stages.single().stageId)
+        assertEquals("neet_paper_1", neet.stages.single().papers.single().paperId)
 
-        val (jeeTest, _) = BundledExamCatalog.getJeeMainMockTest1()
-        assertEquals("jee_main", jeeTest.examId)
-        assertEquals("jee_main_stage", jeeTest.stageId)
-        assertEquals("jee_main_paper_1", jeeTest.paperId)
-        assertEquals(1, jeeTest.scoringVersion)
+        val jeeMain = UniversalExamRegistry.getExam("jee_main") ?: error("JEE Main registry entry missing")
+        assertEquals("jee_main", jeeMain.examId)
+        assertTrue(jeeMain.stages.isNotEmpty())
+        assertTrue(jeeMain.stages.all { stage -> stage.stageId.isNotBlank() })
+        assertTrue(jeeMain.stages.flatMap { it.papers }.all { paper -> paper.paperId.isNotBlank() })
 
-        val (cdsTest, _) = BundledExamCatalog.getUpscCdsMockTest1()
-        assertEquals("cds", cdsTest.examId)
-        assertEquals("cds_written", cdsTest.stageId)
-        assertEquals(1, cdsTest.scoringVersion)
-
-        val (sscTest, _) = BundledExamCatalog.getSscCglMockTest1()
-        assertEquals("ssc_cgl", sscTest.examId)
-        assertEquals("ssc_cgl_tier_1", sscTest.stageId)
-        assertEquals(1, sscTest.scoringVersion)
+        val allExams = UniversalExamRegistry.getAllExams()
+        assertTrue(allExams.isNotEmpty())
+        assertEquals(allExams.size, allExams.map { it.examId }.distinct().size)
     }
 
     @Test
-    fun testBundledExamCatalogQuestionsToJsonSerializesOptionE() {
-        val q = QuestionEntity(
+    fun testCanonicalQuestionJsonSerializerPreservesOptionEAndSectionMetadata() {
+        val question = QuestionEntity(
             id = "q_five_opt",
             testId = "test_1",
             questionText = "Banking statement question?",
@@ -403,10 +397,15 @@ class Phase82ExamIdentityAndOptionETest {
             correctAnswer = "E",
             explanation = "Option E is correct.",
             subject = "Reasoning",
-            chapter = "Syllogism"
+            chapter = "Syllogism",
+            questionType = "MCQ_SINGLE",
+            section = "BANKING_REASONING"
         )
-        val jsonStr = BundledExamCatalog.questionsToJson(listOf(q))
-        assertTrue("JSON must contain optionE", jsonStr.contains("\"optionE\":\"Option E (Special)\""))
-        assertTrue("JSON must contain optionEHi", jsonStr.contains("\"optionEHi\":\"विकल्प E (विशेष)\""))
+        val serializedFields = QuestionJsonSerializer.toMap(question)
+
+        assertEquals("Option E (Special)", serializedFields["optionE"])
+        assertEquals("विकल्प E (विशेष)", serializedFields["optionEHi"])
+        assertEquals("MCQ_SINGLE", serializedFields["questionType"])
+        assertEquals("BANKING_REASONING", serializedFields["section"])
     }
 }

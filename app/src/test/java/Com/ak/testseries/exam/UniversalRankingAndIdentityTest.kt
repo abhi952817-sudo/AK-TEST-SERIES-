@@ -23,7 +23,7 @@ class UniversalRankingAndIdentityTest {
             "NEET" to "NEET",
             "neet_ug" to "NEET",
             "JEE Main" to "JEE_MAIN",
-            "JEE" to "JEE_MAIN",
+            "JEE" to "UNKNOWN",
             "jee_main" to "JEE_MAIN",
             "JEE Advanced" to "JEE_ADVANCED",
             "JEE Adv" to "JEE_ADVANCED",
@@ -202,9 +202,8 @@ class UniversalRankingAndIdentityTest {
         assertFalse(neetSyllabus.any { it.subject.contains("Mathematics", ignoreCase = true) })
 
         // JEE Main syllabus must have mathematics, never biology
-        assertTrue(jeeMainSyllabus.isNotEmpty())
-        assertTrue(jeeMainSyllabus.any { it.subject.contains("Mathematics", ignoreCase = true) })
-        assertFalse(jeeMainSyllabus.any { it.subject.contains("Biology", ignoreCase = true) })
+        assertTrue("Unverified legacy JEE Main catalog must not be exposed as official scope", jeeMainSyllabus.isEmpty())
+        assertTrue("The separately sourced JEE Main 2027 index must preserve its three subjects", JeeMain2027SyllabusIndex.unitsForSubject("mathematics").isNotEmpty() && JeeMain2027SyllabusIndex.unitsForSubject("physics").isNotEmpty() && JeeMain2027SyllabusIndex.unitsForSubject("chemistry").isNotEmpty())
 
         // JEE Advanced chapter catalog is strictly isolated (never falls back to JEE Main)
         assertTrue("JEE Advanced syllabus must be isolated and not copy JEE Main", jeeAdvSyllabus.isEmpty())

@@ -136,6 +136,7 @@ dependencies {
   testImplementation(libs.androidx.junit)
   testImplementation(libs.androidx.work.testing)
   testImplementation(libs.junit)
+  testImplementation("org.json:json:20240303")
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
   testImplementation(libs.roborazzi)

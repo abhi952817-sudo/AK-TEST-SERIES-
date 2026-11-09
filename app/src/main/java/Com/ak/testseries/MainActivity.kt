@@ -2302,15 +2302,6 @@ fun NcertTabScreen(viewModel: NEETViewModel) {
     }
 }
 
-suspend fun processPdfWithGemini(uri: Uri) {
-    // Placeholder function that converts Uri to format acceptable by Gemini API
-    // e.g., converting to byte array or using a File provider
-    // Note: Do NOT save this PDF file into Room Database. Only send to AI and discard.
-    
-    // Simulate AI reading the PDF
-    kotlinx.coroutines.delay(2500)
-}
-
 // ==========================================
 // 🤖 SUB-TAB 4: AI PDF GENERATOR (Refactored to Com.ak.testseries.ui.UploadAiTabScreen)
 // ==========================================
@@ -2447,11 +2438,11 @@ fun ReportIssueDialog(viewModel: NEETViewModel) {
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                TextButton(onClick = { /* Simulated Image Picker */ }) {
-                    Icon(androidx.compose.material.icons.Icons.Default.Image, contentDescription = "Upload Image")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringRes("Attach Clearer Diagram Reference"))
-                }
+                Text(
+                    stringRes("Image attachment is not available in this report form yet."),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
@@ -6546,6 +6537,7 @@ fun AdminSidebarItem(title: String, icon: androidx.compose.ui.graphics.vector.Im
 
 @Composable
 fun AdminTestGenerationContent(viewModel: NEETViewModel) {
+    val context = LocalContext.current
     var classLevel by remember { mutableStateOf("11th") }
     var classLevelExpanded by remember { mutableStateOf(false) }
     
@@ -6713,14 +6705,21 @@ fun AdminTestGenerationContent(viewModel: NEETViewModel) {
                                 difficulty = "Medium",
                                 testType = testType,
                                 questionsCount = 0,
-                                isOfficial = true,
-                                isVerifiedCommunity = true,
+                                isOfficial = false,
+                                isVerifiedCommunity = false,
+                                isPublic = false,
+                                countsTowardRanking = false,
+                                status = "Draft",
                                 classLevel = targetClassLevel,
                                 chapter = chapterName,
                                 timestamp = System.currentTimeMillis(),
                                 imageUrl = imageUrl.ifEmpty { null }
                             )
-                            viewModel.addNewTest(newTest) // Need to define this in viewModel
+                            android.widget.Toast.makeText(
+                                context,
+                                "Empty test shells are disabled. Add real questions through the PDF/Gemini review workflow before creating a test.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(40.dp),
@@ -6745,85 +6744,21 @@ fun AdminDashboardContent(viewModel: NEETViewModel) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Rounded.CloudUpload,
-                        contentDescription = "Sync",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Official Mock Tests & Question Bank",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+                Text(
+                    "Verified Test Import",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Publish full-length NEET UG (200Q) & JEE Mains (90Q) bilingual tests to cloud database for all students.",
+                    "Demo tests are no longer seeded or published. Add tests through the source-PDF/Gemini workflow and complete review before publication.",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            isSyncing = true
-                            syncStatus = "Publishing to Firestore Tests_Data..."
-                            viewModel.syncBundledTestsToCloud { success, error ->
-                                isSyncing = false
-                                if (success) {
-                                    syncStatus = "Published successfully! Available to all students."
-                                    android.widget.Toast.makeText(context, "All Official Tests Published to Cloud!", android.widget.Toast.LENGTH_LONG).show()
-                                } else {
-                                    syncStatus = "Failed: ${error ?: "Unknown error"}"
-                                    android.widget.Toast.makeText(context, "Sync Failed: $error", android.widget.Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        },
-                        enabled = !isSyncing,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Publishing...", fontSize = 12.sp)
-                        } else {
-                            Icon(Icons.Rounded.CloudDone, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Publish to Cloud", fontSize = 12.sp)
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            viewModel.seedBundledMockTestsIfNeeded()
-                            android.widget.Toast.makeText(context, "Local Mock Tests Seeded!", android.widget.Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Seed Local DB", fontSize = 12.sp)
-                    }
-                }
-                if (syncStatus != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        syncStatus!!,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (syncStatus!!.startsWith("Failed")) Color.Red else MaterialTheme.colorScheme.primary
-                    )
-                }
             }
         }
 
@@ -6834,41 +6769,14 @@ fun AdminDashboardContent(viewModel: NEETViewModel) {
 }
 
 @Composable
-fun ServiceSparklineCard(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier.height(80.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
-    ) {
-        Column(modifier = Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Text(title, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = color)
-            // Mock Sparkline
-            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxWidth().height(16.dp)) {
-                val path = androidx.compose.ui.graphics.Path()
-                val width = size.width
-                val height = size.height
-                path.moveTo(0f, height * 0.8f)
-                path.lineTo(width * 0.2f, height * 0.6f)
-                path.lineTo(width * 0.4f, height * 0.7f)
-                path.lineTo(width * 0.6f, height * 0.3f)
-                path.lineTo(width * 0.8f, height * 0.5f)
-                path.lineTo(width, height * 0.1f)
-                drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
-            }
-        }
-    }
-}
-
-@Composable
 fun AdminConfigItem(
     title: String,
     value: String,
     onValueChange: (String) -> Unit,
     isActive: Boolean,
     onActiveChange: (Boolean) -> Unit,
-    usagePercentage: Float,
-    usageText: String,
+    usagePercentage: Float? = null,
+    usageText: String = "Usage data unavailable",
     isPassword: Boolean = true
 ) {
     Card(
@@ -6894,25 +6802,30 @@ fun AdminConfigItem(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Middle: Circular Progress Tracking
+                // Usage metrics are hidden until a real provider measurement is connected.
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(50.dp)) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            progress = { 1f },
-                            modifier = Modifier.fillMaxSize(),
-                            color = Color.LightGray.copy(alpha = 0.5f),
-                            strokeWidth = 4.dp
-                        )
-                        androidx.compose.material3.CircularProgressIndicator(
-                            progress = { usagePercentage },
-                            modifier = Modifier.fillMaxSize(),
-                            color = if (usagePercentage > 0.8f) Color.Red else Color.Green,
-                            strokeWidth = 4.dp
-                        )
-                        Text("${(usagePercentage * 100).toInt()}%", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    if (usagePercentage != null) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(50.dp)) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                progress = { 1f },
+                                modifier = Modifier.fillMaxSize(),
+                                color = Color.LightGray.copy(alpha = 0.5f),
+                                strokeWidth = 4.dp
+                            )
+                            androidx.compose.material3.CircularProgressIndicator(
+                                progress = { usagePercentage.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxSize(),
+                                color = if (usagePercentage > 0.8f) Color.Red else Color.Green,
+                                strokeWidth = 4.dp
+                            )
+                            Text("${(usagePercentage * 100).toInt()}%", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(usageText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text("N/A", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Usage not connected", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(usageText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -6944,7 +6857,7 @@ fun AdminConfigItem(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Secured via GitHub Secrets",
+                    text = "Provider credential status is not verified here",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
@@ -7121,89 +7034,6 @@ fun AdminAiManagerContent(viewModel: NEETViewModel) {
         
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Offline Mock Fallback Switch Card (Config/admin_settings -> offlineMockFallbackEnabled)
-        val isOfflineMockFallbackEnabled by viewModel.isOfflineMockFallbackEnabled.collectAsStateWithLifecycle()
-        var isUpdatingMockFallback by remember { mutableStateOf(false) }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(if (isOfflineMockFallbackEnabled) Color(0xFFDCFCE7) else Color(0xFFF1F5F9), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Rounded.Storage, 
-                            contentDescription = null, 
-                            tint = if (isOfflineMockFallbackEnabled) Color(0xFF16A34A) else Color.Gray, 
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.padding(end = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Offline Mock Fallback", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = if (isOfflineMockFallbackEnabled) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
-                            ) {
-                                Text(
-                                    if (isOfflineMockFallbackEnabled) "ON" else "OFF",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isOfflineMockFallbackEnabled) Color(0xFF15803D) else Color(0xFFB91C1C),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            if (isOfflineMockFallbackEnabled) 
-                                "ON: Existing mock fallback can be used when real AI generation fails." 
-                            else 
-                                "OFF: No mock/fake test generation; show an error instead.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 15.sp
-                        )
-                    }
-                }
-
-                Switch(
-                    checked = isOfflineMockFallbackEnabled,
-                    enabled = !isUpdatingMockFallback,
-                    onCheckedChange = { newState ->
-                        isUpdatingMockFallback = true
-                        viewModel.setOfflineMockFallbackEnabled(newState) { success, errorMsg ->
-                            isUpdatingMockFallback = false
-                            if (!success) {
-                                android.widget.Toast.makeText(context, errorMsg ?: "Failed to update Offline Mock Fallback setting", android.widget.Toast.LENGTH_LONG).show()
-                            } else {
-                                val status = if (newState) "Offline Mock Fallback Enabled (ON)" else "Offline Mock Fallback Disabled (OFF)"
-                                android.widget.Toast.makeText(context, status, android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    colors = androidx.compose.material3.SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF16A34A)
-                    )
-                )
-            }
-        }
-        
         Spacer(modifier = Modifier.height(24.dp))
         
         Text("Active Capabilities", fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
@@ -7615,8 +7445,6 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
             onValueChange = { firebaseJson = it },
             isActive = isFirebaseActive,
             onActiveChange = { isFirebaseActive = it },
-            usagePercentage = 0.40f, // Mock memory tracking
-            usageText = "{memory_usage}",
             isPassword = true
         )
 
@@ -7627,8 +7455,6 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
             onValueChange = { appwriteProjectId = it },
             isActive = isAppwriteActive,
             onActiveChange = { isAppwriteActive = it },
-            usagePercentage = 0.05f, // Mock storage tracking
-            usageText = "{storage_usage}",
             isPassword = true
         )
     }
@@ -7639,12 +7465,6 @@ fun AdminDbConfigsContent(viewModel: NEETViewModel) {
 // ==========================================
 @Composable
 fun NcertProgressChart(selectedLanguage: AppLanguage, onClick: () -> Unit = {}) {
-    val totalChapters = 30
-    val completedChapters = 12 // Mock progress, ideally from ViewModel
-    val pendingChapters = totalChapters - completedChapters
-    
-    val progress = completedChapters.toFloat() / totalChapters.toFloat()
-    
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
@@ -7660,54 +7480,15 @@ fun NcertProgressChart(selectedLanguage: AppLanguage, onClick: () -> Unit = {}) 
                 englishFontWeight = FontWeight.Bold,
                 hindiFontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                // Donut Chart
-                Box(
-                    modifier = Modifier.size(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val primaryColor = MaterialTheme.colorScheme.primary
-                    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                    
-                    androidx.compose.foundation.Canvas(modifier = Modifier.size(100.dp)) {
-                        drawArc(
-                            color = trackColor,
-                            startAngle = 0f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 12.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                        )
-                        drawArc(
-                            color = primaryColor,
-                            startAngle = -90f,
-                            sweepAngle = 360f * progress,
-                            useCenter = false,
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 12.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                        )
-                    }
-                    
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${(progress * 100).toInt()}%",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-                
-                // Legend
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    LegendItem(color = MaterialTheme.colorScheme.primary, text = "Completed ($completedChapters)")
-                    LegendItem(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), text = "Pending ($pendingChapters)")
-                }
-            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                if (selectedLanguage == AppLanguage.HINDI)
+                    "अभी वास्तविक अध्याय-प्रगति डेटा उपलब्ध नहीं है। कोई नमूना प्रतिशत नहीं दिखाया जा रहा है।"
+                else
+                    "Actual chapter progress is not connected yet. Sample percentages are not displayed.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

@@ -122,3 +122,27 @@ Only records with explicit approved/published status and public/official visibil
 - A separate feature/universal-gemini-ai-10-phase-2026-11-08 branch contains substantial Gemini changes, but it is highly divergent from main and includes unrelated ranking/scoring, Room schema, backend, UI and rules changes. It is not safe to merge wholesale.
 - That feature branch has draft-only Admin PDF routing and analysis work, but student upload integration, secure persistence, authoritative syllabus promotion, Recent Tests UI and full verification are not yet established.
 - No claim of successful Android build, emulator rules tests or end-to-end PDF testing is made by this architecture document.
+
+
+## Implementation update — prompt contract branch (2026-11-09)
+
+Work is isolated on `feature/universal-pdf-prompt-contract-v1`, created from current `main`. It is 7 commits ahead and 0 behind main at the latest comparison. No Ranking/Universal Exam Scoring branch was merged.
+
+Completed on this feature branch:
+- Added `UniversalPdfPromptContract.kt` with version `UNIVERSAL_PDF_PROMPT_V1` and shared document-classification, syllabus-discovery and question-coverage prompt builders.
+- Contract accepts exact exam/stage/paper/subject IDs and a caller-supplied approved syllabus snapshot; it embeds no hardcoded NEET-only syllabus.
+- Added explicit routes for official scope, extra practice, exam-pattern practice, unverified topics and review.
+- Added source/evidence, prompt-injection, no-fabrication, no-auto-publish and official-syllabus-promotion safeguards.
+- Fixed silent subject fallback in `UniversalAIContext.getApplicableSections`; unknown subjects no longer map to the first configured subject.
+- Added an exact subject preflight in `UniversalPdfPipeline.processPdfForExam`; blank or unknown subject input stops before PDF processing.
+- Added `UniversalPdfPromptContractTest.kt` for exam-neutral classification, syllabus promotion restrictions, coverage rules and subject identity.
+- Added `EXAM_SYLLABUS_READINESS_MATRIX.md` to record the 25 registry exam IDs and actual syllabus readiness gaps.
+
+Not yet completed:
+- Prompt contract is not yet wired into the existing Admin/Student PDF upload entry points or into a complete document-classification -> discovery -> coverage sequence.
+- Strict typed JSON parsing/validation, persistence, Firestore/Storage rules, authoritative source verification, Admin review UI, Student upload integration, Recent Tests UI and end-to-end PDF tests remain pending.
+- No Gradle build or unit-test run is claimed for this branch. The new tests are written but unexecuted.
+
+Integration gate:
+- Keep this branch isolated until build/unit tests pass and the shared PDF pipeline, permissions and draft-only persistence are audited.
+- Merge only these audited PDF/prompt files into main; never merge unrelated ranking/scoring or schema changes.
