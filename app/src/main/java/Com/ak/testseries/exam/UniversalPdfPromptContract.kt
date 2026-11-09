@@ -140,6 +140,110 @@ object UniversalPdfPromptContract {
     }
 
     /**
+     * Universal question-to-syllabus mapping prompt.
+     * It is exam-neutral: exact hierarchy and IDs come only from the caller's
+     * approved snapshot. NEET is the first route to use it; other exams reuse it
+     * later with their own independent snapshots and exam profiles.
+     */
+    fun buildUniversalQuestionMappingPrompt(
+        examId: String,
+        stageId: String?,
+        paperId: String?,
+        subjectId: String?,
+        syllabusVersion: String?,
+        approvedSyllabusJson: String,
+        questionsJson: String
+    ): String {
+        val hasSnapshot = !syllabusVersion.isNullOrBlank() && approvedSyllabusJson.isNotBlank()
+        return """
+            ${SAFETY}
+
+            CONTRACT_VERSION: ${VERSION}
+            TASK: Map each supplied question to the exact approved syllabus hierarchy.
+            This contract is UNIVERSAL and exam-neutral. Do not apply NEET rules,
+            JEE rules or any other exam's structure unless explicitly present in the
+            supplied exam snapshot.
+            EXAM_ID: ${examId}
+            STAGE_ID: ${stageId ?: "UNRESOLVED"}
+            PAPER_ID: ${paperId ?: "UNRESOLVED"}
+            SUBJECT_ID: ${subjectId ?: "UNRESOLVED"}
+            SYLLABUS_VERSION: ${syllabusVersion ?: "NO_APPROVED_VERSION"}
+            APPROVED_SNAPSHOT_AVAILABLE: ${hasSnapshot}
+
+            APPROVED_SYLLABUS_SNAPSHOT:
+            ${approvedSyllabusJson.take(50000).ifBlank { "NO_APPROVED_SYLLABUS_SNAPSHOT. Do not create canonical IDs." }}
+
+            INPUT_QUESTIONS_JSON:
+            ${questionsJson.take(60000)}
+
+            MAPPING RULES:
+            1. Map each input question independently. Preserve its questionId and source order.
+            2. Resolve only against the exact supplied exam, stage, paper, subject and syllabus version.
+            3. Use only exact chapterId/topicId/subtopicId values that exist in the snapshot.
+               Never create, rename, approximate, fuzzy-match or infer canonical IDs.
+            4. Map to the deepest level supported by evidence. If only chapter-level evidence
+               exists, return chapterId and leave topicId/subtopicId null.
+            5. A question may map to multiple topics only when each is materially tested.
+               Return all matched topic IDs and identify one primary topic only when justified.
+            6. Separate question's core concept from incidental words, examples and distractors.
+               Do not map a topic merely because its name appears in the question.
+            7. Preserve source evidence: short evidenceQuote, page number and question number
+               only when these are present in the input. Never invent page references.
+            8. If syllabus snapshot is missing, empty, unapproved or versionless, set mappingStatus
+               to BLOCKED_NO_APPROVED_SYLLABUS or NEEDS_REVIEW. You may suggest raw topic labels
+               as non-canonical discovery candidates, but all canonical IDs must be null.
+            9. If the question spans subjects/papers, conflicts with the selected route, or
+               cannot be mapped confidently, return NEEDS_REVIEW. Do not silently re-route it.
+            10. Route each question to exactly one:
+                OFFICIAL_IN_SCOPE, EXTRA_PRACTICE, EXAM_PATTERN_PRACTICE,
+                UNVERIFIED_TOPIC, NEEDS_REVIEW.
+            11. Do not infer official status from a coaching PDF, PYQ label, model knowledge,
+                popularity or frequency. Do not infer chapter weightage from supplied counts.
+            12. Mapping confidence measures evidence strength, not model certainty. Low or
+                conflicting evidence must lower confidence and trigger review.
+            13. Do not change question text, options, correct answer, explanation or marks.
+                This task maps only; answer verification is a separate contract.
+            14. Never claim full chapter or full syllabus coverage from a partial question set.
+            15. officialPromotionAllowed and publishAllowed must always be false.
+
+            RETURN ONLY VALID JSON:
+            {
+              "contractVersion":"${VERSION}",
+              "examId":"${examId}",
+              "stageId":null,
+              "paperId":null,
+              "subjectId":null,
+              "syllabusVersion":null,
+              "mappingStatus":"READY_FOR_REVIEW",
+              "officialPromotionAllowed":false,
+              "publishAllowed":false,
+              "mappings":[{
+                "questionId":"preserve-input-id",
+                "sourceQuestionNumber":null,
+                "chapterId":null,
+                "chapterName":null,
+                "topicId":null,
+                "topicName":null,
+                "subtopicId":null,
+                "subtopicName":null,
+                "additionalTopicIds":[],
+                "rawTopicCandidates":[],
+                "route":"NEEDS_REVIEW",
+                "mappingLevel":"NONE",
+                "mappingConfidence":0,
+                "evidenceQuote":null,
+                "sourcePage":null,
+                "mappingReasons":[]
+              }],
+              "unmappedQuestionIds":[],
+              "reviewReasons":[]
+            }
+            Ensure every input question appears exactly once in mappings. No missing or
+            duplicate question IDs. Return null rather than guessed IDs or page evidence.
+        """.trimIndent()
+    }
+
+    /**
      * Question-generation prompt with a resolved, versioned syllabus snapshot.
      * Callers must resolve the exact exam/version/paper/subject before invoking this.
      * An empty or unapproved snapshot deliberately blocks official-syllabus claims.
