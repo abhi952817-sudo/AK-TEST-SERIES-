@@ -401,12 +401,11 @@ class Phase82ExamIdentityAndOptionETest {
             questionType = "MCQ_SINGLE",
             section = "BANKING_REASONING"
         )
-        val serialized = QuestionJsonSerializer.serialize(listOf(question))
-        val restored = org.json.JSONArray(serialized).getJSONObject(0)
+        val serializedFields = QuestionJsonSerializer.toMap(question)
 
-        assertEquals("Option E (Special)", restored.getString("optionE"))
-        assertEquals("विकल्प E (विशेष)", restored.getString("optionEHi"))
-        assertEquals("MCQ_SINGLE", restored.getString("questionType"))
-        assertEquals("BANKING_REASONING", restored.getString("section"))
+        assertEquals("Option E (Special)", serializedFields["optionE"])
+        assertEquals("विकल्प E (विशेष)", serializedFields["optionEHi"])
+        assertEquals("MCQ_SINGLE", serializedFields["questionType"])
+        assertEquals("BANKING_REASONING", serializedFields["section"])
     }
 }
