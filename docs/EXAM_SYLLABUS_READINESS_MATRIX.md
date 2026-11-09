@@ -79,3 +79,31 @@ No exam is marked syllabus-ready until its official source URL/document, issuer,
 - The old `SyllabusCatalog` still contains legacy JEE chapter data and is not yet wired to a versioned JEE syllabus resolver.
 - The complete JEE Main 2027 topic JSON/module, JEE Advanced versioned module, exact resolver, Gemini runtime injection, Admin review/publish flow and end-to-end tests remain pending.
 - Until these pieces are implemented and tested, the app must not claim that JEE Main 2027 or JEE Advanced 2027 syllabus matching is live.
+
+
+## Implementation update after exact-path audit (2026-11-09)
+
+### Main-file conventions inspected
+The existing approved NEET source module is:
+`app/src/main/java/Com/ak/testseries/exam/NeetUg2026Syllabus.kt`.
+It is a Kotlin source module in the exam package, referenced by `SyllabusCatalog.kt`; the project does not currently use a central JSON assets folder for this syllabus catalog. Therefore JEE source data is being added under the same exam package and is not being written into a guessed assets path.
+
+### Added in this branch
+- `VersionedSyllabusResolver.kt`: exact key is exam + version + stage + paper + subject. Only a structurally valid snapshot with APPROVED state, reviewer ID and review timestamp can resolve as official scope. No fuzzy or fallback match.
+- `JeeMain2027SyllabusIndex.kt`: NTA source-linked Paper 1 unit index, with 20 Physics + 20 Chemistry + 14 Mathematics unit headings, Hindi labels and 1-based PDF page references.
+- `UniversalPdfPromptContract.buildSyllabusAwareQuestionGenerationPrompt(...)`: explicit runtime prompt contract requiring a versioned approved snapshot, exact canonical topic IDs, no JEE Main/Advanced mixing, no invented weightage, no hidden reasoning, and no AI publication authority.
+- `UniversalExamRegistry.kt`: the bare short label `JEE` is now rejected as ambiguous; exact JEE Main and JEE Advanced names/IDs resolve separately.
+- Unit tests cover resolver approval gates, exact exam/version/paper isolation, JEE unit counts, ambiguous alias rejection and the new prompt contract.
+
+### Important status boundary
+The JEE Main index is a verified **unit-heading/source-page index**, not yet the full topic/subtopic transcription. It is deliberately marked `SOURCE_IDENTIFIED_NOT_APPROVED`. It must not be injected as a complete official syllabus. Remaining work before approval:
+1. Transcribe every official subtopic and experimental/practical item from the PDF, preserving exact English text and page references.
+2. Add reviewed Hindi translations for the detailed topics (not just unit headings).
+3. Add Paper 2A and Paper 2B as separate modules if/when required; never mix them with Paper 1.
+4. Research and load JEE Advanced from its own official brochure/source and exact year. Do not reuse JEE Main units.
+5. Register the complete snapshots only after structural tests, source-page audit and human Admin review.
+6. Wire the resolver into Admin and Student PDF classification, topic coverage, question generation, persistence and publication gates. The existing PDF pipeline does not yet call this resolver.
+7. Add Firestore draft/review persistence, security rules, duplicate checks, and end-to-end tests before enabling live use.
+
+### Build/CI
+No workflow run or commit status was returned for the latest feature-branch test commit at the time of this update. Therefore build and unit-test success are **not verified**. Do not merge this branch to main or enable the incomplete JEE module in production.
