@@ -122,6 +122,51 @@ class UniversalAIContextTest {
         assertTrue(prompt.contains("needsUserConfirmation=true"))
     }
 
+
+    @Test
+    fun adminPdfRoutingPromptSeparatesDocumentClassificationFromProcessingRoute() {
+        val prompt = UniversalAIContext.buildPdfDocumentRoutingPrompt(neet, "PAGE 1\\nNEET UG 2026 PHYSICS SYLLABUS")
+
+        assertTrue(prompt.contains("OFFICIAL_SYLLABUS"))
+        assertTrue(prompt.contains("TEST_COVERAGE_MAPPING"))
+        assertTrue(prompt.contains("SYLLABUS_CATALOG_EXTRACTION"))
+        assertTrue(prompt.contains("ADMIN_REVIEW"))
+        assertTrue(prompt.contains("Never infer a full chapter"))
+        assertTrue(prompt.contains("\\"publishAllowed\\"") == false)
+    }
+
+    @Test
+    fun syllabusPdfPromptCreatesDraftAndPreservesVersionHistory() {
+        val prompt = UniversalAIContext.buildSyllabusCatalogExtractionPrompt(
+            examConfig = neet,
+            documentText = "PAGE 1\\nPhysics: Units and Measurement",
+            existingCatalogJson = "{catalogVersion:old}"
+        )
+
+        assertTrue(prompt.contains("Exam -> Subject -> Chapter/Unit -> Topic"))
+        assertTrue(prompt.contains("ADDED"))
+        assertTrue(prompt.contains("REMOVED"))
+        assertTrue(prompt.contains("publishAllowed"))
+        assertTrue(prompt.contains("publishAllowed\\\":false"))
+        assertTrue(prompt.contains("NEVER label the catalog COMPLETE") || prompt.contains("never label the catalog COMPLETE"))
+    }
+
+    @Test
+    fun testCoveragePromptCannotPromotePartialEvidenceToFullChapter() {
+        val prompt = UniversalAIContext.buildTestCoverageMappingPrompt(
+            examConfig = neet,
+            documentText = "PAGE 1\\nQ1. Define force.",
+            approvedSyllabusJson = "{chapters:[]}"
+        )
+
+        assertTrue(prompt.contains("FULL_CHAPTER_TEST"))
+        assertTrue(prompt.contains("PARTIAL_CHAPTER_TEST"))
+        assertTrue(prompt.contains("Do not create new syllabus nodes"))
+        assertTrue(prompt.contains("publishAllowed"))
+        assertTrue(prompt.contains("publishAllowed\\\":false"))
+        assertTrue(prompt.contains("Never call a chapter full merely because its chapter title appears"))
+    }
+
     @Test
     fun difficultyRegenerationUsesSameUniversalPolicy() {
         val prompt = UniversalAIContext.buildDifficultyRegenerationPrompt(
