@@ -261,7 +261,10 @@ object UniversalPdfPipeline {
                     for (i in 1..questionsInThisBatch) {
                         val qIndex = (batchIndex * batchSize) + i
                         val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
-                        val bundledCandidate = bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
+                        // Never mix unrelated bundled catalog items into a PDF extraction.
+                        val bundledCandidate = if (compactMarkdown.isBlank()) {
+                            bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
+                        } else null
                         if (markdownCandidate == null && bundledCandidate == null) continue
 
                         val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex)
