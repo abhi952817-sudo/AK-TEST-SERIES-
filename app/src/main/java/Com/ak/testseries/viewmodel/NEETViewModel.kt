@@ -1473,7 +1473,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         val downloadUrl = storageRef.downloadUrl.await()
                         finalPdfUrl = downloadUrl.toString()
                         testData["pdfUrl"] = finalPdfUrl
-                        testData["processingStatus"] = "Pending Extraction"
+                        testData["processingStatus"] = "Source PDF attached; supplied questions await review"
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -5934,6 +5934,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 isOfficial = false,
                 isVerifiedCommunity = false,
                 countsTowardRanking = false,
+                isPublic = false,
                 status = if (test.isPublic) "Under Review" else "Draft"
             )
             repository.insertTest(testWithJson)
@@ -6714,6 +6715,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             "isOfficial" to finalTestEntity.isOfficial,
                             "isVerifiedCommunity" to finalTestEntity.isVerifiedCommunity,
                             "isPublic" to true,
+                            "status" to finalTestEntity.status,
+                            "countsTowardRanking" to false,
                             "classLevel" to finalTestEntity.classLevel,
                             "targetExam" to finalTestEntity.targetExam,
                             "durationMinutes" to finalTestEntity.durationMinutes,
