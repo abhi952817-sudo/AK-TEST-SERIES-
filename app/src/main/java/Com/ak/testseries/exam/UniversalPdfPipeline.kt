@@ -178,7 +178,7 @@ object UniversalPdfPipeline {
                     ""
                 }
                 val promptWithSyllabusContext = if (jeeMainUnitContext.isNotBlank()) {
-                    "$prompt\\n\\n$jeeMainUnitContext"
+                    "$prompt\n\n$jeeMainUnitContext"
                 } else {
                     prompt
                 }
