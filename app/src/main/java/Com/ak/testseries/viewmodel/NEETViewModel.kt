@@ -4987,8 +4987,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 lowerText.contains(exam.shortName.lowercase()) ||
                 lowerText.contains(exam.examId.lowercase().replace("_", " "))
             } ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
-              ?: registeredExams.first()
 
+            if (detectedExamConfig == null) {
+                _pdfAnalysisState.value = PdfAnalysisState.Error(
+                    "Gemini analysis is unavailable and the document does not contain a reliable exam identifier. No test metadata was guessed."
+                )
+                return@launch
+            }
             val detectedExamName = detectedExamConfig.examName
 
             // 2. Detect Institute / Source
@@ -5001,14 +5006,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 lowerText.contains("adda247") -> "Adda247"
                 lowerText.contains("unacademy") -> "Unacademy"
                 lowerText.contains("byju") -> "BYJU'S"
-                else -> "Previous Year Paper"
+                else -> "Unknown source"
             }
 
             // 3. Match Exam-Specific Subjects from UniversalExamRegistry
             val availableSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(detectedExamName)
             val matchedSubject = availableSubjects.find { subj ->
                 lowerText.contains(subj.lowercase())
-            } ?: availableSubjects.firstOrNull() ?: "Full Syllabus"
+            } ?: availableSubjects.firstOrNull() ?: "Unidentified"
 
             val matchedType = when {
                 lowerText.contains("full test") || lowerText.contains("full syllabus") || lowerText.contains("fts") || lowerText.contains("mock test") -> "Full Syllabus"
@@ -5016,12 +5021,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 else -> "Single Chapter"
             }
 
-            val defaultQuestions = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(detectedExamName)
-            val defaultDuration = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultDurationMinutesForExam(detectedExamName)
-            val defaultMarks = detectedExamConfig.stages.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 100.0
-
-            val finalQuestionsCount = if (matchedType == "Full Syllabus") defaultQuestions else (defaultQuestions / 3).coerceAtLeast(25)
-            val finalDuration = if (matchedType == "Full Syllabus") defaultDuration else 60
+            // Use only quantities actually detected in the uploaded document.
+            // Exam-pattern defaults are not document evidence and must not become fake test metadata.
+            val finalQuestionsCount = localClassification.totalQuestionsDetected
+            val finalDuration = 0
+            val detectedMarks = 0.0
 
             val matchedTitle = "${matchedInstitute} ${detectedExamConfig.shortName} ${matchedType} - ${matchedSubject}"
             val result = AnalyzedTestResult(
@@ -5034,9 +5038,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 chapter = if (matchedType == "Full Syllabus") "Full Syllabus" else "Important Topics",
                 timerMinutes = finalDuration,
                 questionsCount = finalQuestionsCount,
-                totalMarks = defaultMarks,
+                totalMarks = detectedMarks,
                 language = if (lowerText.contains("hindi") || lowerText.any { it.code in 0x0900..0x097F }) "Hindi" else "English",
-                confidence = 80,
+                confidence = 35,
                 detectedQuestionsCount = localClassification.totalQuestionsDetected,
                 isQuestionPaperDetected = isQuestionsDetected,
                 autoRoutedWorkflow = routedWorkflow,
