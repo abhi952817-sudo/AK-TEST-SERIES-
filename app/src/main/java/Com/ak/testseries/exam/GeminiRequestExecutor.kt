@@ -62,9 +62,6 @@ internal object GeminiRequestExecutor {
             }.addOnFailureListener { error ->
                 if (continuation.isActive) continuation.resumeWithException(error)
             }
-            continuation.invokeOnCancellation {
-                task.cancel()
-            }
         }
     }
 }
