@@ -113,3 +113,11 @@ No workflow run or commit status was returned for the latest feature-branch test
 - The legacy positive-weightage JEE list is no longer returned by `SyllabusCatalog.getChapterDetailsForExam(...)` and is excluded from `getAllSyllabusEntities()`. It remains legacy source code only and must not be presented as the official 2027 syllabus.
 - Regression tests were updated so JEE Main cannot appear to have an approved chapter catalog until the full versioned module is reviewed.
 - The new 54-unit index is separate from the legacy list. It is not yet a full detailed topic tree and is not approved for Gemini syllabus matching.
+
+
+### Gemini prompt integration update — 2026-11-09
+- The live `UniversalPdfPipeline` now appends the JEE Main 2027 Paper 1 unit-heading index only when the configured exam ID, stage ID, paper ID and subject match the exact route.
+- The prompt context explicitly says `SOURCE_IDENTIFIED_NOT_APPROVED`, contains unit headings only, and forbids treating headings as detailed official topic mappings.
+- This is a guarded preliminary routing hint, **not** completion of the full syllabus feed. The exact approved-snapshot resolver is still not wired into live Gemini question mapping.
+- Remaining for JEE Main: transcribe all subtopics from the official PDF into structured nodes, add reviewed Hindi translations, validate page evidence and uniqueness, create per-subject exact snapshots, and obtain Admin approval before enabling official syllabus matching.
+- A regression test was added for the non-approved prompt context and non-JEE subject isolation. Tests have not yet been run on an Android/Gradle runner.
