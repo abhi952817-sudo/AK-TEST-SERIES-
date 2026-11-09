@@ -62,6 +62,15 @@ class QuestionPayloadValidatorTest {
     }
 
     @Test
+    fun acceptsMultipleCorrectAnswersWhenQuestionTypeAllowsThem() {
+        val multiple = JSONObject(mcq(includeOptionE = true).toString()).apply {
+            put("questionType", "MCQ_MULTIPLE")
+            put("correctAnswer", "A, C, E")
+        }
+        assertTrue(QuestionPayloadValidator.isValid(JSONArray().put(multiple).toString(), 1, 5))
+    }
+
+    @Test
     fun acceptsNumericalQuestionOnlyWithoutMcqOptionsAndWithNumericAnswer() {
         val valid = JSONObject().apply {
             put("questionText", "Calculate the value of x.")
