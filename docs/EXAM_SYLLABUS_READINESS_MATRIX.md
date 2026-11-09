@@ -18,7 +18,8 @@ The existence of an ExamConfig means the app has exam/pattern configuration; it 
 
 ## Syllabus data observed in the current main branch
 - **NEET UG:** Dedicated versioned syllabus module is present: `NEET_UG_2026_NMC_2025-12-22`. This is the only syllabus version currently identified in the project audit as the explicit approved NEET reference for prompt scope.
-- **JEE Main:** SyllabusCatalog contains a legacy JEE chapter/topic dataset. It needs source, year/version, official wording, scope and weightage verification before it can be treated as an authoritative official syllabus.
+- **JEE Main:** NTA has published the official **JEE Main 2027 Syllabus** (listed on the NTA documents page in 2026). The existing `SyllabusCatalog.jeeMainSyllabus` is still a legacy dataset and is NOT the approved 2027 module. A separate, source-backed `jee_main / JEE_MAIN_2027` Paper 1 module must be created from the NTA PDF, preserving exact English text, adding reviewed Hindi translations, and excluding Paper 2A/2B content. No official unit-wise weightage should be inferred.
+- **JEE Advanced:** It is a separate exam (`jee_advanced`), not an alias or subset of JEE Main. As of this audit, the latest official syllabus located is JEE Advanced 2026; the official 2027 syllabus/brochure has not yet been located. Keep the 2026 document as a clearly labelled reference only (`JEE_ADVANCED_2026_REFERENCE`), not as an approved 2027 syllabus. Its topics and paper structure must never be copied from JEE Main.
 - **UPSC CDS:** SyllabusCatalog contains a legacy UPSC_CDS dataset. It needs official-source and version validation.
 - **SSC CGL:** SyllabusCatalog contains a legacy SSC_CGL dataset. It needs official-source and version validation.
 - **Other registry exams:** No corresponding detailed chapter/topic dataset was found in the inspected SyllabusCatalog. These exams must be treated as syllabus-not-yet-loaded, not as having an inferred or shared syllabus.
@@ -45,3 +46,36 @@ The current SyllabusCatalog tests expect JEE legacy weightage values to be posit
 
 ## Release gate
 No exam is marked syllabus-ready until its official source URL/document, issuer, publication/version date, effective exam year, extraction evidence, hierarchy and review status are recorded and tests confirm exact exam isolation.
+
+
+## JEE syllabus ingestion and runtime routing decision (2026-11-09)
+
+### Canonical identity: do not collapse the two exams
+- JEE Main: `examId=jee_main`; first supported module: `syllabusVersion=JEE_MAIN_2027`, `paperId=paper_1_be_btech`, subjects `physics`, `chemistry`, `mathematics`.
+- JEE Advanced: `examId=jee_advanced`; current official source located: 2026 syllabus only. Until the 2027 official brochure is published and verified, the resolver must return `SYLLABUS_VERSION_PENDING` for a 2027 request. A 2026 reference may be used only when the selected test explicitly targets that reference version.
+- The UI label "JEE" must resolve to a user choice between Main and Advanced. It must not be a canonical exam ID and must never silently select one.
+- JEE Main Paper 2A (B.Arch) and Paper 2B (B.Planning) are distinct paper modules. They must not be mixed into Paper 1 B.E./B.Tech.
+
+### How the syllabus system is expected to work
+1. Admin selects exam, year/version, stage, paper and language. For a student PDF, the selected test/exam metadata supplies these IDs; Gemini may suggest a classification but cannot silently replace an explicit selection.
+2. The app resolves an exact, approved syllabus snapshot by the full key: exam ID + version + paper ID + subject ID. No substring matching, first-subject fallback, fuzzy mapping or "closest exam" fallback is allowed.
+3. The app injects only that resolved snapshot into the universal Gemini prompt. The prompt contract remains exam-neutral; the syllabus data is exam-specific.
+4. Gemini returns structured candidate mappings to supplied canonical unit/topic IDs. It may suggest an unknown topic, but it cannot create or approve a canonical syllabus node.
+5. Validation checks IDs, source evidence, page references, paper/subject consistency, question coverage and duplicate fingerprints. Missing or conflicting evidence becomes `NEEDS_REVIEW`.
+6. Out-of-syllabus but useful questions are retained and routed to `EXTRA_PRACTICE`, `EXAM_PATTERN_PRACTICE` or `UNVERIFIED_TOPIC`; they are not discarded and are not counted as official syllabus coverage.
+7. Every upload remains a private draft. Only an authorized Admin review and explicit publish action can make a test public.
+8. Recent Tests, chapter test counts and coverage percentages are derived only from real, non-duplicate, published tests and validated question mappings. No syllabus file may contain invented test counts or weightage.
+
+### JEE Main 2027 source record
+- Issuer: National Testing Agency (NTA).
+- Official listing: NTA JEE Main Documents page, entry "Syllabus 2027" (year listed: 2026).
+- Official document: JEE Main 2027 syllabus PDF linked from the NTA document listing.
+- Initial ingestion scope: Paper 1 (B.E./B.Tech.) only. The Paper 1 syllabus contains 20 Physics units, 20 Chemistry units and 14 Mathematics units (54 units total); each detailed subtopic must be transcribed from the official PDF with its source page recorded.
+- Hindi is an app translation layer, not a claim that the NTA source PDF is Hindi. Preserve the exact English source wording alongside Hindi labels/translations.
+- Verification state before the actual JSON/module and tests exist: `SOURCE_IDENTIFIED`, not `APPROVED`.
+
+### Current implementation gap (do not mark as completed)
+- The universal prompt contract and unknown-subject preflight exist on this feature branch.
+- The old `SyllabusCatalog` still contains legacy JEE chapter data and is not yet wired to a versioned JEE syllabus resolver.
+- The complete JEE Main 2027 topic JSON/module, JEE Advanced versioned module, exact resolver, Gemini runtime injection, Admin review/publish flow and end-to-end tests remain pending.
+- Until these pieces are implemented and tested, the app must not claim that JEE Main 2027 or JEE Advanced 2027 syllabus matching is live.
