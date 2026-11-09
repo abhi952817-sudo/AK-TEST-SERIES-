@@ -105,7 +105,7 @@ class UniversalPdfPromptContractTest {
         assertTrue(physics.contains("physics_unit_01"))
         assertTrue(physics.contains("Experimental Skills"))
         assertTrue(physics.contains("Detailed official subtopics"))
-        assertFalse(physics.contains("APPROVED"))
+        assertFalse(physics.contains("officially mapped"))
         assertTrue(UniversalPdfPromptContract.buildJeeMain2027UnitIndexContext("biology").isEmpty())
     }
 
