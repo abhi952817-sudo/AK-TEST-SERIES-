@@ -2421,7 +2421,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     targetExam = targetExam,
                     totalMarks = calculatedTotalMarks,
                     questionCount = finalQuestionCount,
-                    durationMinutes = durationMinutes,
+                    durationMinutes = if (durationMinutes > 0) durationMinutes else paperConfig.durationMinutes,
                     postId = targetPostId
                 )
 
@@ -6745,12 +6745,46 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!isAdmin) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                if (questions.isEmpty()) {
+                    android.util.Log.e("NEETViewModel", "Universal test publication blocked: no Gemini questions were supplied.")
+                    return@launch
+                }
+                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(examName)
+                val stageConfig = examConfig?.stages?.singleOrNull()
+                val paperConfig = stageConfig?.papers?.singleOrNull()
+                if (examConfig == null || stageConfig == null || paperConfig == null) {
+                    android.util.Log.e("NEETViewModel", "Universal test publication blocked: exam stage/paper identity is ambiguous or unregistered.")
+                    return@launch
+                }
+                val subjectConfig = paperConfig.subjects.singleOrNull { subject ->
+                    subject.subjectId.equals(questions.first().subjectId, true)
+                }
+                if (subjectConfig == null || questions.any { question ->
+                    question.examId != examConfig.examId ||
+                        question.stageId != stageConfig.stageId ||
+                        question.paperId != paperConfig.paperId ||
+                        question.subjectId != subjectConfig.subjectId ||
+                        !question.generationModel.contains("gemini", ignoreCase = true) ||
+                        question.sourceName.isBlank()
+                }) {
+                    android.util.Log.e("NEETViewModel", "Universal test publication blocked: mixed identity or non-Gemini question provenance detected.")
+                    return@launch
+                }
+                val invalidPatternQuestion = questions.firstOrNull { question ->
+                    val section = subjectConfig.sections.singleOrNull { it.sectionId == question.sectionId }
+                    section == null ||
+                        section.questionType != question.questionType ||
+                        kotlin.math.abs(section.positiveMarks - question.positiveMarks) >= 0.0001 ||
+                        kotlin.math.abs(section.negativeMarks - question.negativeMarks) >= 0.0001
+                }
+                if (invalidPatternQuestion != null) {
+                    android.util.Log.e("NEETViewModel", "Universal test publication blocked: a question conflicts with configured section type or marking rules.")
+                    return@launch
+                }
+
                 val testId = "universal_${System.currentTimeMillis()}"
-                
-                val subjectStr = questions.firstOrNull()?.subjectId?.replaceFirstChar { it.uppercase() } ?: "General"
-                val diffStr = questions.firstOrNull()?.difficulty?.name ?: "Medium"
-                
-                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExam(examName)
+                val subjectStr = subjectConfig.subjectName
+                val diffStr = questions.first().difficulty.name
                 val testEntity = Com.ak.testseries.data.TestEntity(
                     id = testId,
                     title = "$examName - Universal Mock Test",
@@ -6765,10 +6799,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     questionsCount = questions.size,
                     isOfficial = true,
                     isVerifiedCommunity = true,
-                    targetExam = examConfig?.examId ?: examName,
-                    examId = examConfig?.examId ?: examName,
-                    stageId = examConfig?.stages?.firstOrNull()?.stageId,
-                    paperId = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.paperId,
+                    targetExam = examConfig.examId,
+                    examId = examConfig.examId,
+                    stageId = stageConfig.stageId,
+                    paperId = paperConfig.paperId,
                     scoringVersion = 1,
                     status = "Published",
                     durationMinutes = durationMinutes
@@ -6781,10 +6815,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qObj = org.json.JSONObject()
                     qObj.put("id", qId)
                     qObj.put("questionTextEn", uq.questionText)
-                    qObj.put("optionAEn", uq.options.getOrElse(0) { "Option A" })
-                    qObj.put("optionBEn", uq.options.getOrElse(1) { "Option B" })
-                    qObj.put("optionCEn", uq.options.getOrElse(2) { "Option C" })
-                    qObj.put("optionDEn", uq.options.getOrElse(3) { "Option D" })
+                    qObj.put("optionAEn", uq.options.getOrNull(0).orEmpty())
+                    qObj.put("optionBEn", uq.options.getOrNull(1).orEmpty())
+                    qObj.put("optionCEn", uq.options.getOrNull(2).orEmpty())
+                    qObj.put("optionDEn", uq.options.getOrNull(3).orEmpty())
                     uq.options.getOrNull(4)?.takeIf { it.isNotBlank() }?.let { qObj.put("optionEEn", it) }
                     if (!uq.questionTextHi.isNullOrBlank()) qObj.put("questionTextHi", uq.questionTextHi)
                     uq.optionsHi?.getOrNull(0)?.let { qObj.put("optionAHi", it) }
@@ -6798,10 +6832,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("subject", uq.subjectId)
                     qObj.put("chapter", uq.topicId.ifBlank { "Chapter 1" })
                     qObj.put("questionType", uq.questionType.name)
-                    qObj.put("section", uq.sectionId.ifBlank { "SECTION_A" })
+                    qObj.put("section", uq.sectionId)
+                    qObj.put("sectionId", uq.sectionId)
                     qObj.put("sectionName", uq.sectionName)
                     qObj.put("positiveMarks", uq.positiveMarks)
                     qObj.put("negativeMarks", uq.negativeMarks)
+                    qObj.put("generationModel", uq.generationModel)
+                    qObj.put("sourceName", uq.sourceName)
+                    qObj.put("sourceVerified", true)
                     if (!uq.diagramUrl.isNullOrEmpty()) qObj.put("imageUrl", uq.diagramUrl)
                     qJsonArray.put(qObj)
                     
@@ -6809,15 +6847,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         id = qId,
                         testId = testId,
                         questionText = uq.questionText,
-                        optionA = uq.options.getOrElse(0) { "Option A" },
-                        optionB = uq.options.getOrElse(1) { "Option B" },
-                        optionC = uq.options.getOrElse(2) { "Option C" },
-                        optionD = uq.options.getOrElse(3) { "Option D" },
+                        optionA = uq.options.getOrNull(0).orEmpty(),
+                        optionB = uq.options.getOrNull(1).orEmpty(),
+                        optionC = uq.options.getOrNull(2).orEmpty(),
+                        optionD = uq.options.getOrNull(3).orEmpty(),
                         optionE = uq.options.getOrNull(4)?.takeIf { it.isNotBlank() },
                         correctAnswer = uq.correctAnswer,
                         explanation = uq.explanation,
                         subject = uq.subjectId,
-                        chapter = uq.topicId.ifBlank { "Chapter 1" },
+                        chapter = uq.topicId,
                         topic = uq.topicId,
                         difficulty = diffStr,
                         questionTextHi = uq.questionTextHi,
@@ -6828,7 +6866,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionEHi = uq.optionsHi?.getOrNull(4)?.takeIf { it.isNotBlank() },
                         explanationHi = uq.explanationHi,
                         questionType = uq.questionType.name,
-                        section = uq.sectionId.ifBlank { "SECTION_A" },
+                        section = uq.sectionId,
                         imageUrl = uq.diagramUrl
                     )
                 }
