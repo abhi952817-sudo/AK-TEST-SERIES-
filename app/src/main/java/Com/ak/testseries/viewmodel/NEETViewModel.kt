@@ -6125,6 +6125,59 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         return null
     }
 
+    private fun validateGeminiQuestionPayload(test: TestEntity, rawJson: String?): String? {
+        if (rawJson.isNullOrBlank()) return "Gemini question payload is missing."
+        val array = try {
+            org.json.JSONArray(rawJson)
+        } catch (_: Exception) {
+            return "Question payload is not valid JSON."
+        }
+        if (array.length() == 0 || array.length() != test.questionsCount) {
+            return "Question payload count does not match the test configuration."
+        }
+        val parsed = mutableListOf<QuestionEntity>()
+        val seenStems = mutableSetOf<String>()
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: return "Question ${index + 1} is not a valid object."
+            if (!obj.optString("generationModel").contains("gemini", ignoreCase = true) ||
+                !obj.optBoolean("sourceVerified", false) ||
+                obj.optString("sourceName").isBlank()
+            ) return "Question ${index + 1} does not contain verified Gemini provenance."
+            val text = obj.optString("questionText").ifBlank { obj.optString("questionTextEn") }.trim()
+            if (!seenStems.add(text.lowercase().replace(Regex("\\s+"), " "))) {
+                return "Duplicate question text detected in the generated batch."
+            }
+            val options = obj.optJSONArray("options")
+            fun option(letter: String, indexInOptions: Int): String =
+                obj.optString("option" + letter).ifBlank {
+                    obj.optString("option" + letter + "En").ifBlank {
+                        options?.optString(indexInOptions).orEmpty()
+                    }
+                }
+            parsed.add(
+                QuestionEntity(
+                    id = obj.optString("id", test.id + "_q" + index),
+                    testId = test.id,
+                    questionText = text,
+                    optionA = option("A", 0),
+                    optionB = option("B", 1),
+                    optionC = option("C", 2),
+                    optionD = option("D", 3),
+                    optionE = option("E", 4).takeIf { it.isNotBlank() },
+                    correctAnswer = obj.optString("correctAnswer").ifBlank { obj.optString("correctOption") },
+                    explanation = obj.optString("explanation").ifBlank { obj.optString("explanationEn") }.ifBlank { obj.optString("reasoning") },
+                    subject = obj.optString("subject").ifBlank { test.subject },
+                    chapter = obj.optString("chapter"),
+                    topic = obj.optString("topic"),
+                    difficulty = obj.optString("difficulty", "Medium"),
+                    questionType = obj.optString("questionType"),
+                    section = obj.optString("sectionId").ifBlank { obj.optString("section") }
+                )
+            )
+        }
+        return validateRealQuestionBatch(test.targetExam, test.questionsCount, parsed)
+    }
+
     fun adminCreateTest(test: TestEntity, questions: List<QuestionEntity>) {
         val validationError = validateRealQuestionBatch(test.targetExam, test.questionsCount, questions)
         if (validationError != null) {
