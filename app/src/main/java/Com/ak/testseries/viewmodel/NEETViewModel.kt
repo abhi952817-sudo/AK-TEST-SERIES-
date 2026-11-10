@@ -6276,12 +6276,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             android.util.Log.e("NEETViewModel", "Admin test creation blocked: $validationError")
             return
         }
+        val rawQuestionsJson = test.questionsJson.orEmpty()
+        val payload = org.json.JSONArray(rawQuestionsJson)
+        if (payload.length() != questions.size || questions.indices.any { index ->
+                val item = payload.optJSONObject(index) ?: return@any true
+                val entity = questions[index]
+                item.optString("questionText").ifBlank { item.optString("questionTextEn") } != entity.questionText ||
+                    item.optString("correctAnswer").ifBlank { item.optString("correctOption") } != entity.correctAnswer ||
+                    item.optString("explanation").ifBlank { item.optString("explanationEn") }.ifBlank { item.optString("reasoning") } != entity.explanation
+            }
+        ) {
+            android.util.Log.e("NEETViewModel", "Admin test creation blocked: supplied Room questions do not match the Gemini-verified JSON payload.")
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            val questionsJsonString = serializeQuestionsToJson(questions)
-            val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
+            val testWithJson = test.copy(questionsJson = rawQuestionsJson, questionsCount = questions.size)
             repository.insertTest(testWithJson)
             repository.insertQuestions(questions)
-            uploadTestToFirestore(testWithJson, questionsJsonString)
+            uploadTestToFirestore(testWithJson, rawQuestionsJson)
         }
     }
 
