@@ -106,9 +106,12 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             status = statusVal,
                             uploaderId = doc.getString("uploaderId") ?: doc.getString("creatorId") ?: "",
                             countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: false,
+                            isPublic = doc.getBoolean("isPublic") ?: false,
+                            status = publicationStatus,
+                            uploaderId = doc.getString("uploaderId").orEmpty(),
                             targetExam = targetExam,
                             durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 0,
-                            classLevel = doc.getString("classLevel") ?: "11th",
+                            classLevel = doc.getString("classLevel").orEmpty(),
                             chapter = doc.getString("chapter") ?: "",
                             topic = doc.getString("topic") ?: "",
                             timestamp = doc.getLong("timestamp") ?: 0L,
@@ -138,7 +141,8 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                         val processingStatus = doc.getString("processingStatus").orEmpty()
                         val questionsCount = doc.getLong("questionsCount")?.toInt() ?: 0
                         val questionsJson = doc.getString("questionsJson")
-                        if (processingStatus != "Ready" ||
+                        val publicationStatus = doc.getString("status").orEmpty()
+                        if (processingStatus != "Ready" || publicationStatus != "Published" ||
                             !hasVerifiedQuestionPayload(questionsJson, questionsCount)
                         ) return@mapNotNull null
                         val title = doc.getString("title").orEmpty()
@@ -150,20 +154,20 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             title = title,
                             description = "Live Scheduled Test on " + (doc.getString("scheduledTime") ?: ""),
                             institute = "Admin Live",
-                            batchName = doc.getString("classLevel") ?: "11th",
+                            batchName = doc.getString("classLevel").orEmpty(),
                             facultyName = "Admin",
                             language = "English",
                             subject = subject,
                             difficulty = "Medium",
                             testType = "Live",
                             questionsCount = questionsCount,
-                            isOfficial = true,
-                            isVerifiedCommunity = true,
+                            isOfficial = doc.getBoolean("isOfficial") ?: false,
+                            isVerifiedCommunity = doc.getBoolean("isVerifiedCommunity") ?: false,
                             countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: false,
                             classLevel = doc.getString("classLevel") ?: "11th",
                             chapter = doc.getString("chapter") ?: "",
                             topic = "",
-                            timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
+                            timestamp = doc.getLong("timestamp") ?: 0L,
                             imageUrl = null,
                             questionsJson = questionsJson,
                             targetExam = targetExam,
