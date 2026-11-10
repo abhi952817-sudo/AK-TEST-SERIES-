@@ -720,8 +720,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         _masterPrivateSwitch.value = isMasterPrivate
                         val isAiActive = snapshot.getBoolean("globalAiEnabled") ?: true
                         _isGlobalAiEnabled.value = isAiActive
-                        val mockFallback = snapshot.getBoolean("offlineMockFallbackEnabled") ?: false
-                        _isOfflineMockFallbackEnabled.value = mockFallback
+                        // Legacy remote flag is intentionally ignored. Offline mock question generation is retired.
+                        _isOfflineMockFallbackEnabled.value = false
                         val limit = snapshot.getLong("dailyFreeTestLimit")?.toInt() ?: 1
                         val safeLimit = if (limit > 0) limit else 1
                         _dailyFreeTestLimit.value = safeLimit
@@ -733,31 +733,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @Deprecated("Offline mock question generation has been permanently retired.")
     fun setOfflineMockFallbackEnabled(enabled: Boolean, onResult: ((Boolean, String?) -> Unit)? = null) {
-        if (!isAdmin) {
-            onResult?.invoke(false, "Unauthorized: Admin privileges required")
-            return
-        }
-        val previous = _isOfflineMockFallbackEnabled.value
-        _isOfflineMockFallbackEnabled.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val db = firestoreDb
-                val data = hashMapOf<String, Any>("offlineMockFallbackEnabled" to enabled)
-                db.collection("Config").document("admin_settings")
-                    .set(data, com.google.firebase.firestore.SetOptions.merge())
-                    .await()
-                withContext(Dispatchers.Main) {
-                    onResult?.invoke(true, null)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    _isOfflineMockFallbackEnabled.value = previous
-                    onResult?.invoke(false, e.localizedMessage ?: "Failed to update offline mock fallback setting")
-                }
-            }
-        }
+        _isOfflineMockFallbackEnabled.value = false
+        onResult?.invoke(
+            false,
+            if (enabled) "Offline mock question generation is permanently disabled. Use Gemini generation."
+            else null
+        )
     }
 
     fun setDailyFreeTestLimit(limit: Int, onResult: ((Boolean, String?) -> Unit)? = null) {
@@ -4820,21 +4803,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // Fallback: Generate structured realistic mock test if API is unavailable and fallback is enabled by Admin
-            if (_isOfflineMockFallbackEnabled.value) {
-                generateMockAiTest()
-                recordDailyGeneration()
-                aiGenStatusMessage.value = "Generated offline fallback mock test!"
-                _aiGenState.value = AiGenerationState.Success
+            // Fail closed: Gemini is the only permitted question-generation source.
+            // The legacy admin-controlled offline mock fallback is intentionally ignored.
+            val errorMsg = if (!hasApiKey) {
+                "Gemini question generation is unavailable: no valid API key is configured. No test was created."
             } else {
-                val errorMsg = if (!hasApiKey) {
-                    "AI generation is unavailable (no API keys configured) and Offline Mock Fallback is disabled by Admin."
-                } else {
-                    "AI generation failed to extract questions and Offline Mock Fallback is disabled by Admin."
-                }
-                _aiGenState.value = AiGenerationState.Error(errorMsg)
-                aiGenStatusMessage.value = errorMsg
+                "Gemini could not return a valid question batch. No offline, bundled or mock questions were created."
             }
+            _aiGenState.value = AiGenerationState.Error(errorMsg)
+            aiGenStatusMessage.value = errorMsg
         }
     }
 
