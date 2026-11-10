@@ -15,6 +15,68 @@ const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelp
 exports.normalizeExamKey = normalizeExamKey;
 
 /**
+ * Permanently removes only the retired, hard-coded demo test IDs.
+ * This allowlist is intentionally immutable from client input.
+ */
+exports.purgeRetiredDemoTests = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Admin authentication is required.");
+  }
+  const isAdmin = Boolean(
+    context.auth.token && (
+      context.auth.token.admin === true ||
+      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+    )
+  );
+  if (!isAdmin) {
+    throw new functions.https.HttpsError("permission-denied", "Only an authenticated admin can purge retired demo tests.");
+  }
+
+  const retiredIds = [
+    "official_neet_ug_mock_01",
+    "official_jee_mains_mock_01",
+    "official_upsc_cds_mock_01",
+    "official_ssc_cgl_mock_01",
+    "official_banking_ibps_mock_01",
+    "official_rrb_ntpc_mock_01",
+    "official_ugc_net_paper1_mock_01",
+    "official_cat_full_mock_01",
+    "t1", "t2", "t3", "t4", "t5"
+  ];
+  const collectionNames = [
+    "Tests_Data",
+    "Tests",
+    "LiveTests",
+    "Shared_Community_Tests"
+  ];
+  const deletedPaths = [];
+
+  for (const testId of retiredIds) {
+    for (const collectionName of collectionNames) {
+      const ref = db.collection(collectionName).doc(testId);
+      const snapshot = await ref.get();
+      if (snapshot.exists) {
+        await db.recursiveDelete(ref);
+        deletedPaths.push(collectionName + "/" + testId);
+      }
+    }
+    const answerKeyRef = db.collection("TestAnswerKeys").doc(testId);
+    const answerKeySnapshot = await answerKeyRef.get();
+    if (answerKeySnapshot.exists) {
+      await answerKeyRef.delete();
+      deletedPaths.push("TestAnswerKeys/" + testId);
+    }
+  }
+
+  return {
+    success: true,
+    checkedIds: retiredIds.length,
+    deletedCount: deletedPaths.length,
+    deletedPaths
+  };
+});
+
+/**
  * Cloud Function: submitTestAttemptServerSide
  * Authoritatively validates test answers against server-side official questions and protected answer keys,
  * computes score using exam-specific rules (marking schemes, negative penalty, optional section limits,
