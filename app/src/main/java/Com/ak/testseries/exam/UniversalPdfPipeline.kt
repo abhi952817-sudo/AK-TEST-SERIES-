@@ -69,7 +69,11 @@ object UniversalPdfPipeline {
             return@withContext emptyList()
         }
         val extractedQuestions = mutableListOf<UniversalQuestionModel>()
-        extractedQuestions.addAll(existingQuestionsCache)
+        // Resume only questions with recorded Gemini provenance. Legacy/offline-generated cache entries
+        // must never enter the review queue or test palette.
+        extractedQuestions.addAll(
+            existingQuestionsCache.filter { it.generationModel.contains("gemini", ignoreCase = true) }
+        )
         
         // 1. Extract text from PDF URI and format into compact Markdown
         val compactMarkdown = if (context != null) {
@@ -249,115 +253,25 @@ object UniversalPdfPipeline {
 
                     extractedQuestions.addAll(finalBatch)
                 } else {
-                    val offlineModel = if (compactMarkdown.isNotBlank()) "pdf-real-extractor-v1" else "bundled-exam-catalog-v1"
-                    val offlineSource = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "${examConfig.examName} Authentic Catalog"
-
-                    // Real extraction from parsed markdown or authentic exam catalog (Zero dummy data)
-                    val realExtractedFromMarkdown = if (compactMarkdown.isNotBlank()) {
-                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, stageId)
-                    } else emptyList()
-
-                    val bundledExamTests = BundledExamCatalog.getBundledTestsForExam(examConfig.examName)
-                    val bundledQuestions = bundledExamTests.flatMap { it.second }
-
-                    for (i in 1..questionsInThisBatch) {
-                        val qIndex = (batchIndex * batchSize) + i
-                        val diffRatio = examConfig.difficultyRatio
-                        val diffLevel = when {
-                            (i % 10) < (diffRatio.easyPercent / 10) -> DifficultyLevel.EASY
-                            (i % 10) < ((diffRatio.easyPercent + diffRatio.mediumPercent) / 10) -> DifficultyLevel.MEDIUM
-                            else -> DifficultyLevel.HARD
-                        }
-
-                        val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex)
-                        val qType = resolvedSection?.questionType ?: examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
-                        val secId = resolvedSection?.sectionId ?: "SECTION_A"
-                        val secName = resolvedSection?.sectionName ?: "Section A"
-                        val posMark = resolvedSection?.positiveMarks ?: 4.0
-                        val negMark = resolvedSection?.negativeMarks ?: 1.0
-
-                        // 1. Prefer real question extracted from source PDF markdown
-                        val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
-                        // 2. Otherwise match authentic question from Bundled Exam Catalog
-                        val bundledCandidate = bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
-
-                        val questionText = markdownCandidate?.questionText
-                            ?: bundledCandidate?.questionText
-                            ?: "${examConfig.shortName} Practice Problem $qIndex: Analyze the foundational principles of $subjectId under official exam examination criteria."
-
-                        val options = if (markdownCandidate != null && markdownCandidate.options.isNotEmpty()) {
-                            markdownCandidate.options
-                        } else if (bundledCandidate != null && bundledCandidate.optionA.isNotBlank()) {
-                            listOfNotNull(
-                                bundledCandidate.optionA.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionB.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionC.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionD.takeIf { it.isNotBlank() }
-                            )
-                        } else if (qType == QuestionType.NUMERICAL || qType == QuestionType.NUMERICAL_VALUE) {
-                            emptyList()
-                        } else {
-                            listOf(
-                                "Statement I is correct and explains the phenomenon accurately.",
-                                "Statement II is correct, but Statement I represents an incorrect condition.",
-                                "Both Statements I and II are valid under standard parameters.",
-                                "Neither Statement satisfies the core criteria."
-                            )
-                        }
-
-                        val correctAnswer = markdownCandidate?.correctAnswer
-                            ?: bundledCandidate?.correctAnswer
-                            ?: if (options.isEmpty()) "${((qIndex * 7) % 50) + 1}" else "A"
-
-                        val explanation = markdownCandidate?.explanation
-                            ?: bundledCandidate?.explanation
-                            ?: "Option $correctAnswer is correct according to the official ${examConfig.examName} syllabus curriculum."
-
-                        val hash = DuplicateDetectionEngine.generateNormalizedHash(questionText, options)
-                        val dupResult = DuplicateDetectionEngine.checkDuplicate(questionText, options, existingHashes)
-                        val validation = QuestionValidationEngine.validateQuestion(
-                            questionText = questionText,
-                            options = options,
-                            correctAnswer = correctAnswer,
-                            explanation = explanation,
-                            hasDiagramAttached = false,
-                            duplicateResult = dupResult,
-                            questionType = qType,
-                            expectedOptionCount = examConfig.defaultOptionCount
-                        )
-
-                        val model = UniversalQuestionModel(
-                            questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_$qIndex",
-                            examId = examConfig.examId,
-                            stageId = stageId,
-                            paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
-                            sectionId = secId,
-                            sectionName = secName,
-                            subjectId = subjectId,
-                            questionText = questionText,
-                            options = options,
-                            correctAnswer = correctAnswer,
-                            sourceAnswer = null,
-                            explanation = explanation,
-                            difficulty = diffLevel,
-                            questionType = qType,
-                            positiveMarks = posMark,
-                            negativeMarks = negMark,
-                            difficultyScore = validation.difficultyScore,
-                            qualityScore = validation.qualityScore,
-                            qualityMetrics = validation.qualityMetrics,
-                            validationStatus = validation.status,
-                            validationReasons = validation.issues,
-                            duplicateHash = hash,
-                            sourceName = offlineSource,
-                            sourcePage = (qIndex / 5) + 1,
-                            questionVersion = 1,
-                            validationVersion = 1,
-                            generationModel = offlineModel,
-                            generationTimestamp = System.currentTimeMillis()
-                        )
-                        extractedQuestions.add(model)
+                    val reason = when {
+                        effectiveApiKey.isNullOrBlank() ->
+                            "Gemini API key is missing. No questions were generated."
+                        batchModels.isNullOrEmpty() ->
+                            "Gemini did not return a valid question batch. No fallback questions were generated."
+                        else ->
+                            "Gemini question batch was rejected. No fallback questions were generated."
                     }
+                    onProgress(
+                        BatchProgress(
+                            totalBatches = totalBatches,
+                            currentBatch = currentBatchNumber,
+                            processedQuestions = extractedQuestions.size,
+                            statusMessage = reason
+                        )
+                    )
+                    // Fail closed: no bundled catalogue, offline parser, generated placeholders,
+                    // synthetic answer keys or fabricated explanations are allowed here.
+                    break
                 }
             } catch (e: Exception) {
                 onProgress(
