@@ -1415,44 +1415,50 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         return qJsonArray.toString()
     }
 
-    private fun createSampleQuestionsForTest(test: TestEntity): List<QuestionEntity> {
-        val questions = mutableListOf<QuestionEntity>()
-        val count = if (test.questionsCount > 0) test.questionsCount else 10
-        for (i in 0 until count) {
-            questions.add(
-                QuestionEntity(
-                    id = "${test.id}_q${i}",
-                    testId = test.id,
-                    questionText = "${test.subject} Question ${i + 1} (${test.chapter.ifEmpty { "General" }})",
-                    optionA = "Option A",
-                    optionB = "Option B",
-                    optionC = "Option C",
-                    optionD = "Option D",
-                    correctAnswer = "A",
-                    explanation = "Explanation for Question ${i + 1}",
-                    subject = test.subject,
-                    chapter = test.chapter,
-                    topic = test.topic,
-                    questionTextHi = "${test.subject} प्रश्न ${i + 1} (${test.chapter.ifEmpty { "सामान्य" }})",
-                    optionAHi = "विकल्प A",
-                    optionBHi = "विकल्प B",
-                    optionCHi = "विकल्प C",
-                    optionDHi = "विकल्प D",
-                    explanationHi = "प्रश्न ${i + 1} का व्याख्यात्मक उत्तर"
-                )
-            )
-        }
-        return questions
-    }
-
+    /**
+     * Creates an admin test only when a real question payload already exists.
+     * Placeholder questions are never synthesized here.
+     */
     fun addNewTest(test: TestEntity) {
+        val rawQuestions = test.questionsJson?.takeIf { it.isNotBlank() }
+        if (rawQuestions == null) {
+            android.util.Log.e("NEETViewModel", "Test creation blocked: no Gemini-verified question payload was supplied.")
+            return
+        }
+        val payload = try {
+            org.json.JSONArray(rawQuestions)
+        } catch (e: Exception) {
+            android.util.Log.e("NEETViewModel", "Test creation blocked: question payload is not valid JSON.", e)
+            return
+        }
+        if (payload.length() == 0 || payload.length() != test.questionsCount) {
+            android.util.Log.e("NEETViewModel", "Test creation blocked: question count does not match the supplied payload.")
+            return
+        }
+        for (index in 0 until payload.length()) {
+            val question = payload.optJSONObject(index) ?: return
+            val stem = question.optString("questionText").ifBlank { question.optString("questionTextEn") }
+            val answer = question.optString("correctAnswer").trim()
+            val explanation = question.optString("explanation").ifBlank { question.optString("explanationEn") }
+            val type = question.optString("questionType").uppercase()
+            val numeric = type.contains("NUMERICAL") || type == "NAT" || type == "TITA"
+            val options = listOf("A", "B", "C", "D").map { key ->
+                question.optString("option$key").ifBlank { question.optString("option${key}En") }.trim()
+            }
+            val placeholders = options.any { option ->
+                option.equals("Option A", true) || option.equals("Option B", true) ||
+                    option.equals("Option C", true) || option.equals("Option D", true)
+            }
+            if (stem.isBlank() || answer.isBlank() || explanation.isBlank() ||
+                (!numeric && (options.any { it.isBlank() } || placeholders))
+            ) {
+                android.util.Log.e("NEETViewModel", "Test creation blocked: question ${index + 1} is incomplete or contains placeholder options.")
+                return
+            }
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            val questions = createSampleQuestionsForTest(test)
-            val questionsJsonString = serializeQuestionsToJson(questions)
-            val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
-            repository.insertTest(testWithJson)
-            repository.insertQuestions(questions)
-            uploadTestToFirestore(testWithJson, questionsJsonString)
+            repository.insertTest(test)
+            uploadTestToFirestore(test, rawQuestions)
         }
     }
 
@@ -1473,14 +1479,26 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val db = firestoreDb
                 val testId = "live_" + System.currentTimeMillis()
 
-                val questions = if (!customQuestions.isNullOrEmpty()) {
-                    customQuestions.mapIndexed { idx, q -> q.copy(id = "${testId}_q$idx", testId = testId) }
-                } else if (pdfUri == null) {
-                    buildDynamicQuestionsForExam(targetExam, subject, testId).take(questionsCount).ifEmpty {
-                        emptyList()
-                    }
-                } else {
-                    emptyList()
+                val questions = customQuestions.orEmpty().mapIndexed { idx, q ->
+                    q.copy(id = "${testId}_q$idx", testId = testId)
+                }
+                if (questions.isEmpty() && pdfUri == null) {
+                    android.util.Log.e("NEETViewModel", "Live test creation blocked: provide a Gemini-generated question batch or a source PDF for Gemini extraction.")
+                    return@launch
+                }
+                val invalidQuestion = questions.firstOrNull { question ->
+                    val numeric = question.questionType.contains("NUMERICAL", ignoreCase = true) ||
+                        question.questionType.equals("NAT", ignoreCase = true) ||
+                        question.questionType.equals("TITA", ignoreCase = true)
+                    val options = listOf(question.optionA, question.optionB, question.optionC, question.optionD)
+                    question.questionText.isBlank() || question.correctAnswer.isBlank() ||
+                        question.explanation.isBlank() ||
+                        (!numeric && (options.any { it.isBlank() } ||
+                            options.any { it.trim().matches(Regex("Option [A-D]", RegexOption.IGNORE_CASE)) }))
+                }
+                if (invalidQuestion != null) {
+                    android.util.Log.e("NEETViewModel", "Live test creation blocked: a supplied question is incomplete or contains placeholder options.")
+                    return@launch
                 }
                 val questionsJsonString = serializeQuestionsToJson(questions)
                 val effectiveQCount = if (questions.isNotEmpty()) questions.size else questionsCount
