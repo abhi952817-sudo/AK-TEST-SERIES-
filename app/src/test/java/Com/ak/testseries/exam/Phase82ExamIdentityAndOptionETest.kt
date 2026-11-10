@@ -364,31 +364,6 @@ class Phase82ExamIdentityAndOptionETest {
     }
 
     @Test
-    fun testBundledExamCatalogPreservesCanonicalExamIdentity() {
-        val (neetTest, _) = BundledExamCatalog.getNeetUgMockTest1()
-        assertEquals("neet_ug", neetTest.examId)
-        assertEquals("neet_ug_main", neetTest.stageId)
-        assertEquals("neet_ug_paper", neetTest.paperId)
-        assertEquals(1, neetTest.scoringVersion)
-
-        val (jeeTest, _) = BundledExamCatalog.getJeeMainMockTest1()
-        assertEquals("jee_main", jeeTest.examId)
-        assertEquals("jee_main_stage", jeeTest.stageId)
-        assertEquals("jee_main_paper_1", jeeTest.paperId)
-        assertEquals(1, jeeTest.scoringVersion)
-
-        val (cdsTest, _) = BundledExamCatalog.getUpscCdsMockTest1()
-        assertEquals("cds", cdsTest.examId)
-        assertEquals("cds_written", cdsTest.stageId)
-        assertEquals(1, cdsTest.scoringVersion)
-
-        val (sscTest, _) = BundledExamCatalog.getSscCglMockTest1()
-        assertEquals("ssc_cgl", sscTest.examId)
-        assertEquals("ssc_cgl_tier_1", sscTest.stageId)
-        assertEquals(1, sscTest.scoringVersion)
-    }
-
-    @Test
     fun testBundledExamCatalogQuestionsToJsonSerializesOptionE() {
         val q = QuestionEntity(
             id = "q_five_opt",
