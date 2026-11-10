@@ -4640,6 +4640,35 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 delay(800)
             }
 
+            val selectedExamName = genTargetExam.value.trim()
+            val selectedSubjectName = genSubject.value.trim()
+            val resolvedExamConfig = Com.ak.testseries.exam.UniversalExamRegistry
+                .findExamByNameOrShortName(selectedExamName)
+            if (resolvedExamConfig == null) {
+                val error = "Test blocked: selected exam is not present in the verified exam registry."
+                _aiGenState.value = AiGenerationState.Error(error)
+                aiGenStatusMessage.value = error
+                return@launch
+            }
+            if (selectedSubjectName.isBlank() || selectedSubjectName.equals("All Subjects", ignoreCase = true)) {
+                val error = "Test blocked: choose a single configured subject. All Subjects is disabled until the universal distribution planner is active."
+                _aiGenState.value = AiGenerationState.Error(error)
+                aiGenStatusMessage.value = error
+                return@launch
+            }
+            val resolvedSubjectConfig = resolvedExamConfig.stages
+                .flatMap { stage -> stage.papers.flatMap { paper -> paper.subjects } }
+                .singleOrNull { subject ->
+                    subject.subjectId.equals(selectedSubjectName, true) ||
+                        subject.subjectName.equals(selectedSubjectName, true)
+                }
+            if (resolvedSubjectConfig == null) {
+                val error = "Test blocked: selected subject does not belong to the selected exam."
+                _aiGenState.value = AiGenerationState.Error(error)
+                aiGenStatusMessage.value = error
+                return@launch
+            }
+
             val keys = getGeminiApiKeys()
             val hasApiKey = keys.isNotEmpty()
 
@@ -4687,13 +4716,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 "AI processing Pages $startPage-$endPage (Chunk ${chunkIndex + 1}/$totalPageChunks)..."
                             }
 
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                            val examConfig = resolvedExamConfig
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = genSubject.value.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects" },
+                                subject = resolvedSubjectConfig.subjectName,
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = chunkMarkdown, // Send current page chunk with answer key reference
                                 currentChunkSize = currentChunkQuestions,
@@ -4762,13 +4789,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 val endIdx = if (chunkIndex == totalChunks - 1) fullSourceText.length else ((chunkIndex + 1) * sliceLen).coerceAtMost(fullSourceText.length)
                                 fullSourceText.substring(startIdx, endIdx)
                             }
-                            val targetExamName = genTargetExam.value.ifBlank { "NEET UG" }
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExamName)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+                            val examConfig = resolvedExamConfig
 
                             val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = genSubject.value.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "All Subjects" },
+                                subject = resolvedSubjectConfig.subjectName,
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = rawSourceText,
                                 currentChunkSize = currentChunkSize,
