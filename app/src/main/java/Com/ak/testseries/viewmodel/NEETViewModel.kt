@@ -6815,6 +6815,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qObj = org.json.JSONObject()
                     qObj.put("id", qId)
                     qObj.put("questionTextEn", uq.questionText)
+                    qObj.put("questionText", uq.questionText)
                     qObj.put("optionAEn", uq.options.getOrNull(0).orEmpty())
                     qObj.put("optionBEn", uq.options.getOrNull(1).orEmpty())
                     qObj.put("optionCEn", uq.options.getOrNull(2).orEmpty())
@@ -6830,7 +6831,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qObj.put("explanationEn", uq.explanation)
                     if (!uq.explanationHi.isNullOrBlank()) qObj.put("explanationHi", uq.explanationHi)
                     qObj.put("subject", uq.subjectId)
-                    qObj.put("chapter", uq.topicId.ifBlank { "Chapter 1" })
+                    qObj.put("chapter", uq.topicId)
                     qObj.put("questionType", uq.questionType.name)
                     qObj.put("section", uq.sectionId)
                     qObj.put("sectionId", uq.sectionId)
@@ -6871,6 +6872,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
+                val batchValidationError = validateRealQuestionBatch(
+                    targetExam = examConfig.examId,
+                    expectedCount = questions.size,
+                    questions = questionEntities
+                )
+                if (batchValidationError != null) {
+                    android.util.Log.e("NEETViewModel", "Universal test publication blocked: $batchValidationError")
+                    return@launch
+                }
+
                 // 1. Save Locally strictly in local Room DB
                 val isPublicTest = genIsPublic.value
                 val finalTestEntity = testEntity.copy(isPublic = isPublicTest, questionsJson = qJsonArray.toString())
@@ -6908,6 +6919,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             "isPublic" to true,
                             "classLevel" to finalTestEntity.classLevel,
                             "targetExam" to finalTestEntity.targetExam,
+                            "examId" to finalTestEntity.examId.orEmpty(),
+                            "stageId" to finalTestEntity.stageId.orEmpty(),
+                            "paperId" to finalTestEntity.paperId.orEmpty(),
+                            "scoringVersion" to (finalTestEntity.scoringVersion ?: 1),
                             "durationMinutes" to finalTestEntity.durationMinutes,
                             "timestamp" to finalTestEntity.timestamp,
                             "questionsJson" to sanitizedQuestionsJson
