@@ -31,6 +31,14 @@ jobs:
       run: |
         keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
+    - name: Check Firebase Functions JavaScript syntax
+      run: |
+        node --check backend_functions/index.js
+        node --check backend_functions/examScoring.js
+
+    - name: Run Unit Tests
+      run: gradle testDebugUnitTest
+
     - name: Build with Gradle
       run: gradle assembleDebug
 
