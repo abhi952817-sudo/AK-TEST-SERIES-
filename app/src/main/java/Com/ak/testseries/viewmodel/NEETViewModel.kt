@@ -6984,10 +6984,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
 
-                    val optA = sq.options.find { it.key.equals("A", ignoreCase = true) || it.key == "1" }?.text ?: sq.options.getOrNull(0)?.text ?: "Option A"
-                    val optB = sq.options.find { it.key.equals("B", ignoreCase = true) || it.key == "2" }?.text ?: sq.options.getOrNull(1)?.text ?: "Option B"
-                    val optC = sq.options.find { it.key.equals("C", ignoreCase = true) || it.key == "3" }?.text ?: sq.options.getOrNull(2)?.text ?: "Option C"
-                    val optD = sq.options.find { it.key.equals("D", ignoreCase = true) || it.key == "4" }?.text ?: sq.options.getOrNull(3)?.text ?: "Option D"
+                    val optA = sq.options.find { it.key.equals("A", ignoreCase = true) || it.key == "1" }?.text ?: sq.options.getOrNull(0)?.text.orEmpty()
+                    val optB = sq.options.find { it.key.equals("B", ignoreCase = true) || it.key == "2" }?.text ?: sq.options.getOrNull(1)?.text.orEmpty()
+                    val optC = sq.options.find { it.key.equals("C", ignoreCase = true) || it.key == "3" }?.text ?: sq.options.getOrNull(2)?.text.orEmpty()
+                    val optD = sq.options.find { it.key.equals("D", ignoreCase = true) || it.key == "4" }?.text ?: sq.options.getOrNull(3)?.text.orEmpty()
                     val optE = sq.options.find { it.key.equals("E", ignoreCase = true) || it.key == "5" }?.text ?: sq.options.getOrNull(4)?.text
                     val optionsList = listOfNotNull(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
