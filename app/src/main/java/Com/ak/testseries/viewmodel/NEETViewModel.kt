@@ -6088,10 +6088,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
             val optionCount = matchingSection.second.optionsCount
             val numeric = type.contains("NUMERICAL") || type == "NAT" || type == "TITA"
-            val options = listOfNotNull(
-                question.optionA, question.optionB, question.optionC, question.optionD,
-                question.optionE?.takeIf { it.isNotBlank() }
-            ).map { it.trim() }
+            val options = listOf(
+                question.optionA, question.optionB, question.optionC, question.optionD, question.optionE.orEmpty()
+            ).map { it.trim() }.filter { it.isNotBlank() }
             if (question.questionText.trim().length < 10) return "Question $number has missing or incomplete text."
             if (question.correctAnswer.isBlank()) return "Question $number has no answer key."
             if (question.explanation.trim().length < 15) return "Question $number has no verifiable explanation."
