@@ -235,13 +235,21 @@ object QuestionValidationEngine {
             } else {
                 listOf("A", "B", "C", "D", "1", "2", "3", "4")
             }
-            if (normalizedAnswer !in validAnswers && !options.any { it.trim().equals(trimmedAnswer, ignoreCase = true) }) {
+            val answerTokens = normalizedAnswer
+                .replace(Regex("\\bAND\\b"), ",")
+                .split(Regex("[,;|\\s]+"))
+                .filter { it.isNotBlank() }
+            if (questionType == QuestionType.MCQ_MULTIPLE) {
+                if (answerTokens.size < 2 || answerTokens.any { it !in validAnswers }) {
+                    issues.add("⚠ Multiple-correct answer key is missing or contains an invalid option.")
+                    answerConfidence = 0
+                    hasHardFailure = true
+                }
+            } else if (normalizedAnswer !in validAnswers &&
+                !options.any { it.trim().equals(trimmedAnswer, ignoreCase = true) }
+            ) {
                 issues.add("⚠ Answer conflict detected: Answer '$trimmedAnswer' does not match permitted options ($validAnswers)")
                 answerConfidence = 0
-                hasHardFailure = true
-            } else if (normalizedAnswer.contains("MULTIPLE") || normalizedAnswer.contains(",")) {
-                issues.add("⚠ Multiple options may be correct")
-                answerConfidence = 50
                 hasHardFailure = true
             }
         }
