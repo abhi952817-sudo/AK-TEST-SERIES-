@@ -120,6 +120,14 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const testData = testDoc.data();
+  if (testDoc.ref.parent.id === "LiveTests" &&
+      (testData.processingStatus !== "Ready" || testData.questionsVerified !== true)
+  ) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Live test questions have not completed Gemini verification."
+    );
+  }
 
   // 3. Authorization check & explicit publication policy
   const isCallerAdmin = Boolean(
@@ -147,7 +155,14 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const countsTowardRanking = testData.countsTowardRanking === true && (testData.isOfficial === true || testData.isPublic === true);
-  const canonicalExam = normalizeExamKey(testData.targetExam || testData.subject || "NEET");
+  const rawExamIdentity = testData.examId || testData.targetExam;
+  const canonicalExam = normalizeExamKey(rawExamIdentity);
+  if (canonicalExam === "UNKNOWN") {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Test has no valid canonical exam identity. Scoring and ranking were not calculated."
+    );
+  }
 
   // 4. Load questions and trusted answer keys (Protected Separation)
   let questions = [];
