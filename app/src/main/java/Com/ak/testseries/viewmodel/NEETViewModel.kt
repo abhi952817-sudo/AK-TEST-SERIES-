@@ -1430,6 +1430,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             android.util.Log.e("NEETViewModel", "Test creation blocked: no Gemini-verified question payload was supplied.")
             return
         }
+        val provenanceError = validateGeminiQuestionPayload(test, rawQuestions)
+        if (provenanceError != null) {
+            android.util.Log.e("NEETViewModel", "Test creation blocked: $provenanceError")
+            return
+        }
         val payload = try {
             org.json.JSONArray(rawQuestions)
         } catch (e: Exception) {
@@ -1494,9 +1499,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     android.util.Log.e("NEETViewModel", "Live test creation blocked: exam, stage, paper and subject must resolve uniquely from the exam registry.")
                     return@launch
                 }
+                if (!customQuestions.isNullOrEmpty()) {
+                    android.util.Log.e("NEETViewModel", "Live test creation blocked: unverified manual question lists are not accepted. Upload a source PDF for Gemini extraction.")
+                    return@launch
+                }
                 val testId = "live_" + System.currentTimeMillis()
 
-                val questions = customQuestions.orEmpty().mapIndexed { idx, q ->
+                val questions = emptyList<QuestionEntity>()
                     q.copy(id = "${testId}_q$idx", testId = testId)
                 }
                 if (questions.isEmpty() && pdfUri == null) {
@@ -6179,6 +6188,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun adminCreateTest(test: TestEntity, questions: List<QuestionEntity>) {
+        val provenanceError = validateGeminiQuestionPayload(test, test.questionsJson)
+        if (provenanceError != null) {
+            android.util.Log.e("NEETViewModel", "Admin test creation blocked: $provenanceError")
+            return
+        }
         val validationError = validateRealQuestionBatch(test.targetExam, test.questionsCount, questions)
         if (validationError != null) {
             android.util.Log.e("NEETViewModel", "Admin test creation blocked: $validationError")
@@ -6687,6 +6701,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val test = repository.getTestById(testId)
                 if (test != null) {
                     val rawJson = test.questionsJson ?: ""
+                    val provenanceError = validateGeminiQuestionPayload(test, rawJson)
+                    if (provenanceError != null) {
+                        withContext(Dispatchers.Main) {
+                            onResult?.invoke(false, "Publishing blocked: $provenanceError")
+                        }
+                        return@launch
+                    }
                     val sanitizedJson = if (rawJson.isNotBlank()) {
                         sanitizeAndUploadQuestionImages(testId, rawJson)
                     } else {
