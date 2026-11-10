@@ -1483,6 +1483,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val db = firestoreDb
+                val liveExamConfig = Com.ak.testseries.exam.UniversalExamRegistry
+                    .findExamByNameOrShortName(targetExam)
+                val liveStage = liveExamConfig?.stages?.singleOrNull()
+                val livePaper = liveStage?.papers?.singleOrNull()
+                val liveSubject = livePaper?.subjects?.singleOrNull { configuredSubject ->
+                    configuredSubject.subjectId.equals(subject, true) ||
+                        configuredSubject.subjectName.equals(subject, true)
+                }
+                if (liveExamConfig == null || liveStage == null || livePaper == null || liveSubject == null) {
+                    android.util.Log.e("NEETViewModel", "Live test creation blocked: exam, stage, paper and subject must resolve uniquely from the exam registry.")
+                    return@launch
+                }
                 val testId = "live_" + System.currentTimeMillis()
 
                 val questions = customQuestions.orEmpty().mapIndexed { idx, q ->
@@ -1515,6 +1527,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "isLive" to true,
                     "timestamp" to System.currentTimeMillis(),
                     "questionsJson" to questionsJsonString,
+                    "examId" to liveExamConfig.examId,
+                    "stageId" to liveStage.stageId,
+                    "paperId" to livePaper.paperId,
+                    "scoringVersion" to 1,
                     "processingStatus" to if (questions.isNotEmpty()) "Ready" else "Pending Extraction",
                     "questionsVerified" to questions.isNotEmpty()
                 )
@@ -1565,7 +1581,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             pdfUrl = finalPdfUrl,
                             testId = testId,
                             apiKey = apiKey,
-                            totalQuestionsExpected = effectiveQCount
+                            totalQuestionsExpected = effectiveQCount,
+                            targetExam = liveExamConfig.examId,
+                            subject = liveSubject.subjectId
                         )
                     }
                 }
@@ -1590,7 +1608,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     timestamp = System.currentTimeMillis(),
                     imageUrl = null,
                     questionsJson = questionsJsonString,
-                    isPublic = true
+                    isPublic = true,
+                    examId = liveExamConfig.examId,
+                    stageId = liveStage.stageId,
+                    paperId = livePaper.paperId,
+                    scoringVersion = 1
                 )
                 // PDF-backed tests remain hidden from the local palette until Gemini has
                 // extracted, validated and persisted the complete question payload.
