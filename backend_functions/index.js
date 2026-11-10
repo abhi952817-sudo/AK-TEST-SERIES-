@@ -110,6 +110,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     testDoc = await db.collection("Tests").doc(cleanTestId).get();
   }
   if (!testDoc.exists) {
+    testDoc = await db.collection("LiveTests").doc(cleanTestId).get();
+  }
+  if (!testDoc.exists) {
     throw new functions.https.HttpsError(
       "not-found",
       "Test document not found."
@@ -728,6 +731,9 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
   if (!testDoc.exists) {
     testDoc = await db.collection("Shared_Community_Tests").doc(cleanTestId).get();
+  }
+  if (!testDoc.exists) {
+    testDoc = await db.collection("LiveTests").doc(cleanTestId).get();
   }
   if (!testDoc.exists) {
     throw new functions.https.HttpsError("not-found", "Test document not found.");
