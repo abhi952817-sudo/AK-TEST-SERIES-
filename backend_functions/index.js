@@ -294,7 +294,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const evalResult = evaluateTestAttempt(canonicalExam, questions, answers, cleanTimeSpent);
 
   const attemptDocId = attemptSessionToken.trim();
-  const userRef = db.collection("Users_Data").doc(userId);
   const attemptsRef = userRef.collection("Attempts");
 
   // 5b. Compute population-based percentile on this test if it qualifies for competitive ranking
