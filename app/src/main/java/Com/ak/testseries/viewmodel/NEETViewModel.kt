@@ -938,7 +938,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         // Start real-time test and questions synchronization with Firestore
         viewModelScope.launch(Dispatchers.IO) {
             testRepository.syncTests()
-            seedBundledMockTestsIfNeeded()
             seedSyllabusIfNeeded()
         }
 
@@ -6699,70 +6698,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun seedBundledMockTestsIfNeeded(targetExam: String? = null) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val exam = targetExam ?: _userProfile.value.targetExam
-                val bundled = Com.ak.testseries.exam.BundledExamCatalog.getBundledTestsForExam(exam)
-                for ((testEntity, questions) in bundled) {
-                    val existing = repository.getTestById(testEntity.id)
-                    if (existing == null) {
-                        repository.saveTestWithQuestions(testEntity, questions)
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
+    @Deprecated("Bundled mock tests are retired; only Gemini-verified questions may be published.")
     fun syncBundledTestsToCloud(onComplete: ((Boolean, String?) -> Unit)? = null) {
-        if (!isAdmin) {
-            onComplete?.invoke(false, "Admin privileges required.")
-            return
-        }
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val db = firestoreDb
-                val allBundled = Com.ak.testseries.exam.BundledExamCatalog.getAllBundledTests()
-                for ((test, questions) in allBundled) {
-                    // 1. Ensure saved locally
-                    repository.saveTestWithQuestions(test, questions)
-
-                    // 2. Publish to Firestore Tests_Data
-                    val testData = hashMapOf<String, Any>(
-                        "title" to test.title,
-                        "description" to test.description,
-                        "institute" to test.institute,
-                        "batchName" to test.batchName,
-                        "facultyName" to test.facultyName,
-                        "language" to test.language,
-                        "subject" to test.subject,
-                        "difficulty" to test.difficulty,
-                        "testType" to test.testType,
-                        "questionsCount" to test.questionsCount,
-                        "isOfficial" to true,
-                        "isVerifiedCommunity" to true,
-                        "isPublic" to true,
-                        "countsTowardRanking" to true,
-                        "status" to "Published",
-                        "targetExam" to test.targetExam,
-                        "durationMinutes" to test.durationMinutes,
-                        "timestamp" to System.currentTimeMillis(),
-                        "questionsJson" to (test.questionsJson ?: "")
-                    )
-                    db.collection("Tests_Data").document(test.id).set(testData).await()
-                }
-                withContext(Dispatchers.Main) {
-                    onComplete?.invoke(true, null)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    onComplete?.invoke(false, e.localizedMessage ?: "Failed to sync bundled tests to cloud")
-                }
-            }
-        }
+        onComplete?.invoke(false, "Bundled mock tests are permanently retired. Use the Gemini question-generation workflow.")
     }
 
     fun seedSyllabusIfNeeded(targetExam: String? = null) {
