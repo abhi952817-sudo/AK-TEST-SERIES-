@@ -157,7 +157,16 @@ object QuestionValidationEngine {
             completeness = 50
             hasHardFailure = true
         }
-        
+        val syntheticStem = Regex(
+            "^(practice\\s+problem|practice\\s+question|sample\\s+question|question)\\s*#?\\d+",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(trimmedQ)
+        if (syntheticStem) {
+            issues.add("⚠ Synthetic placeholder question stem is not permitted")
+            completeness = 0
+            hasHardFailure = true
+        }
+
         val ocrGarbagePatterns = listOf("page", "header", "footer", "www.", ".com")
         if (ocrGarbagePatterns.any { trimmedQ.lowercase().contains(it) }) {
             issues.add("⚠ OCR Artifacts: Accidental page/header/footer text detected")
@@ -179,6 +188,16 @@ object QuestionValidationEngine {
                 optionIntegrity = 0
                 hasHardFailure = true
             } else {
+                val placeholderOption = options.any { option ->
+                    option.trim().matches(
+                        Regex("(option|choice|distractor option)\\s+[A-E]", RegexOption.IGNORE_CASE)
+                    )
+                }
+                if (placeholderOption) {
+                    issues.add("⚠ Placeholder option labels cannot be used as question content")
+                    optionIntegrity = 0
+                    hasHardFailure = true
+                }
                 val emptyOpts = options.count { it.trim().isEmpty() }
                 if (emptyOpts > 0) {
                     issues.add("⚠ Source incomplete: One or more options are empty")
@@ -249,8 +268,11 @@ object QuestionValidationEngine {
         if (explanation.trim().isEmpty()) {
             issues.add("⚠ Explanation missing")
             explanationConsistency = 0
-        } else if (explanation.length < 15) {
+            hasHardFailure = true
+        } else if (explanation.trim().length < 15) {
+            issues.add("⚠ Explanation is too short for verification")
             explanationConsistency = 50
+            hasHardFailure = true
         }
 
         val qualityMetrics = QualityMetrics(
