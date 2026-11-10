@@ -6444,92 +6444,117 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _doubtSolverLoading.value = true
             _doubtSolverError.value = null
             _doubtSolverResults.value = emptyList()
-            
+
+            if (userQuery.isBlank()) {
+                _doubtSolverError.value = "Enter a question or topic to search."
+                _doubtSolverLoading.value = false
+                return@launch
+            }
+
             try {
-                // Fallback / Offline / Development mode with real playable high-quality NEET video solutions
-                val fallbackResults = generateFallbackResults(userQuery)
-                _doubtSolverResults.value = fallbackResults
+                val results = searchYouTubeVideos(userQuery.trim())
+                _doubtSolverResults.value = results
+                if (results.isEmpty()) {
+                    _doubtSolverError.value = "YouTube returned no matching videos. No sample or placeholder results were inserted."
+                }
             } catch (e: Exception) {
-                e.printStackTrace()
-                val fallbackResults = generateFallbackResults(userQuery)
-                _doubtSolverResults.value = fallbackResults
+                android.util.Log.e("DoubtSolver", "Real YouTube search failed.", e)
+                _doubtSolverResults.value = emptyList()
+                _doubtSolverError.value = e.message ?: "YouTube search is currently unavailable."
             } finally {
                 _doubtSolverLoading.value = false
             }
         }
     }
 
-    private fun generateFallbackResults(userQuery: String): List<YouTubeVideoResult> {
-        val cleanQuery = userQuery.replace(Regex("[^a-zA-Z0-9\\s]"), "")
-        val channels = listOf("Physics Wallah - NEET Wallah", "Allen Career Institute", "Aakash BYJU'S NEET", "Unacademy NEET", "BYJU'S NEET")
-        val thumbnails = listOf(
-            "https://img.youtube.com/vi/h7OqQp_bY-s/mqdefault.jpg",
-            "https://img.youtube.com/vi/P8qZ-kZ6G_g/mqdefault.jpg",
-            "https://img.youtube.com/vi/W6P-O86W06Q/mqdefault.jpg",
-            "https://img.youtube.com/vi/V5D9M789_1o/mqdefault.jpg",
-            "https://img.youtube.com/vi/T6V3G09W69o/mqdefault.jpg"
-        )
-        val videoIds = listOf("h7OqQp_bY-s", "P8qZ-kZ6G_g", "W6P-O86W06Q", "V5D9M789_1o", "T6V3G09W69o")
-        val durations = listOf("15:33", "22:10", "12:45", "08:14", "18:25")
-        
-        return List(5) { index ->
-            val channel = channels[index]
-            val videoId = videoIds[index]
-            val thumb = thumbnails[index]
-            val duration = durations[index]
-            
-            val subjectPrefix = when (index % 3) {
-                0 -> "Physics"
-                1 -> "Chemistry"
-                else -> "Biology"
-            }
-            
-            val title = "NEET $subjectPrefix Solution: " + 
-                (if (userQuery.length > 60) userQuery.take(60) + "..." else userQuery) + 
-                " | Exact Match Video Explanation by $channel"
-                
-            YouTubeVideoResult(
-                videoId = videoId,
-                title = title,
-                thumbnailUrl = thumb,
-                channelTitle = channel,
-                duration = duration,
-                isVerified = true
-            )
-        }
-    }
+    private suspend fun searchYouTubeVideos(userQuery: String): List<YouTubeVideoResult> =
+        withContext(Dispatchers.IO) {
+            val apiKey = Com.ak.testseries.BuildConfig.YOUTUBE_API_KEY
+                .takeIf { it.isNotBlank() && it != "YOUR_YOUTUBE_DATA_API_KEY" }
+                ?: throw IllegalStateException(
+                    "YouTube Data API key is not configured. Add YOUTUBE_API_KEY to the app .env file."
+                )
 
-    private fun parseISO8601Duration(durationStr: String): String {
-        try {
-            var temp = durationStr.replace("PT", "")
-            var hours = 0
-            var minutes = 0
-            var seconds = 0
-            
-            if (temp.contains("H")) {
-                val parts = temp.split("H")
-                hours = parts[0].toIntOrNull() ?: 0
-                temp = if (parts.size > 1) parts[1] else ""
+            fun requestJson(endpoint: String): org.json.JSONObject {
+                val connection = java.net.URL(endpoint).openConnection() as java.net.HttpURLConnection
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 15_000
+                    connection.readTimeout = 20_000
+                    val status = connection.responseCode
+                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                    val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    if (status !in 200..299) {
+                        val apiMessage = try {
+                            org.json.JSONObject(body).optJSONObject("error")?.optString("message")
+                        } catch (_: Exception) {
+                            null
+                        }
+                        throw IllegalStateException(
+                            apiMessage?.takeIf { it.isNotBlank() }
+                                ?: "YouTube Data API returned HTTP $status."
+                        )
+                    }
+                    return org.json.JSONObject(body)
+                } finally {
+                    connection.disconnect()
+                }
             }
-            if (temp.contains("M")) {
-                val parts = temp.split("M")
-                minutes = parts[0].toIntOrNull() ?: 0
-                temp = if (parts.size > 1) parts[1] else ""
+
+            val encodedQuery = java.net.URLEncoder.encode(userQuery, "UTF-8")
+            val searchUrl =
+                "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=8&safeSearch=moderate&q=" +
+                    encodedQuery + "&key=" + apiKey
+            val searchResponse = requestJson(searchUrl)
+            val items = searchResponse.optJSONArray("items") ?: org.json.JSONArray()
+            if (items.length() == 0) return@withContext emptyList()
+
+            val videoIds = mutableListOf<String>()
+            val snippets = linkedMapOf<String, org.json.JSONObject>()
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                val id = item.optJSONObject("id")?.optString("videoId").orEmpty()
+                val snippet = item.optJSONObject("snippet") ?: continue
+                if (id.isNotBlank()) {
+                    videoIds.add(id)
+                    snippets[id] = snippet
+                }
             }
-            if (temp.contains("S")) {
-                val parts = temp.split("S")
-                seconds = parts[0].toIntOrNull() ?: 0
+            if (videoIds.isEmpty()) return@withContext emptyList()
+
+            val detailsUrl =
+                "https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=" +
+                    videoIds.joinToString(",") + "&key=" + apiKey
+            val detailsResponse = requestJson(detailsUrl)
+            val details = detailsResponse.optJSONArray("items") ?: org.json.JSONArray()
+            val durations = mutableMapOf<String, String>()
+            for (index in 0 until details.length()) {
+                val item = details.optJSONObject(index) ?: continue
+                val id = item.optString("id")
+                val duration = item.optJSONObject("contentDetails")?.optString("duration").orEmpty()
+                if (id.isNotBlank() && duration.isNotBlank()) {
+                    durations[id] = parseISO8601Duration(duration)
+                }
             }
-            
-            return if (hours > 0) {
-                String.format("%d:%02d:%02d", hours, minutes, seconds)
-            } else {
-                String.format("%02d:%02d", minutes, seconds)
+
+            videoIds.mapNotNull { id ->
+                val snippet = snippets[id] ?: return@mapNotNull null
+                val thumbnails = snippet.optJSONObject("thumbnails")
+                val thumbnail = thumbnails?.optJSONObject("high")?.optString("url")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: thumbnails?.optJSONObject("medium")?.optString("url")
+                    ?: thumbnails?.optJSONObject("default")?.optString("url")
+                    ?: "https://i.ytimg.com/vi/$id/default.jpg"
+                YouTubeVideoResult(
+                    videoId = id,
+                    title = snippet.optString("title").ifBlank { "Untitled YouTube video" },
+                    thumbnailUrl = thumbnail,
+                    channelTitle = snippet.optString("channelTitle").ifBlank { "YouTube channel" },
+                    duration = durations[id].orEmpty(),
+                    isVerified = false
+                )
             }
-        } catch (e: java.lang.Exception) {
-            return "12:15"
         }
-    }
 
     fun syncUserAttemptsFromFirebase() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -8110,7 +8135,7 @@ data class YouTubeVideoResult(
     val thumbnailUrl: String,
     val channelTitle: String,
     val duration: String,
-    val isVerified: Boolean = true
+    val isVerified: Boolean = false
 )
 
 data class TestFolder(
