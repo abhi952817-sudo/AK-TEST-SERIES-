@@ -47,11 +47,12 @@ class TestRepositoryImpl(
                                         Com.ak.testseries.data.QuestionEntity(
                                             id = qObj.optString("id", "${test.id}_q${i}"),
                                             testId = test.id,
-                                            questionText = qObj.optString("questionText", ""),
-                                            optionA = qObj.optString("optionA", ""),
-                                            optionB = qObj.optString("optionB", ""),
-                                            optionC = qObj.optString("optionC", ""),
-                                            optionD = qObj.optString("optionD", ""),
+                                            questionText = qObj.optString("questionText").ifBlank { qObj.optString("text") },
+                                            optionA = qObj.optString("optionA").ifBlank { qObj.optJSONArray("options")?.optString(0).orEmpty() },
+                                            optionB = qObj.optString("optionB").ifBlank { qObj.optJSONArray("options")?.optString(1).orEmpty() },
+                                            optionC = qObj.optString("optionC").ifBlank { qObj.optJSONArray("options")?.optString(2).orEmpty() },
+                                            optionD = qObj.optString("optionD").ifBlank { qObj.optJSONArray("options")?.optString(3).orEmpty() },
+                                            optionE = qObj.optString("optionE").ifBlank { qObj.optJSONArray("options")?.optString(4).orEmpty() }.takeIf { it.isNotBlank() },
                                             correctAnswer = qObj.optString("correctAnswer", ""),
                                             explanation = qObj.optString("explanation", ""),
                                             subject = qObj.optString("subject", test.subject),
@@ -65,8 +66,8 @@ class TestRepositoryImpl(
                                             optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                                             optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                                             explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                                            questionType = qObj.optString("questionType", "MCQ"),
-                                            section = qObj.optString("section", "SECTION_A"),
+                                            questionType = qObj.optString("questionType"),
+                                            section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
                                             needsImage = qObj.optBoolean("needsImage", false),
                                             imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
                                         )
