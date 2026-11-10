@@ -1397,7 +1397,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("questionType", q.questionType)
             qObj.put("section", q.section)
             qObj.put("sectionId", q.section)
-            qObj.put("generationModel", activeAiModel.value)
+            qObj.put("generationModel", "gemini:" + activeAiModel.value)
             qObj.put("sourceName", "Gemini PDF question generation")
             qObj.put("sourceVerified", true)
             qObj.put("subject", q.subject)
