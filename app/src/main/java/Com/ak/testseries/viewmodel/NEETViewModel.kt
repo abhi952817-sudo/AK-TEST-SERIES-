@@ -1473,6 +1473,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             android.util.Log.e("NEETViewModel", "Test creation blocked: question count does not match the supplied payload.")
             return
         }
+        val questionEntities = mutableListOf<QuestionEntity>()
         for (index in 0 until payload.length()) {
             val question = payload.optJSONObject(index) ?: return
             val stem = question.optString("questionText").ifBlank { question.optString("questionTextEn") }
@@ -1493,9 +1494,35 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 android.util.Log.e("NEETViewModel", "Test creation blocked: question ${index + 1} is incomplete or contains placeholder options.")
                 return
             }
+            val optionsArray = question.optJSONArray("options")
+            fun readOption(letter: String, optionIndex: Int): String =
+                question.optString("option" + letter)
+                    .ifBlank { question.optString("option" + letter + "En") }
+                    .ifBlank { optionsArray?.optString(optionIndex).orEmpty() }
+            questionEntities.add(
+                QuestionEntity(
+                    id = question.optString("id", test.id + "_q" + index),
+                    testId = test.id,
+                    questionText = stem,
+                    optionA = readOption("A", 0),
+                    optionB = readOption("B", 1),
+                    optionC = readOption("C", 2),
+                    optionD = readOption("D", 3),
+                    optionE = readOption("E", 4).takeIf { it.isNotBlank() },
+                    correctAnswer = answer,
+                    explanation = explanation,
+                    subject = question.optString("subject").ifBlank { test.subject },
+                    chapter = question.optString("chapter"),
+                    topic = question.optString("topic"),
+                    difficulty = question.optString("difficulty", "Medium"),
+                    questionType = question.optString("questionType"),
+                    section = question.optString("sectionId").ifBlank { question.optString("section") }
+                )
+            )
         }
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertTest(test)
+            repository.insertQuestions(questionEntities)
             uploadTestToFirestore(test, rawQuestions)
         }
     }
