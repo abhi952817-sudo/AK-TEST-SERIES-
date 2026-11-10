@@ -4838,9 +4838,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                             val examConfig = resolvedExamConfig
 
-                            val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
+                            val basePrompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = resolvedSubjectConfig.subjectName,
+                                subject = promptSubjectName,
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = chunkMarkdown, // Send current page chunk with answer key reference
                                 currentChunkSize = currentChunkQuestions,
@@ -4849,6 +4849,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 totalQuestions = totalQuestions,
                                 isExtractionMode = isPrivatePdfExtraction
                             )
+                            val prompt = basePrompt + "\n\n" +
+                                questionPlan.batchInstruction(startQ - 1, currentChunkQuestions)
                             val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
 
                             val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
@@ -4915,9 +4917,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             }
                             val examConfig = resolvedExamConfig
 
-                            val prompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
+                            val basePrompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
                                 examConfig = examConfig,
-                                subject = resolvedSubjectConfig.subjectName,
+                                subject = promptSubjectName,
                                 testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
                                 compactMarkdownPayload = rawSourceText,
                                 currentChunkSize = currentChunkSize,
@@ -4926,6 +4928,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 totalQuestions = totalQuestions,
                                 isExtractionMode = isPrivatePdfExtraction
                             )
+                            val prompt = basePrompt + "\n\n" +
+                                questionPlan.batchInstruction(startQ - 1, currentChunkSize)
                             val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
 
                             val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
