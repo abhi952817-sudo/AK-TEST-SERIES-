@@ -170,14 +170,14 @@ object UniversalPdfPipeline {
                             subjectId = subjectId,
                             batchIndex = batchIndex,
                             existingHashes = existingHashes,
-                            actualModel = apiResult.modelVersion,
+                            actualModel = apiResult.modelVersion.takeIf { it != "UNAVAILABLE" } ?: apiResult.modelName,
                             actualSource = source
                         )
                     }
                 }
 
                 // If API call succeeded, add parsed models; otherwise generate structured fallback
-                if (!batchModels.isNullOrEmpty()) {
+                if (!batchModels.isNullOrEmpty() && batchModels.size == questionsInThisBatch) {
                     var finalBatch = batchModels
                     val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
 
@@ -216,7 +216,7 @@ object UniversalPdfPipeline {
                                     subjectId = subjectId,
                                     batchIndex = batchIndex,
                                     existingHashes = existingHashes,
-                                    actualModel = regenResult.modelVersion,
+                                    actualModel = regenResult.modelVersion.takeIf { it != "UNAVAILABLE" } ?: regenResult.modelName,
                                     actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
                                 ).filter { it.difficulty == deficientLevel }
 
@@ -251,6 +251,22 @@ object UniversalPdfPipeline {
                         }
                     }
 
+                    val rejectedQuestions = finalBatch.filter {
+                        it.validationStatus == ValidationStatus.REJECTED ||
+                            it.validationStatus == ValidationStatus.DUPLICATE
+                    }
+                    if (rejectedQuestions.isNotEmpty()) {
+                        onProgress(
+                            BatchProgress(
+                                totalBatches = totalBatches,
+                                currentBatch = currentBatchNumber,
+                                processedQuestions = extractedQuestions.size,
+                                statusMessage = "Gemini batch rejected: " + rejectedQuestions.size +
+                                    " question(s) failed validation. No rejected questions were added."
+                            )
+                        )
+                        break
+                    }
                     extractedQuestions.addAll(finalBatch)
                 } else {
                     val reason = when {
