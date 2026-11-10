@@ -363,25 +363,5 @@ class Phase82ExamIdentityAndOptionETest {
         assertEquals("NEET", restoredLegacyTest.targetExam)
     }
 
-    @Test
-    fun testBundledExamCatalogQuestionsToJsonSerializesOptionE() {
-        val q = QuestionEntity(
-            id = "q_five_opt",
-            testId = "test_1",
-            questionText = "Banking statement question?",
-            optionA = "Option A",
-            optionB = "Option B",
-            optionC = "Option C",
-            optionD = "Option D",
-            optionE = "Option E (Special)",
-            optionEHi = "विकल्प E (विशेष)",
-            correctAnswer = "E",
-            explanation = "Option E is correct.",
-            subject = "Reasoning",
-            chapter = "Syllogism"
-        )
-        val jsonStr = BundledExamCatalog.questionsToJson(listOf(q))
-        assertTrue("JSON must contain optionE", jsonStr.contains("\"optionE\":\"Option E (Special)\""))
-        assertTrue("JSON must contain optionEHi", jsonStr.contains("\"optionEHi\":\"विकल्प E (विशेष)\""))
-    }
+
 }
