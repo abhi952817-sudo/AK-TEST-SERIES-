@@ -5921,7 +5921,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
-                    subject = qObj.optString("subject").ifBlank { genSubject.value },
+                    subject = qObj.optString("subject").ifBlank {
+                        if (isAllSubjects) "" else selectedSubjectConfigs.single().subjectName
+                    },
                     chapter = qChapter,
                     topic = qTopic,
                     questionTextHi = qTextHi.takeIf { it.isNotEmpty() },
@@ -5959,8 +5961,32 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             aiGenStatusMessage.value = error
             return@withContext
         }
-        if (genSubject.value.equals("All Subjects", ignoreCase = true)) {
-            val error = "Test blocked: All Subjects requires the universal subject-distribution planner. No single-subject fallback was used."
+        val selectedSubjectName = genSubject.value.trim()
+        val isAllSubjects = selectedSubjectName.equals("All Subjects", ignoreCase = true)
+        val selectedSubjectConfigs = if (isAllSubjects) {
+            savePaper.subjects
+        } else {
+            listOfNotNull(savePaper.subjects.singleOrNull { subject ->
+                subject.subjectId.equals(selectedSubjectName, true) ||
+                    subject.subjectName.equals(selectedSubjectName, true)
+            })
+        }
+        if (selectedSubjectConfigs.isEmpty()) {
+            val error = "Gemini batch rejected: selected subject is not configured for this paper."
+            _aiGenState.value = AiGenerationState.Error(error)
+            aiGenStatusMessage.value = error
+            return@withContext
+        }
+        val generationPlan = try {
+            Com.ak.testseries.exam.UniversalQuestionGenerationPlanner.create(
+                exam = saveExamConfig,
+                stage = saveStage,
+                paper = savePaper,
+                selectedSubject = selectedSubjectName,
+                requestedQuestions = jsonArray.length()
+            )
+        } catch (e: Exception) {
+            val error = "Gemini batch rejected: " + (e.message ?: "subject distribution is invalid.")
             _aiGenState.value = AiGenerationState.Error(error)
             aiGenStatusMessage.value = error
             return@withContext
@@ -5968,6 +5994,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val validationError = validateRealQuestionBatch(selectedExam, jsonArray.length(), questions)
         if (validationError != null) {
             val error = "Gemini batch rejected: $validationError"
+            _aiGenState.value = AiGenerationState.Error(error)
+            aiGenStatusMessage.value = error
+            return@withContext
+        }
+        val actualDistribution = questions.map { question ->
+            val subjectConfig = selectedSubjectConfigs.singleOrNull { subject ->
+                subject.subjectId.equals(question.subject, true) ||
+                    subject.subjectName.equals(question.subject, true)
+            } ?: run {
+                val error = "Gemini batch rejected: a question has an unknown subject."
+                _aiGenState.value = AiGenerationState.Error(error)
+                aiGenStatusMessage.value = error
+                return@withContext
+            }
+            subjectConfig.subjectId to question.section
+        }
+        if (!generationPlan.matches(actualDistribution)) {
+            val error = "Gemini batch rejected: actual subject/section counts do not match the registered exam pattern."
             _aiGenState.value = AiGenerationState.Error(error)
             aiGenStatusMessage.value = error
             return@withContext
@@ -5990,7 +6034,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("questionType", q.questionType)
             qObj.put("section", q.section)
             qObj.put("sectionId", q.section)
-            val sectionConfig = saveSubject.sections.singleOrNull { it.sectionId == q.section }
+            val questionSubjectConfig = selectedSubjectConfigs.singleOrNull { subject ->
+                subject.subjectId.equals(q.subject, true) || subject.subjectName.equals(q.subject, true)
+            }
+            val sectionConfig = questionSubjectConfig?.sections?.singleOrNull { it.sectionId == q.section }
                 ?: run {
                     val error = "Gemini batch rejected: question section is not configured for the selected subject."
                     _aiGenState.value = AiGenerationState.Error(error)
@@ -6039,7 +6086,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             batchName = genBatch.value,
             facultyName = genFaculty.value,
             language = genLanguage.value,
-            subject = saveSubject.subjectName,
+            subject = if (isAllSubjects) "All Subjects" else selectedSubjectConfigs.single().subjectName,
             difficulty = "Medium",
             testType = if (isLiveTest) "Live" else genType.value,
             questionsCount = jsonArray.length(),
