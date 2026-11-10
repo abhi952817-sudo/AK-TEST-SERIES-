@@ -1394,6 +1394,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
+            qObj.put("questionType", q.questionType)
+            qObj.put("section", q.section)
+            qObj.put("sectionId", q.section)
             qObj.put("generationModel", activeAiModel.value)
             qObj.put("sourceName", "Gemini PDF question generation")
             qObj.put("sourceVerified", true)
@@ -6062,11 +6065,35 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (expectedCount > 0 && questions.size != expectedCount) {
             return "Question count does not match the requested test pattern."
         }
-        val optionCount = Com.ak.testseries.exam.UniversalExamRegistry
-            .findExamByNameOrShortName(targetExam)?.defaultOptionCount ?: 4
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+            ?: return "Selected exam is not registered. Question pattern could not be verified."
+        val optionCount = examConfig.defaultOptionCount
+        val configuredSections = examConfig.stages.flatMap { stage ->
+            stage.papers.flatMap { paper ->
+                paper.subjects.flatMap { subject ->
+                    subject.sections.map { section -> Triple(subject, section, stage) }
+                }
+            }
+        }
         for ((index, question) in questions.withIndex()) {
             val number = index + 1
             val type = question.questionType.uppercase()
+            if (type.isBlank() || question.section.isBlank()) {
+                return "Question $number is missing its configured question type or section."
+            }
+            val normalizedType = when (type) {
+                "MCQ" -> "MCQ_SINGLE"
+                "NUMERICAL" -> "NUMERICAL_VALUE"
+                else -> type
+            }
+            val matchingSection = configuredSections.singleOrNull { (subjectConfig, sectionConfig, _) ->
+                sectionConfig.sectionId == question.section &&
+                    (subjectConfig.subjectId.equals(question.subject, true) ||
+                        subjectConfig.subjectName.equals(question.subject, true))
+            } ?: return "Question $number does not match a configured subject and section in the selected exam."
+            if (!matchingSection.second.questionType.name.equals(normalizedType, ignoreCase = true)) {
+                return "Question $number has a question type that conflicts with the selected exam section."
+            }
             val numeric = type.contains("NUMERICAL") || type == "NAT" || type == "TITA"
             val options = listOfNotNull(
                 question.optionA, question.optionB, question.optionC, question.optionD,
