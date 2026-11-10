@@ -108,6 +108,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val isAdmin: Boolean
         get() = isAdminFlow.value
 
+    private var retiredDemoPurgeCompleted = false
+    private var retiredDemoPurgeInFlight = false
+
     /**
      * Server-verified Admin Check (Phase 2)
      * - Always forces fresh ID token
@@ -140,6 +143,34 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
     }
 
+    private fun purgeRetiredDemoTestsFromFirestore() {
+        if (retiredDemoPurgeCompleted || retiredDemoPurgeInFlight) return
+        retiredDemoPurgeInFlight = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                    .getHttpsCallable("purgeRetiredDemoTests")
+                    .call()
+                    .await()
+                val response = result.data as? Map<*, *>
+                if (response?.get("success") == true) {
+                    retiredDemoPurgeCompleted = true
+                    android.util.Log.i(
+                        "NEETViewModel",
+                        "Retired demo cleanup completed. Deleted documents: ${response["deletedCount"]}"
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "NEETViewModel",
+                    "Retired demo cleanup is pending backend deployment or admin permission: ${e.message}"
+                )
+            } finally {
+                retiredDemoPurgeInFlight = false
+            }
+        }
+    }
+
     /**
      * Call this every time before opening Admin Panel
      * or performing sensitive admin actions.
@@ -161,6 +192,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                 val isAllowed = hasAdminClaim || isVerifiedOwner
                 isAdminFlow.value = isAllowed
+                if (isAllowed) purgeRetiredDemoTestsFromFirestore()
                 onResult(isAllowed)
             }
             .addOnFailureListener {
