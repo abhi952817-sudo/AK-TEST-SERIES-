@@ -212,8 +212,16 @@ object GeminiPdfExtractor {
                         "Question " + (index + 1) + " contains placeholder options."
                     }
                     val validAnswers = if (options.size == 5) setOf("A", "B", "C", "D", "E") else setOf("A", "B", "C", "D")
-                    require(answer in validAnswers) {
-                        "Question " + (index + 1) + " has no valid source answer key."
+                    val answerTokens = answer.replace(Regex("\\bAND\\b"), ",")
+                        .split(Regex("[,;|\\s]+")).filter { it.isNotBlank() }
+                    val multipleCorrect = section.questionType == Com.ak.testseries.exam.QuestionType.MCQ_MULTIPLE
+                    val answerValid = if (multipleCorrect) {
+                        answerTokens.size >= 2 && answerTokens.all { it in validAnswers }
+                    } else {
+                        answer in validAnswers
+                    }
+                    require(answerValid) {
+                        "Question " + (index + 1) + " has no valid source answer key for its configured question type."
                     }
                 }
                 val questionId = "q_" + (index + 1)
