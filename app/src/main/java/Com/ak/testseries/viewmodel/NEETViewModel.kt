@@ -5948,8 +5948,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
-                    subject = qObj.optString("subject").ifBlank {
-                        if (isAllSubjects) "" else selectedSubjectConfigs.single().subjectName
+                    subject = qObj.optString("subjectId").ifBlank {
+                        qObj.optString("subject").ifBlank {
+                            if (isAllSubjects) "" else selectedSubjectConfigs.single().subjectName
+                        }
                     },
                     chapter = qChapter,
                     topic = qTopic,
@@ -6041,7 +6043,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("generationModel", "gemini:" + activeAiModel.value)
             qObj.put("sourceName", "Gemini PDF question generation")
             qObj.put("sourceVerified", true)
-            qObj.put("subject", q.subject)
+            qObj.put("subjectId", questionSubjectConfig.subjectId)
+            qObj.put("subject", questionSubjectConfig.subjectName)
             qObj.put("chapter", q.chapter)
             qObj.put("topic", q.topic)
             qObj.put("imageUrl", q.imageUrl ?: "")
