@@ -5879,6 +5879,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                     optionEHi = qObj.optString("optionEHi", "").takeIf { it.isNotEmpty() },
                     explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
+                    questionType = qObj.optString("questionType"),
+                    section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
                     needsImage = finalNeedsImage,
                     imageUrl = finalImageUrl
                 )
@@ -5889,8 +5891,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val saveExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(selectedExam)
         val saveStage = saveExamConfig?.stages?.singleOrNull()
         val savePaper = saveStage?.papers?.singleOrNull()
-        if (saveExamConfig == null || saveStage == null || savePaper == null) {
-            val error = "Test blocked: exam stage/paper identity is ambiguous or unregistered."
+        val saveSubject = savePaper?.subjects?.singleOrNull { subject ->
+            subject.subjectId.equals(genSubject.value, true) ||
+                subject.subjectName.equals(genSubject.value, true)
+        }
+        if (saveExamConfig == null || saveStage == null || savePaper == null || saveSubject == null) {
+            val error = "Test blocked: exam stage, paper or selected subject identity is ambiguous or unregistered."
             _aiGenState.value = AiGenerationState.Error(error)
             aiGenStatusMessage.value = error
             return@withContext
@@ -5929,6 +5935,22 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
+            qObj.put("questionType", q.questionType)
+            qObj.put("section", q.section)
+            qObj.put("sectionId", q.section)
+            val sectionConfig = saveSubject.sections.singleOrNull { it.sectionId == q.section }
+                ?: run {
+                    val error = "Gemini batch rejected: question section is not configured for the selected subject."
+                    _aiGenState.value = AiGenerationState.Error(error)
+                    aiGenStatusMessage.value = error
+                    return@withContext
+                }
+            qObj.put("sectionName", sectionConfig.sectionName)
+            qObj.put("positiveMarks", sectionConfig.positiveMarks)
+            qObj.put("negativeMarks", sectionConfig.negativeMarks)
+            qObj.put("generationModel", "gemini:" + activeAiModel.value)
+            qObj.put("sourceName", "Gemini PDF question generation")
+            qObj.put("sourceVerified", true)
             qObj.put("subject", q.subject)
             qObj.put("chapter", q.chapter)
             qObj.put("topic", q.topic)
@@ -5965,13 +5987,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             batchName = genBatch.value,
             facultyName = genFaculty.value,
             language = genLanguage.value,
-            subject = genSubject.value,
+            subject = saveSubject.subjectName,
             difficulty = "Medium",
             testType = if (isLiveTest) "Live" else genType.value,
             questionsCount = jsonArray.length(),
-            isOfficial = isLiveTest,
-            isVerifiedCommunity = isLiveTest || isAdmin,
-            countsTowardRanking = isLiveTest, // Only official Admin live tests count toward competitive ranking
+            isOfficial = false,
+            isVerifiedCommunity = false,
+            countsTowardRanking = false,
             attemptsCount = 0,
             downloadsCount = 0,
             chapter = primaryChapter,
