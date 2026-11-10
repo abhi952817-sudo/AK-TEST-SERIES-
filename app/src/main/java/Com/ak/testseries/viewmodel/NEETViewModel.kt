@@ -6021,21 +6021,41 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             if (isLiveTest) {
                 try {
                     val db = firestoreDb
-                    val canonicalExam = genTargetExam.value.ifBlank { _userProfile.value.targetExam.ifBlank { "NEET UG" } }
-                    val liveTestData = hashMapOf(
+                    val canonicalExam = saveExamConfig.examId
+                    val (livePublicQuestions, liveAnswerKeys) = separatePublicAndSecretQuestions(questionsJsonString)
+                    val liveTestData = hashMapOf<String, Any>(
                         "id" to testId,
                         "title" to genTestName.value,
-                        "subject" to genSubject.value,
+                        "subject" to saveSubject.subjectName,
                         "classLevel" to genBatch.value,
                         "targetExam" to canonicalExam,
+                        "examId" to saveExamConfig.examId,
+                        "stageId" to saveStage.stageId,
+                        "paperId" to savePaper.paperId,
+                        "scoringVersion" to 1,
                         "chapter" to primaryChapter,
                         "scheduledTime" to genLiveScheduledTime.value,
                         "durationMinutes" to genLiveDurationMinutes.value,
                         "questionsCount" to jsonArray.length(),
+                        "questionsJson" to livePublicQuestions,
+                        "processingStatus" to "Ready",
+                        "questionsVerified" to true,
+                        "status" to "Published",
+                        "isPublic" to true,
+                        "isOfficial" to false,
+                        "isVerifiedCommunity" to false,
+                        "countsTowardRanking" to false,
+                        "uploaderId" to authenticatedUid,
                         "isLive" to true,
                         "timestamp" to System.currentTimeMillis()
                     )
-                    db.collection("LiveTests").document(testId).set(liveTestData).await()
+                    val liveTestRef = db.collection("LiveTests").document(testId)
+                    liveTestRef.set(liveTestData).await()
+                    if (liveAnswerKeys.isNotEmpty()) {
+                        liveTestRef.collection("private_keys").document("answerKey").set(
+                            mapOf("testId" to testId, "questions" to liveAnswerKeys, "sourceVerified" to true)
+                        ).await()
+                    }
 
                     // Broadcast Live Test Notification
                     try {
