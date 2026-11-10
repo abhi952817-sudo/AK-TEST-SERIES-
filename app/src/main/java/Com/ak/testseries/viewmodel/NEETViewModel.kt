@@ -1508,7 +1508,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "questionsCount" to effectiveQCount,
                     "isLive" to true,
                     "timestamp" to System.currentTimeMillis(),
-                    "questionsJson" to questionsJsonString
+                    "questionsJson" to questionsJsonString,
+                    "processingStatus" to if (questions.isNotEmpty()) "Ready" else "Pending Extraction",
+                    "questionsVerified" to questions.isNotEmpty()
                 )
 
                 var finalPdfUrl = ""
@@ -1521,7 +1523,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         testData["pdfUrl"] = finalPdfUrl
                         testData["processingStatus"] = "Pending Extraction"
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        android.util.Log.e("NEETViewModel", "Live test PDF upload failed; test was not created.", e)
+                        return@launch
+                    }
+                    if (finalPdfUrl.isBlank()) {
+                        android.util.Log.e("NEETViewModel", "Live test PDF upload returned no source URL; test was not created.")
+                        return@launch
                     }
                 }
 
@@ -1579,11 +1586,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     questionsJson = questionsJsonString,
                     isPublic = true
                 )
-                repository.insertTest(roomTest)
+                // PDF-backed tests remain hidden from the local palette until Gemini has
+                // extracted, validated and persisted the complete question payload.
                 if (questions.isNotEmpty()) {
+                    repository.insertTest(roomTest)
                     repository.insertQuestions(questions)
+                    uploadTestToFirestore(roomTest, questionsJsonString)
                 }
-                uploadTestToFirestore(roomTest, questionsJsonString)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
