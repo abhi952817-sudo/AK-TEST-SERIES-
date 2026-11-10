@@ -12,6 +12,48 @@ import kotlinx.coroutines.tasks.await
 
 class FirebaseRemoteDataSourceImpl : RemoteDataSource {
 
+    private fun hasVerifiedQuestionPayload(rawJson: String?, expectedCount: Int): Boolean {
+        if (rawJson.isNullOrBlank() || expectedCount <= 0) return false
+        val questions = try {
+            org.json.JSONArray(rawJson)
+        } catch (_: Exception) {
+            return false
+        }
+        if (questions.length() != expectedCount) return false
+
+        for (index in 0 until questions.length()) {
+            val question = questions.optJSONObject(index) ?: return false
+            val text = question.optString("questionText").ifBlank { question.optString("text") }.trim()
+            val answer = question.optString("correctAnswer").ifBlank { question.optString("correctOption") }.trim()
+            val explanation = question.optString("explanation").trim()
+            val type = question.optString("questionType").uppercase()
+            if (text.length < 10 || answer.isBlank() || explanation.length < 15) return false
+
+            val numeric = type.contains("NUMERICAL") || type == "NAT" || type == "TITA"
+            if (numeric) {
+                if (answer.toDoubleOrNull()?.isFinite() != true) return false
+                continue
+            }
+
+            val optionsArray = question.optJSONArray("options")
+            val options = if (optionsArray != null) {
+                (0 until optionsArray.length()).map { optionsArray.optString(it).trim() }
+            } else {
+                listOf("A", "B", "C", "D", "E").map { letter ->
+                    question.optString("option" + letter)
+                        .ifBlank { question.optString("option" + letter + "En") }
+                        .trim()
+                }.filter { it.isNotBlank() }
+            }
+            if (options.size !in 4..5 || options.any { it.isBlank() }) return false
+            if (options.map { it.lowercase() }.distinct().size != options.size) return false
+            if (options.any { it.matches(Regex("(option|choice|distractor option)\\s+[A-E]", RegexOption.IGNORE_CASE)) }) return false
+            val validAnswers = if (options.size == 5) setOf("A", "B", "C", "D", "E") else setOf("A", "B", "C", "D")
+            if (answer.uppercase() !in validAnswers && options.none { it.equals(answer, ignoreCase = true) }) return false
+        }
+        return true
+    }
+
     private val firestore: FirebaseFirestore? by lazy {
         try {
             FirestoreHelper.getInstance()
@@ -34,35 +76,42 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
             if (snapshot != null) {
                 val newTests = snapshot.documents.mapNotNull { doc ->
                     try {
+                        val questionsCount = doc.getLong("questionsCount")?.toInt() ?: 0
+                        val questionsJson = doc.getString("questionsJson")
+                        if (!hasVerifiedQuestionPayload(questionsJson, questionsCount)) return@mapNotNull null
+                        val title = doc.getString("title").orEmpty()
+                        val subject = doc.getString("subject").orEmpty()
+                        val targetExam = doc.getString("targetExam") ?: doc.getString("examName").orEmpty()
+                        if (title.isBlank() || subject.isBlank() || targetExam.isBlank()) return@mapNotNull null
                         val isOfficialVal = doc.getBoolean("isOfficial") ?: false
                         val statusVal = doc.getString("status") ?: if (isOfficialVal) "Published" else "Draft"
                         val isPublicVal = doc.getBoolean("isPublic") ?: (isOfficialVal || statusVal == "Published")
                         TestEntity(
                             id = doc.id,
-                            title = doc.getString("title") ?: "Unknown Test",
+                            title = title,
                             description = doc.getString("description") ?: "",
                             institute = doc.getString("institute") ?: "Unknown Institute",
                             batchName = doc.getString("batchName") ?: "Unknown Batch",
                             facultyName = doc.getString("facultyName") ?: "Unknown Faculty",
                             language = doc.getString("language") ?: "English",
-                            subject = doc.getString("subject") ?: "Unknown Subject",
+                            subject = subject,
                             difficulty = doc.getString("difficulty") ?: "Medium",
                             testType = doc.getString("testType") ?: "Mock Test",
-                            questionsCount = doc.getLong("questionsCount")?.toInt() ?: 0,
+                            questionsCount = questionsCount,
                             isOfficial = isOfficialVal,
                             isVerifiedCommunity = doc.getBoolean("isVerifiedCommunity") ?: false,
                             isPublic = isPublicVal,
                             status = statusVal,
                             uploaderId = doc.getString("uploaderId") ?: doc.getString("creatorId") ?: "",
-                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: true,
-                            targetExam = doc.getString("targetExam") ?: "NEET",
+                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: false,
+                            targetExam = targetExam,
                             durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 0,
                             classLevel = doc.getString("classLevel") ?: "11th",
                             chapter = doc.getString("chapter") ?: "",
                             topic = doc.getString("topic") ?: "",
-                            timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
+                            timestamp = doc.getLong("timestamp") ?: 0L,
                             imageUrl = doc.getString("imageUrl"),
-                            questionsJson = doc.getString("questionsJson"),
+                            questionsJson = questionsJson,
                             examId = doc.getString("examId"),
                             stageId = doc.getString("stageId"),
                             paperId = doc.getString("paperId"),
@@ -84,28 +133,38 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
             if (snapshot != null) {
                 val newLiveTests = snapshot.documents.mapNotNull { doc ->
                     try {
+                        val processingStatus = doc.getString("processingStatus").orEmpty()
+                        val questionsCount = doc.getLong("questionsCount")?.toInt() ?: 0
+                        val questionsJson = doc.getString("questionsJson")
+                        if (processingStatus != "Ready" ||
+                            !hasVerifiedQuestionPayload(questionsJson, questionsCount)
+                        ) return@mapNotNull null
+                        val title = doc.getString("title").orEmpty()
+                        val subject = doc.getString("subject").orEmpty()
+                        val targetExam = doc.getString("targetExam").orEmpty()
+                        if (title.isBlank() || subject.isBlank() || targetExam.isBlank()) return@mapNotNull null
                         TestEntity(
                             id = doc.id,
-                            title = doc.getString("title") ?: "Unknown Live Test",
+                            title = title,
                             description = "Live Scheduled Test on " + (doc.getString("scheduledTime") ?: ""),
                             institute = "Admin Live",
                             batchName = doc.getString("classLevel") ?: "11th",
                             facultyName = "Admin",
                             language = "English",
-                            subject = doc.getString("subject") ?: "Unknown Subject",
+                            subject = subject,
                             difficulty = "Medium",
                             testType = "Live",
-                            questionsCount = doc.getLong("questionsCount")?.toInt() ?: 0,
+                            questionsCount = questionsCount,
                             isOfficial = true,
                             isVerifiedCommunity = true,
-                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: true,
+                            countsTowardRanking = doc.getBoolean("countsTowardRanking") ?: false,
                             classLevel = doc.getString("classLevel") ?: "11th",
                             chapter = doc.getString("chapter") ?: "",
                             topic = "",
                             timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
                             imageUrl = null,
-                            questionsJson = doc.getString("questionsJson"),
-                            targetExam = doc.getString("targetExam") ?: "NEET",
+                            questionsJson = questionsJson,
+                            targetExam = targetExam,
                             examId = doc.getString("examId"),
                             stageId = doc.getString("stageId"),
                             paperId = doc.getString("paperId"),
