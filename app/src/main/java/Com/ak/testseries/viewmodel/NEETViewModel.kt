@@ -4796,178 +4796,95 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             if (hasApiKey) {
                 try {
                     val pages = lastExtractedPdfPages.value
-                    val pageChunkSize = 2 // Process in smaller page ranges (2 pages per chunk)
                     var successChunks = 0
-
                     val isPrivatePdfExtraction = !genIsPublic.value || autoRoutedWorkflow.value == "private"
-                    val answerKeyPage = if (isPrivatePdfExtraction && pages.isNotEmpty()) {
-                        pages.findLast { pageText ->
-                            val lower = pageText.lowercase()
-                            lower.contains("answer key") || lower.contains("answer sheet") || 
-                            lower.contains("उत्तर कुंजी") || lower.contains("scoring key") || 
-                            lower.contains("key & solutions") || lower.contains("hints & solutions")
-                        }
-                    } else null
-
-                    if (pages.isNotEmpty()) {
-                        val totalPageChunks = (pages.size + pageChunkSize - 1) / pageChunkSize
-                        val questionsPerChunk = ((totalQuestions + totalPageChunks - 1) / totalPageChunks).coerceAtLeast(1)
-
-                        for (chunkIndex in currentChunkIndex until totalPageChunks) {
-                            val startPage = chunkIndex * pageChunkSize + 1
-                            val endPage = minOf((chunkIndex + 1) * pageChunkSize, pages.size)
-                            val currentChunkPageText = pages.subList(startPage - 1, endPage).joinToString("\n\n-- Page Break --\n\n")
-                            val rawChunkText = if (answerKeyPage != null && !currentChunkPageText.contains(answerKeyPage)) {
-                                "$currentChunkPageText\n\n-- Reference Document Answer Key --\n$answerKeyPage"
-                            } else {
-                                currentChunkPageText
-                            }
-                            val chunkMarkdown = Com.ak.testseries.utils.CompactMarkdownFormatter.formatToCompactMarkdown(rawChunkText)
-
-                            val startQ = allQuestionsList.size + 1
-                            val remainingNeeded = totalQuestions - allQuestionsList.size
-                            if (remainingNeeded <= 0 && chunkIndex > 0) break
-                            val currentChunkQuestions = minOf(questionsPerChunk, remainingNeeded).coerceAtLeast(1)
-                            val endQ = startQ + currentChunkQuestions - 1
-
-                            aiGenStatusMessage.value = if (isPrivatePdfExtraction) {
-                                "AI transcribing questions $startQ-$endQ from Pages $startPage-$endPage (Chunk ${chunkIndex + 1}/$totalPageChunks)..."
-                            } else {
-                                "AI processing Pages $startPage-$endPage (Chunk ${chunkIndex + 1}/$totalPageChunks)..."
-                            }
-
-                            val examConfig = resolvedExamConfig
-
-                            val basePrompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
-                                examConfig = examConfig,
-                                subject = promptSubjectName,
-                                testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
-                                compactMarkdownPayload = chunkMarkdown, // Send current page chunk with answer key reference
-                                currentChunkSize = currentChunkQuestions,
-                                startQ = startQ,
-                                endQ = endQ,
-                                totalQuestions = totalQuestions,
-                                isExtractionMode = isPrivatePdfExtraction
-                            )
-                            val prompt = basePrompt + "\n\n" +
-                                questionPlan.batchInstruction(startQ - 1, currentChunkQuestions)
-                            val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
-
-                            val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
-                            if (resultJson != null) {
-                                try {
-                                    val cleanJson = resultJson.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-                                    val jsonArray = if (cleanJson.startsWith("[")) {
-                                        org.json.JSONArray(cleanJson)
-                                    } else if (cleanJson.startsWith("{")) {
-                                        val obj = org.json.JSONObject(cleanJson)
-                                        obj.optJSONArray("questions")
-                                            ?: obj.optJSONArray("data")
-                                            ?: obj.optJSONArray("mcqs")
-                                            ?: org.json.JSONArray()
-                                    } else {
-                                        val startIdx = cleanJson.indexOf('[')
-                                        val endIdx = cleanJson.lastIndexOf(']')
-                                        if (startIdx != -1 && endIdx > startIdx) {
-                                            org.json.JSONArray(cleanJson.substring(startIdx, endIdx + 1))
-                                        } else {
-                                            org.json.JSONArray()
-                                        }
-                                    }
-                                    if (jsonArray.length() != currentChunkQuestions) {
-                                        aiGenStatusMessage.value = "Gemini batch rejected: expected $currentChunkQuestions questions but received ${jsonArray.length()}."
-                                        break
-                                    }
-                                    for (i in 0 until jsonArray.length()) {
-                                        allQuestionsList.add(jsonArray.getJSONObject(i))
-                                    }
-                                    successChunks++
-                                    // Mark current chunk complete so it is never re-processed
-                                    currentChunkIndex = chunkIndex + 1
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
-                            delay(800) // Small delay to respect rate limits
-                        }
+                    val sourceText = if (pages.isNotEmpty()) {
+                        pages.joinToString("\n\n-- Page Break --\n\n")
                     } else {
-                        // Fallback when raw text was provided without page splits
-                        val chunkSize = 5
-                        val totalChunks = (totalQuestions + chunkSize - 1) / chunkSize
+                        lastExtractedPdfText.value
+                    }
+                    val compactSource = if (sourceText.isNotBlank()) {
+                        Com.ak.testseries.utils.CompactMarkdownFormatter.formatToCompactMarkdown(sourceText)
+                    } else {
+                        "No uploaded source text was available. Generate only from the registered official syllabus and the selected exam pattern."
+                    }
+                    val chunkSize = 5
+                    val totalChunks = (totalQuestions + chunkSize - 1) / chunkSize
 
-                        for (chunkIndex in currentChunkIndex until totalChunks) {
-                            val startQ = chunkIndex * chunkSize + 1
-                            val endQ = minOf((chunkIndex + 1) * chunkSize, totalQuestions)
-                            val currentChunkSize = endQ - startQ + 1
+                    for (chunkIndex in currentChunkIndex until totalChunks) {
+                        val startQ = allQuestionsList.size + 1
+                        val remainingNeeded = totalQuestions - allQuestionsList.size
+                        if (remainingNeeded <= 0) break
+                        val currentChunkQuestions = minOf(chunkSize, remainingNeeded)
+                        val endQ = startQ + currentChunkQuestions - 1
 
-                            aiGenStatusMessage.value = if (isPrivatePdfExtraction) {
-                                "AI transcribing questions $startQ to $endQ of $totalQuestions (Chunk ${chunkIndex + 1}/$totalChunks)..."
-                            } else {
-                                "AI processing source text for questions $startQ to $endQ of $totalQuestions (Chunk ${chunkIndex + 1}/$totalChunks)..."
-                            }
+                        aiGenStatusMessage.value =
+                            "Gemini is generating questions $startQ-$endQ of $totalQuestions using the complete source and configured subject distribution."
 
-                            val fullSourceText = lastExtractedPdfText.value
-                            val rawSourceText = if (fullSourceText.length <= 40000) {
-                                fullSourceText
-                            } else {
-                                val sliceLen = (fullSourceText.length / totalChunks).coerceAtLeast(1)
-                                val startIdx = (chunkIndex * sliceLen).coerceAtMost(fullSourceText.length)
-                                val endIdx = if (chunkIndex == totalChunks - 1) fullSourceText.length else ((chunkIndex + 1) * sliceLen).coerceAtMost(fullSourceText.length)
-                                fullSourceText.substring(startIdx, endIdx)
-                            }
-                            val examConfig = resolvedExamConfig
+                        val basePrompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
+                            examConfig = resolvedExamConfig,
+                            subject = promptSubjectName,
+                            testTitle = genTestName.value.ifBlank { resolvedExamConfig.shortName + " Practice Test" },
+                            compactMarkdownPayload = compactSource,
+                            currentChunkSize = currentChunkQuestions,
+                            startQ = startQ,
+                            endQ = endQ,
+                            totalQuestions = totalQuestions,
+                            isExtractionMode = isPrivatePdfExtraction
+                        )
+                        val prompt = basePrompt + "\n\n" +
+                            questionPlan.batchInstruction(startQ - 1, currentChunkQuestions)
+                        val examSystemInstruction =
+                            Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(resolvedExamConfig)
 
-                            val basePrompt = Com.ak.testseries.exam.UniversalAIContext.buildDynamicGenerationPrompt(
-                                examConfig = examConfig,
-                                subject = promptSubjectName,
-                                testTitle = genTestName.value.ifBlank { "${examConfig.shortName} Practice Test" },
-                                compactMarkdownPayload = rawSourceText,
-                                currentChunkSize = currentChunkSize,
-                                startQ = startQ,
-                                endQ = endQ,
-                                totalQuestions = totalQuestions,
-                                isExtractionMode = isPrivatePdfExtraction
-                            )
-                            val prompt = basePrompt + "\n\n" +
-                                questionPlan.batchInstruction(startQ - 1, currentChunkSize)
-                            val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
+                        val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
+                        if (resultJson.isNullOrBlank()) {
+                            aiGenStatusMessage.value = "Gemini did not return a valid question batch. No offline or synthetic fallback was used."
+                            break
+                        }
 
-                            val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
-                            if (resultJson != null) {
-                                try {
-                                    val cleanJson = resultJson.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-                                    val jsonArray = if (cleanJson.startsWith("[")) {
-                                        org.json.JSONArray(cleanJson)
-                                    } else if (cleanJson.startsWith("{")) {
-                                        val obj = org.json.JSONObject(cleanJson)
-                                        obj.optJSONArray("questions")
-                                            ?: obj.optJSONArray("data")
-                                            ?: obj.optJSONArray("mcqs")
-                                            ?: org.json.JSONArray()
+                        try {
+                            val cleanJson = resultJson.trim()
+                                .removePrefix("\u0060\u0060\u0060json")
+                                .removePrefix("\u0060\u0060\u0060")
+                                .removeSuffix("\u0060\u0060\u0060")
+                                .trim()
+                            val jsonArray = when {
+                                cleanJson.startsWith("[") -> org.json.JSONArray(cleanJson)
+                                cleanJson.startsWith("{") -> {
+                                    val obj = org.json.JSONObject(cleanJson)
+                                    obj.optJSONArray("questions")
+                                        ?: obj.optJSONArray("data")
+                                        ?: obj.optJSONArray("mcqs")
+                                        ?: org.json.JSONArray()
+                                }
+                                else -> {
+                                    val jsonStart = cleanJson.indexOf('[')
+                                    val jsonEnd = cleanJson.lastIndexOf(']')
+                                    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                                        org.json.JSONArray(cleanJson.substring(jsonStart, jsonEnd + 1))
                                     } else {
-                                        val startIdx = cleanJson.indexOf('[')
-                                        val endIdx = cleanJson.lastIndexOf(']')
-                                        if (startIdx != -1 && endIdx > startIdx) {
-                                            org.json.JSONArray(cleanJson.substring(startIdx, endIdx + 1))
-                                        } else {
-                                            org.json.JSONArray()
-                                        }
+                                        org.json.JSONArray()
                                     }
-                                    if (jsonArray.length() != currentChunkQuestions) {
-                                        aiGenStatusMessage.value = "Gemini batch rejected: expected $currentChunkQuestions questions but received ${jsonArray.length()}."
-                                        break
-                                    }
-                                    for (i in 0 until jsonArray.length()) {
-                                        allQuestionsList.add(jsonArray.getJSONObject(i))
-                                    }
-                                    successChunks++
-                                    currentChunkIndex = chunkIndex + 1
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
                                 }
                             }
-                            delay(800) // Small delay to respect rate limits
+                            if (jsonArray.length() != currentChunkQuestions) {
+                                aiGenStatusMessage.value =
+                                    "Gemini batch rejected: expected $currentChunkQuestions questions but received " +
+                                        jsonArray.length() + "."
+                                break
+                            }
+                            for (index in 0 until jsonArray.length()) {
+                                allQuestionsList.add(jsonArray.getJSONObject(index))
+                            }
+                            successChunks++
+                            currentChunkIndex = chunkIndex + 1
+                        } catch (e: Exception) {
+                            android.util.Log.e("NEETViewModel", "Gemini question batch parsing failed.", e)
+                            aiGenStatusMessage.value = "Gemini returned an invalid JSON batch. No fallback questions were inserted."
+                            break
                         }
+                        delay(800)
                     }
 
                     if (allQuestionsList.size == totalQuestions) {
