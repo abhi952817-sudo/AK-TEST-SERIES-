@@ -1441,8 +1441,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             qObj.put("optionDHi", q.optionDHi ?: "")
             qObj.put("optionEHi", q.optionEHi ?: "")
             qObj.put("explanationHi", q.explanationHi ?: "")
-            qObj.put("questionType", q.questionType)
-            qObj.put("section", q.section)
             qObj.put("needsImage", q.needsImage)
             qObj.put("imageUrl", q.imageUrl ?: "")
             qJsonArray.put(qObj)
