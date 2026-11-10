@@ -4731,6 +4731,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 delay(800)
             }
 
+            val totalQuestions = genQuestionsCount.value
             val selectedExamName = genTargetExam.value.trim()
             val selectedSubjectName = genSubject.value.trim()
             val resolvedExamConfig = Com.ak.testseries.exam.UniversalExamRegistry
@@ -4741,8 +4742,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 aiGenStatusMessage.value = error
                 return@launch
             }
-            if (selectedSubjectName.isBlank() || selectedSubjectName.equals("All Subjects", ignoreCase = true)) {
-                val error = "Test blocked: choose a single configured subject. All Subjects is disabled until the universal distribution planner is active."
+            if (selectedSubjectName.isBlank()) {
+                val error = "Test blocked: select a configured subject or All Subjects."
                 _aiGenState.value = AiGenerationState.Error(error)
                 aiGenStatusMessage.value = error
                 return@launch
@@ -4755,15 +4756,38 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 aiGenStatusMessage.value = error
                 return@launch
             }
-            val resolvedSubjectConfig = resolvedPaper.subjects.singleOrNull { subject ->
-                subject.subjectId.equals(selectedSubjectName, true) ||
-                    subject.subjectName.equals(selectedSubjectName, true)
+            val selectedSubjectConfigs = if (selectedSubjectName.equals("All Subjects", ignoreCase = true)) {
+                resolvedPaper.subjects
+            } else {
+                listOfNotNull(resolvedPaper.subjects.singleOrNull { subject ->
+                    subject.subjectId.equals(selectedSubjectName, true) ||
+                        subject.subjectName.equals(selectedSubjectName, true)
+                })
             }
-            if (resolvedSubjectConfig == null) {
+            if (selectedSubjectConfigs.isEmpty()) {
                 val error = "Test blocked: selected subject does not belong uniquely to the selected paper."
                 _aiGenState.value = AiGenerationState.Error(error)
                 aiGenStatusMessage.value = error
                 return@launch
+            }
+            val questionPlan = try {
+                Com.ak.testseries.exam.UniversalQuestionGenerationPlanner.create(
+                    exam = resolvedExamConfig,
+                    stage = resolvedStage,
+                    paper = resolvedPaper,
+                    selectedSubject = selectedSubjectName,
+                    requestedQuestions = totalQuestions
+                )
+            } catch (e: Exception) {
+                val error = "Test blocked: " + (e.message ?: "Exam question distribution could not be resolved.")
+                _aiGenState.value = AiGenerationState.Error(error)
+                aiGenStatusMessage.value = error
+                return@launch
+            }
+            val promptSubjectName = if (selectedSubjectName.equals("All Subjects", ignoreCase = true)) {
+                "All Subjects"
+            } else {
+                selectedSubjectConfigs.single().subjectName
             }
 
             val keys = getGeminiApiKeys()
@@ -4771,7 +4795,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
             if (hasApiKey) {
                 try {
-                    val totalQuestions = genQuestionsCount.value
                     val pages = lastExtractedPdfPages.value
                     val pageChunkSize = 2 // Process in smaller page ranges (2 pages per chunk)
                     var successChunks = 0
