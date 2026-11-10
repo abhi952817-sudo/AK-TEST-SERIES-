@@ -4752,6 +4752,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                             org.json.JSONArray()
                                         }
                                     }
+                                    if (jsonArray.length() != currentChunkQuestions) {
+                                        aiGenStatusMessage.value = "Gemini batch rejected: expected $currentChunkQuestions questions but received ${jsonArray.length()}."
+                                        break
+                                    }
                                     for (i in 0 until jsonArray.length()) {
                                         allQuestionsList.add(jsonArray.getJSONObject(i))
                                     }
@@ -4825,6 +4829,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                             org.json.JSONArray()
                                         }
                                     }
+                                    if (jsonArray.length() != currentChunkQuestions) {
+                                        aiGenStatusMessage.value = "Gemini batch rejected: expected $currentChunkQuestions questions but received ${jsonArray.length()}."
+                                        break
+                                    }
                                     for (i in 0 until jsonArray.length()) {
                                         allQuestionsList.add(jsonArray.getJSONObject(i))
                                     }
@@ -4838,7 +4846,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
 
-                    if (allQuestionsList.isNotEmpty()) {
+                    if (allQuestionsList.size == totalQuestions) {
                         val combinedArray = org.json.JSONArray()
                         for (obj in allQuestionsList) {
                             combinedArray.put(obj)
