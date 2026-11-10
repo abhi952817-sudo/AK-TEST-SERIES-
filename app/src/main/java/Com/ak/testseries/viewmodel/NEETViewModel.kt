@@ -6061,7 +6061,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
         val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
             ?: return "Selected exam is not registered. Question pattern could not be verified."
-        val optionCount = examConfig.defaultOptionCount
         val configuredSections = examConfig.stages.flatMap { stage ->
             stage.papers.flatMap { paper ->
                 paper.subjects.flatMap { subject ->
@@ -6088,6 +6087,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             if (!matchingSection.second.questionType.name.equals(normalizedType, ignoreCase = true)) {
                 return "Question $number has a question type that conflicts with the selected exam section."
             }
+            val optionCount = matchingSection.second.optionsCount
             val numeric = type.contains("NUMERICAL") || type == "NAT" || type == "TITA"
             val options = listOfNotNull(
                 question.optionA, question.optionB, question.optionC, question.optionD,
