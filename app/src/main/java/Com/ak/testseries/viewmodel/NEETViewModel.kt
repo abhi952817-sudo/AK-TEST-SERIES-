@@ -5980,6 +5980,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @Deprecated("Direct/offline question import is disabled. Use Gemini-verified PDF generation.")
     fun savePreformattedJsonTest(
         title: String,
         subject: String,
@@ -5988,92 +5989,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         onSuccess: (String) -> Unit = {},
         onError: (String) -> Unit = {}
     ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-                val jsonArray = JSONArray(cleanJson)
-                if (jsonArray.length() == 0) {
-                    withContext(Dispatchers.Main) { onError("JSON array is empty") }
-                    return@launch
-                }
-                val testId = "local_p_" + System.currentTimeMillis()
-                val questions = mutableListOf<QuestionEntity>()
-
-                for (i in 0 until jsonArray.length()) {
-                    val qObj = jsonArray.getJSONObject(i)
-                    questions.add(
-                        QuestionEntity(
-                            id = qObj.optString("id", "${testId}_q${i}"),
-                            testId = testId,
-                            questionText = qObj.optString("questionText", qObj.optString("questionTextEn", "Question ${i + 1}")),
-                            optionA = qObj.optString("optionA", qObj.optString("optionAEn", "Option A")),
-                            optionB = qObj.optString("optionB", qObj.optString("optionBEn", "Option B")),
-                            optionC = qObj.optString("optionC", qObj.optString("optionCEn", "Option C")),
-                            optionD = qObj.optString("optionD", qObj.optString("optionDEn", "Option D")),
-                            correctAnswer = qObj.optString("correctAnswer", "").uppercase().take(1),
-                            explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")),
-                            subject = qObj.optString("subject", subject),
-                            chapter = qObj.optString("chapter", "Local Practice"),
-                            topic = qObj.optString("topic", "Pre-formatted"),
-                            difficulty = qObj.optString("difficulty", "Medium"),
-                            questionTextHi = qObj.optString("questionTextHi", "").takeIf { it.isNotEmpty() },
-                            optionAHi = qObj.optString("optionAHi", "").takeIf { it.isNotEmpty() },
-                            optionBHi = qObj.optString("optionBHi", "").takeIf { it.isNotEmpty() },
-                            optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
-                            optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
-                            explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                            questionType = qObj.optString("questionType", "MCQ"),
-                            section = qObj.optString("section", "SECTION_A"),
-                            needsImage = qObj.optBoolean("needsImage", false),
-                            imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
-                        )
-                    )
-                }
-
-                val currentUid = currentUserId.value.ifBlank { "local_user" }
-                val newTest = TestEntity(
-                    id = testId,
-                    title = if (title.isBlank()) "Private Practice Test" else title,
-                    description = "Pre-formatted local private test created without Gemini API.",
-                    institute = "Private Vault",
-                    batchName = "Self Practice",
-                    facultyName = "Local System",
-                    language = "Bilingual",
-                    subject = subject,
-                    difficulty = "Medium",
-                    testType = "Part Test",
-                    questionsCount = questions.size,
-                    isOfficial = false,
-                    isVerifiedCommunity = false,
-                    isPublic = isPublic,
-                    countsTowardRanking = false,
-                    rating = 5.0f,
-                    attemptsCount = 0,
-                    downloadsCount = 1,
-                    isDownloaded = true,
-                    isBookmarked = false,
-                    timestamp = System.currentTimeMillis(),
-                    status = "Published",
-                    aiConfidence = 100,
-                    uploaderId = currentUid,
-                    targetExam = _userProfile.value.targetExam,
-                    durationMinutes = questions.size,
-                    questionsJson = cleanJson
-                )
-
-                repository.insertTest(newTest)
-                repository.insertQuestions(questions)
-                saveQuestionsJsonToInternalStorage(testId, cleanJson)
-
-                withContext(Dispatchers.Main) {
-                    onSuccess(testId)
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    onError("Invalid JSON format: ${e.localizedMessage}")
-                }
-            }
-        }
+        val error = "Direct JSON import is disabled. Questions enter the test palette only after Gemini generation and exam-pattern validation."
+        android.util.Log.w("NEETViewModel", error)
+        onError(error)
     }
 
     fun resetAiGenState() {
