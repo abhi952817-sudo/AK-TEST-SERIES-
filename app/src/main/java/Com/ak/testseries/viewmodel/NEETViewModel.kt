@@ -6119,7 +6119,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val liveTestData = hashMapOf<String, Any>(
                         "id" to testId,
                         "title" to genTestName.value,
-                        "subject" to saveSubject.subjectName,
+                        "subject" to (if (isAllSubjects) "All Subjects" else selectedSubjectConfigs.single().subjectName),
                         "classLevel" to genBatch.value,
                         "targetExam" to canonicalExam,
                         "examId" to saveExamConfig.examId,
