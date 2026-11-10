@@ -4656,14 +4656,20 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 aiGenStatusMessage.value = error
                 return@launch
             }
-            val resolvedSubjectConfig = resolvedExamConfig.stages
-                .flatMap { stage -> stage.papers.flatMap { paper -> paper.subjects } }
-                .singleOrNull { subject ->
-                    subject.subjectId.equals(selectedSubjectName, true) ||
-                        subject.subjectName.equals(selectedSubjectName, true)
-                }
+            val resolvedStage = resolvedExamConfig.stages.singleOrNull()
+            val resolvedPaper = resolvedStage?.papers?.singleOrNull()
+            if (resolvedStage == null || resolvedPaper == null) {
+                val error = "Test blocked: this exam has multiple stages or papers. An explicit stage/paper selector is required; no first-paper fallback is allowed."
+                _aiGenState.value = AiGenerationState.Error(error)
+                aiGenStatusMessage.value = error
+                return@launch
+            }
+            val resolvedSubjectConfig = resolvedPaper.subjects.singleOrNull { subject ->
+                subject.subjectId.equals(selectedSubjectName, true) ||
+                    subject.subjectName.equals(selectedSubjectName, true)
+            }
             if (resolvedSubjectConfig == null) {
-                val error = "Test blocked: selected subject does not belong to the selected exam."
+                val error = "Test blocked: selected subject does not belong uniquely to the selected paper."
                 _aiGenState.value = AiGenerationState.Error(error)
                 aiGenStatusMessage.value = error
                 return@launch
@@ -5813,7 +5819,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        val selectedExam = genTargetExam.value.ifBlank { _userProfile.value.targetExam }
+        val selectedExam = genTargetExam.value.trim()
+        val saveExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(selectedExam)
+        val saveStage = saveExamConfig?.stages?.singleOrNull()
+        val savePaper = saveStage?.papers?.singleOrNull()
+        if (saveExamConfig == null || saveStage == null || savePaper == null) {
+            val error = "Test blocked: exam stage/paper identity is ambiguous or unregistered."
+            _aiGenState.value = AiGenerationState.Error(error)
+            aiGenStatusMessage.value = error
+            return@withContext
+        }
         if (selectedExam.isBlank()) {
             val error = "Test blocked: select a registered exam before saving Gemini questions."
             _aiGenState.value = AiGenerationState.Error(error)
@@ -5898,7 +5913,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             questionsJson = questionsJsonString,
             uploaderId = authenticatedUid,
             isPublic = genIsPublic.value,
-            status = initialStatus
+            status = initialStatus,
+            targetExam = saveExamConfig.examId,
+            examId = saveExamConfig.examId,
+            stageId = saveStage.stageId,
+            paperId = savePaper.paperId,
+            scoringVersion = 1,
+            durationMinutes = savePaper.durationMinutes
         )
 
         repository.insertTest(newTest)
