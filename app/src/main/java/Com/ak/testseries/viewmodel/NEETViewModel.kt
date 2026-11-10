@@ -6247,6 +6247,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        val seenQuestionStems = mutableSetOf<String>()
         for ((index, question) in questions.withIndex()) {
             val number = index + 1
             val type = question.questionType.uppercase()
@@ -6271,7 +6272,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val options = listOf(
                 question.optionA, question.optionB, question.optionC, question.optionD, question.optionE.orEmpty()
             ).map { it.trim() }.filter { it.isNotBlank() }
-            if (question.questionText.trim().length < 10) return "Question $number has missing or incomplete text."
+            val normalizedStem = question.questionText.trim().lowercase().replace(Regex("\\s+"), " ")
+            if (normalizedStem.length < 10) return "Question $number has missing or incomplete text."
+            if (normalizedStem.matches(Regex("^(practice\\s+problem|practice\\s+question|sample\\s+question|question)\\s*#?\\d+.*"))) {
+                return "Question $number contains a synthetic placeholder stem."
+            }
+            if (!seenQuestionStems.add(normalizedStem)) return "Duplicate question text detected at question $number."
             if (question.correctAnswer.isBlank()) return "Question $number has no answer key."
             if (question.explanation.trim().length < 15) return "Question $number has no verifiable explanation."
             if (numeric) {
