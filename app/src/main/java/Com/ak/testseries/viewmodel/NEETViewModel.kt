@@ -969,6 +969,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         // Start real-time test and questions synchronization with Firestore
         viewModelScope.launch(Dispatchers.IO) {
+            purgeRetiredLocalDemoTests()
             testRepository.syncTests()
             seedSyllabusIfNeeded()
         }
@@ -6812,6 +6813,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     @Deprecated("Bundled mock tests are retired; only Gemini-verified questions may be published.")
     fun syncBundledTestsToCloud(onComplete: ((Boolean, String?) -> Unit)? = null) {
         onComplete?.invoke(false, "Bundled mock tests are permanently retired. Use the Gemini question-generation workflow.")
+    }
+
+    private suspend fun purgeRetiredLocalDemoTests() {
+        val retiredIds = listOf(
+            "official_neet_ug_mock_01",
+            "official_jee_mains_mock_01",
+            "official_upsc_cds_mock_01",
+            "official_ssc_cgl_mock_01",
+            "official_banking_ibps_mock_01",
+            "official_rrb_ntpc_mock_01",
+            "official_ugc_net_paper1_mock_01",
+            "official_cat_full_mock_01",
+            "t1", "t2", "t3", "t4", "t5"
+        )
+        for (testId in retiredIds) {
+            db.testDao().getTestById(testId)?.let { db.testDao().deleteTest(it) }
+            db.questionDao().deleteQuestionsForTest(testId)
+        }
     }
 
     fun seedSyllabusIfNeeded(targetExam: String? = null) {
