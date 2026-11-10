@@ -5868,6 +5868,33 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val jsonArray = JSONArray(cleanJson)
         val testId = "ai_" + System.currentTimeMillis()
 
+        val selectedExam = genTargetExam.value.trim()
+        val saveExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(selectedExam)
+        val saveStage = saveExamConfig?.stages?.singleOrNull()
+        val savePaper = saveStage?.papers?.singleOrNull()
+        if (saveExamConfig == null || saveStage == null || savePaper == null) {
+            val error = "Test blocked: exam stage/paper identity is ambiguous or unregistered."
+            _aiGenState.value = AiGenerationState.Error(error)
+            aiGenStatusMessage.value = error
+            return@withContext
+        }
+        val selectedSubjectName = genSubject.value.trim()
+        val isAllSubjects = selectedSubjectName.equals("All Subjects", ignoreCase = true)
+        val selectedSubjectConfigs = if (isAllSubjects) {
+            savePaper.subjects
+        } else {
+            listOfNotNull(savePaper.subjects.singleOrNull { subject ->
+                subject.subjectId.equals(selectedSubjectName, true) ||
+                    subject.subjectName.equals(selectedSubjectName, true)
+            })
+        }
+        if (selectedSubjectConfigs.isEmpty()) {
+            val error = "Gemini batch rejected: selected subject is not configured for this paper."
+            _aiGenState.value = AiGenerationState.Error(error)
+            aiGenStatusMessage.value = error
+            return@withContext
+        }
+
         val questions = mutableListOf<QuestionEntity>()
         var primaryChapter = "All"
         var primaryTopic = "All"
@@ -5941,42 +5968,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        val selectedExam = genTargetExam.value.trim()
-        val saveExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(selectedExam)
-        val saveStage = saveExamConfig?.stages?.singleOrNull()
-        val savePaper = saveStage?.papers?.singleOrNull()
-        val saveSubject = savePaper?.subjects?.singleOrNull { subject ->
-            subject.subjectId.equals(genSubject.value, true) ||
-                subject.subjectName.equals(genSubject.value, true)
-        }
-        if (saveExamConfig == null || saveStage == null || savePaper == null || saveSubject == null) {
-            val error = "Test blocked: exam stage, paper or selected subject identity is ambiguous or unregistered."
-            _aiGenState.value = AiGenerationState.Error(error)
-            aiGenStatusMessage.value = error
-            return@withContext
-        }
-        if (selectedExam.isBlank()) {
-            val error = "Test blocked: select a registered exam before saving Gemini questions."
-            _aiGenState.value = AiGenerationState.Error(error)
-            aiGenStatusMessage.value = error
-            return@withContext
-        }
-        val selectedSubjectName = genSubject.value.trim()
-        val isAllSubjects = selectedSubjectName.equals("All Subjects", ignoreCase = true)
-        val selectedSubjectConfigs = if (isAllSubjects) {
-            savePaper.subjects
-        } else {
-            listOfNotNull(savePaper.subjects.singleOrNull { subject ->
-                subject.subjectId.equals(selectedSubjectName, true) ||
-                    subject.subjectName.equals(selectedSubjectName, true)
-            })
-        }
-        if (selectedSubjectConfigs.isEmpty()) {
-            val error = "Gemini batch rejected: selected subject is not configured for this paper."
-            _aiGenState.value = AiGenerationState.Error(error)
-            aiGenStatusMessage.value = error
-            return@withContext
-        }
         val generationPlan = try {
             Com.ak.testseries.exam.UniversalQuestionGenerationPlanner.create(
                 exam = saveExamConfig,
