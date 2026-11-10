@@ -21,7 +21,9 @@ object GeminiPdfExtractor {
         pdfUrl: String,
         testId: String,
         apiKey: String,
-        totalQuestionsExpected: Int
+        totalQuestionsExpected: Int,
+        targetExam: String,
+        subject: String
     ) = withContext(Dispatchers.IO) {
         val db = FirebaseFirestore.getInstance()
         val testRef = db.collection("LiveTests").document(testId)
@@ -32,24 +34,38 @@ object GeminiPdfExtractor {
                 "Gemini API key is missing. PDF questions were not generated."
             }
             require(totalQuestionsExpected > 0) { "Expected question count must be greater than zero." }
+            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+                ?: throw IllegalArgumentException("Selected exam is not registered.")
+            val stage = examConfig.stages.singleOrNull()
+                ?: throw IllegalArgumentException("Exam has multiple stages; an explicit stage selector is required.")
+            val paper = stage.papers.singleOrNull()
+                ?: throw IllegalArgumentException("Exam stage has multiple papers; an explicit paper selector is required.")
+            val subjectConfig = paper.subjects.singleOrNull {
+                it.subjectId.equals(subject, true) || it.subjectName.equals(subject, true)
+            } ?: throw IllegalArgumentException("Selected subject does not belong uniquely to the selected exam paper.")
+            val configuredSections = subjectConfig.sections
+            require(configuredSections.isNotEmpty()) { "Selected subject has no configured question sections." }
 
             testRef.update("processingStatus", "Downloading source PDF").await()
             val pdfBytes = downloadPdf(pdfUrl)
             require(pdfBytes.isNotEmpty()) { "Downloaded PDF is empty." }
             val pdfBase64 = Base64.encodeToString(pdfBytes, Base64.NO_WRAP)
 
+            val sectionRules = configuredSections.joinToString("\n") { section ->
+                "- ${section.sectionId}: ${section.sectionName}; type=${section.questionType.name}; options=${section.optionsCount}; correct=+${section.positiveMarks}; incorrect=-${section.negativeMarks}"
+            }
             val prompt = """
-                Extract questions ONLY from the attached source PDF.
-                Do not invent, rewrite into new questions, infer missing questions, or use outside knowledge.
+                You are extracting an exam paper for ${examConfig.examName}, subject ${subjectConfig.subjectName}.
+                Extract questions ONLY from the attached source PDF. Never invent a question or replace missing source content.
                 Return exactly $totalQuestionsExpected questions only when that exact number is present and readable in the PDF.
-                If the PDF contains fewer readable questions, return only the readable questions; the app will reject the incomplete batch.
-                Preserve original wording, all answer options, source answer key and explanation only when present in the PDF.
-                Never guess an answer key. If the answer is not explicitly supported by the PDF, return an empty correctOption.
-                Each object must contain:
-                - questionText: non-empty string
-                - options: array of exactly 4 or 5 non-empty option strings
-                - correctOption: exactly A, B, C, D, or E
-                - explanation: non-empty source-grounded explanation
+                If fewer readable questions exist, return only those; the app will reject the incomplete batch.
+                Use only the following configured section rules:
+                $sectionRules
+                Every question must include sectionId, questionType, positiveMarks and negativeMarks matching one configured section exactly.
+                Preserve original wording and all source options. Never invent or guess an answer key.
+                If the source contains an answer key, preserve it. If no source answer key exists, solve the question and include a source-grounded explanation, but do not claim it is an official key.
+                Each object must contain questionText, sectionId, sectionName, questionType, positiveMarks, negativeMarks,
+                options (an array; empty only for a configured numerical section), correctAnswer, and explanation.
                 Return ONLY a JSON array without markdown fences or commentary.
             """.trimIndent()
 
@@ -146,6 +162,19 @@ object GeminiPdfExtractor {
                 val question = questionArray.optJSONObject(index)
                     ?: throw IllegalArgumentException("Question " + (index + 1) + " is not a valid JSON object.")
                 val text = question.optString("questionText").trim()
+                val sectionId = question.optString("sectionId").trim()
+                val section = configuredSections.singleOrNull { it.sectionId == sectionId }
+                    ?: throw IllegalArgumentException("Question " + (index + 1) + " has an unknown section.")
+                val questionType = question.optString("questionType").uppercase()
+                require(questionType == section.questionType.name) {
+                    "Question " + (index + 1) + " does not match the configured section question type."
+                }
+                val positiveMarks = question.optDouble("positiveMarks", Double.NaN)
+                val negativeMarks = question.optDouble("negativeMarks", Double.NaN)
+                require(kotlin.math.abs(positiveMarks - section.positiveMarks) < 0.0001 &&
+                    kotlin.math.abs(negativeMarks - section.negativeMarks) < 0.0001
+                ) { "Question " + (index + 1) + " has incorrect positive or negative marking." }
+
                 val optionsArray = question.optJSONArray("options")
                 val options = if (optionsArray != null) {
                     (0 until optionsArray.length()).map { optionsArray.optString(it).trim() }
@@ -156,34 +185,36 @@ object GeminiPdfExtractor {
                             .trim()
                     }.filter { it.isNotBlank() }
                 }
-                val answer = question.optString("correctOption")
-                    .ifBlank { question.optString("correctAnswer") }.trim().uppercase()
+                val answer = question.optString("correctAnswer")
+                    .ifBlank { question.optString("correctOption") }.trim().uppercase()
                 val explanation = question.optString("explanation").trim()
+                val numeric = section.questionType == Com.ak.testseries.exam.QuestionType.NUMERICAL_VALUE ||
+                    section.questionType == Com.ak.testseries.exam.QuestionType.NUMERICAL ||
+                    section.questionType == Com.ak.testseries.exam.QuestionType.TITA
 
-                require(text.isNotBlank()) { "Question " + (index + 1) + " has no question text." }
-                require(options.size in 4..5 && options.all { it.isNotBlank() }) {
-                    "Question " + (index + 1) + " must contain exactly four or five complete options."
-                }
-                require(options.map { it.lowercase() }.distinct().size == options.size) {
-                    "Question " + (index + 1) + " contains duplicate options."
-                }
-                require(options.none { it.matches(Regex("Option [A-E]", RegexOption.IGNORE_CASE)) }) {
-                    "Question " + (index + 1) + " contains placeholder options."
-                }
-                require(answer in if (options.size == 5) setOf("A", "B", "C", "D", "E") else setOf("A", "B", "C", "D")) {
-                    "Question " + (index + 1) + " has no valid source answer key."
-                }
-                require(explanation.isNotBlank()) {
-                    "Question " + (index + 1) + " has no source-grounded explanation."
-                }
-
-                val answerIndex = when (answer) {
-                    "A" -> 0
-                    "B" -> 1
-                    "C" -> 2
-                    "D" -> 3
-                    "E" -> 4
-                    else -> throw IllegalArgumentException("Question " + (index + 1) + " has an invalid answer key.")
+                require(text.length >= 10) { "Question " + (index + 1) + " has missing or incomplete question text." }
+                require(explanation.length >= 15) { "Question " + (index + 1) + " has no usable explanation." }
+                if (numeric) {
+                    require(section.optionsCount == 0 && options.isEmpty()) {
+                        "Numerical question " + (index + 1) + " must not contain MCQ options."
+                    }
+                    require(answer.toDoubleOrNull()?.isFinite() == true) {
+                        "Numerical question " + (index + 1) + " has an invalid answer."
+                    }
+                } else {
+                    require(section.optionsCount in 4..5 && options.size == section.optionsCount &&
+                        options.all { it.isNotBlank() }
+                    ) { "Question " + (index + 1) + " does not match its configured option count." }
+                    require(options.map { it.lowercase() }.distinct().size == options.size) {
+                        "Question " + (index + 1) + " contains duplicate options."
+                    }
+                    require(options.none { it.matches(Regex("(option|choice|distractor option)\\s+[A-E]", RegexOption.IGNORE_CASE)) }) {
+                        "Question " + (index + 1) + " contains placeholder options."
+                    }
+                    val validAnswers = if (options.size == 5) setOf("A", "B", "C", "D", "E") else setOf("A", "B", "C", "D")
+                    require(answer in validAnswers) {
+                        "Question " + (index + 1) + " has no valid source answer key."
+                    }
                 }
                 val questionId = "q_" + (index + 1)
                 val questionRecord = hashMapOf<String, Any>(
@@ -191,23 +222,29 @@ object GeminiPdfExtractor {
                     "text" to text,
                     "questionText" to text,
                     "options" to options,
-                    "optionA" to options[0],
-                    "optionB" to options[1],
-                    "optionC" to options[2],
-                    "optionD" to options[3],
-                    "questionType" to "MCQ_SINGLE",
-                    "section" to "SECTION_A",
+                    "questionType" to questionType,
+                    "section" to section.sectionId,
+                    "sectionId" to section.sectionId,
+                    "sectionName" to section.sectionName,
+                    "positiveMarks" to section.positiveMarks,
+                    "negativeMarks" to section.negativeMarks,
+                    "subject" to subjectConfig.subjectName,
                     "generationModel" to (activeModel ?: "unknown"),
                     "sourceName" to "Uploaded PDF processed by Gemini",
                     "sourcePdfUrl" to pdfUrl,
                     "sourceVerified" to true
                 )
-                if (options.size == 5) questionRecord["optionE"] = options[4]
+                if (options.size >= 4) {
+                    questionRecord["optionA"] = options[0]
+                    questionRecord["optionB"] = options[1]
+                    questionRecord["optionC"] = options[2]
+                    questionRecord["optionD"] = options[3]
+                    if (options.size == 5) questionRecord["optionE"] = options[4]
+                }
                 questions.add(questionRecord)
                 answerKeys.add(hashMapOf(
                     "id" to questionId,
                     "correctAnswer" to answer,
-                    "correctAnswerIndex" to answerIndex,
                     "explanation" to explanation
                 ))
             }
@@ -228,6 +265,10 @@ object GeminiPdfExtractor {
             batch.update(testRef, "questionsCount", questions.size)
             batch.update(testRef, "questionsJson", questionsJson)
             batch.update(testRef, "questionsVerified", true)
+            batch.update(testRef, "examId", examConfig.examId)
+            batch.update(testRef, "stageId", stage.stageId)
+            batch.update(testRef, "paperId", paper.paperId)
+            batch.update(testRef, "scoringVersion", 1)
             batch.update(testRef, "processingStatus", "Ready")
             batch.commit().await()
         } catch (e: Exception) {
