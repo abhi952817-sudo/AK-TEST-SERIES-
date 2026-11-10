@@ -2421,7 +2421,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     targetExam = targetExam,
                     totalMarks = calculatedTotalMarks,
                     questionCount = finalQuestionCount,
-                    durationMinutes = if (durationMinutes > 0) durationMinutes else paperConfig.durationMinutes,
+                    durationMinutes = durationMinutes,
                     postId = targetPostId
                 )
 
@@ -6805,7 +6805,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     paperId = paperConfig.paperId,
                     scoringVersion = 1,
                     status = "Published",
-                    durationMinutes = durationMinutes
+                    durationMinutes = if (durationMinutes > 0) durationMinutes else paperConfig.durationMinutes
                 )
 
                 val qJsonArray = org.json.JSONArray()
