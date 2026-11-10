@@ -20,21 +20,21 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
             return false
         }
         if (questions.length() != expectedCount) return false
+        val seenStems = mutableSetOf<String>()
 
         for (index in 0 until questions.length()) {
             val question = questions.optJSONObject(index) ?: return false
             val text = question.optString("questionText").ifBlank { question.optString("text") }.trim()
-            val answer = question.optString("correctAnswer").ifBlank { question.optString("correctOption") }.trim()
-            val explanation = question.optString("explanation").trim()
             val type = question.optString("questionType").uppercase()
-            if (text.length < 10 || answer.isBlank() || explanation.length < 15) return false
+            val section = question.optString("sectionId").ifBlank { question.optString("section") }.trim()
+            val model = question.optString("generationModel")
+            val sourceVerified = question.optBoolean("sourceVerified", false)
+            if (text.length < 10 || type.isBlank() || section.isBlank()) return false
+            if (!model.contains("gemini", ignoreCase = true) || !sourceVerified) return false
+            val normalizedStem = text.lowercase().replace(Regex("\\s+"), " ").trim()
+            if (!seenStems.add(normalizedStem)) return false
 
             val numeric = type.contains("NUMERICAL") || type == "NAT" || type == "TITA"
-            if (numeric) {
-                if (answer.toDoubleOrNull()?.isFinite() != true) return false
-                continue
-            }
-
             val optionsArray = question.optJSONArray("options")
             val options = if (optionsArray != null) {
                 (0 until optionsArray.length()).map { optionsArray.optString(it).trim() }
@@ -45,11 +45,13 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                         .trim()
                 }.filter { it.isNotBlank() }
             }
-            if (options.size !in 4..5 || options.any { it.isBlank() }) return false
-            if (options.map { it.lowercase() }.distinct().size != options.size) return false
-            if (options.any { it.matches(Regex("(option|choice|distractor option)\\s+[A-E]", RegexOption.IGNORE_CASE)) }) return false
-            val validAnswers = if (options.size == 5) setOf("A", "B", "C", "D", "E") else setOf("A", "B", "C", "D")
-            if (answer.uppercase() !in validAnswers && options.none { it.equals(answer, ignoreCase = true) }) return false
+            if (numeric) {
+                if (options.isNotEmpty()) return false
+            } else {
+                if (options.size !in 4..5 || options.any { it.isBlank() }) return false
+                if (options.map { it.lowercase() }.distinct().size != options.size) return false
+                if (options.any { it.matches(Regex("(option|choice|distractor option)\\s+[A-E]", RegexOption.IGNORE_CASE)) }) return false
+            }
         }
         return true
     }
