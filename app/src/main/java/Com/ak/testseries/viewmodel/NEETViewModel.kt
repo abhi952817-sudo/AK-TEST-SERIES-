@@ -1486,18 +1486,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     android.util.Log.e("NEETViewModel", "Live test creation blocked: provide a Gemini-generated question batch or a source PDF for Gemini extraction.")
                     return@launch
                 }
-                val invalidQuestion = questions.firstOrNull { question ->
-                    val numeric = question.questionType.contains("NUMERICAL", ignoreCase = true) ||
-                        question.questionType.equals("NAT", ignoreCase = true) ||
-                        question.questionType.equals("TITA", ignoreCase = true)
-                    val options = listOf(question.optionA, question.optionB, question.optionC, question.optionD)
-                    question.questionText.isBlank() || question.correctAnswer.isBlank() ||
-                        question.explanation.isBlank() ||
-                        (!numeric && (options.any { it.isBlank() } ||
-                            options.any { it.trim().matches(Regex("Option [A-D]", RegexOption.IGNORE_CASE)) }))
-                }
-                if (invalidQuestion != null) {
-                    android.util.Log.e("NEETViewModel", "Live test creation blocked: a supplied question is incomplete or contains placeholder options.")
+                val validationError = if (questions.isNotEmpty()) {
+                    validateRealQuestionBatch(targetExam, questionsCount, questions)
+                } else null
+                if (validationError != null) {
+                    android.util.Log.e("NEETViewModel", "Live test creation blocked: $validationError")
                     return@launch
                 }
                 val questionsJsonString = serializeQuestionsToJson(questions)
@@ -6027,7 +6020,60 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Admin Dashboard Upload Actions ---
+    private fun validateRealQuestionBatch(
+        targetExam: String,
+        expectedCount: Int,
+        questions: List<QuestionEntity>
+    ): String? {
+        if (questions.isEmpty()) return "No real questions were supplied."
+        if (expectedCount > 0 && questions.size != expectedCount) {
+            return "Question count does not match the requested test pattern."
+        }
+        val optionCount = Com.ak.testseries.exam.UniversalExamRegistry
+            .findExamByNameOrShortName(targetExam)?.defaultOptionCount ?: 4
+        for ((index, question) in questions.withIndex()) {
+            val number = index + 1
+            val type = question.questionType.uppercase()
+            val numeric = type.contains("NUMERICAL") || type == "NAT" || type == "TITA"
+            val options = listOfNotNull(
+                question.optionA, question.optionB, question.optionC, question.optionD,
+                question.optionE?.takeIf { it.isNotBlank() }
+            ).map { it.trim() }
+            if (question.questionText.trim().length < 10) return "Question $number has missing or incomplete text."
+            if (question.correctAnswer.isBlank()) return "Question $number has no answer key."
+            if (question.explanation.trim().length < 15) return "Question $number has no verifiable explanation."
+            if (numeric) {
+                if (question.correctAnswer.trim().toDoubleOrNull()?.isFinite() != true) {
+                    return "Question $number has an invalid numerical answer."
+                }
+                if (options.isNotEmpty()) return "Numerical question $number must not contain MCQ options."
+            } else {
+                if (options.size != optionCount || options.any { it.isBlank() }) {
+                    return "Question $number does not match the $optionCount-option exam pattern."
+                }
+                if (options.map { it.lowercase() }.distinct().size != options.size) {
+                    return "Question $number contains duplicate options."
+                }
+                if (options.any { it.matches(Regex("(option|choice|distractor option)\\s+[A-E]", RegexOption.IGNORE_CASE)) }) {
+                    return "Question $number contains placeholder options."
+                }
+                val validAnswers = if (optionCount == 5) setOf("A", "B", "C", "D", "E") else setOf("A", "B", "C", "D")
+                if (question.correctAnswer.trim().uppercase() !in validAnswers &&
+                    options.none { it.equals(question.correctAnswer.trim(), ignoreCase = true) }
+                ) {
+                    return "Question $number has an answer key outside its options."
+                }
+            }
+        }
+        return null
+    }
+
     fun adminCreateTest(test: TestEntity, questions: List<QuestionEntity>) {
+        val validationError = validateRealQuestionBatch(test.targetExam, test.questionsCount, questions)
+        if (validationError != null) {
+            android.util.Log.e("NEETViewModel", "Admin test creation blocked: $validationError")
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val questionsJsonString = serializeQuestionsToJson(questions)
             val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
