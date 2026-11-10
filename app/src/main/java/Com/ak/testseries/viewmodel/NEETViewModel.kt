@@ -6112,11 +6112,16 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     return "Question $number contains placeholder options."
                 }
                 val validAnswers = if (optionCount == 5) setOf("A", "B", "C", "D", "E") else setOf("A", "B", "C", "D")
-                if (question.correctAnswer.trim().uppercase() !in validAnswers &&
-                    options.none { it.equals(question.correctAnswer.trim(), ignoreCase = true) }
-                ) {
-                    return "Question $number has an answer key outside its options."
+                val answer = question.correctAnswer.trim().uppercase()
+                val answerTokens = answer.replace(Regex("\\bAND\\b"), ",")
+                    .split(Regex("[,;|\\s]+")).filter { it.isNotBlank() }
+                val multipleCorrect = type.contains("MULTIPLE")
+                val answerValid = if (multipleCorrect) {
+                    answerTokens.size >= 2 && answerTokens.all { it in validAnswers }
+                } else {
+                    answer in validAnswers || options.any { it.equals(answer, ignoreCase = true) }
                 }
+                if (!answerValid) return "Question $number has an answer key outside its configured options."
             }
         }
         return null
