@@ -1394,6 +1394,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             q.optionE?.let { qObj.put("optionE", it) }
             qObj.put("correctAnswer", q.correctAnswer)
             qObj.put("explanation", q.explanation)
+            qObj.put("generationModel", activeAiModel.value)
+            qObj.put("sourceName", "Gemini PDF question generation")
+            qObj.put("sourceVerified", true)
             qObj.put("subject", q.subject)
             qObj.put("chapter", q.chapter)
             qObj.put("topic", q.topic)
@@ -3583,7 +3586,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             optionEHi = qObj.optString("optionEHi").trim().takeIf { it.isNotBlank() },
                             explanationHi = qObj.optString("explanationHi").trim().takeIf { it.isNotBlank() },
                             questionType = qType,
-                            section = qObj.optString("section", "SECTION_A"),
+                            section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
                             imageUrl = imgUrl.takeIf { it.isNotBlank() }
                         )
                     )
@@ -3875,7 +3878,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
                                 optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
                                 explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                                questionType = qObj.optString("questionType", "MCQ"),
+                                questionType = qObj.optString("questionType"),
                                 section = qObj.optString("section", "SECTION_A"),
                                 needsImage = qObj.optBoolean("needsImage", false),
                                 imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
@@ -5711,15 +5714,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         
         for (i in 0 until jsonArray.length()) {
             val qObj = jsonArray.getJSONObject(i)
-            val qChapter = qObj.optString("chapter", "General Dynamics")
-            val qTopic = qObj.optString("topic", "General Topic")
+            val qChapter = qObj.optString("chapter")
+            val qTopic = qObj.optString("topic")
             
             if (i == 0) {
                 primaryChapter = qChapter
                 primaryTopic = qTopic
             }
             
-            val qTextEn = qObj.optString("questionTextEn", "Question Text")
+            val qTextEn = qObj.optString("questionTextEn").ifBlank { qObj.optString("questionText") }
             val qTextHi = qObj.optString("questionTextHi", "")
             val reasoning = qObj.optString("reasoning", "")
             val expEn = qObj.optString("explanationEn", "").ifBlank { reasoning }
@@ -5751,14 +5754,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     id = "${testId}_q${i}",
                     testId = testId,
                     questionText = qTextEn,
-                    optionA = qObj.optString("optionAEn", "Option A"),
-                    optionB = qObj.optString("optionBEn", "Option B"),
-                    optionC = qObj.optString("optionCEn", "Option C"),
-                    optionD = qObj.optString("optionDEn", "Option D"),
+                    optionA = qObj.optString("optionAEn").ifBlank { qObj.optString("optionA") },
+                    optionB = qObj.optString("optionBEn").ifBlank { qObj.optString("optionB") },
+                    optionC = qObj.optString("optionCEn").ifBlank { qObj.optString("optionC") },
+                    optionD = qObj.optString("optionDEn").ifBlank { qObj.optString("optionD") },
                     optionE = qObj.optString("optionEEn", qObj.optString("optionE", "")).takeIf { it.isNotEmpty() },
                     correctAnswer = qObj.optString("correctAnswer", ""),
                     explanation = expEn,
-                    subject = genSubject.value,
+                    subject = qObj.optString("subject").ifBlank { genSubject.value },
                     chapter = qChapter,
                     topic = qTopic,
                     questionTextHi = qTextHi.takeIf { it.isNotEmpty() },
@@ -5772,6 +5775,27 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     imageUrl = finalImageUrl
                 )
             )
+        }
+
+        val selectedExam = genTargetExam.value.ifBlank { _userProfile.value.targetExam }
+        if (selectedExam.isBlank()) {
+            val error = "Test blocked: select a registered exam before saving Gemini questions."
+            _aiGenState.value = AiGenerationState.Error(error)
+            aiGenStatusMessage.value = error
+            return@withContext
+        }
+        if (genSubject.value.equals("All Subjects", ignoreCase = true)) {
+            val error = "Test blocked: All Subjects requires the universal subject-distribution planner. No single-subject fallback was used."
+            _aiGenState.value = AiGenerationState.Error(error)
+            aiGenStatusMessage.value = error
+            return@withContext
+        }
+        val validationError = validateRealQuestionBatch(selectedExam, jsonArray.length(), questions)
+        if (validationError != null) {
+            val error = "Gemini batch rejected: $validationError"
+            _aiGenState.value = AiGenerationState.Error(error)
+            aiGenStatusMessage.value = error
+            return@withContext
         }
 
         // Serialize questions to JSON array string
