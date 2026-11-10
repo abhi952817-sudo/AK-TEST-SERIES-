@@ -141,6 +141,7 @@ object GeminiPdfExtractor {
             }
 
             val questions = ArrayList<HashMap<String, Any>>(questionArray.length())
+            val answerKeys = ArrayList<HashMap<String, Any>>(questionArray.length())
             for (index in 0 until questionArray.length()) {
                 val question = questionArray.optJSONObject(index)
                     ?: throw IllegalArgumentException("Question " + (index + 1) + " is not a valid JSON object.")
@@ -184,8 +185,9 @@ object GeminiPdfExtractor {
                     "E" -> 4
                     else -> throw IllegalArgumentException("Question " + (index + 1) + " has an invalid answer key.")
                 }
+                val questionId = "q_" + (index + 1)
                 val questionRecord = hashMapOf<String, Any>(
-                    "id" to "q_" + (index + 1),
+                    "id" to questionId,
                     "text" to text,
                     "questionText" to text,
                     "options" to options,
@@ -193,10 +195,6 @@ object GeminiPdfExtractor {
                     "optionB" to options[1],
                     "optionC" to options[2],
                     "optionD" to options[3],
-                    "correctAnswer" to answer,
-                    "correctAnswerIndex" to answerIndex,
-                    "correctOption" to answer,
-                    "explanation" to explanation,
                     "questionType" to "MCQ_SINGLE",
                     "section" to "SECTION_A",
                     "generationModel" to (activeModel ?: "unknown"),
@@ -206,6 +204,12 @@ object GeminiPdfExtractor {
                 )
                 if (options.size == 5) questionRecord["optionE"] = options[4]
                 questions.add(questionRecord)
+                answerKeys.add(hashMapOf(
+                    "id" to questionId,
+                    "correctAnswer" to answer,
+                    "correctAnswerIndex" to answerIndex,
+                    "explanation" to explanation
+                ))
             }
 
             testRef.update("processingStatus", "Saving verified Gemini questions").await()
@@ -214,6 +218,10 @@ object GeminiPdfExtractor {
                 val questionRef = testRef.collection("Questions").document(question["id"].toString())
                 batch.set(questionRef, question)
             }
+            batch.set(
+                testRef.collection("private_keys").document("answerKey"),
+                mapOf("testId" to testId, "questions" to answerKeys, "sourceVerified" to true)
+            )
             val questionsJson = JSONArray().apply {
                 questions.forEach { put(JSONObject(it)) }
             }.toString()
