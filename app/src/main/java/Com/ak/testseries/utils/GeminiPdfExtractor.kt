@@ -184,18 +184,28 @@ object GeminiPdfExtractor {
                     "E" -> 4
                     else -> throw IllegalArgumentException("Question " + (index + 1) + " has an invalid answer key.")
                 }
-                questions.add(hashMapOf(
+                val questionRecord = hashMapOf<String, Any>(
                     "id" to "q_" + (index + 1),
                     "text" to text,
+                    "questionText" to text,
                     "options" to options,
-                    "correctAnswer" to answerIndex,
+                    "optionA" to options[0],
+                    "optionB" to options[1],
+                    "optionC" to options[2],
+                    "optionD" to options[3],
+                    "correctAnswer" to answer,
+                    "correctAnswerIndex" to answerIndex,
                     "correctOption" to answer,
                     "explanation" to explanation,
+                    "questionType" to "MCQ_SINGLE",
+                    "section" to "SECTION_A",
                     "generationModel" to (activeModel ?: "unknown"),
                     "sourceName" to "Uploaded PDF processed by Gemini",
                     "sourcePdfUrl" to pdfUrl,
                     "sourceVerified" to true
-                ))
+                )
+                if (options.size == 5) questionRecord["optionE"] = options[4]
+                questions.add(questionRecord)
             }
 
             testRef.update("processingStatus", "Saving verified Gemini questions").await()
@@ -204,7 +214,12 @@ object GeminiPdfExtractor {
                 val questionRef = testRef.collection("Questions").document(question["id"].toString())
                 batch.set(questionRef, question)
             }
+            val questionsJson = JSONArray().apply {
+                questions.forEach { put(JSONObject(it)) }
+            }.toString()
             batch.update(testRef, "questionsCount", questions.size)
+            batch.update(testRef, "questionsJson", questionsJson)
+            batch.update(testRef, "questionsVerified", true)
             batch.update(testRef, "processingStatus", "Ready")
             batch.commit().await()
         } catch (e: Exception) {
