@@ -42,17 +42,10 @@ object ExamFormatStandardizer {
         questions: List<UniversalQuestionModel>,
         durationMinutes: Int = 0
     ): StandardizedExamPaper {
-        val applicableSections = UniversalAIContext.getApplicableSections(examConfig, subjectId)
-        val defaultSection = SectionConfig(
-            sectionId = "SECTION_A",
-            sectionName = "Section A",
-            totalQuestions = questions.size.coerceAtLeast(1),
-            compulsoryQuestions = questions.size.coerceAtLeast(1),
-            positiveMarks = UniversalExamRegistry.getMarkingSchemeForExam(examConfig.examName).first,
-            negativeMarks = UniversalExamRegistry.getMarkingSchemeForExam(examConfig.examName).second,
-            questionType = examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
-        )
-        val sectionsToUse = if (applicableSections.isNotEmpty()) applicableSections else listOf(defaultSection)
+        val sectionsToUse = UniversalAIContext.getApplicableSections(examConfig, subjectId)
+        require(sectionsToUse.isNotEmpty()) {
+            "Cannot standardize questions without one exact, uniquely configured subject. Generic fallback sections are disabled."
+        }
 
         val groupedQuestions = mutableMapOf<String, MutableList<UniversalQuestionModel>>()
         sectionsToUse.forEach { groupedQuestions[it.sectionId] = mutableListOf() }
