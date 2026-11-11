@@ -9,7 +9,8 @@ import Com.ak.testseries.domain.source.AppConfig
 import Com.ak.testseries.domain.source.RemoteDataSource
 import Com.ak.testseries.domain.source.UserProfile
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.catch
 
 class TestRepositoryImpl(
@@ -43,9 +44,21 @@ class TestRepositoryImpl(
      * The live sync flow above remains active independently.
      */
     suspend fun refreshTestsOnce(): Int {
-        val remoteTests = remoteDataSource.observeTests().firstOrNull().orEmpty()
-        persistRemoteTests(remoteTests)
-        return remoteTests.size
+        var latestCount = 0
+        var initialSnapshotsReceived = 0
+        withTimeout(20_000) {
+            remoteDataSource.observeTests()
+                .take(2) // Initial snapshots from Tests_Data and LiveTests.
+                .collect { remoteTests ->
+                    persistRemoteTests(remoteTests)
+                    latestCount = remoteTests.size
+                    initialSnapshotsReceived++
+                }
+        }
+        if (initialSnapshotsReceived == 0) {
+            throw IllegalStateException("Firebase returned no verified-test snapshot.")
+        }
+        return latestCount
     }
 
     private suspend fun persistRemoteTests(remoteTests: List<TestEntity>) {
