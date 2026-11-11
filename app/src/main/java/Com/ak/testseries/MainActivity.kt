@@ -6805,14 +6805,24 @@ fun AdminDashboardContent(viewModel: NEETViewModel) {
 
                     OutlinedButton(
                         onClick = {
-                            viewModel.seedBundledMockTestsIfNeeded()
-                            android.widget.Toast.makeText(context, "Local Mock Tests Seeded!", android.widget.Toast.LENGTH_SHORT).show()
+                            viewModel.refreshVerifiedTests { success, count, error ->
+                                val message = if (success) {
+                                    "Synced $count verified tests from Firebase."
+                                } else {
+                                    error ?: "Verified tests could not be refreshed."
+                                }
+                                android.widget.Toast.makeText(
+                                    context,
+                                    message,
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Seed Local DB", fontSize = 12.sp)
+                        Text("Sync Verified Tests", fontSize = 12.sp)
                     }
                 }
                 if (syncStatus != null) {
