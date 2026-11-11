@@ -6537,6 +6537,41 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+    private fun parseISO8601Duration(duration: String): String {
+        val match = Regex(
+            "^PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?$",
+            RegexOption.IGNORE_CASE
+        ).matchEntire(duration.trim()) ?: return duration
+        val hours = match.groupValues[1].toIntOrNull() ?: 0
+        val minutes = match.groupValues[2].toIntOrNull() ?: 0
+        val seconds = match.groupValues[3].toIntOrNull() ?: 0
+        return if (hours > 0) {
+            String.format(java.util.Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(java.util.Locale.US, "%d:%02d", minutes, seconds)
+        }
+    }
+
+    fun refreshVerifiedTests(onResult: ((Boolean, Int, String?) -> Unit)? = null) {
+        if (!isAdmin) {
+            onResult?.invoke(false, 0, "Admin access is required to refresh the verified test catalogue.")
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val refreshedCount = testRepository.refreshTestsOnce()
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(true, refreshedCount, null)
+                }
+            } catch (error: Exception) {
+                android.util.Log.e("NEETViewModel", "Verified test catalogue refresh failed.", error)
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(false, 0, error.message ?: "Verified tests could not be refreshed.")
+                }
+            }
+        }
+    }
+
     fun syncUserAttemptsFromFirebase() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
