@@ -25,65 +25,90 @@ class TestRepositoryImpl(
 
     override suspend fun syncTests() {
         try {
-            // 1. Observe real-time data from the remote source (Firebase)
             remoteDataSource.observeTests()
-                .catch { e -> 
-                    // Handle offline or errors. Firestore uses local cache automatically.
+                .catch { error ->
+                    android.util.Log.e("TestRepositoryImpl", "Live verified-test sync failed.", error)
+                    throw error
                 }
                 .collect { remoteTests ->
-                    // 2. Insert into the local database
-                    localDataSource.insertTests(remoteTests)
-                    
-                    // 3. Sync questions for each test in real-time
-                    for (test in remoteTests) {
-                        val qJson = test.questionsJson
-                        if (!qJson.isNullOrEmpty()) {
-                            try {
-                                val jsonArray = org.json.JSONArray(qJson)
-                                val questions = mutableListOf<Com.ak.testseries.data.QuestionEntity>()
-                                for (i in 0 until jsonArray.length()) {
-                                    val qObj = jsonArray.getJSONObject(i)
-                                    questions.add(
-                                        Com.ak.testseries.data.QuestionEntity(
-                                            id = qObj.optString("id", "${test.id}_q${i}"),
-                                            testId = test.id,
-                                            questionText = qObj.optString("questionText").ifBlank { qObj.optString("text") },
-                                            optionA = qObj.optString("optionA").ifBlank { qObj.optJSONArray("options")?.optString(0).orEmpty() },
-                                            optionB = qObj.optString("optionB").ifBlank { qObj.optJSONArray("options")?.optString(1).orEmpty() },
-                                            optionC = qObj.optString("optionC").ifBlank { qObj.optJSONArray("options")?.optString(2).orEmpty() },
-                                            optionD = qObj.optString("optionD").ifBlank { qObj.optJSONArray("options")?.optString(3).orEmpty() },
-                                            optionE = qObj.optString("optionE").ifBlank { qObj.optJSONArray("options")?.optString(4).orEmpty() }.takeIf { it.isNotBlank() },
-                                            correctAnswer = qObj.optString("correctAnswer", ""),
-                                            explanation = qObj.optString("explanation", ""),
-                                            subject = qObj.optString("subject", test.subject),
-                                            chapter = qObj.optString("chapter", test.chapter),
-                                            topic = qObj.optString("topic", test.topic),
-                                            difficulty = qObj.optString("difficulty", "Medium"),
-                                            isBookmarked = qObj.optBoolean("isBookmarked", false),
-                                            questionTextHi = qObj.optString("questionTextHi", "").takeIf { it.isNotEmpty() },
-                                            optionAHi = qObj.optString("optionAHi", "").takeIf { it.isNotEmpty() },
-                                            optionBHi = qObj.optString("optionBHi", "").takeIf { it.isNotEmpty() },
-                                            optionCHi = qObj.optString("optionCHi", "").takeIf { it.isNotEmpty() },
-                                            optionDHi = qObj.optString("optionDHi", "").takeIf { it.isNotEmpty() },
-                                            explanationHi = qObj.optString("explanationHi", "").takeIf { it.isNotEmpty() },
-                                            questionType = qObj.optString("questionType"),
-                                            section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
-                                            needsImage = qObj.optBoolean("needsImage", false),
-                                            imageUrl = qObj.optString("imageUrl", "").takeIf { it.isNotEmpty() }
-                                        )
-                                    )
-                                }
-                                if (questions.isNotEmpty()) {
-                                    localDataSource.insertQuestions(questions)
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    }
+                    persistRemoteTests(remoteTests)
                 }
-        } catch (e: Exception) {
-            // Handle exceptions appropriately
+        } catch (error: Exception) {
+            android.util.Log.e("TestRepositoryImpl", "Unable to keep verified tests synchronized.", error)
+        }
+    }
+
+    /**
+     * Performs a one-shot server/cache snapshot refresh for an explicit user action.
+     * The live sync flow above remains active independently.
+     */
+    suspend fun refreshTestsOnce(): Int {
+        val remoteTests = remoteDataSource.observeTests().firstOrNull().orEmpty()
+        persistRemoteTests(remoteTests)
+        return remoteTests.size
+    }
+
+    private suspend fun persistRemoteTests(remoteTests: List<TestEntity>) {
+        // The local database remains the single source of truth for the UI.
+        localDataSource.insertTests(remoteTests)
+
+        for (test in remoteTests) {
+            val rawJson = test.questionsJson?.takeIf { it.isNotBlank() } ?: continue
+            try {
+                val jsonArray = org.json.JSONArray(rawJson)
+                val questions = mutableListOf<Com.ak.testseries.data.QuestionEntity>()
+                for (index in 0 until jsonArray.length()) {
+                    val question = jsonArray.optJSONObject(index) ?: continue
+                    val options = question.optJSONArray("options")
+                    fun option(letter: String, optionIndex: Int): String =
+                        question.optString("option" + letter)
+                            .ifBlank { question.optString("option" + letter + "En") }
+                            .ifBlank { options?.optString(optionIndex).orEmpty() }
+
+                    questions.add(
+                        Com.ak.testseries.data.QuestionEntity(
+                            id = question.optString("id").ifBlank { "${test.id}_q$index" },
+                            testId = test.id,
+                            questionText = question.optString("questionText")
+                                .ifBlank { question.optString("questionTextEn") }
+                                .ifBlank { question.optString("text") },
+                            optionA = option("A", 0),
+                            optionB = option("B", 1),
+                            optionC = option("C", 2),
+                            optionD = option("D", 3),
+                            optionE = option("E", 4).takeIf { it.isNotBlank() },
+                            correctAnswer = question.optString("correctAnswer", ""),
+                            explanation = question.optString("explanation")
+                                .ifBlank { question.optString("explanationEn") },
+                            subject = question.optString("subject").ifBlank { test.subject },
+                            chapter = question.optString("chapter").ifBlank { test.chapter },
+                            topic = question.optString("topic").ifBlank { test.topic },
+                            difficulty = question.optString("difficulty", "Medium"),
+                            isBookmarked = question.optBoolean("isBookmarked", false),
+                            questionTextHi = question.optString("questionTextHi").takeIf { it.isNotBlank() },
+                            optionAHi = question.optString("optionAHi").takeIf { it.isNotBlank() },
+                            optionBHi = question.optString("optionBHi").takeIf { it.isNotBlank() },
+                            optionCHi = question.optString("optionCHi").takeIf { it.isNotBlank() },
+                            optionDHi = question.optString("optionDHi").takeIf { it.isNotBlank() },
+                            optionEHi = question.optString("optionEHi").takeIf { it.isNotBlank() },
+                            explanationHi = question.optString("explanationHi").takeIf { it.isNotBlank() },
+                            questionType = question.optString("questionType"),
+                            section = question.optString("sectionId").ifBlank { question.optString("section") },
+                            needsImage = question.optBoolean("needsImage", false),
+                            imageUrl = question.optString("imageUrl").takeIf { it.isNotBlank() }
+                        )
+                    )
+                }
+                if (questions.isNotEmpty()) {
+                    localDataSource.insertQuestions(questions)
+                }
+            } catch (error: Exception) {
+                android.util.Log.e(
+                    "TestRepositoryImpl",
+                    "Failed to persist question payload for verified test ${test.id}.",
+                    error
+                )
+            }
         }
     }
 
