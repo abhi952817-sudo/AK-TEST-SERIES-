@@ -57,6 +57,28 @@ object UniversalPdfPipeline {
         isAiEnabled: Boolean = true,
         onProgress: (BatchProgress) -> Unit = {}
     ): List<UniversalQuestionModel> = withContext(Dispatchers.IO) {
+        val cleanSubjectId = subjectId.trim()
+        val configuredSubjectMatches = examConfig.stages
+            .flatMap { it.papers }
+            .flatMap { it.subjects }
+            .filter {
+                it.subjectId.equals(cleanSubjectId, ignoreCase = true) ||
+                    it.subjectName.equals(cleanSubjectId, ignoreCase = true)
+            }
+        if (cleanSubjectId.isBlank() ||
+            cleanSubjectId.equals("All Subjects", ignoreCase = true) ||
+            configuredSubjectMatches.size != 1
+        ) {
+            onProgress(
+                BatchProgress(
+                    totalBatches = 0,
+                    currentBatch = 0,
+                    processedQuestions = 0,
+                    statusMessage = "Generation stopped: select one exact, uniquely configured subject. All Subjects generation is disabled until the universal distribution planner is connected and validated."
+                )
+            )
+            return@withContext emptyList()
+        }
         if (!isAiEnabled) {
             onProgress(
                 BatchProgress(
@@ -146,7 +168,7 @@ object UniversalPdfPipeline {
                 // Dynamically build the prompt injecting aiSystemInstruction, pattern rules, and compact Markdown
                 val prompt = UniversalAIContext.buildDynamicGenerationPrompt(
                     examConfig = examConfig,
-                    subject = subjectId.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "Core Domain" },
+                    subject = cleanSubjectId,
                     testTitle = "${examConfig.shortName} Diagnostic Paper",
                     compactMarkdownPayload = compactMarkdown,
                     currentChunkSize = questionsInThisBatch,
