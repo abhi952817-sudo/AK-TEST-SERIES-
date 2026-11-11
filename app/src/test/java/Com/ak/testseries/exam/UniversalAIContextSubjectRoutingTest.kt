@@ -13,8 +13,14 @@ class UniversalAIContextSubjectRoutingTest {
     fun exactConfiguredSubjectResolvesOnlyItsOwnSections() {
         val sections = UniversalAIContext.getApplicableSections(neet, "physics")
 
+        val configuredPhysicsSections = neet.stages
+            .flatMap { it.papers }
+            .flatMap { it.subjects }
+            .single { it.subjectId.equals("physics", ignoreCase = true) }
+            .sections
+
         assertTrue(sections.isNotEmpty())
-        assertTrue(sections.all { it.sectionId.contains("physics", ignoreCase = true) })
+        assertTrue(sections == configuredPhysicsSections)
     }
 
     @Test
