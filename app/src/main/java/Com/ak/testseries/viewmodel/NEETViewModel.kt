@@ -5155,162 +5155,145 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val registeredExams = Com.ak.testseries.exam.UniversalExamRegistry.getAllExams()
             val examNamesList = registeredExams.map { it.examName }.joinToString(", ")
 
-            var geminiParsed = false
-            // Send extracted text to Gemini API ONLY when local parsing fails (!isQuestionsDetected), asking it to align questions and options
-            if (!isQuestionsDetected) {
-                val keys = getGeminiApiKeys()
-                val hasApiKey = keys.isNotEmpty()
-                if (hasApiKey) {
-                    try {
-                        // For metadata analysis, send ONLY the opening page chunk (Pages 1-2 header/instructions), NEVER the whole PDF
-                        val openingPagesSnippet = if (pdfPages.isNotEmpty()) {
-                            pdfPages.take(2).joinToString("\n")
-                        } else {
-                            extractedText.take(2500)
-                        }
-                        val prompt = """
-                            You are an AI exam analyzer for Indian competitive examinations.
-                            Local parsing failed to detect structured questions automatically. Please analyze the following text from the opening page(s) of a test paper PDF, carefully align questions and their corresponding options (A, B, C, D), and identify the following metadata fields:
-                            Supported exams: $examNamesList.
-                            
-                            Identify and extract:
-                            1. targetExam: Match to one of the supported exams: $examNamesList. If not clearly specified, deduce from subjects/questions or default to '$currentTargetExam'.
-                            2. title: A descriptive test title.
-                            3. institute: Name of institute or source if present.
-                            4. subject: Name of primary subject or 'Full Syllabus'.
-                            5. classLevel: '11th', '12th', 'Dropper', 'Graduate', or 'All'.
-                            6. testType: 'Single Chapter', 'Multi-Chapter', or 'Full Syllabus'.
-                            7. chapter: Specific syllabus chapters/topics covered or 'Full Syllabus'.
-                            8. timerMinutes: Duration in minutes.
-                            9. questionsCount: Estimated total questions.
-                            10. totalMarks: Maximum total marks.
-                            11. language: 'English', 'Hindi', or 'Bilingual'.
-                            
-                            Text content:
-                            ${openingPagesSnippet.take(2500)}
-                            
-                            Return your response STRICTLY as a valid JSON object with keys: targetExam, title, institute, subject, classLevel, testType, chapter, timerMinutes, questionsCount, totalMarks, language, and confidence (0-100). Do not include any markdown fences or explanation.
-                        """.trimIndent()
-                        
-                        val responseJson = callGeminiApiForQuestionsWithFallback(prompt)
-                        if (responseJson != null) {
-                            val cleanJson = responseJson.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-                            val jsonObj = JSONObject(cleanJson)
-                            val detectedExam = jsonObj.optString("targetExam", currentTargetExam)
-                            val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(detectedExam)
-                                ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
-                            
-                            val officialDefaultQuestions = examConfig?.let {
-                                Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(it.examName)
-                            } ?: 180
-                            val officialDefaultDuration = examConfig?.let {
-                                Com.ak.testseries.exam.UniversalExamRegistry.getDefaultDurationMinutesForExam(it.examName)
-                            } ?: 180
-                            val officialTotalMarks = examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 720.0
-
-                            val extractedCount = jsonObj.optInt("questionsCount", officialDefaultQuestions)
-                            val extractedDuration = jsonObj.optInt("timerMinutes", officialDefaultDuration)
-                            val extractedMarks = jsonObj.optDouble("totalMarks", officialTotalMarks)
-
-                            val result = AnalyzedTestResult(
-                                title = jsonObj.optString("title", "${examConfig?.shortName ?: detectedExam} Practice Test"),
-                                institute = jsonObj.optString("institute", "Previous Year Paper"),
-                                targetExam = examConfig?.examName ?: detectedExam,
-                                subject = jsonObj.optString("subject", examConfig?.stages?.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "Full Syllabus"),
-                                classLevel = jsonObj.optString("classLevel", "All"),
-                                testType = jsonObj.optString("testType", "Full Syllabus"),
-                                chapter = jsonObj.optString("chapter", "Full Syllabus"),
-                                timerMinutes = if (extractedDuration > 0) extractedDuration else officialDefaultDuration,
-                                questionsCount = if (extractedCount > 0) extractedCount else officialDefaultQuestions,
-                                totalMarks = if (extractedMarks > 0) extractedMarks else officialTotalMarks,
-                                language = jsonObj.optString("language", "English"),
-                                confidence = jsonObj.optInt("confidence", 95),
-                                detectedQuestionsCount = localClassification.totalQuestionsDetected,
-                                isQuestionPaperDetected = isQuestionsDetected,
-                                autoRoutedWorkflow = routedWorkflow,
-                                routingReason = routingReason,
-                                extractedDiagramsCount = diagramPaths.size,
-                                extractedDiagramPaths = diagramPaths
-                            )
-                            _pdfAnalysisState.value = PdfAnalysisState.Success(result)
-                            geminiParsed = true
-                            return@launch
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+            val currentTargetExam = genTargetExam.value.trim()
+            if (currentTargetExam.isBlank()) {
+                val message = "PDF analysis blocked: select the target exam before analyzing metadata."
+                withContext(Dispatchers.IO) {
+                    db.pdfSessionDao().updateError(session.sessionId, message, Com.ak.testseries.data.PdfSessionStatus.FAILED.name)
                 }
-            }
-            
-            // Fallback heuristics analysis in case Gemini API is offline/unavailable
-            val lowerText = extractedText.lowercase()
-
-            // 1. Detect Target Exam from text across 20 exams
-            val detectedExamConfig = registeredExams.find { exam ->
-                lowerText.contains(exam.examName.lowercase()) ||
-                lowerText.contains(exam.shortName.lowercase()) ||
-                lowerText.contains(exam.examId.lowercase().replace("_", " "))
-            } ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(currentTargetExam)
-              ?: registeredExams.first()
-
-            val detectedExamName = detectedExamConfig.examName
-
-            // 2. Detect Institute / Source
-            val matchedInstitute = when {
-                lowerText.contains("allen") -> "Allen"
-                lowerText.contains("aakash") -> "Aakash"
-                lowerText.contains("physics wallah") || lowerText.contains("physicswallah") || lowerText.contains("pw ") -> "Physics Wallah"
-                lowerText.contains("nta") || lowerText.contains("national testing agency") -> "NTA"
-                lowerText.contains("testbook") -> "Testbook"
-                lowerText.contains("adda247") -> "Adda247"
-                lowerText.contains("unacademy") -> "Unacademy"
-                lowerText.contains("byju") -> "BYJU'S"
-                else -> "Previous Year Paper"
+                _pdfAnalysisState.value = PdfAnalysisState.Error(message)
+                aiGenStatusMessage.value = message
+                return@launch
             }
 
-            // 3. Match Exam-Specific Subjects from UniversalExamRegistry
-            val availableSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(detectedExamName)
-            val matchedSubject = availableSubjects.find { subj ->
-                lowerText.contains(subj.lowercase())
-            } ?: availableSubjects.firstOrNull() ?: "Full Syllabus"
-
-            val matchedType = when {
-                lowerText.contains("full test") || lowerText.contains("full syllabus") || lowerText.contains("fts") || lowerText.contains("mock test") -> "Full Syllabus"
-                lowerText.contains("part test") || lowerText.contains("minor") || lowerText.contains("pts") || lowerText.contains("sectional") -> "Multi-Chapter"
-                else -> "Single Chapter"
+            val registeredExams = Com.ak.testseries.exam.UniversalExamRegistry.getAllExams()
+            val examNamesList = registeredExams.joinToString(", ") { it.examName }
+            val keys = getGeminiApiKeys()
+            if (keys.isEmpty()) {
+                val message = "Gemini metadata analysis is unavailable because no valid Gemini API key is configured. No metadata was guessed."
+                withContext(Dispatchers.IO) {
+                    db.pdfSessionDao().updateError(session.sessionId, message, Com.ak.testseries.data.PdfSessionStatus.FAILED.name)
+                }
+                _pdfAnalysisState.value = PdfAnalysisState.Error(message)
+                aiGenStatusMessage.value = message
+                return@launch
             }
 
-            val defaultQuestions = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultQuestionsCountForExam(detectedExamName)
-            val defaultDuration = Com.ak.testseries.exam.UniversalExamRegistry.getDefaultDurationMinutesForExam(detectedExamName)
-            val defaultMarks = detectedExamConfig.stages.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 100.0
+            try {
+                // Gemini is the sole metadata decision source. Local OCR/classification remains
+                // available for text extraction and routing, but never fabricates exam metadata.
+                val openingPagesSnippet = if (pdfPages.isNotEmpty()) {
+                    pdfPages.take(2).joinToString("\n")
+                } else {
+                    extractedText.take(2500)
+                }
+                val prompt = """
+                    You are an exam-paper metadata analyst for Indian competitive examinations.
+                    Analyze the supplied PDF opening pages and return only metadata explicitly supported
+                    by the document. Do not guess, infer registry defaults, or invent missing values.
 
-            val finalQuestionsCount = if (matchedType == "Full Syllabus") defaultQuestions else (defaultQuestions / 3).coerceAtLeast(25)
-            val finalDuration = if (matchedType == "Full Syllabus") defaultDuration else 60
+                    Registered exams: $examNamesList
+                    User-selected exam context (not proof): $currentTargetExam
 
-            val matchedTitle = "${matchedInstitute} ${detectedExamConfig.shortName} ${matchedType} - ${matchedSubject}"
-            val result = AnalyzedTestResult(
-                title = matchedTitle,
-                institute = matchedInstitute,
-                targetExam = detectedExamName,
-                subject = matchedSubject,
-                classLevel = if (matchedType == "Full Syllabus") "Dropper / Graduate" else "12th",
-                testType = matchedType,
-                chapter = if (matchedType == "Full Syllabus") "Full Syllabus" else "Important Topics",
-                timerMinutes = finalDuration,
-                questionsCount = finalQuestionsCount,
-                totalMarks = defaultMarks,
-                language = if (lowerText.contains("hindi") || lowerText.any { it.code in 0x0900..0x097F }) "Hindi" else "English",
-                confidence = 80,
-                detectedQuestionsCount = localClassification.totalQuestionsDetected,
-                isQuestionPaperDetected = isQuestionsDetected,
-                autoRoutedWorkflow = routedWorkflow,
-                routingReason = routingReason,
-                extractedDiagramsCount = diagramPaths.size,
-                extractedDiagramPaths = diagramPaths
-            )
-            
-            delay(1200) // Aesthetic delay for fallback parsing
-            _pdfAnalysisState.value = PdfAnalysisState.Success(result)
+                    Return exactly one JSON object with these keys:
+                    targetExam, title, institute, subject, classLevel, testType, chapter,
+                    timerMinutes, questionsCount, totalMarks, language, confidence.
+
+                    Rules:
+                    - targetExam must match one registered exam name exactly. If evidence is insufficient, return an empty string.
+                    - subject must be a configured subject name, "All Subjects", or "Full Syllabus".
+                    - testType must be "Single Chapter", "Multi-Chapter", or "Full Syllabus".
+                    - timerMinutes, questionsCount and totalMarks must be positive numeric values only when visible or reliably stated in the PDF; otherwise use 0.
+                    - language must be "English", "Hindi", or "Bilingual".
+                    - confidence must be an integer from 0 to 100.
+                    - If title is not identifiable, return an empty string.
+                    - Do not include markdown fences or explanatory text.
+
+                    PDF opening-page text:
+                    ${openingPagesSnippet.take(2500)}
+                """.trimIndent()
+
+                val responseJson = callGeminiApiForQuestionsWithFallback(prompt)
+                    ?: throw IllegalStateException("All configured Gemini API keys/models failed or returned no response.")
+                val cleanJson = responseJson.trim()
+                    .removePrefix("```json")
+                    .removePrefix("```")
+                    .removeSuffix("```")
+                    .trim()
+                val jsonObj = JSONObject(cleanJson)
+
+                val detectedExam = jsonObj.optString("targetExam").trim()
+                val examConfig = Com.ak.testseries.exam.UniversalExamRegistry
+                    .findExamByNameOrShortName(detectedExam)
+                    ?: throw IllegalArgumentException("Gemini could not identify a registered exam from the PDF evidence.")
+
+                val title = jsonObj.optString("title").trim()
+                val subject = jsonObj.optString("subject").trim()
+                val testType = jsonObj.optString("testType").trim()
+                val timerMinutes = jsonObj.optInt("timerMinutes", 0)
+                val questionsCount = jsonObj.optInt("questionsCount", 0)
+                val totalMarks = jsonObj.optDouble("totalMarks", Double.NaN)
+                val confidence = jsonObj.optInt("confidence", -1)
+                val languageRaw = jsonObj.optString("language").trim()
+                val normalizedLanguage = when {
+                    languageRaw.equals("English", true) -> "English"
+                    languageRaw.equals("Hindi", true) -> "Hindi"
+                    languageRaw.equals("Bilingual", true) ||
+                        (languageRaw.contains("Hindi", true) && languageRaw.contains("English", true)) -> "Bilingual"
+                    else -> throw IllegalArgumentException("Gemini returned an unsupported or missing language value.")
+                }
+
+                val configuredSubjects = examConfig.stages
+                    .flatMap { stage -> stage.papers }
+                    .flatMap { paper -> paper.subjects }
+                val subjectIsValid = subject.equals("All Subjects", true) ||
+                    subject.equals("Full Syllabus", true) ||
+                    configuredSubjects.any { configured ->
+                        configured.subjectId.equals(subject, true) ||
+                            configured.subjectName.equals(subject, true)
+                    }
+
+                if (title.isBlank() || subject.isBlank() || !subjectIsValid ||
+                    testType !in setOf("Single Chapter", "Multi-Chapter", "Full Syllabus") ||
+                    timerMinutes <= 0 || questionsCount <= 0 ||
+                    !totalMarks.isFinite() || totalMarks <= 0.0 ||
+                    confidence !in 0..100
+                ) {
+                    throw IllegalArgumentException(
+                        "Gemini metadata failed validation: title, registered exam, configured subject, test type, duration, question count, marks and confidence must be valid."
+                    )
+                }
+
+                val result = AnalyzedTestResult(
+                    title = title,
+                    institute = jsonObj.optString("institute").trim().ifBlank { "Not identified" },
+                    targetExam = examConfig.examName,
+                    subject = subject,
+                    classLevel = jsonObj.optString("classLevel").trim().ifBlank { "Not specified" },
+                    testType = testType,
+                    chapter = jsonObj.optString("chapter").trim().ifBlank { "Not specified" },
+                    timerMinutes = timerMinutes,
+                    questionsCount = questionsCount,
+                    totalMarks = totalMarks,
+                    language = normalizedLanguage,
+                    confidence = confidence,
+                    detectedQuestionsCount = localClassification.totalQuestionsDetected,
+                    isQuestionPaperDetected = isQuestionsDetected,
+                    autoRoutedWorkflow = routedWorkflow,
+                    routingReason = routingReason,
+                    extractedDiagramsCount = diagramPaths.size,
+                    extractedDiagramPaths = diagramPaths
+                )
+                _pdfAnalysisState.value = PdfAnalysisState.Success(result)
+                aiGenStatusMessage.value = "PDF metadata verified by Gemini."
+            } catch (e: Exception) {
+                val message = "Gemini PDF metadata analysis failed: ${e.message ?: "No valid metadata was returned."} No heuristic metadata was substituted."
+                withContext(Dispatchers.IO) {
+                    db.pdfSessionDao().updateError(session.sessionId, message, Com.ak.testseries.data.PdfSessionStatus.FAILED.name)
+                }
+                _pdfAnalysisState.value = PdfAnalysisState.Error(message)
+                aiGenStatusMessage.value = message
+            }
         }
     }
 
