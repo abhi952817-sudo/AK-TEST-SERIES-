@@ -1561,8 +1561,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val testId = "live_" + System.currentTimeMillis()
 
                 val questions = emptyList<QuestionEntity>()
-                    q.copy(id = "${testId}_q$idx", testId = testId)
-                }
                 if (questions.isEmpty() && pdfUri == null) {
                     android.util.Log.e("NEETViewModel", "Live test creation blocked: provide a Gemini-generated question batch or a source PDF for Gemini extraction.")
                     return@launch
