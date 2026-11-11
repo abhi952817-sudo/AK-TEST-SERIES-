@@ -6820,7 +6820,7 @@ fun AdminDashboardContent(viewModel: NEETViewModel) {
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Sync Verified Tests", fontSize = 12.sp)
                     }
