@@ -46,11 +46,18 @@ object UniversalAIContext {
      * Finds the applicable sections for a given subject within the exam configuration.
      */
     fun getApplicableSections(examConfig: ExamConfig, subject: String): List<SectionConfig> {
+        val cleanSubject = subject.trim()
+        if (cleanSubject.isBlank() || cleanSubject.equals("All Subjects", ignoreCase = true)) {
+            return emptyList()
+        }
         val allSubjects = examConfig.stages.flatMap { it.papers.flatMap { p -> p.subjects } }
-        val matchingSubject = allSubjects.find { 
-            it.subjectName.equals(subject, ignoreCase = true) || it.subjectId.equals(subject, ignoreCase = true) 
-        } ?: allSubjects.firstOrNull()
-        return matchingSubject?.sections ?: emptyList()
+        val matches = allSubjects.filter {
+            it.subjectName.equals(cleanSubject, ignoreCase = true) ||
+                it.subjectId.equals(cleanSubject, ignoreCase = true)
+        }
+        // Ambiguous or unknown subject identity must fail closed. Never select the first
+        // configured subject as an implicit fallback.
+        return matches.singleOrNull()?.sections ?: emptyList()
     }
 
     /**
@@ -73,12 +80,11 @@ object UniversalAIContext {
         val qTypes = examConfig.supportedQuestionTypes.joinToString(", ") { "${it.name} (${it.displayName})" }
         val patternList = examConfig.patternRules.joinToString("\n  - ")
         val sections = getApplicableSections(examConfig, subject)
-        val sectionDetails = if (sections.isNotEmpty()) {
-            sections.joinToString("\n") { s ->
-                "  * [${s.sectionId}] \"${s.sectionName}\": ${s.totalQuestions} Questions (${s.compulsoryQuestions} Compulsory) | Type: ${s.questionType.name} (${s.questionType.displayName}) | Scoring: +${s.positiveMarks} correct, -${s.negativeMarks} wrong"
-            }
-        } else {
-            "  * Default Section: +4.0 correct, -1.0 wrong | Type: ${examConfig.supportedQuestionTypes.firstOrNull()?.name ?: "MCQ_SINGLE"}"
+        require(sections.isNotEmpty()) {
+            "An exact, uniquely configured subject is required. 'All Subjects', blank, unknown, or ambiguous subjects cannot use a single-subject prompt."
+        }
+        val sectionDetails = sections.joinToString("\n") { s ->
+            "  * [${s.sectionId}] \"${s.sectionName}\": ${s.totalQuestions} Questions (${s.compulsoryQuestions} Compulsory) | Type: ${s.questionType.name} (${s.questionType.displayName}) | Scoring: +${s.positiveMarks} correct, -${s.negativeMarks} wrong"
         }
 
         val taskObjective = if (isExtractionMode) {
