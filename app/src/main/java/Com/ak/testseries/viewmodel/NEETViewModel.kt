@@ -5150,10 +5150,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             
             _pdfAnalysisState.value = PdfAnalysisState.AnalyzingWithAI
             
-            // Look up current selected target exam or detect from text
-            val currentTargetExam = genTargetExam.value.ifBlank { "NEET UG" }
-            val registeredExams = Com.ak.testseries.exam.UniversalExamRegistry.getAllExams()
-            val examNamesList = registeredExams.map { it.examName }.joinToString(", ")
+            // Metadata is resolved by Gemini below; no local exam-name guess or registry default is used.
 
             val currentTargetExam = genTargetExam.value.trim()
             if (currentTargetExam.isBlank()) {
