@@ -44,8 +44,12 @@ object GeminiResponseValidator {
         var rejected = 0
         for (index in 0 until source.length()) {
             val item = source.optJSONObject(index)
-            val reason = item?.let { validateQuestion(it, minimumMcqOptions) } ?: "Question item is not a JSON object."
-            if (reason == null) accepted.put(item) else {
+            val reason = if (item == null) {
+                "Question item is not a JSON object."
+            } else {
+                validateQuestion(item, minimumMcqOptions)
+            }
+            if (reason == null && item != null) accepted.put(item) else {
                 rejected++
                 errors.add("Question ${index + 1}: $reason")
             }
