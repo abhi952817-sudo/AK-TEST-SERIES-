@@ -993,10 +993,34 @@
         "General Knowledge: +0.83 marks for correct, -0.27 penalty for incorrect (120 Qs, 100 marks, 120 mins)",
         "Elementary Mathematics: +1.0 mark for correct, -0.33 penalty for incorrect (100 Qs, 100 marks, 120 mins)"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://www.upsc.gov.in/sites/default/files/Notif-CDS-II-2026-Engl-200526.pdf",
+      "officialRules": {
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "multipleAnswersTreatedWrong": true,
+        "paperVariants": {
+          "imaInaAfa": [
+            "english",
+            "general_knowledge",
+            "elementary_mathematics"
+          ],
+          "ota": [
+            "english",
+            "general_knowledge"
+          ]
+        },
+        "paperMarks": {
+          "english": 100,
+          "generalKnowledge": 100,
+          "elementaryMathematics": 100
+        },
+        "durationHoursPerPaper": 2,
+        "tieBreakRoundingDecimals": 2,
+        "ssbInterviewSeparate": true,
+        "notes": "CDS-II 2026 official notice; negative fraction is one-third of the marks assigned to each question; blank answers have no penalty; multiple marked options are wrong."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
@@ -1023,10 +1047,40 @@
         "MSQ and NAT: NO negative marking (0 penalty).",
         "65 questions total, 100 marks, Duration 180 minutes"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://gate2026.iitg.ac.in/doc/IB/GATE2026-IB-10102025.pdf",
+      "officialRules": {
+        "questionCount": 65,
+        "maxScore": 100,
+        "durationMinutes": 180,
+        "questionTypes": [
+          "MCQ",
+          "MSQ",
+          "NAT"
+        ],
+        "questionMarks": [
+          1,
+          2
+        ],
+        "mcqNegativeByMarks": {
+          "oneMark": 0.3333333333333333,
+          "twoMark": 0.6666666666666666
+        },
+        "msqNegativeMarks": 0,
+        "natNegativeMarks": 0,
+        "msqPartialCredit": false,
+        "natPartialCredit": false,
+        "optionalPaperCodes": [
+          "AR",
+          "GE",
+          "GG",
+          "XE",
+          "XH",
+          "XL"
+        ],
+        "notes": "GATE 2026; optional sections and paper-code-specific subject marks must be represented; no single generic gate paper scheme."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
