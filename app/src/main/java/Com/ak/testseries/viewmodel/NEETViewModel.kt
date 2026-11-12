@@ -5491,6 +5491,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val adminGeminiConnectorStatus = MutableStateFlow("Not verified")
     val adminGeminiConnectorModels = MutableStateFlow<List<String>>(emptyList())
     val adminGeminiConnectorVerifying = MutableStateFlow(false)
+    val adminGeminiPromptTokens = MutableStateFlow(0)
+    val adminGeminiOutputTokens = MutableStateFlow(0)
+    val adminGeminiTotalTokens = MutableStateFlow(0)
     val activeAiModel = MutableStateFlow("UNAVAILABLE")
 
     init {
@@ -5674,6 +5677,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 return@withContext null
             }
             activeAiModel.value = payload["modelVersion"] as? String ?: "gemini-2.5-flash"
+            val usage = payload["usageMetadata"] as? Map<*, *> ?: emptyMap<Any, Any>()
+            adminGeminiPromptTokens.value = (usage["promptTokenCount"] as? Number)?.toInt() ?: 0
+            adminGeminiOutputTokens.value = (usage["candidatesTokenCount"] as? Number)?.toInt() ?: 0
+            adminGeminiTotalTokens.value = (usage["totalTokenCount"] as? Number)?.toInt() ?: 0
             geminiStatusMessage.value = "Admin Gemini server connector active (${activeAiModel.value})."
             responseText
         } catch (error: Exception) {
