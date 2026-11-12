@@ -852,131 +852,59 @@ fun ReportedQuestionsSection(viewModel: NEETViewModel) {
 
 @Composable
 fun GeminiKeyManagerSection(viewModel: NEETViewModel) {
-    val primaryActive by viewModel.isPrimaryGeminiActive.collectAsState()
-    val secondaryActive by viewModel.isSecondaryGeminiActive.collectAsState()
-    val primaryUsage by viewModel.primaryGeminiUsage.collectAsState()
-    val secondaryUsage by viewModel.secondaryGeminiUsage.collectAsState()
-    val statusMsg by viewModel.geminiStatusMessage.collectAsState()
-    val activeIndex by viewModel.activeGeminiKeyIndex.collectAsState()
-
-    var showKeyDialog by remember { mutableStateOf(false) }
-    var tempSecKey by remember { mutableStateOf("") }
+    val status by viewModel.adminGeminiConnectorStatus.collectAsState()
+    val models by viewModel.adminGeminiConnectorModels.collectAsState()
+    val verifying by viewModel.adminGeminiConnectorVerifying.collectAsState()
 
     AdminSectionCard(
-        title = "Gemini API Keys Control",
+        title = "Admin Gemini Connector",
         icon = Icons.Rounded.Star,
-        description = "Manage Gemini API Limits, Usage, & Master Switches."
+        description = "The Admin API key is stored only in Firebase Secret Manager. It is never entered or saved in this Android app."
     ) {
-        // Status Alert
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text(
-                text = "Live Status: $statusMsg",
-                modifier = Modifier.padding(16.dp),
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-        }
-        
-        Spacer(Modifier.height(16.dp))
-        
-        // Primary Key Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = if (primaryActive && activeIndex == 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
             ),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(10.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Primary Key", fontWeight = FontWeight.Bold)
-                        Text("Configured via BuildConfig", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(
-                        checked = primaryActive,
-                        onCheckedChange = { viewModel.updateGeminiSettings(it, secondaryActive) }
-                    )
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = status,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp
+                )
+                if (models.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Available generation models", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(models.joinToString("\n"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Spacer(Modifier.height(8.dp))
-                Text("Tests Uploaded (Used): $primaryUsage", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
             }
         }
-        
         Spacer(Modifier.height(12.dp))
-        
-        // Secondary Key Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (secondaryActive && activeIndex == 1) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-            ),
-            shape = RoundedCornerShape(12.dp)
+        Button(
+            onClick = { viewModel.verifyAdminGeminiConnector() },
+            enabled = !verifying,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Secondary Key", fontWeight = FontWeight.Bold)
-                        Text("Configured manually", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(
-                        checked = secondaryActive,
-                        onCheckedChange = { viewModel.updateGeminiSettings(primaryActive, it) }
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Text("Tests Uploaded (Used): $secondaryUsage", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { 
-                        tempSecKey = viewModel.getSecondaryGeminiKey()
-                        showKeyDialog = true 
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Change Secondary Key")
-                }
+            if (verifying) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Verifying...")
+            } else {
+                Text("Verify Server-side Gemini Connector")
             }
         }
-
-        if (showKeyDialog) {
-            AlertDialog(
-                onDismissRequest = { showKeyDialog = false },
-                title = { Text("Set Secondary API Key") },
-                text = {
-                    OutlinedTextField(
-                        value = tempSecKey,
-                        onValueChange = { tempSecKey = it },
-                        label = { Text("Gemini API Key") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.setSecondaryGeminiKey(tempSecKey)
-                        showKeyDialog = false
-                    }) {
-                        Text("Save")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showKeyDialog = false }) {
-                        Text(stringRes("Cancel"))
-                    }
-                }
-            )
-        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Configure AKTS_ADMIN_GEMINI_API_KEY with Firebase CLI before verification. Never paste the secret into GitHub source, Firestore, or this screen.",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
