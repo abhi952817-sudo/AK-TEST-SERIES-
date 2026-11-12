@@ -5644,6 +5644,45 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private suspend fun callAdminGeminiContent(
+        prompt: String,
+        systemInstruction: String? = null
+    ): String? = withContext(Dispatchers.IO) {
+        if (!isAdmin) {
+            geminiStatusMessage.value = "Admin server connector access denied."
+            return@withContext null
+        }
+        if (prompt.isBlank() || prompt.length > 80000 || (systemInstruction?.length ?: 0) > 20000) {
+            geminiStatusMessage.value = "Gemini request is empty or exceeds the allowed prompt size."
+            return@withContext null
+        }
+        try {
+            val args = mutableMapOf<String, Any>(
+                "prompt" to prompt,
+                "modelName" to activeAiModel.value.takeIf {
+                    it.startsWith("gemini-") && it.length <= 80
+                }.orEmpty().ifBlank { "gemini-2.5-flash" }
+            )
+            if (!systemInstruction.isNullOrBlank()) args["systemInstruction"] = systemInstruction
+            val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                .getHttpsCallable("generateAdminGeminiContent")
+            val result = callable.call(args).await()
+            val payload = result.data as? Map<*, *> ?: emptyMap<Any, Any>()
+            val responseText = payload["responseText"] as? String
+            if (responseText.isNullOrBlank()) {
+                geminiStatusMessage.value = "Server Gemini connector returned no content."
+                return@withContext null
+            }
+            activeAiModel.value = payload["modelVersion"] as? String ?: "gemini-2.5-flash"
+            geminiStatusMessage.value = "Admin Gemini server connector active (${activeAiModel.value})."
+            responseText
+        } catch (error: Exception) {
+            geminiStatusMessage.value =
+                error.localizedMessage?.take(240) ?: "Admin Gemini server generation failed."
+            null
+        }
+    }
+
     suspend fun callGeminiApiForQuestionsWithFallback(
         prompt: String,
         systemInstruction: String? = null
@@ -5652,6 +5691,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             geminiStatusMessage.value = "AI Engine is disabled by Admin."
             return null
         }
+        if (isAdmin) return callAdminGeminiContent(prompt, systemInstruction)
         val keys = getGeminiApiKeys()
         if (keys.isEmpty()) {
             return null
@@ -5689,6 +5729,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!_isGlobalAiEnabled.value) {
             return null
         }
+        if (isAdmin) return callAdminGeminiContent(prompt, null)
         val keys = getGeminiApiKeys()
         if (keys.isEmpty()) {
             return null
