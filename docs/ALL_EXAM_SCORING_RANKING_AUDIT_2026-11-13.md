@@ -147,7 +147,7 @@ All registry entries in the draft JSON are disabled for official scoring/ranking
 
 Draft fixtures: `shared/scoring/scoring-golden-v1.json`.
 
-Initial source-backed vectors cover NEET 2026, JEE Main 2027, CUET UG 2026, CTET 2026, SSC CGL 2026 Tier-I, RRB ALP 2026 CBT-1, UGC-NET December 2026, IBPS PO-XVI 2026 Prelims and IBPS CSA-XVI 2026 Prelims. Added consumers: `app/src/test/java/Com/ak/testseries/exam/SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`. Both load the same JSON and compare correct/wrong/unanswered counts, positive/negative marks, raw/final score and maximum score. These tests are **added but execution is NOT VERIFIED**. The tolerance is 0.005 to accommodate the existing 2-decimal backend rounding versus Android Double values; this is not a substitute for the final shared decimal contract. These vectors test current engine behavior for nine policy samples, not every stage/paper/section.
+Initial source-backed vectors cover NEET 2026, JEE Main 2027, CUET UG 2026, CTET 2026, SSC CGL 2026 Tier-I, RRB ALP 2026 CBT-1 and UGC-NET December 2026. IBPS PO/CSA policies are source-reviewed but have section-specific marks/stages not fully mapped, so no generic IBPS vector is included. Added consumers: `app/src/test/java/Com/ak/testseries/exam/SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`. Both load the same JSON and compare correct/wrong/unanswered counts, positive/negative marks, raw/final score and maximum score. These tests are **added but execution is NOT VERIFIED**. The tolerance is 0.005 to accommodate the existing 2-decimal backend rounding versus Android Double values; this is not a substitute for the final shared decimal contract. These vectors test current engine behavior for seven policy samples, not every stage/paper/section.
 
 Required additional vectors: JEE Advanced dynamic schemes and dropped questions; UPSC qualifying Paper-II; all SSC/RRB stages; CAT MCQ/TITA; IBPS PO/CSA Mains and SBI PO/Clerk; GATE MCQ/MSQ/NAT; NDA/CDS; ties, duplicate IDs, missing config, invalid answer keys, NaN/Infinity, malformed decimals, retries and optional sections.
 
@@ -161,7 +161,7 @@ The initial documentation/contract draft did not run tests. A previous six-vecto
 | Official policies | PARTIAL / RELEASE BLOCKED | 11 official-cycle sources located; remaining 14 unverified; mapping incomplete even for sourced exams |
 | Android/backend call-site audit | FAIL | Fallbacks, independent policy code, optional max and decimal parity defects |
 | Versioned contract | DRAFT | JSON created; not runtime wired |
-| Shared golden fixtures | DRAFT | Nine shared vectors and Kotlin/Node test consumers added; execution NOT VERIFIED |
+| Shared golden fixtures | DRAFT | Seven shared vectors and Kotlin/Node test consumers added; execution NOT VERIFIED |
 | Score-to-ranking handoff | FAIL | Raw-score aggregation, unverified weighting and stale pre-transaction rank |
 | Ranking tie/percentile/retry/concurrency | OPEN/FAIL | Exact-head transaction and emulator tests absent |
 | Full Android tests | NOT RUN | Need exact discovered/executed/skipped/failed counts |
@@ -205,7 +205,7 @@ The initial documentation/contract draft did not run tests. A previous six-vecto
 ## 10. Isolated audit CI workflow
 
 Added `.github/workflows/all-exam-scoring-ranking-audit.yml` on this audit branch. It is configured for pushes to this exact audit branch, relevant pull requests targeting main, and manual dispatch. It runs:
-- JSON inventory validation for 25 exam policies and 9 initial fixtures, and asserts all policies remain disabled until review;
+- JSON inventory validation for 25 exam policies and 7 initial fixtures, and asserts all policies remain disabled until review;
 - Node 18 syntax checks plus `examScoring.test.js`, `callableValidation.test.js` and `sharedScoringGoldenVectors.test.js`;
 - JDK 17 / Gradle 9.3.1 `testDebugUnitTest`;
 - Gradle `assembleDebug`;
@@ -221,4 +221,4 @@ Added Kotlin test `SharedScoringGoldenVectorParityTest.kt`, Node test `sharedSco
 
 ## 12. Expanded official source verification
 
-Official source review has expanded from eight to eleven exam cycles by adding UGC-NET December 2026, IBPS PO/MT-XVI 2026 and IBPS CSA-XVI 2026. The current registry for each of these still omits one or more official papers/stages, so the policy is source-verified but mapping remains blocked. The shared fixture set now has nine vectors, and the Kotlin test plus workflow inventory assertion were updated from six to nine. Backend CI previously passed the six-vector version (62/62 tests); the new three vectors have not yet been run in CI. Do not extend that earlier PASS to the new head.
+Official source review has expanded from eight to eleven exam cycles by adding UGC-NET December 2026, IBPS PO/MT-XVI 2026 and IBPS CSA-XVI 2026. The current registry for each of these still omits one or more official papers/stages, so the policy is source-verified but mapping remains blocked. The shared fixture set now has nine vectors, and the Kotlin test plus workflow inventory assertion were updated from six to seven. Backend CI previously passed the six-vector version (62/62 tests); the added UGC NET vector has not yet been run in CI. Do not extend that earlier PASS to the new head.
