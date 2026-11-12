@@ -113,3 +113,42 @@ A phase is PASS only when its acceptance tests are green on the resulting exact 
 ## 8. Change boundary
 
 This update changes documentation only. It does not alter application source, Firebase, Firestore, Storage, user data, CI configuration or production deployment. The protected main branch receives this plan document only.
+
+
+## 2026-11-12 Expanded all-exam scoring + ranking audit
+
+This is a source-level audit extension, not a claim that every supported exam has been exhaustively verified. The live source files inspected include `UniversalExamRegistry.kt`, `ExamConfiguration.kt`, `UniversalExamModels.kt`, and backend `examScoring.js`. The exact current branch heads and CI must be refreshed before implementation.
+
+### Confirmed defects / high-risk mismatches
+| ID | Area | Finding | Status | Required correction |
+|---|---|---|---|---|
+| SCORE-001 | Exam identity | Backend `evaluateTestAttempt` uses `String(targetExam || "NEET")`; null/empty identity can silently score as NEET. | FAIL | Reject missing identity; resolve canonical exam/stage/paper/year explicitly. |
+| SCORE-002 | Source of truth | Android has both `ExamConfig/UniversalExamRegistry` and legacy `ExamConfiguration/ScoringRule` models. | FAIL / architecture risk | Select one canonical versioned contract; adapters only at boundaries; prove no competing defaults. |
+| SCORE-003 | Platform parity | Backend contains hardcoded per-exam and per-section rules; Android has independent special cases. | FAIL | Move rules to one versioned contract consumed by both; shared golden fixtures. |
+| SCORE-004 | Optional sections | Backend increments `maxPossible` for every loaded question before ignoring surplus attempts. | FAIL | Calculate attainable maximum from selected paper and deterministic valid selection, not all loaded questions. |
+| SCORE-005 | Android default | Android configured scoring path can fall back to first section's `+4/-1` when section config is absent. | FAIL | Missing policy/section must return explicit unsupported/unverified error. |
+| SCORE-006 | Answer normalization | Backend numeric equivalence uses `parseFloat` and a fixed tolerance; MSQ normalization/duplicates need symmetric validation. | OPEN | Define strict parser, exact-set semantics, per-policy numeric tolerance and duplicate rejection. |
+| SCORE-007 | Decimal parity | Backend rounds aggregate marks to 2 decimals while Android may retain raw Double. | OPEN | Define decimal representation and one rounding boundary in the contract. |
+| SCORE-008 | Ranking handoff | Ranking must consume verified canonical score/max/eligibility only; no independent scoring fallback. | OPEN | Golden-vector parity from scoring through ranking snapshot. |
+| SCORE-009 | Official policy evidence | Registry presence or hardcoded values do not prove year/paper/section policy. | OPEN | Source URL/document, exam year, stage, paper, section, retrieval date and reviewer required before enabling. |
+
+### All-exam coverage matrix required
+For every registered exam and every year/stage/paper/section, record: canonical ID; aliases; official source; source version/date; total questions; duration; question types; options count; positive/negative/partial marks; numerical tolerance; optional/compulsory limits; dropped/bonus policy; unanswered policy; normalization/rounding; Android test; backend test; parity fixture; ranking eligibility. Unknown cells remain UNVERIFIED and must not be guessed.
+
+The audit must explicitly include NEET UG, JEE Main, JEE Advanced, CUET, UPSC, SSC CGL/CHSL/MTS/CPO/GD, RRB NTPC/Group D/ALP/Technician/JE, IBPS PO/Clerk, SBI PO/Clerk, CTET/UPTET, UGC NET, CAT, GATE, NDA and CDS, plus every other active registry entry discovered from source. Do not assume variants share a rule.
+
+### Ranking audit gates
+- Confirm score normalization uses verified paper maximum and the same canonical score returned by Android/backend.
+- Confirm Full Test 1.0x and Part/Chapter/Topic 0.2x are applied only after verified test type.
+- Confirm first valid qualifying attempt, idempotent retry, conflict detection, transaction boundaries and concurrency.
+- Confirm per-exam isolation, ties/competition rank, percentile denominator, eligibility, banned/private-user filtering and unavailable-rank behavior.
+- Keep XP, streaks and league points separate from ranking score. Platform rank must not be represented as government/NTA AIR.
+- Historical backfill requires dry-run, provenance, answer-key validation, pagination/resume, duplicate protection and rollback; no production migration is authorized.
+
+### Test acceptance
+- Shared language-neutral golden vectors consumed by Kotlin and Node.
+- Every enabled exam/version has at least one official-source-backed fixture for every distinct scoring rule and question type.
+- Boundary tests: unanswered, negative raw score, bonus/dropped, partial credit, MSQ exact set, option/index aliases, decimal tolerance, NaN/Infinity, duplicate/missing IDs, invalid key, missing config, optional-section caps and repeated attempts.
+- Report discovered, executed, skipped and failed tests separately; test the exact commit SHA. A compile or APK build does not override a failed test suite.
+
+**Status:** Audit findings recorded. No application code, Firebase, production data, ranking records or scoring behavior changed by this section. All-exam correctness and Android/backend parity remain NOT VERIFIED / release blocked.
