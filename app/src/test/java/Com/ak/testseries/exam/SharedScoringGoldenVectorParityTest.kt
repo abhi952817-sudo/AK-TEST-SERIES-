@@ -46,7 +46,7 @@ class SharedScoringGoldenVectorParityTest {
         val document = adapter.fromJson(json)
             ?: error("Shared scoring golden fixture file is empty or invalid")
 
-        assertEquals("Expected six initial shared vectors", 6, document.fixtures.size)
+        assertEquals("Expected nine initial shared vectors", 9, document.fixtures.size)
 
         document.fixtures.forEach { fixture ->
             val questions = fixture.questions.map { source ->
