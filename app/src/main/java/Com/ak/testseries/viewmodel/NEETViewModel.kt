@@ -1669,19 +1669,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         questionsCount: Int,
         pdfUri: Uri? = null,
         targetExam: String = "NEET UG",
-        customQuestions: List<QuestionEntity>? = null
+        customQuestions: List<QuestionEntity>? = null,
+        onResult: ((Boolean, String?) -> Unit)? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val db = firestoreDb
                 val testId = "live_" + System.currentTimeMillis()
 
-                if (customQuestions.isNullOrEmpty() && pdfUri == null) {
-                    val message = "Live test creation blocked: provide real questions or upload a source PDF. Synthetic questions are disabled."
+                if (customQuestions.isNullOrEmpty()) {
+                    val message = if (pdfUri != null) {
+                        "Live test not scheduled: the selected PDF is only a review source. Extract and approve real questions before scheduling; empty live tests are blocked."
+                    } else {
+                        "Live test not scheduled: attach real questions before scheduling. Synthetic questions are disabled."
+                    }
                     aiGenStatusMessage.value = message
+                    withContext(Dispatchers.Main) { onResult?.invoke(false, message) }
                     return@launch
                 }
-                val questions = customQuestions.orEmpty().mapIndexed { idx, q ->
+                val questions = customQuestions.mapIndexed { idx, q ->
                     q.copy(id = "${testId}_q${idx + 1}", testId = testId)
                 }
                 val questionsJsonString = serializeQuestionsToJson(questions)
@@ -1734,20 +1740,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     android.util.Log.e("NEETViewModel", "Error broadcasting live test notification: ${ne.message}")
                 }
 
-                // Trigger AI Extraction if PDF was uploaded
-                if (finalPdfUrl.isNotEmpty()) {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        val keys = getGeminiApiKeys()
-                        val apiKey = if (keys.isNotEmpty()) keys.first().second else ""
-                        Com.ak.testseries.utils.GeminiPdfExtractor.processPdfWithGemini(
-                            pdfUrl = finalPdfUrl,
-                            testId = testId,
-                            apiKey = apiKey,
-                            totalQuestionsExpected = effectiveQCount
-                        )
-                    }
-                }
-
                 val roomTest = TestEntity(
                     id = testId,
                     title = title,
@@ -1775,8 +1767,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     repository.insertQuestions(questions)
                 }
                 uploadTestToFirestore(roomTest, questionsJsonString)
+                withContext(Dispatchers.Main) { onResult?.invoke(true, null) }
             } catch (e: Exception) {
-                e.printStackTrace()
+                val message = e.localizedMessage ?: "Failed to schedule live test."
+                aiGenStatusMessage.value = message
+                withContext(Dispatchers.Main) { onResult?.invoke(false, message) }
             }
         }
     }
