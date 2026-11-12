@@ -16,6 +16,25 @@ permissions:
   contents: read
 
 jobs:
+  backend-functions-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend_functions
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+          cache-dependency-path: backend_functions/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci
+      - name: Run backend unit tests
+        run: node --test *.test.js
+
   android-unit-tests:
     runs-on: ubuntu-latest
     steps:
