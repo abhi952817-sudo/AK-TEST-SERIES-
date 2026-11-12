@@ -222,3 +222,35 @@ Added Kotlin test `SharedScoringGoldenVectorParityTest.kt`, Node test `sharedSco
 ## 12. Expanded official source verification
 
 Official source review has expanded from eight to eleven exam cycles by adding UGC-NET December 2026, IBPS PO/MT-XVI 2026 and IBPS CSA-XVI 2026. The current registry for each of these still omits one or more official papers/stages, so the policy is source-verified but mapping remains blocked. The shared fixture set now has nine vectors, and the Kotlin test plus workflow inventory assertion were updated from six to seven. Backend CI previously passed the six-vector version (62/62 tests); the added UGC NET vector has not yet been run in CI. Do not extend that earlier PASS to the new head.
+
+
+## 13. Cross-branch candidate review: `feature/ranking-universal-integration-v1`
+
+The integration branch was inspected as a candidate because it contains newer fail-closed scoring and ranking work than main. Current Git comparison reports **469 commits ahead and 98 behind main** (merge base `d2feae47f908b705209c27b8e61e624f94c400d7`). This divergence is too large for a whole-branch merge.
+
+### Improvements present on the integration branch
+- Registry stores `sourceYear`, `sourceTitle` and `sourceUrl`; only NEET UG 2026 and JEE Main Paper 1 (2027) are source-verified/active. The other 23 registered identities are inactive instead of falsely scoring from generic defaults.
+- Backend `evaluateTestAttempt` rejects missing/blank exam identity, validates unique question IDs, rejects malformed numeric prefixes, supports exact-set MSQ and preserves unknown/untrusted keys as ungraded.
+- Android `calculateScore` requires exact stage and paper, rejects ambiguous IDs and section-specific mixed marking in its single-scheme path; it does not use a generic +4/-1 fallback.
+- Ranking v2 normalizes scores to a 10,000-point scale before weight; accepts only verified 1.0/0.2 weights; canonicalizes answer payloads for idempotency; uses a first-qualifying-attempt lock/transaction; and the per-test snapshot returns null rank/percentile on query failure.
+- The branch includes pure ranking helper tests for normalization, weight validation, ties, percentile boundaries, ungraded exclusion, null snapshots and migration checkpoint safety.
+
+### Remaining defects / limitations on that branch
+- Android and Backend `evaluateTestAttempt` still add each valid question's positive marks to max score without a generic optional-section selection/cap model. This is safe only for currently active compulsory-paper patterns; do not activate optional-section exams until fixed.
+- `getUserRankingDetails` still uses rank 0 / percentile 0 as the "Rank Pending" sentinel. This conflicts with the required null/unavailable contract.
+- Per-test rank and exam rank/percentile are derived from separate count queries after commit / outside a single consistent read snapshot. Concurrent writes can make rank and denominator inconsistent; emulator concurrency tests are required.
+- `examScoring.js` and `rankingEngine.js` both contain percentile helpers. Consolidate one canonical definition and test the exact tie/denominator convention.
+- Registry source verification on this branch is only 2/25, despite 11 official source sets now identified in this audit. Add source packets and stage/paper/section mapping before enabling more exams.
+- Current branch code has no shared versioned policy JSON consumed by both runtimes; it still mirrors policy logic in Kotlin and Node.
+- Historical CI documented on this branch: run `42355909308` had 306 Android tests with 19 failures, backend 70/71 failed, while Firestore rules and Debug APK assembly passed. Later code/test corrections were made, but README states latest runs were queued and no exact-current-head green run is established. Treat all those results as historical, not current PASS.
+
+### Port decision
+**KEEP selected improvements, DO NOT merge the branch wholesale.** Port only after exact-head CI is green and each file is reviewed against current main:
+1. Source-year metadata and verified/inactive registry gates.
+2. Strict backend identity/numeric/MSQ/answer-key validation.
+3. Android exact stage/paper validation.
+4. RankingEngine normalized scoring, fixed weights, canonical answer hash and transactional first qualifying attempt.
+5. Privacy-safe callable-only leaderboard reads and Firestore rules, but only with coordinated Android/backend/rules compatibility tests.
+6. Do not port stale `NEETViewModel`, `MainActivity`, database, PDF, AI, or backend index wholesale; main contains newer planner/Room changes.
+
+**Status:** This branch contains the strongest candidate implementation for several ranking/scoring safety requirements, but it is NOT release-ready and is not approved for merge. No feature-branch code was changed by this audit section.
