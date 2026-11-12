@@ -90,3 +90,34 @@ The unique CBT plan is stored under `.aistudio/artifacts/brain/.../implementatio
 | Date | SHA | Result |
 |---|---|---|
 | 2026-11-12 | `53b1e4c4b2f1ed9128751d9a57f3e932db118bca` | Branch comparison and historical CBT plan review only; no code/tests run |
+
+## 2026-11-12 Cross-branch code reconciliation (X/Y/Z)
+
+### X — KEEP
+- Keep CBT requirements: timer/recovery, palette states, Save & Next/Mark flows, bilingual display, accessibility and exam-specific sections.
+- Keep this branch as historical reference only; it is 128 commits behind main.
+
+### Y — PORT / REBUILD ON CURRENT BASE
+- Port only missing UX behavior after inspecting current main CBT player and ViewModel.
+- Use canonical scoring, exam registry, server-authoritative submission and protected answer keys.
+- Preserve offline answer drafts only; offline question generation is prohibited.
+
+### Z — OBSOLETE / DO NOT PORT
+- Do not merge stale branch wholesale, restore duplicate screens/navigation or hardcoded NEET section limits.
+- AI Studio artifact is historical plan, not canonical implementation source.
+
+### PASS / FAIL / OPEN evidence (2026-11-12)
+| Check | Result | Evidence / action |
+|---|---|---|
+| Branch comparison | PASS | 2 unique commits ahead / 128 behind main in recorded audit. |
+| CBT runtime behavior | OPEN | Requirements exist; runtime not proven by UI tests. |
+| Current-base compatibility | OPEN | Current player/navigation/ViewModel comparison required. |
+| Scoring/submission/recovery | OPEN | Canonical scoring and duplicate-submit tests required. |
+
+### Ordered work
+1. Inspect current main CBT player and list missing behaviors.
+2. Port one behavior at a time without duplicate screens/navigation.
+3. Add Compose tests for palette, timer, bilingual, section rules, recovery and submit idempotency.
+4. Run UI/unit tests and Debug APK on integration branch.
+
+**Verdict:** REQUIREMENTS REFERENCE / SELECTIVE PORT. No UI tests run by this documentation update.
