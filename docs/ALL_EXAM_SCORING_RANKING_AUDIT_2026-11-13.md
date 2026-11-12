@@ -342,3 +342,10 @@ Requested cleanup scope: remove failed workflow-run logs and obsolete artifacts 
 **Cleanup execution status: BLOCKED / NOT EXECUTED.** The connected GitHub actions available in this session expose workflow-run job/artifact listing and artifact download, but do not expose the destructive GitHub API operations to delete a workflow run/logs or delete an artifact. The available read-only GitHub fetch operation cannot perform those deletions. No deletion is claimed. Use GitHub repository Actions UI (or an authorized GitHub Actions API token) to delete selected failed runs and their associated artifacts. Do not delete successful runs or the currently running verification run before its results and evidence are captured.
 
 **Important:** GitHub Actions logs and artifacts consume Actions storage; deleting local workflow YAML or branch Markdown does not clear historical run logs. Retention settings can prevent future accumulation but do not retroactively delete existing runs.
+
+
+### Latest poll update: run 43326951571
+
+- Backend scoring/callable job `131561694616` completed **PASS: 63/63, 0 failed, 0 skipped**. This is the seven-vector current audit workflow run, including all seven shared fixture cases. It verifies the Backend test task and draft contract validation only; it does not prove Kotlin parity, runtime contract integration or ranking transactions.
+- Android job `131561694300` had JDK 21 setup successful but remained **IN PROGRESS** at the last poll. No Android test count or Debug APK result is recorded yet.
+- Separate Android CI job `131561693284` remained **IN PROGRESS** and still used JDK 17. The Java 21 change has therefore not been applied to every Android CI workflow.
