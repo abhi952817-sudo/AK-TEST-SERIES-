@@ -5981,12 +5981,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun uploadTestToFirestore(newTest: TestEntity, questionsJsonString: String): Boolean {
-        return try {
         if (!newTest.isPublic) {
             android.util.Log.d("NEETViewModel", "Test ${newTest.id} is PRIVATE. Scoped exclusively to local sandbox and skipped Firestore upload.")
             return true
         }
-        try {
+        return try {
             val sanitizedQuestionsJson = try {
                 sanitizeAndUploadQuestionImages(newTest.id, questionsJsonString)
             } catch (e: Exception) {
