@@ -132,6 +132,9 @@ async function generateGeminiContent(apiKey, input, fetchImpl = globalThis.fetch
   const modelName = typeof input?.modelName === "string" && input.modelName.trim()
     ? input.modelName.trim()
     : "gemini-2.5-flash";
+  const responseMimeType = input?.responseMimeType === "text/plain"
+    ? "text/plain"
+    : "application/json";
 
   if (!prompt || prompt.length > 80000 || systemInstruction.length > 20000) {
     const error = new Error("Prompt is empty or exceeds the permitted size.");
@@ -152,7 +155,7 @@ async function generateGeminiContent(apiKey, input, fetchImpl = globalThis.fetch
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
-      responseMimeType: "application/json",
+      responseMimeType,
       temperature: 0.2,
       maxOutputTokens: 8192
     }
@@ -249,7 +252,8 @@ exports.generateAdminGeminiContent = onCall(
       const result = await generateGeminiContent(adminGeminiApiKey.value(), {
         prompt: data.prompt,
         systemInstruction: data.systemInstruction,
-        modelName: data.modelName
+        modelName: data.modelName,
+        responseMimeType: data.responseMimeType
       });
       return { ...result, provider: "gemini" };
     } catch (error) {
