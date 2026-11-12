@@ -251,13 +251,22 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
                         scheduledTime = scheduledTime,
                         durationMinutes = durationMinutes.toIntOrNull() ?: 180,
                         questionsCount = questionsCount.toIntOrNull() ?: 90,
-                        pdfUri = pdfUri
+                        pdfUri = pdfUri,
+                        onResult = { success, error ->
+                            coroutineScope.launch {
+                                val message = error ?: if (success) {
+                                    "Live test successfully scheduled & uploaded!"
+                                } else {
+                                    "Live test scheduling failed."
+                                }
+                                snackbarHostState.showSnackbar(message)
+                                if (success) {
+                                    title = ""
+                                    chapterName = ""
+                                }
+                            }
+                        }
                     )
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Live test successfully scheduled & uploaded!")
-                        title = ""
-                        chapterName = ""
-                    }
                 } else {
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Please fill Title and Chapter fields.")
