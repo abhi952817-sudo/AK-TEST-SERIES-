@@ -67,7 +67,7 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
     AdminSectionCard(
         title = stringRes("Upload & Schedule Live Test"),
         icon = Icons.Rounded.CloudUpload,
-        description = "Publish live scheduled tests with auto-extraction synchronized to Firestore."
+        description = "PDF analysis creates a review draft only. A live test can be scheduled only after real, approved questions are attached."
     ) {
         // Class
         Box(modifier = Modifier.fillMaxWidth()) {
