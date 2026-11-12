@@ -161,16 +161,16 @@ A separate isolated audit branch was created from main SHA `8f7eee9c4beee7db3e44
 
 Audit report: `docs/ALL_EXAM_SCORING_RANKING_AUDIT_2026-11-13.md`.
 Draft contract: `shared/scoring/scoring-policy.v1.json`.
-Draft shared fixtures: `shared/scoring/scoring-golden-v1.json`.
+Draft shared fixtures: `shared/scoring/scoring-golden-v1.json` (seven vectors; Kotlin and Node test consumers added on the audit branch).
 JSON schema: `shared/scoring/scoring-policy-contract.schema.v1.json`.
 
-Source inventory: 25 exam IDs, 25 stage IDs, 28 paper IDs and 99 section IDs. Eight official source sets were located (seven for 2026 and JEE Main 2027): NEET, JEE Main, JEE Advanced, CUET, UPSC CSE, SSC CGL, CTET and RRB ALP. The rest remain UNVERIFIED. Even sourced exams have registry hierarchy mismatches requiring mapping.
+Source inventory: 25 exam IDs, 25 stage IDs, 28 paper IDs and 99 section IDs. Eleven official source sets are now located: NEET, JEE Main, JEE Advanced, CUET, UPSC CSE, SSC CGL, CTET, RRB ALP, UGC-NET, IBPS PO and IBPS CSA. Fourteen registry exams still lack an official source packet or full stage/paper mapping. The rest remain UNVERIFIED. Even sourced exams have registry hierarchy mismatches requiring mapping.
 
 New source-level blockers: NEET registry retains old optional Section B/200-minute scheme; JEE Main registry retains old 20+10 attempt-5 pattern and omits Paper 2A/2B; CUET registry says attempt 40/45 minutes instead of 50 compulsory/60 minutes; CTET only models one paper; UPSC omits qualifying GS Paper-II; SSC CGL omits Tier-II; RRB ALP omits CBT-2/CBAT; JEE Advanced hardcodes a static scheme although 2026 brochure defers marking details to per-question CBT instructions.
 
 Ranking blockers confirmed in main: raw scores are accumulated without max-score normalization; arbitrary numeric rankingWeight is accepted; per-test rank is computed outside transaction; query failure writes rank 0; retry maps missing rank to 1; idempotency compares property-order-sensitive JSON serialization. See audit report for IDs and evidence.
 
-**Status:** Registry inventory PASS; official policy coverage PARTIAL; Android/backend parity FAIL; contract/fixtures DRAFT NOT RUNTIME WIRED; ranking FAIL/OPEN; Kotlin/Node tests and Debug APK NOT RUN. This handoff is documentation-only and does not authorize main application-code edits, merge or deployment.
+**Status:** Registry inventory PASS; official policy coverage PARTIAL; Android/backend parity FAIL; contract/fixtures DRAFT NOT RUNTIME WIRED; ranking FAIL/OPEN; Backend six-vector historical run passed 62/62; current seven-vector exact-head run and Android tests/Debug APK remain unverified. This handoff is documentation-only and does not authorize main application-code edits, merge or deployment.
 
 
 ### 2026-11-13 shared scoring fixture test wiring
