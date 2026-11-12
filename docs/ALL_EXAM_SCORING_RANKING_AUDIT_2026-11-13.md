@@ -207,11 +207,11 @@ The initial documentation/contract draft did not run tests. A previous six-vecto
 Added `.github/workflows/all-exam-scoring-ranking-audit.yml` on this audit branch. It is configured for pushes to this exact audit branch, relevant pull requests targeting main, and manual dispatch. It runs:
 - JSON inventory validation for 25 exam policies and 7 initial fixtures, and asserts all policies remain disabled until review;
 - Node 18 syntax checks plus `examScoring.test.js`, `callableValidation.test.js` and `sharedScoringGoldenVectors.test.js`;
-- JDK 17 / Gradle 9.3.1 `testDebugUnitTest`;
+- JDK 21 / Gradle 9.3.1 `testDebugUnitTest`;
 - Gradle `assembleDebug`;
 - upload of Android test XML/reports and Debug APK artifact.
 
-It does **not** yet run Firestore emulator rules tests, ranking transaction/concurrency tests, or automated policy-source validation. The Kotlin and Node golden-vector tests are now included in their respective test tasks. Their current nine-vector exact-head run remains queued/in progress until results are reported. The latest workflow update is committed as `a265229b0f268d2949f2da8350abae050906b666`.
+It does **not** yet run Firestore emulator rules tests, ranking transaction/concurrency tests, or automated policy-source validation. The Kotlin and Node golden-vector tests are now included in their respective test tasks. Their current nine-vector exact-head run remains queued/in progress until results are reported. The latest workflow update uses JDK 21 and is committed as `f1e967e341e782e1f8865e44f4f932caf875c9fd`.
 
 **CI evidence:** the available GitHub commit-status and workflow-run lookups returned no status records for the audit commits. Therefore the workflow is configured but its run is **NOT VERIFIED / OPEN**. No test count, test PASS or APK artifact is claimed.
 
@@ -254,3 +254,14 @@ The integration branch was inspected as a candidate because it contains newer fa
 6. Do not port stale `NEETViewModel`, `MainActivity`, database, PDF, AI, or backend index wholesale; main contains newer planner/Room changes.
 
 **Status:** This branch contains the strongest candidate implementation for several ranking/scoring safety requirements, but it is NOT release-ready and is not approved for merge. No feature-branch code was changed by this audit section.
+
+## 14. Exact CI results and Java runtime correction
+
+- Backend run `43325351355` on the earlier six-vector commit: **62 tests passed, 0 failed, 0 skipped**.
+- Backend run `43325704588` on the intermediate nine-vector commit: **65 tests passed, 0 failed, 0 skipped**. This is historical only: two IBPS vectors were subsequently removed because the current stage/section mark mapping is not sufficiently explicit in the source-backed contract.
+- Android run `43325351355`: **294 tests completed, 1 failed**. The failure is `CrashResilienceTest > classMethod`; Robolectric reports Android SDK 36 requires Java 21, but the workflow used Java 17. The Debug APK step was skipped because the unit-test task failed. Test XML/report artifact ID: `13992911800`.
+- The audit workflow was corrected to use JDK 21 (source/target compilation remains project-configured); the correction is commit `f1e967e341e782e1f8865e44f4f932caf875c9fd`.
+- Current policy-correct fixture set contains **7 vectors** (the six original plus UGC-NET December 2026; no generic IBPS vector). The seven-vector exact-head run, full Android test suite and Debug APK have not yet returned results. Do not transfer the 62/62 or 65/65 historical Backend result to this latest head.
+- Firestore emulator tests, ranking transaction/concurrency tests and ranking end-to-end tests remain outside the audit workflow and are still OPEN.
+
+**Current verdict:** Backend sample tests have historical PASS evidence; Android test gate FAIL due wrong Java runtime; JDK 21 correction is committed but not yet verified by a fresh completed run. Full release remains blocked.
