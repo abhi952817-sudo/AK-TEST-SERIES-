@@ -147,18 +147,18 @@ All registry entries in the draft JSON are disabled for official scoring/ranking
 
 Draft fixtures: `shared/scoring/scoring-golden-v1.json`.
 
-Initial source-backed vectors cover NEET 2026, JEE Main 2027, CUET UG 2026, CTET 2026, SSC CGL 2026 Tier-I, RRB ALP 2026 CBT-1, UGC-NET December 2026, IBPS PO-XVI 2026 Prelims and IBPS CSA-XVI 2026 Prelims. Added consumers: `app/src/test/java/Com/ak/testseries/exam/SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`. Both load the same JSON and compare correct/wrong/unanswered counts, positive/negative marks, raw/final score and maximum score. These tests are **added but execution is NOT VERIFIED**. The tolerance is 0.005 to accommodate the existing 2-decimal backend rounding versus Android Double values; this is not a substitute for the final shared decimal contract. These vectors test current engine behavior for six policy samples, not every stage/paper/section.
+Initial source-backed vectors cover NEET 2026, JEE Main 2027, CUET UG 2026, CTET 2026, SSC CGL 2026 Tier-I, RRB ALP 2026 CBT-1, UGC-NET December 2026, IBPS PO-XVI 2026 Prelims and IBPS CSA-XVI 2026 Prelims. Added consumers: `app/src/test/java/Com/ak/testseries/exam/SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`. Both load the same JSON and compare correct/wrong/unanswered counts, positive/negative marks, raw/final score and maximum score. These tests are **added but execution is NOT VERIFIED**. The tolerance is 0.005 to accommodate the existing 2-decimal backend rounding versus Android Double values; this is not a substitute for the final shared decimal contract. These vectors test current engine behavior for nine policy samples, not every stage/paper/section.
 
-Required additional vectors: JEE Advanced dynamic schemes and dropped questions; UPSC qualifying Paper-II; all SSC/RRB stages; UGC NET; CAT MCQ/TITA; IBPS/SBI; GATE MCQ/MSQ/NAT; NDA/CDS; ties, duplicate IDs, missing config, invalid answer keys, NaN/Infinity, malformed decimals, retries and optional sections.
+Required additional vectors: JEE Advanced dynamic schemes and dropped questions; UPSC qualifying Paper-II; all SSC/RRB stages; CAT MCQ/TITA; IBPS PO/CSA Mains and SBI PO/Clerk; GATE MCQ/MSQ/NAT; NDA/CDS; ties, duplicate IDs, missing config, invalid answer keys, NaN/Infinity, malformed decimals, retries and optional sections.
 
 ## 7. Acceptance / test evidence
 
-No Kotlin, Node, Firestore emulator, concurrency or APK tests were run in this documentation/contract-draft pass. The exact current CI status must be fetched for the resulting commit.
+The initial documentation/contract draft did not run tests. A previous six-vector Backend CI run passed 62/62 tests; the expanded nine-vector head is queued for a fresh exact-head run. Android unit tests and Debug APK on the expanded head are not yet verified.
 
 | Gate | Status | Required evidence |
 |---|---|---|
-| Registry inventory | PASS (source extraction) | 25 exam IDs; 27 paper IDs; 99 section IDs |
-| Official policies | PARTIAL / RELEASE BLOCKED | 8 official-cycle sources located; remaining 17 unverified; mapping incomplete even for sourced exams |
+| Registry inventory | PASS (source extraction) | 25 exam IDs; 28 paper IDs; 99 section IDs |
+| Official policies | PARTIAL / RELEASE BLOCKED | 11 official-cycle sources located; remaining 14 unverified; mapping incomplete even for sourced exams |
 | Android/backend call-site audit | FAIL | Fallbacks, independent policy code, optional max and decimal parity defects |
 | Versioned contract | DRAFT | JSON created; not runtime wired |
 | Shared golden fixtures | DRAFT | Nine shared vectors and Kotlin/Node test consumers added; execution NOT VERIFIED |
@@ -188,6 +188,7 @@ No Kotlin, Node, Firestore emulator, concurrency or APK tests were run in this d
 - JEE Main 2027 NTA Information Bulletin: https://jeemain.nta.nic.in/information-bulletin/
 - JEE Advanced 2026 Information Brochure: https://jeeadv.ac.in/documents/IBEnglish_2026.pdf
 - CUET UG 2026 NTA Information Bulletin: https://cdnbbsr.s3waas.gov.in/s3d1a21da7bca4abff8b0b61b87597de73/uploads/2026/01/202601031633478370.pdf
+- UPSC Civil Services Examination 2026 official notice: https://d35xcwcl37xo08.cloudfront.net/upsc-exam-wp-uploads/2026/02/upsc-notification-2026-PDF.pdf
 - UPSC Civil Services Examination Rules 2026, Gazette: https://egazette.gov.in/WriteReadData/2026/269828.pdf
 - SSC CGL 2026 notice: https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf
 - CTET September 2026 Information Bulletin: https://cdnbbsr.s3waas.gov.in/s3443dec3062d0286986e21dc0631734c9/uploads/2026/05/202605111250310617.pdf
@@ -210,7 +211,7 @@ Added `.github/workflows/all-exam-scoring-ranking-audit.yml` on this audit branc
 - Gradle `assembleDebug`;
 - upload of Android test XML/reports and Debug APK artifact.
 
-It does **not** yet run Firestore emulator rules tests, the golden fixtures through both Kotlin and Node (no shared fixture loaders exist yet), ranking transaction/concurrency tests, or policy-source validation. These remain OPEN. The latest workflow update is committed as `a265229b0f268d2949f2da8350abae050906b666`.
+It does **not** yet run Firestore emulator rules tests, ranking transaction/concurrency tests, or automated policy-source validation. The Kotlin and Node golden-vector tests are now included in their respective test tasks. Their current nine-vector exact-head run remains queued/in progress until results are reported. The latest workflow update is committed as `a265229b0f268d2949f2da8350abae050906b666`.
 
 **CI evidence:** the available GitHub commit-status and workflow-run lookups returned no status records for the audit commits. Therefore the workflow is configured but its run is **NOT VERIFIED / OPEN**. No test count, test PASS or APK artifact is claimed.
 
