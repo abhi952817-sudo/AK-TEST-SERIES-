@@ -104,7 +104,7 @@ test("Admin Gemini generation keeps the secret in headers and returns text with 
           modelVersion: "gemini-2.5-flash-001",
           candidates: [{
             finishReason: "STOP",
-            content: { parts: [{ text: "{\\"questions\\":[]}" }] }
+            content: { parts: [{ text: '{"questions":[]}' }] }
           }],
           usageMetadata: {
             promptTokenCount: 42,
@@ -121,7 +121,7 @@ test("Admin Gemini generation keeps the secret in headers and returns text with 
   assert.equal(requestOptions.headers["x-goog-api-key"], "AIza-test-secret-key-123456789");
   assert.equal(JSON.parse(requestOptions.body).contents[0].parts[0].text, "Create one test question as JSON.");
   assert.deepEqual(result, {
-    responseText: "{\\"questions\\":[]}",
+    responseText: '{"questions":[]}',
     modelVersion: "gemini-2.5-flash-001",
     usageMetadata: {
       promptTokenCount: 42,
