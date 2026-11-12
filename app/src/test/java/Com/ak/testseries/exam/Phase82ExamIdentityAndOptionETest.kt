@@ -180,9 +180,14 @@ class Phase82ExamIdentityAndOptionETest {
             examId = "IBPS_PO",
             subjectId = "quantitative_aptitude",
             questionText = "What is the reserve ratio set by RBI?",
+            sectionId = "qa_sec",
+            sectionName = "Quant",
             options = listOf("3.5%", "4.0%", "4.5%", "5.0%", "None of the above"),
             correctAnswer = "E",
-            explanation = "The current CRR is 4.5%."
+            explanation = "The current CRR is 4.5%.",
+            questionType = QuestionType.MCQ_SINGLE,
+            positiveMarks = 1.0,
+            negativeMarks = 0.25
         )
 
         val standardizedPaper = ExamFormatStandardizer.standardizeExamOutput(
