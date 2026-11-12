@@ -189,3 +189,38 @@ Create language-neutral golden fixtures (JSON) consumed by Kotlin and Node tests
 **PARTIAL:** finite-number and exact-set MSQ work on the scoring feature branch is a candidate to retain after parity tests.  
 **OPEN:** complete official source-backed exam matrix, golden fixtures, current-head test run, all-exam Android/backend parity and APK verification.  
 **Change boundary:** this update changes documentation only. No application code or production data was modified.
+
+
+## 2026-11-12 Full all-exam marking and Android/backend parity audit extension
+
+### Confirmed source-level defects
+1. **Missing exam identity silently becomes NEET (FAIL).** In main `backend_functions/examScoring.js`, `evaluateTestAttempt` currently initializes `exam` with `String(targetExam || "NEET")`. Null/empty identity must be rejected before any score calculation.
+2. **Duplicate configuration models (FAIL / architecture risk).** `ExamConfig` / `UniversalExamRegistry` coexist with legacy `ExamConfiguration` / `ScoringRule`. Establish one canonical versioned config and boundary adapters; do not allow two policy stores.
+3. **Independent Android/backend special cases (FAIL).** Backend `getMarkingSchemeForExam` and `getMarkingSchemeForQuestion` contain hardcoded rules for NEET, JEE, GATE, CUET, UPSC, NDA, CDS, SSC, Banking, Teaching, CAT and Railways. Android has its own rules. This is not guaranteed parity and is not year/paper/section specific.
+4. **Optional-section maximum inflation (FAIL).** Backend adds each question's positive marks to `maxPossible` before section-attempt caps ignore surplus questions. The maximum can exceed the actual selected-paper maximum.
+5. **Unsafe Android default policy (FAIL).** A configured Android scoring path can choose the first section's `+4/-1` when section policy is missing. No silent default is permitted.
+6. **Numeric and answer normalization (OPEN).** Backend uses `parseFloat` and a fixed `0.0001` tolerance. It must not accept malformed numeric prefixes; tolerance must be explicit per verified policy. MSQ must normalize indices/letters, reject duplicate/unknown selections and compare exact sets unless the official scheme explicitly provides partial credit.
+7. **Decimal rounding (OPEN).** Backend rounds aggregate fields to two decimal places; Android may keep raw Double values. One documented decimal precision/rounding rule is required.
+8. **Answer-key integrity (OPEN).** Validate duplicate/missing question IDs, unknown question types, missing/unverified keys and answer-map references symmetrically. Ungraded questions must remain explicit and must not silently count as correct, wrong or unanswered.
+9. **Official pattern verification (OPEN).** Every enabled exam/year/stage/paper/section requires official source provenance and review. Registry defaults and code comments are not evidence.
+
+### Required exam-by-exam matrix
+Create a row for every active registry exam and each distinct stage/paper/year/section. Required columns: canonical exam ID, alias, year/version, stage, paper, section, official source and retrieval date, total questions, duration, question type, option count, positive/negative/partial marks, tolerance, compulsory/optional cap, dropped/bonus rule, unanswered rule, max-score formula, rounding rule, Android result, backend result, golden fixture ID, ranking eligibility and review status. Do not mark all exams verified from a single sample or generic exam-level entry.
+
+At minimum inspect NEET UG, JEE Main, JEE Advanced, CUET, UPSC, SSC variants, RRB variants, IBPS/SBI variants, CTET/UPTET, UGC NET, CAT, GATE, NDA, CDS and all additional active registry IDs. Different stages/papers must be separate rows. Unknown or unsupported policies remain UNVERIFIED and disabled for official ranking.
+
+### Ranking integration contract
+Scoring must return a typed result containing canonical exam/stage/paper/version, score, raw score, max score, counts, ungraded count, eligibility and policy version. Ranking consumes this exact server-authoritative result. It must not recalculate marks or infer exam type from display names. Normalization to 10,000 and Full Test 1.0x / Part/Chapter/Topic 0.2x happen only after test type and max score are verified. XP remains separate.
+
+### Par ity acceptance and implementation order
+1. Reject missing/ambiguous exam identity and add regression tests.
+2. Remove Android +4/-1 implicit fallback and add missing-section tests.
+3. Fix maximum-score calculation with deterministic optional-section selection metadata.
+4. Freeze one versioned policy contract and one alias resolver.
+5. Build shared JSON golden fixtures consumed by Kotlin and Node.
+6. Align numeric parsing, MSQ exact-set, ungraded handling and rounding.
+7. Verify official policy source for each enabled year/stage/paper; disable unsupported/unverified entries.
+8. Pass the typed score to ranking; test first attempt, retry, tie and exam isolation.
+9. Run full Android/backend/emulator suites and exact-head Debug APK; record counts and SHA.
+
+**Current verdict:** FAIL for all-exam parity and the defects above. OPEN for official per-exam coverage, exact current-head CI, migration and ranking end-to-end. No source code or production behavior was changed by this documentation update.
