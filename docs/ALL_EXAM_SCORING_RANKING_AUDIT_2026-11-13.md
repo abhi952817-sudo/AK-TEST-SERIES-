@@ -60,14 +60,14 @@ The following IDs and their current stage/paper/section identifiers were extract
 | `rrb_alp` | RRB CEN 01/2026 | CBT-1 75 questions/75 marks/60 min, +1/-1/3; CBT-2 Part-A and Part-B; CBAT no negative marking; final merit uses CBT-2 Part-A and CBAT 50:50 after qualifying Part-B | Registry models CBT-1 only. **FAIL: missing CBT-2/CBAT/final-merit flow** |
 | `nda` | UPSC NDA/NA 2026 notice located | Current official 2026 notice exists; detailed paper-level scheme not fully extracted in this pass | **OPEN: source document/paper-level marking review** |
 | `cds` | UPSC CDS 2026 notice located | Current official 2026 notice exists; detailed paper-level scheme not fully extracted in this pass | **OPEN: source document/paper-level marking review** |
-| `ssc_chsl` | Not yet source-verified | No policy values accepted from registry alone | **UNVERIFIED** |
+| `ssc_chsl` | SSC CHSL 2025 notice (Tier-II scheduled Feb-Mar 2026) | Tier-I 100/200, 60 min, +2/-0.50; Tier-II Sections I/II +3/-1; Computer Knowledge and Skill/Typing sections qualifying | Registry models only Tier-I. **SOURCE VERIFIED, MAPPING FAIL** |
 | `ssc_mts` | Not yet source-verified | No policy values accepted from registry alone | **UNVERIFIED** |
-| `ssc_gd` | Not yet source-verified | No policy values accepted from registry alone | **UNVERIFIED** |
+| `ssc_gd` | SSC Constable GD 2026 notice (published Dec 2025) | 80 questions/160 marks/60 min, +2/-0.25; NCC bonus 2/3/5% of maximum marks; PET/PST/Medical/DV after CBE | Registry needs explicit NCC bonus and qualifying stages. **SOURCE VERIFIED, MAPPING REQUIRED** |
 | `ssc_cpo` | Not yet source-verified | No policy values accepted from registry alone | **UNVERIFIED** |
-| `rrb_ntpc` | Not yet source-verified | Must split CBT stages and recruitment CEN/year | **UNVERIFIED** |
-| `rrb_group_d` | Not yet source-verified | Must use current CEN/year and CBT pattern | **UNVERIFIED** |
-| `rrb_technician` | Not yet source-verified | Must split grade/stage and current CEN/year | **UNVERIFIED** |
-| `rrb_je` | Not yet source-verified | Must split CBT-1/CBT-2 and current CEN/year | **UNVERIFIED** |
+| `rrb_ntpc` | RRB CEN 06/2025 Graduate + CEN 07/2025 Undergraduate | CBT-1 100/100, 90 min; CBT-2 120/120, 90 min; -1/3 for wrong; CBAT/Typing for applicable posts | Registry must split Graduate/Undergraduate and post-specific stages. **SOURCE VERIFIED, MAPPING FAIL** |
+| `rrb_group_d` | RRB CEN 09/2025 Level-1 | CBT 100/100, 90 min, +1/-1/3; PET/DV/Medical are qualifying stages | Stage and year mapping must be verified against current registry. **SOURCE VERIFIED, MAPPING REQUIRED** |
+| `rrb_technician` | RRB CEN 02/2025 | Technician Grade-I Signal and Grade-III have different subject distributions; 100/100, 90 min, +1/-1/3 | Registry must split grade/paper/sections. **SOURCE VERIFIED, MAPPING FAIL** |
+| `rrb_je` | RRB CEN 05/2025 JE/DMS/CMA | CBT-1 100/100 in 90 min; CBT-2 150/150 in 120 min; -1/3 per wrong answer | Registry must split CBT-1/CBT-2 and post-specific section marks. **SOURCE VERIFIED, MAPPING FAIL** |
 | `ugc_net` | UGC-NET December 2026 NTA bulletin (updated 16 Oct 2026) | Paper I: 50 MCQ/100 marks; Paper II: 100 MCQ/200 marks; all compulsory, 180 minutes; +2 per correct, no negative; special dropped/multiple-correct rules | Registry has one paper ID and one section only. **SOURCE VERIFIED, MAPPING FAIL** |
 | `cat` | Not yet source-verified | Must verify current CAT year and MCQ/TITA sections | **UNVERIFIED** |
 | `ibps_po` | IBPS CRP PO/MT-XVI 2026 notification | Prelims 100/100 in 60 min; Mains 170 objective/200 in 160 min plus descriptive 2/25 in 30 min; -0.25 of assigned marks; equi-percentile normalization; final Main:Interview 80:20 | Registry has Prelims only. **SOURCE VERIFIED, MAPPING FAIL** |
@@ -158,7 +158,7 @@ The initial documentation/contract draft did not run tests. A previous six-vecto
 | Gate | Status | Required evidence |
 |---|---|---|
 | Registry inventory | PASS (source extraction) | 25 exam IDs; 28 paper IDs; 99 section IDs |
-| Official policies | PARTIAL / RELEASE BLOCKED | 11 official-cycle sources located; remaining 14 unverified; mapping incomplete even for sourced exams |
+| Official policies | PARTIAL / RELEASE BLOCKED | 17 official-cycle sources located; remaining 8 unverified; mapping incomplete even for sourced exams |
 | Android/backend call-site audit | FAIL | Fallbacks, independent policy code, optional max and decimal parity defects |
 | Versioned contract | DRAFT | JSON created; not runtime wired |
 | Shared golden fixtures | DRAFT | Seven shared vectors and Kotlin/Node test consumers added; execution NOT VERIFIED |
@@ -196,6 +196,13 @@ The initial documentation/contract draft did not run tests. A previous six-vecto
 - UGC-NET December 2026 Updated Information Bulletin (16 Oct 2026): https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/20261016860019603.pdf
 - IBPS CRP PO/MT-XVI 2026 notification: https://www.ibps.in/wp-content/uploads/Detailed-Notification_CRP-PO-XVI_Final_V1_30.06.2026.pdf
 - IBPS CRP CSA-XVI 2026 notification: https://www.ibps.in/wp-content/uploads/Notification_CRP_CSA_XVI-Final.pdf
+- RRB NTPC Undergraduate CEN 07/2025: https://www.rrbcdg.gov.in/uploads/2025/07-NTPCUG/072025NTPCUG-CEN.pdf
+- RRB NTPC Graduate CEN 06/2025 official notice page: https://www.rrbcdg.gov.in/2025-06-ntpcg.php
+- RRB Group-D CEN 09/2025 official notice page: https://www.rrbcdg.gov.in/2025-09-level1.php
+- RRB Technician CEN 02/2025: https://www.rrbcdg.gov.in/uploads/2025/02-TECH/022025-CEN.pdf
+- RRB JE CEN 05/2025: https://www.rrbcdg.gov.in/uploads/2025/05-JE/052025JE-CEN.pdf
+- SSC Constable GD 2026 notice (published 01 Dec 2025): https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/notice_01122025.pdf
+- SSC CHSL 2025 notice (Tier-II scheduled Feb-Mar 2026): https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_chsl_2025.pdf
 - UPSC NDA/NA II 2026 notice: https://www.upsc.gov.in/examinations/National%20Defence%20Academy%20and%20Naval%20Academy%20Examination%20%28II%29%2C%202026
 - UPSC CDS II 2026 archive: https://www.upsc.gov.in/exams-related-info/exam-notification/archives
 
@@ -221,7 +228,7 @@ Added Kotlin test `SharedScoringGoldenVectorParityTest.kt`, Node test `sharedSco
 
 ## 12. Expanded official source verification
 
-Official source review has expanded from eight to eleven exam cycles by adding UGC-NET December 2026, IBPS PO/MT-XVI 2026 and IBPS CSA-XVI 2026. The current registry for each of these still omits one or more official papers/stages, so the policy is source-verified but mapping remains blocked. The shared fixture set now has nine vectors, and the Kotlin test plus workflow inventory assertion were updated from six to seven. Backend CI previously passed the six-vector version (62/62 tests); the added UGC NET vector has not yet been run in CI. Do not extend that earlier PASS to the new head.
+Official source review has expanded from eleven to seventeen exam cycles by adding RRB NTPC CEN 06/07-2025, RRB Group-D CEN 09/2025, RRB Technician CEN 02/2025, RRB JE CEN 05/2025, SSC GD 2026 and SSC CHSL 2025 (Tier-II in 2026). The current registry for these exams still omits one or more official papers/stages/grades/bonus components, so the policy is source-verified but mapping remains blocked. The shared fixture set now has nine vectors, and the Kotlin test plus workflow inventory assertion were updated from six to seven. Backend CI previously passed the six-vector version (62/62 tests); the added UGC NET vector has not yet been run in CI. Do not extend that earlier PASS to the new head.
 
 
 ## 13. Cross-branch candidate review: `feature/ranking-universal-integration-v1`
@@ -265,3 +272,7 @@ The integration branch was inspected as a candidate because it contains newer fa
 - Firestore emulator tests, ranking transaction/concurrency tests and ranking end-to-end tests remain outside the audit workflow and are still OPEN.
 
 **Current verdict:** Backend sample tests have historical PASS evidence; Android test gate FAIL due wrong Java runtime; JDK 21 correction is committed but not yet verified by a fresh completed run. Full release remains blocked.
+
+### Current official-source coverage update
+
+The policy JSON now has 17 source-backed exam cycles and 8 unverified registry identities. Source-backed does not mean enabled: all 25 remain `scoringEnabled=false` and `rankingEnabled=false` until stage/paper/section mapping and runtime contract integration pass. SSC GD's NCC bonus and CHSL's Tier-II qualifying sections, plus the RRB stage/grade splits, are explicitly retained as separate policy fields rather than flattened into one +/− value.
