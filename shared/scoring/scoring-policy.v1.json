@@ -1085,5 +1085,85 @@
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
     }
-  ]
+  ],
+  "rankingContract": {
+    "version": "1.0.0",
+    "status": "DRAFT_NOT_RUNTIME_WIRED",
+    "acceptedInput": "SERVER_AUTHORITATIVE_VERIFIED_SCORE_RESULT_ONLY",
+    "scoreResultRequiredFields": [
+      "resultVersion",
+      "examId",
+      "examYear",
+      "stageId",
+      "paperId",
+      "policyVersion",
+      "scoreStatus",
+      "rawScore",
+      "finalScore",
+      "maxScore",
+      "correctCount",
+      "wrongCount",
+      "unansweredCount",
+      "ungradedCount",
+      "rankingEligible",
+      "attemptId",
+      "testType"
+    ],
+    "eligibility": {
+      "requireVerifiedPolicy": true,
+      "requireScoreStatus": "GRADED",
+      "requireUngradedCount": 0,
+      "requirePositiveMaxScore": true,
+      "requireCanonicalExamId": true
+    },
+    "normalization": {
+      "scale": 10000,
+      "formula": "round(finalScore / maxScore * 10000)",
+      "maxClamp": 10000,
+      "minClamp": 0
+    },
+    "weights": {
+      "fullTest": 1,
+      "partChapterTopic": 0.2,
+      "requireVerifiedTestType": true,
+      "rejectArbitraryClientWeight": true
+    },
+    "ranking": {
+      "scopeKey": [
+        "examId",
+        "examYear",
+        "stageId",
+        "paperId",
+        "cohortId"
+      ],
+      "rankType": "COMPETITION",
+      "formula": "higherScoreCount + 1",
+      "tieBehavior": "equal scores share rank; next rank skips tied positions",
+      "unavailableValue": null
+    },
+    "percentile": {
+      "formula": "((lowerScoreCount + equalScoreCount) / totalEligibleCount) * 100",
+      "roundingDecimals": 2,
+      "unavailableValue": null
+    },
+    "attempt": {
+      "qualifyingAttempt": "FIRST_VALID_QUALIFYING_ATTEMPT_PER_TEST",
+      "idempotency": "CANONICAL_SORTED_ANSWER_PAYLOAD_SHA256",
+      "retry": "RETURN_EXISTING_CANONICAL_RESULT_WITHOUT_DOUBLE_COUNT"
+    },
+    "concurrency": {
+      "atomicity": "FIRESTORE_TRANSACTION",
+      "conflictingAttemptId": "REJECT",
+      "rankSnapshot": "CONSISTENT_READ_OR_EXPLICITLY_PROVISIONAL"
+    },
+    "privacy": {
+      "privateProfilesExcluded": true,
+      "bannedSuspendedExcluded": true,
+      "clientDirectWritesDenied": true
+    },
+    "airLabel": {
+      "officialGovernmentAir": false,
+      "allowedLabel": "AK Test Series Rank"
+    }
+  }
 }
