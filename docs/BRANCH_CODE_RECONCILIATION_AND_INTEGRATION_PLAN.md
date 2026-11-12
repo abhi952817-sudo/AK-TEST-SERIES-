@@ -171,3 +171,8 @@ New source-level blockers: NEET registry retains old optional Section B/200-minu
 Ranking blockers confirmed in main: raw scores are accumulated without max-score normalization; arbitrary numeric rankingWeight is accepted; per-test rank is computed outside transaction; query failure writes rank 0; retry maps missing rank to 1; idempotency compares property-order-sensitive JSON serialization. See audit report for IDs and evidence.
 
 **Status:** Registry inventory PASS; official policy coverage PARTIAL; Android/backend parity FAIL; contract/fixtures DRAFT NOT RUNTIME WIRED; ranking FAIL/OPEN; Kotlin/Node tests and Debug APK NOT RUN. This handoff is documentation-only and does not authorize main application-code edits, merge or deployment.
+
+
+### 2026-11-13 shared scoring fixture test wiring
+
+On isolated branch `audit/all-exam-scoring-ranking-2026-11-13`, added a Kotlin test and a Node test that both load `shared/scoring/scoring-golden-v1.json`. Gradle passes the shared fixture path to JVM tests; the audit workflow includes the Node fixture test, Android unit tests and Debug APK build. This is test wiring only; no scoring engine or ranking production call site was changed. Exact-head CI has not returned a status, so test execution and Android/backend parity remain NOT VERIFIED.
