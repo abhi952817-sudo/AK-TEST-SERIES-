@@ -163,3 +163,21 @@ For each enabled exam, stage, paper, year/version and cohort, record: canonical 
 - No current-head end-to-end evidence was established in this audit. Historical PASS does not close current blockers.
 
 **Status:** All-exam ranking policy, scoring integration, current CI, transaction/concurrency, privacy, migration and UI parity remain OPEN / NOT VERIFIED. No ranking implementation or production data changed by this documentation update.
+
+
+## 2026-11-13 Exact-main ranking handoff
+
+See isolated audit report `docs/ALL_EXAM_SCORING_RANKING_AUDIT_2026-11-13.md` on `audit/all-exam-scoring-ranking-2026-11-13`.
+
+Current main ranking source has confirmed blockers:
+- cumulative score adds raw `finalScore * weight` without normalizing by verified maximum marks;
+- arbitrary numeric `rankingWeight` is accepted rather than restricting to verified Full=1.0 / Part=0.2;
+- test rank/percentile is computed before the transaction, making concurrent values stale;
+- rank query failure persists rank 0;
+- retry response substitutes rank 1 when stored rank is missing/zero;
+- answer payload idempotency comparison is JSON property-order sensitive;
+- exact-head tie/percentile/concurrency tests have not been run.
+
+All-exam scoring is itself blocked by source-year/stage/paper mismatches and the shared contract is not runtime wired. Do not compute competitive rank from an unverified score or treat raw marks from different exams as comparable.
+
+**Status:** FAIL / NOT READY. No ranking code, data, Firebase or production records changed in this audit.
