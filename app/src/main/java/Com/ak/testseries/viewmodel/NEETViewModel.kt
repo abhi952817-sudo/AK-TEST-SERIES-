@@ -5649,7 +5649,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun callAdminGeminiContent(
         prompt: String,
-        systemInstruction: String? = null
+        systemInstruction: String? = null,
+        responseMimeType: String = "application/json"
     ): String? = withContext(Dispatchers.IO) {
         if (!isAdmin) {
             geminiStatusMessage.value = "Admin server connector access denied."
@@ -5665,6 +5666,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "modelName" to activeAiModel.value.takeIf {
                     it.startsWith("gemini-") && it.length <= 80
                 }.orEmpty().ifBlank { "gemini-2.5-flash" }
+                , "responseMimeType" to if (responseMimeType == "text/plain") "text/plain" else "application/json"
             )
             if (!systemInstruction.isNullOrBlank()) args["systemInstruction"] = systemInstruction
             val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
@@ -5736,7 +5738,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!_isGlobalAiEnabled.value) {
             return null
         }
-        if (isAdmin) return callAdminGeminiContent(prompt, null)
+        if (isAdmin) return callAdminGeminiContent(prompt, null, "text/plain")
         val keys = getGeminiApiKeys()
         if (keys.isEmpty()) {
             return null
