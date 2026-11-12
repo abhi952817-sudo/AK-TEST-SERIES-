@@ -3,28 +3,30 @@
 - Repository: `abhi952817-sudo/AK-TEST-SERIES-`
 - Branch: `feature/ranking-engine-v2-2026-11-06`
 - Snapshot: 2026-11-13
-- Runs captured: **160** (API first-page inventory pagination through 2 pages; de-duplicated by Run ID).
-- Scope: workflow run metadata for every run returned for this branch: workflow, Run ID, conclusion/status, event, commit SHA, creation time and GitHub run URL.
-- This file is a historical snapshot. New workflow runs after this timestamp require a new refresh.
+- Runs captured: **161** (all 2 API pages, deduplicated by Run ID).
+- Captured fields: workflow, run ID, status/conclusion, event, commit SHA, creation time and run URL.
+- Historical snapshot only; future runs require refresh.
 
-## Summary by workflow
+## Workflow summary
 
-| Workflow ID | Workflow | Total | PASS | FAIL | CANCELLED | Other / running |
+| Workflow ID | Name | Total | PASS | FAIL | CANCELLED | Other/running |
 |---:|---|---:|---:|---:|---:|---:|
 | 388422932 | Android CI | 58 | 58 | 0 | 0 | 0 |
-| 408975471 | Ranking V2 Validation | 102 | 29 | 73 | 0 | 0 |
+| 408975471 | Ranking V2 Validation | 103 | 29 | 73 | 0 | 1 |
 
-## Overall status counts
+## Status totals
 
 | Status | Count |
 |---|---:|
+| in_progress | 1 |
 | failure | 73 |
 | success | 87 |
 
-## Run-by-run inventory
+## Complete run inventory
 
-| Run ID | Workflow | Status / conclusion | Event | Commit SHA | Created (UTC) | Run |
+| Run ID | Workflow | Result | Event | Commit SHA | Created UTC | URL |
 |---:|---|---|---|---|---|---|
+| 43330079223 | Ranking V2 Validation | in_progress | push | `55ce2eaa88d561e74b591533c4156121d4d38653` | 2026-11-12T23:35:04Z | [Open](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43330079223) |
 | 43326967842 | Ranking V2 Validation | failure | push | `f1755285f536d477f91dfd9adbd6a3d0ba2e1343` | 2026-11-12T23:13:11Z | [Open](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43326967842) |
 | 43326764853 | Ranking V2 Validation | failure | push | `1fafb3623e768cd58d76d2839dae8ffcb149ad78` | 2026-11-12T23:11:50Z | [Open](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43326764853) |
 | 43326575531 | Ranking V2 Validation | failure | push | `253c41683e2aa294893f896ed95714d4acc1070b` | 2026-11-12T23:10:34Z | [Open](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43326575531) |
@@ -186,16 +188,13 @@
 | 42168159793 | Android CI | success | pull_request | `20d3a854518201f4fae51d60b2339ab01b4fb741` | 2026-11-06T05:23:38Z | [Open](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/42168159793) |
 | 42168092532 | Android CI | success | pull_request | `1691ae8e3da88cce45be06f224177d5b4e11a196` | 2026-11-06T05:22:57Z | [Open](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/42168092532) |
 
-## Failure evidence and remediation
+## Failure review
 
-- A `failure` conclusion means the run failed; it does not by itself identify the root cause. The job logs must be inspected before assigning a cause.
-- Root-cause details are recorded only where the exact job logs were retrieved and inspected. Do not infer that a code fix was applied from a workflow rerun or a green result on a different commit.
-- For the scoring audit branch, a known Android failure was `CrashResilienceTest > classMethod`: Robolectric SDK 36 requires Java 21 while the job used Java 17. JDK 21 was applied to the isolated audit workflow; a separate Android CI workflow still used JDK 17 in the observed run. The latest Backend run inspected passed 63/63.
-- For other failed runs in this inventory, individual job-log root causes and exact corrective commits have not yet been independently verified in this snapshot. They remain **ROOT CAUSE REVIEW OPEN**, not silently marked fixed.
+- Failure status alone is not a root cause. Job logs must be inspected before marking a cause fixed.
+- Any failure not backed by inspected job logs remains ROOT CAUSE REVIEW OPEN. A later pass on another SHA does not prove a code fix.
 
 ## Cleanup
 
-- Requested action: delete all completed PASS/FAIL/CANCELLED workflow runs and their retained artifacts only after this record is saved.
-- Deletion is **NOT EXECUTED** by this automation session: the connected GitHub actions expose GET/list/download and repository file writes, but no delete-workflow-run or delete-artifact action. No run or artifact deletion is claimed.
-- Do not delete workflow YAML files. They are the test definitions, not historical run logs.
-- Running/queued jobs are not completed history and must not be deleted while verification is still in progress.
+- Requested: delete all historical PASS/FAIL/CANCELLED workflow runs and artifacts after saving this inventory.
+- NOT EXECUTED: current GitHub connection has no delete-workflow-run or delete-artifact action. It exposes read/list/download and file-write operations only.
+- Keep workflow YAML files. Do not delete queued or in-progress verification runs.
