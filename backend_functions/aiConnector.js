@@ -1,10 +1,28 @@
 "use strict";
 
+const admin = require("firebase-admin");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 
 const adminGeminiApiKey = defineSecret("AKTS_ADMIN_GEMINI_API_KEY");
 const GEMINI_MODELS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+
+async function assertGlobalAiEnabled(firestore = admin.firestore()) {
+  let snapshot;
+  try {
+    snapshot = await firestore.collection("Config").doc("admin_settings").get();
+  } catch (_) {
+    const error = new Error("AI availability could not be verified from server configuration.");
+    error.code = "unavailable";
+    throw error;
+  }
+  if (snapshot && snapshot.exists && snapshot.get("globalAiEnabled") === false) {
+    const error = new Error("AI generation is disabled by the Admin global kill switch.");
+    error.code = "failed-precondition";
+    throw error;
+  }
+  return true;
+}
 
 function isVerifiedAdmin(auth) {
   if (!auth || !auth.uid) return false;
@@ -249,6 +267,7 @@ exports.generateAdminGeminiContent = onCall(
 
     const data = request.data || {};
     try {
+      await assertGlobalAiEnabled();
       const result = await generateGeminiContent(adminGeminiApiKey.value(), {
         prompt: data.prompt,
         systemInstruction: data.systemInstruction,
@@ -270,4 +289,4 @@ exports.generateAdminGeminiContent = onCall(
   }
 );
 
-exports._test = { isVerifiedAdmin, verifyGeminiApiKey, generateGeminiContent };
+exports._test = { isVerifiedAdmin, assertGlobalAiEnabled, verifyGeminiApiKey, generateGeminiContent };
