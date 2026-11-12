@@ -1,0 +1,87 @@
+name: Cleanup Completed GitHub Actions History
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Select DELETE_ALL_COMPLETED_RUNS to permanently remove completed workflow runs and their logs/artifacts across repository branches."
+        required: true
+        type: choice
+        options:
+          - NO
+          - DELETE_ALL_COMPLETED_RUNS
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    if: inputs.confirm == 'DELETE_ALL_COMPLETED_RUNS'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete completed workflow runs across all existing branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const branches = await github.paginate(
+              github.rest.repos.listBranches,
+              { owner, repo, per_page: 100 }
+            );
+
+            const completedRuns = new Map();
+            for (const branch of branches) {
+              const runs = await github.paginate(
+                github.rest.actions.listWorkflowRunsForRepo,
+                { owner, repo, branch: branch.name, per_page: 100 }
+              );
+              for (const run of runs) {
+                if (run.status === "completed" && run.id !== context.runId) {
+                  completedRuns.set(run.id, {
+                    id: run.id,
+                    name: run.name,
+                    branch: run.head_branch,
+                    conclusion: run.conclusion
+                  });
+                }
+              }
+            }
+
+            core.info(`Branches scanned: ${branches.length}`);
+            core.info(`Completed runs queued for deletion: ${completedRuns.size}`);
+            core.info("Deleting completed runs removes their associated logs and artifacts.");
+
+            let deleted = 0;
+            let failed = 0;
+            for (const run of completedRuns.values()) {
+              try {
+                await github.rest.actions.deleteWorkflowRun({
+                  owner,
+                  repo,
+                  run_id: run.id
+                });
+                deleted++;
+                core.info(`Deleted run ${run.id} | ${run.branch} | ${run.name} | ${run.conclusion}`);
+              } catch (error) {
+                failed++;
+                core.error(`Could not delete run ${run.id}: ${error.message}`);
+              }
+            }
+
+            await core.summary
+              .addHeading("GitHub Actions cleanup")
+              .addTable([
+                [{data:"Metric",header:true},{data:"Count",header:true}],
+                ["Branches scanned", String(branches.length)],
+                ["Completed runs discovered", String(completedRuns.size)],
+                ["Runs deleted", String(deleted)],
+                ["Deletion failures", String(failed)],
+                ["Queued/in-progress runs", "Skipped; run cleanup again after completion"]
+              ])
+              .addRaw("Each deleted workflow run also removes its retained logs and artifacts. Workflow YAML files and branch CI history Markdown files are preserved.")
+              .write();
+
+            if (failed > 0) {
+              core.setFailed(`${failed} workflow runs could not be deleted. Review the log and rerun cleanup after resolving permissions or API limits.`);
+            }
