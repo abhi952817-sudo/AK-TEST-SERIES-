@@ -465,3 +465,39 @@ Main has newer subject-routing fail-closed fixes and a deterministic `UniversalQ
 
 ## Audit status
 All P1–P7 items remain open until current-head evidence is attached. The branch's prior implementation plan records code and workflow creation, but its own note says deployment and full Android/backend/emulator verification were pending. This refresh did not run tests or deploy services.
+
+## 2026-11-12 Cross-branch code reconciliation (X/Y/Z)
+
+### X — KEEP
+- Keep source-backed prompt contracts, document classification and explicit route resolution as PDF workstream reference.
+- Keep fail-closed behavior for unsupported exam/paper/section, incomplete extraction, malformed output and missing source evidence.
+
+### Y — PORT / RECONCILE
+- Port prompt contract and route resolver with tests into a main-based integration branch.
+- Port real PDF extraction/OCR with page-level provenance, diagrams, tables, equations and language.
+- Route validated PDF inputs into main's deterministic planner; resolver must not replace planner distribution.
+- Persist versioned syllabus with source document/URL, retrieval date, exam year, review state and Admin approval. In-memory map is not an authoritative syllabus.
+- Reconcile geminiProxy.js and aiConnector.js into one transport.
+
+### Z — OBSOLETE / DO NOT PORT
+- No second planner, duplicate Gemini transport, guessed syllabus map as official data or offline parser fallback.
+- Do not overwrite main's newer fail-closed routing.
+
+### PASS / FAIL / OPEN evidence (2026-11-12)
+| Check | Result | Evidence / action |
+|---|---|---|
+| Source comparison | PASS (read-only) | Pipeline, resolver and prompt contract inspected. |
+| Prompt runtime tests | OPEN | Test files exist; current-head run not established. |
+| Real PDF/OCR fixtures | OPEN | Original bytes, MIME, page order, OCR and provenance need authorized fixtures. |
+| Syllabus persistence/provenance | OPEN | In-memory resolver is insufficient. |
+| Main planner integration | OPEN | Route-to-planner contract and exact distribution need tests. |
+| Connector consolidation | OPEN | One transport and named Firestore database required. |
+
+### Ordered work
+1. Freeze prompt/route contract and invalid-route tests.
+2. Integrate real PDF/OCR with original bytes and page-level source mapping.
+3. Persist source-backed syllabus and Admin approval.
+4. Connect route to main planner; reject incomplete distributions.
+5. Run golden PDF, bilingual, diagram, answer-key and no-fallback tests.
+
+**Verdict:** SELECTIVE PORT WITH FIXES. Source presence is not runtime PASS.
