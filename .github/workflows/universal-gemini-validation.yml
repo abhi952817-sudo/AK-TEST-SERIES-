@@ -52,7 +52,17 @@ jobs:
       - name: Prepare debug signing key
         run: |
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-      - name: Run Android unit tests
-        run: gradle :app:testDebugUnitTest
+      - name: Run Android unit tests with full diagnostics
+        run: gradle :app:testDebugUnitTest --info --stacktrace
+      - name: Upload Android unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Assemble debug APK
         run: gradle :app:assembleDebug
