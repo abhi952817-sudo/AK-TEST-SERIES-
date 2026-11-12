@@ -5473,6 +5473,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             isSecondaryGeminiActive.value = prefs.getBoolean("is_secondary_gemini_active", true)
             primaryGeminiUsage.value = prefs.getInt("primary_gemini_usage", 0)
             secondaryGeminiUsage.value = prefs.getInt("secondary_gemini_usage", 0)
+            activeAiModel.value = prefs.getString("admin_gemini_model", "UNAVAILABLE") ?: "UNAVAILABLE"
         } catch (e: Exception) {
             android.util.Log.w("NEETViewModel", "Legacy Admin Gemini key cleanup failed.", e)
         }
@@ -5594,6 +5595,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     .orEmpty()
                 if (payload["verified"] == true && models.isNotEmpty()) {
                     adminGeminiConnectorModels.value = models
+                    if (activeAiModel.value !in models) {
+                        val preferredModel = models.firstOrNull { it == "gemini-2.5-flash" } ?: models.first()
+                        activeAiModel.value = preferredModel
+                        getApplication<Application>()
+                            .getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
+                            .edit()
+                            .putString("admin_gemini_model", preferredModel)
+                            .apply()
+                    }
                     adminGeminiConnectorStatus.value = "Connected. ${models.size} Gemini generation model(s) detected."
                 } else {
                     adminGeminiConnectorModels.value = emptyList()
@@ -5607,6 +5617,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 adminGeminiConnectorVerifying.value = false
             }
         }
+    }
+
+    fun selectAdminGeminiModel(modelName: String) {
+        if (!isAdmin) {
+            adminGeminiConnectorStatus.value = "Permission denied: verified Admin access is required."
+            return
+        }
+        val normalized = modelName.trim()
+        if (normalized.isBlank() || normalized !in adminGeminiConnectorModels.value) {
+            adminGeminiConnectorStatus.value = "Select a model returned by the verified Gemini connector."
+            return
+        }
+        activeAiModel.value = normalized
+        getApplication<Application>()
+            .getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("admin_gemini_model", normalized)
+            .apply()
+        adminGeminiConnectorStatus.value = "Gemini model selected: $normalized"
     }
 
     private suspend fun callAdminGeminiContent(
