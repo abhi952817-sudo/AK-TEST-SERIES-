@@ -1227,3 +1227,12 @@ All are FAIL / release blockers until fixed and covered by shared golden vectors
 Run 43213240446 reported missing `isEligibleHistoricalRankingTest`; the currently fetched integration-branch `rankingEngine.js` exports that function. Therefore the old failure is historical evidence only and is not proof that the function remains missing. The Android `assertNull` issue and full exact-head CI remain to be verified. Do not mark ranking PASS from source inspection alone.
 
 **Release verdict:** FAIL / NOT READY until scoring parity, exact-head CI, transactional ranking, privacy, migration and Android/backend snapshot tests all pass. This document update changes no app code, ranking data, Firestore or production state.
+
+
+## 2026-11-13 Main-source scoring/ranking audit handoff
+
+The isolated report `docs/ALL_EXAM_SCORING_RANKING_AUDIT_2026-11-13.md` and draft contract/fixtures live on branch `audit/all-exam-scoring-ranking-2026-11-13`. They are not yet runtime integrated.
+
+The current main ranking implementation is blocked by raw-score aggregation without max normalization, unbounded client/test-data rankingWeight, rank/percentile calculation outside transaction, rank-zero persistence on query error, retry rank-1 substitution, and property-order-sensitive answer payload comparison. Current main scoring is also blocked by exam-year/paper/section mismatches and duplicated Android/backend rules.
+
+**Status:** FAIL / NOT READY. Port only after a verified typed score contract and shared Kotlin/Node golden tests exist. No code or production data changed on this branch.
