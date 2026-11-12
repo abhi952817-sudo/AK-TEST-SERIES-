@@ -1246,3 +1246,8 @@ The audit branch now contains one JSON fixture set consumed by Kotlin and Node t
 ### 2026-11-13 CI and source-coverage update
 
 The separate audit branch now has 19 official source sets identified and seven initial scoring fixtures; 6 exam identities remain without complete official stage/paper mapping. Backend passed 65/65 on an intermediate nine-vector head, but two IBPS vectors were removed because their section-specific mapping was not complete. Android's earlier audit run completed 294 tests with one Java17/Robolectric SDK36 environment failure and skipped APK build; the audit workflow now uses JDK21 but has no fresh green exact-head result. These audit results do not change this branch's historical 306/19 Android failure or 70/71 Backend baseline; current integration-branch CI must still be run on its exact head.
+
+
+### 2026-11-13 shared ranking result contract
+
+The audit branch contains a draft typed score-to-ranking contract in `shared/scoring/scoring-policy.v1.json`. It formalizes verified score input, normalized 10,000 scale, 1.0/0.2 weights, competition ties, percentile, null-on-error and transactional idempotency. This is not a runtime replacement for the existing branch's ranking helpers; integration and concurrency tests remain open.
