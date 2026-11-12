@@ -176,9 +176,9 @@
         "wrongCount": 1,
         "unansweredCount": 1,
         "positiveMarksEarned": 1,
-        "negativeMarksPenalty": 0.3333333333333333,
-        "rawScore": 0.6666666666666666,
-        "finalScore": 0.6666666666666666,
+        "negativeMarksPenalty": 0.33,
+        "rawScore": 0.67,
+        "finalScore": 0.67,
         "maxScore": 3
       },
       "status": "SOURCE_BACKED_POLICY_VECTOR"
