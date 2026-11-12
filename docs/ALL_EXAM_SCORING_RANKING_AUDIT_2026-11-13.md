@@ -299,3 +299,15 @@ The JSON contract now contains a `rankingContract` block (version 1.0.0), and it
 - Private profiles and banned/suspended users are excluded server-side; client direct writes are denied. Label is AK Test Series Rank, never government/NTA AIR.
 
 No ranking runtime code was changed and no ranking transaction, tie, percentile, retry or concurrency test was run on this audit branch. The contract describes the target behavior only.
+
+
+## 16. Current review/CI state
+
+- Draft PR: https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/5
+- Exact PR/audit head: `a0c4d3a6c1df84aeffe901c270c34928139c5b9f`
+- Compare to current main: audit branch is 32 commits ahead and 7 behind; GitHub reports `mergeable=false`.
+- PR file diff is limited to eight files: audit workflow, Gradle test property, one Kotlin test, one Node test, audit Markdown, shared policy JSON, shared golden fixture JSON and JSON schema. No production scoring/ranking source file is changed.
+- Latest exact-head runs queued: All-Exam Audit CI `43326951571`; Android CI `43326951437`. No PASS/FAIL conclusion is available yet.
+- PR is draft/open for review and CI only. It has not been merged. Do not merge until branch reconciliation, runtime contract integration and all tests are green.
+
+**Current status:** 19/25 official source cycles found; 6 still unverified; all 25 policies disabled in the draft contract; 7 shared fixtures and Kotlin/Node consumers present; latest CI queued; Android prior attempt failed under Java 17 and the isolated workflow now uses Java 21; ranking runtime and integration tests remain open.
