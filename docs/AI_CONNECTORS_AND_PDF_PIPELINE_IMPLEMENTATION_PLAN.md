@@ -247,3 +247,72 @@ The work is complete only when:
 - `main` has not been modified by this feature-branch implementation.
 
 **Important:** This document is the execution plan, not proof of implementation or test success. Update statuses only after collecting evidence.
+
+
+---
+
+## 13. Second-pass Git history and cross-branch audit — 2026-11-12
+
+This section records a read-only audit performed after the initial roadmap was committed. It does not mark implementation or CI work as complete.
+
+### 13.1 Exact branch and divergence evidence
+
+- Repository: `abhi952817-sudo/AK-TEST-SERIES-`
+- Implementation branch: `feature/universal-gemini-ai-10-phase-2026-11-08`
+- Feature branch HEAD before this audit addendum: `a37710b7c8c8ce2ab5e2cb1becd3e4fd9dad1f67`
+- Main HEAD observed during the audit: `b38bd497434dd24438b37b3de87bd26b4fbe98f8`
+- Merge base reported by GitHub compare: `d2feae47f908b705209c27b8e61e624f94c400d7`
+- Divergence: main contains 319 commits not in the feature branch; the feature branch contains 93 commits not in main. The branches have diverged, so neither a blind merge nor a blind cherry-pick is safe.
+- No merge, cherry-pick, rebase, deployment, or source-code modification was performed during this read-only audit.
+
+**Mandatory new Gate 0 — branch reconciliation:** before declaring the nine phases ready for implementation/release, inventory the 319 main-only commits and 93 feature-only commits by affected subsystem. Identify common-file conflicts and behavioral changes. Reconcile the current source of truth for each affected file, preserving required feature-branch work and newer main safety fixes. Do not merge the branches wholesale. Use reviewed, minimal, tested cherry-picks or carefully resolved commits only after the owner-approved integration strategy is clear. Keep `main` untouched until explicit approval.
+
+### 13.2 Confirmed main-only work that the feature branch must review
+
+The compare response identifies these important main-side changes relative to the feature branch:
+
+- `UniversalQuestionGenerationPlanner.kt` and `UniversalQuestionGenerationPlannerTest.kt` were added on main. The planner creates deterministic subject/section allocations from registered exam configuration, validates capacity, preserves question-type/option-count/marks metadata, and creates exact batch allocations. Tests cover NEET 180/200, JEE Main 75, batch distribution, and capacity rejection. The planner source is absent from the current feature branch (branch fetch returned 404). This is a critical integration gap for correct **All Subjects** generation; do not substitute equal or guessed distribution unless the selected exam configuration explicitly defines it.
+- Main contains additional fail-closed subject/section routing fixes and regression tests, including commits `c838a14acd1153bde9ab1ef7f31ea8fb4a1a6b92`, `14545b2dbb715cfcf4e44018de6b6973a0bf1f4f`, and `b38bd497434dd24438b37b3de87bd26b4fbe98f8`. Review and retain their safety behavior when reconciling `ExamFormatStandardizer`, `UniversalAIContext`, `UniversalPdfPipeline`, and `NEETViewModel`.
+- Main removes `OfflineMarkdownQuestionParser.kt` and its tests, and removes `BundledExamCatalog.kt` and its tests. The feature branch still contains `OfflineMarkdownQuestionParser.kt`. Before removing or restoring either implementation, inspect every call site on both branches and prove that real PDF extraction, recovery, and existing user flows remain intact. No synthetic/local question fallback may be reintroduced.
+- Main has substantial changes to `NEETViewModel.kt`, `UniversalPdfPipeline.kt`, `GeminiPdfExtractor.kt`, `ExamFormatStandardizer.kt`, `QuestionValidationEngine.kt`, `SyllabusCatalog.kt`, `MainActivity.kt`, and the Firestore/backend code. These are high-conflict files and require file-by-file review, not automatic overwrite.
+- Main adds Room schema `21.json` and `AppDatabaseMigration20To21Test.kt`; verify the actual database version and every migration path on the chosen integration base. Preserve user data and do not rely on destructive migration fallback.
+- Main changes Firestore rules/indexes, backend Cloud Functions, and database targeting. Re-run emulator/security tests against the exact integrated rules and confirm all Cloud Functions use the intended named Firestore database before any deployment.
+- Main's recent verified-test refresh and YouTube/Doubt Solver changes are outside the nine AI connector phases but are existing product behavior. Preserve them and include them in regression coverage; do not accidentally remove or replace them during broad ViewModel/backend conflict resolution.
+
+### 13.3 Validator commit and CI evidence limitation
+
+- The short reference `a44de80` resolves to full commit `a44de807597eef0d155d6b917dca300395163b1d`.
+- Its commit diff changes only `GeminiResponseValidator.kt`: it safely separates a non-object JSON item from validation and appends accepted items only when non-null.
+- The current feature branch is one documentation commit beyond that validator commit; the plan file is the only file changed in that one-commit comparison.
+- GitHub combined status returned an empty status list for `a44de80`. The available workflow-run wrapper also returned an empty list, but that wrapper only returns pull-request-triggered runs, whereas the feature workflow is configured for push and pull_request events. Therefore these empty responses are **not evidence of success or failure** and do not identify the four reported failures.
+- Resolve the exact Actions run IDs and all four failing validator/job names from the feature branch's push run. Capture job logs, reproduce each failure, and record the exact tested SHA. Do not close Phase 1 based on the validator commit diff alone.
+
+### 13.4 Scope items made explicit after reviewing the older 10-phase tracker
+
+The older `UNIVERSAL_GEMINI_AI_10_PHASE_TRACKER.md`, `UNIVERSAL_GEMINI_AI_AUDIT_2026-11-08.md`, and `ADMIN_GEMINI_SECRET_SETUP.md` contain additional requirements that must remain in scope:
+
+- **Direct PDF understanding:** send the original PDF bytes through a supported Gemini document input or File API path where applicable. Text extraction alone is not equivalent. Define file-size/page limits, MIME/signature checks, lifecycle/retention, retries, and cleanup. Preserve existing PDF session persistence, WorkManager recovery, local extraction, OCR, diagrams, and page boundaries; extend these rather than creating a competing storage pipeline.
+- **OCR and visual content:** distinguish text PDFs, scanned PDFs, mixed PDFs, diagrams, equations, and unsupported pages. OCR must be a real configured implementation. If OCR is unavailable, stop with a review-required status rather than inventing text.
+- **Source provenance:** persist page number/page range and source references per question through parsing, Room, Firestore, Admin review, and final test display. Verify round-trip persistence, not just in-memory parsing.
+- **Review and publishing:** preserve the existing private vault, owner-private/Under Review flow, Admin review, private answer-key separation, and explicit approval before public publication. Test approve, reject, correction, ownership, and answer-key access rules end to end.
+- **Universal prompt coverage:** inventory every Gemini call site, including Admin difficulty regeneration, metadata/exam recognition, Student generation, legacy extractor, and any Firebase Functions path. All supported task modes must use versioned shared prompt templates and canonical ExamConfig/registry identifiers.
+- **Exam/question fidelity:** retain Hindi, English, and bilingual fidelity; source-answer confidence; duplicate detection; unsupported question-type rejection; option counts including five-option formats; MCQ single/multiple, numerical/NAT/TITA, scoring and negative marks; exact subject/section distribution; and exam-specific stage/paper identity.
+- **Student/Admin key boundary:** Student key must be UID-scoped and securely stored. Admin key remains server-side in Secret Manager. Student-key-first routing must never silently fall back to an Admin-paid key; any Admin server route requires explicit, authorized policy and auditable selection. The Admin setup document says Secret Manager configuration and Cloud Functions deployment are still required before the Admin connector can be called live.
+- **Quota and metering:** the older tracker marks server-enforced quota, per-key isolation, persistent token/cost metering, and abuse controls as unresolved. The newer roadmap covers these, but acceptance tests must include concurrent requests, retries/idempotency, per-student identity, reset timezone, Admin overrides, and unknown usage values.
+- **Legacy transport consolidation:** the older tracker identifies multiple Gemini HTTP transports and ExamConfig/ExamConfiguration coexistence. Inventory all usages and migration compatibility before consolidation or model changes.
+- **End-to-end release:** include Student/Admin flows, all supported exams, real authorized PDF fixtures, Android tests, backend tests, Firestore/Storage emulator rules, Room migrations, recovery, and exact-head APK build. No deployment, Firebase migration, rules/index deployment, or PR merge without explicit owner approval.
+
+### 13.5 Current status corrections and evidence discipline
+
+- The older tracker is dated 2026-11-08 and includes historical status notes. Treat it as historical evidence, not as a live CI dashboard. Reconcile its status table with the actual current source and tests before marking bugs closed.
+- The Admin setup guide explicitly says Secret Manager configuration/deployment is required and Student Admin-fallback, server quota, persistent usage/cost accounting, Groq, and Cerebras were not implemented at the time of that document. Recheck the current branch before changing those statuses.
+- The previous tracker baseline mentioned 299 Android tests and a pre-existing `CrashResilienceTest` failure; the newer roadmap expects 341. Discover the actual test inventory on the exact current branch, explain the difference, and report discovered, executed, skipped, and failed counts. Do not simply assume 341 or suppress the earlier failure.
+- Keep every historical test result tied to its exact commit. A pass on main, an older feature commit, or a different branch does not prove the current feature head passes.
+
+### 13.6 Added exit gate before Phase 1 can be closed
+
+Phase 1 now requires both:
+1. The four Validator failures are individually identified, reproduced, root-caused, fixed, regression-tested, and green on the exact feature commit; and
+2. The cross-branch reconciliation inventory is complete, with a reviewed disposition for every main-only change that touches shared AI, PDF, exam, scoring, database, backend, rules, workflow, or product-flow files.
+
+Until both conditions have evidence, Phase 1 remains OPEN. This addendum is an audit finding, not a claim that any missing implementation has been completed.
