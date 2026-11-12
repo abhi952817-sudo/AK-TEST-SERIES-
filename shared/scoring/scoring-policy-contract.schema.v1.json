@@ -11,7 +11,8 @@
     "status",
     "policyResolutionKey",
     "rules",
-    "examPolicies"
+    "examPolicies",
+    "rankingContract"
   ],
   "properties": {
     "contractId": {
@@ -108,6 +109,71 @@
               "type": "string"
             }
           }
+        }
+      }
+    },
+    "rankingContract": {
+      "type": "object",
+      "required": [
+        "version",
+        "status",
+        "acceptedInput",
+        "scoreResultRequiredFields",
+        "eligibility",
+        "normalization",
+        "weights",
+        "ranking",
+        "percentile",
+        "attempt",
+        "concurrency",
+        "privacy",
+        "airLabel"
+      ],
+      "properties": {
+        "version": {
+          "const": "1.0.0"
+        },
+        "status": {
+          "enum": [
+            "DRAFT_NOT_RUNTIME_WIRED",
+            "ACTIVE_REVIEWED"
+          ]
+        },
+        "acceptedInput": {
+          "type": "string"
+        },
+        "scoreResultRequiredFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "eligibility": {
+          "type": "object"
+        },
+        "normalization": {
+          "type": "object"
+        },
+        "weights": {
+          "type": "object"
+        },
+        "ranking": {
+          "type": "object"
+        },
+        "percentile": {
+          "type": "object"
+        },
+        "attempt": {
+          "type": "object"
+        },
+        "concurrency": {
+          "type": "object"
+        },
+        "privacy": {
+          "type": "object"
+        },
+        "airLabel": {
+          "type": "object"
         }
       }
     }
