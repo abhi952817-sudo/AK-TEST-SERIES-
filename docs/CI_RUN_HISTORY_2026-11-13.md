@@ -145,3 +145,9 @@
 
 - Requested deletion of all historical PASS/FAIL/CANCELLED runs and artifacts is NOT EXECUTED; this connection exposes no delete-run or delete-artifact operation.
 - Workflow YAML definitions are retained. Do not delete active verification runs.
+
+
+## Retrieved failure log evidence (representative latest failed run)
+
+- Run `43326961754`, Android job `131561728196`: JDK 17; `CrashResilienceTest > classMethod` failed with `UnsupportedOperationException at DefaultSdkProvider.java:170`; 293 tests completed, 1 failed. This matches Robolectric Android SDK 36 requiring Java 21. **Cause confirmed; main's Android CI workflow still used JDK 17 in this run.**
+- Remediation status: **OPEN** on main. No code or workflow change is claimed here; only this CI history document is being added. A separate branch's JDK 21 correction does not fix main.
