@@ -2968,7 +2968,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _askAiVideoLink.value = null
 
             val keys = getGeminiApiKeys()
-            if (keys.isNotEmpty()) {
+            if (isAdmin || keys.isNotEmpty()) {
                 val currentExam = _userProfile.value.targetExam.takeIf { it.isNotBlank() } ?: "Competitive Examination"
                 val isHindi = language == AppLanguage.HINDI
                 val prompt = if (isHindi) {
@@ -3036,47 +3036,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     _askAiResponse.value = "Failed to connect to AI Mentor. Error: ${e.message}"
                 }
             } else {
-                val currentExam = _userProfile.value.targetExam.takeIf { it.isNotBlank() } ?: "Competitive Examination"
                 _askAiResponse.value = if (language == AppLanguage.HINDI) {
-                    """
-                    **$currentExam - अवधारणा विश्लेषण एवं समाधान**
-                    
-                    1. **मुख्य अवधारणा / सिद्धांत**:
-                    यह प्रश्न $currentExam के निर्धारित पाठ्यक्रम से संबंधित है।
-                    
-                    2. **चरण-दर-चरण समाधान**:
-                    • प्रश्न: $question
-                    • विकल्प समीक्षा:
-                      A) $optionA
-                      B) $optionB
-                      C) $optionC
-                      D) $optionD
-                    
-                    3. **सत्यापन**:
-                    अवधारणा एवं मानक नियमों के अनुसार विकल्प 'A' सर्वाधिक उपयुक्त है। गहन अभ्यास के लिए नीचे दिए गए वीडियो समाधान लिंक का उपयोग करें।
-                    
-                    [Solution]: A
-                    """.trimIndent()
+                    "AI समाधान उपलब्ध नहीं है। Settings में अपनी Gemini API Key जोड़ें।"
                 } else {
-                    """
-                    **$currentExam - Conceptual Breakdown & Solution**
-                    
-                    1. **Core Concept & Theoretical Foundation**:
-                    This question pertains to the core syllabus of $currentExam.
-                    
-                    2. **Step-by-Step Breakdown**:
-                    • Question: $question
-                    • Options Analysis:
-                      A) $optionA
-                      B) $optionB
-                      C) $optionC
-                      D) $optionD
-                    
-                    3. **Verification**:
-                    Based on standard syllabus conventions, Option 'A' is evaluated as the most suitable response. For complete walkthrough, access the curated video tutorial link below.
-                    
-                    [Solution]: A
-                    """.trimIndent()
+                    "AI solution is unavailable. Connect your personal Gemini API key in Settings."
                 }
             }
             
@@ -3135,7 +3098,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
             var aiAnalysisResult = ""
             val keys = getGeminiApiKeys()
-            if (keys.isNotEmpty()) {
+            if (isAdmin || keys.isNotEmpty()) {
                 val prompt = """
                     You are an expert examiner. The user has reported a potential error in the following question.
                     Please analyze the question, options, and the provided correct answer. Tell me if there is any error in the question, options, or correct answer, and explain why.
@@ -3152,16 +3115,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 """.trimIndent()
                 try {
                     val resultText = callGeminiApiForQuestionsWithFallback(prompt)
-                    aiAnalysisResult = resultText ?: "Analyzed with standard guidelines."
-                    _reportErrorResponse.value = resultText ?: "Failed to analyze question. Rate limit exceeded."
+                    aiAnalysisResult = resultText ?: "AI analysis unavailable: provider request failed."
+                    _reportErrorResponse.value = resultText ?: "AI analysis failed. No conclusion was generated."
                 } catch (e: Exception) {
-                    aiAnalysisResult = "Error in AI: ${e.message}"
-                    _reportErrorResponse.value = "Failed to analyze question. Error: ${e.message}"
+                    aiAnalysisResult = "AI analysis unavailable: ${e.localizedMessage ?: "provider error"}"
+                    _reportErrorResponse.value = "AI analysis failed. Please retry after checking the provider connection."
                 }
             } else {
-                delay(1500)
-                aiAnalysisResult = "Simulated evaluation: No obvious flaw found."
-                _reportErrorResponse.value = "This is a simulated AI analysis. The question appears to be correct based on standard concepts. No errors found."
+                aiAnalysisResult = "AI analysis unavailable: no personal Gemini API key is configured."
+                _reportErrorResponse.value = "AI analysis unavailable. Connect a personal Gemini API key in Settings."
             }
             _reportErrorLoading.value = false
 
