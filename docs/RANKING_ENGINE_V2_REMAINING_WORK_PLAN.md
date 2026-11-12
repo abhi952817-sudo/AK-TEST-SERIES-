@@ -185,4 +185,4 @@ All-exam scoring is itself blocked by source-year/stage/paper mismatches and the
 
 ### 2026-11-13 scoring fixture dependency update
 
-The isolated audit branch has six initial shared scoring fixtures and Kotlin/Node test consumers, but no verified run yet. Ranking must not consume these as a release gate until the policy contract is runtime wired, all exam stages are source-mapped and exact-head tests pass. Raw-score normalization, transaction-safe rank/percentile, null-on-error, tie and concurrency blockers remain unresolved.
+The isolated audit branch has seven shared scoring fixtures and Kotlin/Node test consumers, but the six-vector historical Backend run passed, but the expanded seven-vector exact-head run and Android test/Debug APK are not yet verified. Ranking must not consume these as a release gate until the policy contract is runtime wired, all exam stages are source-mapped and exact-head tests pass. Raw-score normalization, transaction-safe rank/percentile, null-on-error, tie and concurrency blockers remain unresolved.
