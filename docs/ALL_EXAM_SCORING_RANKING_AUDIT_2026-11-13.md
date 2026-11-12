@@ -147,7 +147,7 @@ All registry entries in the draft JSON are disabled for official scoring/ranking
 
 Draft fixtures: `shared/scoring/scoring-golden-v1.json`.
 
-Initial source-backed vectors cover NEET 2026, JEE Main 2027, CUET UG 2026, CTET 2026, SSC CGL 2026 Tier-I and RRB ALP 2026 CBT-1. They are **not yet consumed by Kotlin or Node tests**. The next code phase must add one shared fixture loader in both test suites and compare all result fields, including raw/final/max score and ungraded count.
+Initial source-backed vectors cover NEET 2026, JEE Main 2027, CUET UG 2026, CTET 2026, SSC CGL 2026 Tier-I and RRB ALP 2026 CBT-1. Added consumers: `app/src/test/java/Com/ak/testseries/exam/SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`. Both load the same JSON and compare correct/wrong/unanswered counts, positive/negative marks, raw/final score and maximum score. These tests are **added but execution is NOT VERIFIED**. The tolerance is 0.005 to accommodate the existing 2-decimal backend rounding versus Android Double values; this is not a substitute for the final shared decimal contract. These vectors test current engine behavior for six policy samples, not every stage/paper/section.
 
 Required additional vectors: JEE Advanced dynamic schemes and dropped questions; UPSC qualifying Paper-II; all SSC/RRB stages; UGC NET; CAT MCQ/TITA; IBPS/SBI; GATE MCQ/MSQ/NAT; NDA/CDS; ties, duplicate IDs, missing config, invalid answer keys, NaN/Infinity, malformed decimals, retries and optional sections.
 
@@ -161,7 +161,7 @@ No Kotlin, Node, Firestore emulator, concurrency or APK tests were run in this d
 | Official policies | PARTIAL / RELEASE BLOCKED | 8 official-cycle sources located; remaining 17 unverified; mapping incomplete even for sourced exams |
 | Android/backend call-site audit | FAIL | Fallbacks, independent policy code, optional max and decimal parity defects |
 | Versioned contract | DRAFT | JSON created; not runtime wired |
-| Shared golden fixtures | DRAFT | JSON created; not loaded by Kotlin/Node |
+| Shared golden fixtures | DRAFT | Six shared vectors and Kotlin/Node test consumers added; execution NOT VERIFIED |
 | Score-to-ranking handoff | FAIL | Raw-score aggregation, unverified weighting and stale pre-transaction rank |
 | Ranking tie/percentile/retry/concurrency | OPEN/FAIL | Exact-head transaction and emulator tests absent |
 | Full Android tests | NOT RUN | Need exact discovered/executed/skipped/failed counts |
@@ -202,7 +202,7 @@ No Kotlin, Node, Firestore emulator, concurrency or APK tests were run in this d
 
 Added `.github/workflows/all-exam-scoring-ranking-audit.yml` on this audit branch. It is configured for pushes to this exact audit branch, relevant pull requests targeting main, and manual dispatch. It runs:
 - JSON inventory validation for 25 exam policies and 6 initial fixtures, and asserts all policies remain disabled until review;
-- Node 18 syntax checks and the existing `examScoring.test.js` + `callableValidation.test.js` suites;
+- Node 18 syntax checks plus `examScoring.test.js`, `callableValidation.test.js` and `sharedScoringGoldenVectors.test.js`;
 - JDK 17 / Gradle 9.3.1 `testDebugUnitTest`;
 - Gradle `assembleDebug`;
 - upload of Android test XML/reports and Debug APK artifact.
@@ -210,3 +210,7 @@ Added `.github/workflows/all-exam-scoring-ranking-audit.yml` on this audit branc
 It does **not** yet run Firestore emulator rules tests, the golden fixtures through both Kotlin and Node (no shared fixture loaders exist yet), ranking transaction/concurrency tests, or policy-source validation. These remain OPEN. The workflow file is committed as `460041d1fb54d9521091df2760688ce0cd9d658f`.
 
 **CI evidence:** the available GitHub commit-status and workflow-run lookups returned no status records for the audit commits. Therefore the workflow is configured but its run is **NOT VERIFIED / OPEN**. No test count, test PASS or APK artifact is claimed.
+
+## 11. Shared fixture test wiring update
+
+Added Kotlin test `SharedScoringGoldenVectorParityTest.kt`, Node test `sharedScoringGoldenVectors.test.js`, and Gradle test property `sharedScoringFixtures` so both platforms read the same `shared/scoring/scoring-golden-v1.json`. The audit CI workflow includes the new Node test and the Android unit-test task automatically discovers the Kotlin test. This is test wiring only: no scoring engine or ranking production call site was changed. No current-head test result is available, so parity remains NOT VERIFIED.
