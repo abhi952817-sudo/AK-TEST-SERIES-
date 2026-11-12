@@ -389,3 +389,79 @@ A manual-only workflow was added at .github/workflows/deploy-gemini-proxy.yml. I
 - FIREBASE_SERVICE_ACCOUNT_JSON: deployment service-account JSON with the required Firebase/Cloud Functions/Secret Manager permissions.
 
 The workflow provisions the Firebase secret and deploys only generateGeminiContent. It is not run automatically and has not been executed. Before enabling it, configure the production Environment protection rules and verify the service account's least-privilege IAM permissions. The running function reads the key from Firebase Secret Manager; it does not read GitHub Secrets directly.
+
+
+---
+
+# Branch audit refresh — PDF, prompt contract and syllabus (2026-11-12)
+
+**Branch:** `feature/universal-pdf-prompt-contract-v1`  
+**Audited HEAD:** `87dfb8734a0bbb05afb9b56ade5d1e79be6d3e46`  
+**Main HEAD:** `b38bd497434dd24438b37b3de87bd26b4fbe98f8`  
+**Git comparison:** 139 commits ahead, 86 behind; merge base `80c5ef5c032b35d0937133efc09bf517e58b90d4`. This branch is diverged from main.
+
+## Rules
+- Keep work on this feature branch. Do not merge to main or deploy the Gemini proxy/production Firebase resources without explicit approval.
+- Preserve the existing PDF pipeline, session recovery, user data, private vault and review flow.
+- No invented syllabus topics, marks, question answers, source references or translations.
+- Do not treat source-identified-but-unapproved data as official. Resolver must fail closed unless exact exam/version/stage/paper/subject snapshot is APPROVED with reviewer and timestamp.
+- Student BYOK and Admin-managed Secret Manager credentials remain isolated; no Admin key in Android.
+- Use the existing Gemini proxy/executor and existing UI. Avoid creating duplicate transports or duplicate API Management screens.
+
+## Current implementation evidence and open work
+
+The existing plan records a Firebase Callable proxy `generateGeminiContent`, server Secret Manager parameter `GEMINI_API_KEY`, owner-managed and request-scoped BYOK modes, a shared Kotlin `GeminiRequestExecutor`, and routing from `UniversalPdfPipeline`. It also records that Secret Manager provisioning/deployment workflow was added but not run. These are implementation notes, not proof that the deployed production function is live.
+
+### P1. Live provider/proxy security
+- [ ] Verify current branch code and exact callable export; test authenticated Student BYOK and owner/Admin mode separately.
+- [ ] Configure Secret Manager and protected deployment environment only after explicit approval; run the manual workflow only with explicit confirmation.
+- [ ] Verify Firebase App Check, auth claims, owner email policy, least-privilege IAM, rate limits, request size, model/task allowlists and secret redaction.
+- [ ] Test missing/invalid key, 401/403/429/5xx, timeout, malformed/empty response and provider outage. No silent fallback.
+
+### P2. Prompt contract runtime coverage
+- [ ] Inventory every Gemini call site: classification, extraction, generation, syllabus mapping, answer-key extraction, answer verification, difficulty regeneration and legacy pathways.
+- [ ] Ensure every supported task uses versioned `UniversalPdfPromptContract` templates and structured response schemas.
+- [ ] Validate schema parsing, Hindi/English/bilingual parity, exact question count, canonical exam/stage/paper/section IDs, supported question type, option count, marks and negative marks.
+- [ ] Keep independent answer verification separate from question generation; conflicts become CONFLICT/UNVERIFIED and require review.
+- [ ] No model-generated chain-of-thought or hidden reasoning stored/displayed.
+
+### P3. Syllabus data correctness
+- [ ] Finish JEE Main 2027 Paper 1 detailed topic/subtopic/practical/experimental transcription from official NTA source with exact page citations.
+- [ ] Add reviewed Hindi translations, canonical IDs, uniqueness checks and subject boundaries.
+- [ ] Add Paper 2A and 2B as separate exact modules only when required and source-backed.
+- [ ] Research JEE Advanced from its own official year-specific brochure; never reuse JEE Main structure.
+- [ ] Build a readiness matrix for all supported exams: official source, year, language, topics/subtopics, approval, last review.
+- [ ] Keep unverified exam/syllabus entries disabled for official generation.
+
+### P4. Resolver and app integration
+- [ ] Wire `VersionedSyllabusResolver` into Admin and Student PDF classification, topic mapping, generation, persistence and publication.
+- [ ] Exact key must include exam + version + stage + paper + subject; no fuzzy aliases or default syllabus.
+- [ ] Persist snapshot version and source page evidence with every question.
+- [ ] Add Room/Firestore draft/review persistence, migration tests, access rules and Admin approve/reject/correct workflow.
+- [ ] Confirm the runtime pipeline never treats the current 54-unit JEE heading index as a complete approved topic tree.
+
+### P5. PDF extraction and real document handling
+- [ ] Test original PDF bytes through supported Gemini document input/File API path where appropriate.
+- [ ] Handle text, scanned, mixed, diagram, equation and table pages with page-level boundaries.
+- [ ] OCR must be a real configured engine; if unavailable or confidence is low, mark review-required rather than fabricating text.
+- [ ] Add file signature/MIME, size/page limits, storage lifecycle, retries, cleanup and session recovery tests.
+- [ ] Preserve original source and page references through parsing, deduplication, validation, Room, Firestore and Admin review.
+
+### P6. Student/Admin API Management experience
+- [ ] Reuse the existing API Management page and integrate it into the existing Sidebar; do not create a second page or a new Settings route.
+- [ ] Keep Student and Admin keys separate; Student key encrypted locally with Android Keystore, Admin key server-only.
+- [ ] Implement real Test Key / replace / remove behavior and truthful provider health. Do not persist raw keys in ordinary preferences or Firestore.
+- [ ] Verify key lifecycle, account switching, backup exclusion and log/crash redaction.
+
+### P7. Verification and rollout
+- [ ] Run Kotlin unit tests, backend Node tests, Firestore emulator tests and exact-head Android build.
+- [ ] Use authorized representative PDFs and golden expected extraction/mapping fixtures.
+- [ ] Verify duplicate detection, answer-key separation, publication authorization and no cross-exam leakage.
+- [ ] Record current test inventory and exact CI run. Historical test counts from other branches are not interchangeable.
+- [ ] No production deployment, rule/index deployment or main merge without separate owner approval.
+
+## Cross-branch reconciliation
+Main has newer subject-routing fail-closed fixes and a deterministic `UniversalQuestionGenerationPlanner`; review those before integrating. The Gemini connector branch has the broader Student/Admin connector and Groq/Cerebras roadmap. Reuse shared contracts rather than creating duplicate transports or syllabus systems.
+
+## Audit status
+All P1–P7 items remain open until current-head evidence is attached. The branch's prior implementation plan records code and workflow creation, but its own note says deployment and full Android/backend/emulator verification were pending. This refresh did not run tests or deploy services.
