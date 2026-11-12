@@ -243,3 +243,8 @@ Confirmed current-cycle mismatches include:
 Backend direct `evaluateTestAttempt` still defaults blank identity to NEET; the main production callable currently guards canonical identity before calling it, but direct/internal use remains unsafe. Android `calculateScore` still falls back to first section marks or +4/-1 when the requested section is absent. Android/backend use independent hardcoded rules and different rounding/numeric parsing. Optional-section max score remains inconsistent.
 
 **Status:** FAIL. Contract and fixture files are DRAFT NOT RUNTIME WIRED; official source mapping for all 25 exams remains incomplete; no parity tests were run. Do not port or enable unverified policies.
+
+
+### 2026-11-13 shared fixture harness update
+
+The audit branch now contains `SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`, both reading `shared/scoring/scoring-golden-v1.json`. Gradle and the isolated audit workflow are configured to run them. Six initial policy vectors exist. They have been added but not executed on an evidenced CI run; therefore no parity PASS is claimed. The versioned contract remains draft and is not wired to production call sites.
