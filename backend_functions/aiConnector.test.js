@@ -23,6 +23,45 @@ test("Admin verification accepts admin claim and verified owner account only", (
   }), false);
 });
 
+test("Server generation obeys the Admin global AI kill switch", async () => {
+  const disabledDb = {
+    collection: name => ({
+      doc: id => ({
+        get: async () => ({
+          exists: true,
+          get: field => {
+            assert.equal(name, "Config");
+            assert.equal(id, "admin_settings");
+            assert.equal(field, "globalAiEnabled");
+            return false;
+          }
+        })
+      })
+    })
+  };
+  await assert.rejects(
+    () => _test.assertGlobalAiEnabled(disabledDb),
+    error => error.code === "failed-precondition" && error.message.includes("global kill switch")
+  );
+});
+
+test("Server generation defaults to enabled only when the setting is absent", async () => {
+  const missingConfigDb = {
+    collection: () => ({ doc: () => ({ get: async () => ({ exists: false }) }) })
+  };
+  assert.equal(await _test.assertGlobalAiEnabled(missingConfigDb), true);
+});
+
+test("Server generation fails closed when global AI configuration cannot be read", async () => {
+  const unavailableDb = {
+    collection: () => ({ doc: () => ({ get: async () => { throw new Error("network"); } }) })
+  };
+  await assert.rejects(
+    () => _test.assertGlobalAiEnabled(unavailableDb),
+    { code: "unavailable" }
+  );
+});
+
 test("Gemini verification rejects an empty or malformed secret before network access", async () => {
   await assert.rejects(
     () => _test.verifyGeminiApiKey(""),
