@@ -69,3 +69,80 @@ test("Gemini verification maps provider rejection without leaking provider body 
     error => error.code === "permission-denied" && !error.message.includes("secret-bearing")
   );
 });
+
+test("Admin Gemini generation rejects empty prompts and unsafe model identifiers", async () => {
+  await assert.rejects(
+    () => _test.generateGeminiContent("AIza-test-secret-key-123456789", { prompt: "" }),
+    { code: "invalid-argument" }
+  );
+  await assert.rejects(
+    () => _test.generateGeminiContent("AIza-test-secret-key-123456789", {
+      prompt: "Generate JSON",
+      modelName: "../attacker"
+    }),
+    { code: "invalid-argument" }
+  );
+});
+
+test("Admin Gemini generation keeps the secret in headers and returns text with token usage", async () => {
+  let requestUrl = "";
+  let requestOptions = null;
+  const result = await _test.generateGeminiContent(
+    "AIza-test-secret-key-123456789",
+    {
+      prompt: "Create one test question as JSON.",
+      systemInstruction: "Return valid JSON only.",
+      modelName: "gemini-2.5-flash"
+    },
+    async (url, options) => {
+      requestUrl = url;
+      requestOptions = options;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          modelVersion: "gemini-2.5-flash-001",
+          candidates: [{
+            finishReason: "STOP",
+            content: { parts: [{ text: "{\\"questions\\":[]}" }] }
+          }],
+          usageMetadata: {
+            promptTokenCount: 42,
+            candidatesTokenCount: 18,
+            totalTokenCount: 60
+          }
+        })
+      };
+    }
+  );
+
+  assert.equal(requestUrl.includes("AIza-test-secret-key"), false);
+  assert.equal(requestUrl.endsWith("/gemini-2.5-flash:generateContent"), true);
+  assert.equal(requestOptions.headers["x-goog-api-key"], "AIza-test-secret-key-123456789");
+  assert.equal(JSON.parse(requestOptions.body).contents[0].parts[0].text, "Create one test question as JSON.");
+  assert.deepEqual(result, {
+    responseText: "{\\"questions\\":[]}",
+    modelVersion: "gemini-2.5-flash-001",
+    usageMetadata: {
+      promptTokenCount: 42,
+      candidatesTokenCount: 18,
+      totalTokenCount: 60
+    }
+  });
+  assert.equal(JSON.stringify(result).includes("AIza-test-secret-key"), false);
+});
+
+test("Admin Gemini generation rejects provider errors without exposing raw provider body", async () => {
+  await assert.rejects(
+    () => _test.generateGeminiContent(
+      "AIza-test-secret-key-123456789",
+      { prompt: "Generate JSON." },
+      async () => ({
+        ok: false,
+        status: 429,
+        json: async () => ({ error: { message: "private provider details" } })
+      })
+    ),
+    error => error.code === "resource-exhausted" && !error.message.includes("private provider details")
+  );
+});
