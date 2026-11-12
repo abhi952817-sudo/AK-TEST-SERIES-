@@ -190,4 +190,4 @@ The isolated audit branch has seven shared scoring fixtures and Kotlin/Node test
 
 ### 2026-11-13 CI and scoring coverage status
 
-The main-based audit has 17 official source sets located, 8 exams still unverified, and seven source-backed scoring vectors. Backend historical tests passed on six- and intermediate nine-vector heads; the current seven-vector head remains pending. Android completed 294 tests with one Java17/Robolectric SDK36 environment failure and skipped APK build; JDK21 correction is committed but unverified. Ranking transaction/concurrency tests remain OPEN.
+The main-based audit has 19 official source sets located, 6 exams still unverified, and seven source-backed scoring vectors. Backend historical tests passed on six- and intermediate nine-vector heads; the current seven-vector head remains pending. Android completed 294 tests with one Java17/Robolectric SDK36 environment failure and skipped APK build; JDK21 correction is committed but unverified. Ranking transaction/concurrency tests remain OPEN.
