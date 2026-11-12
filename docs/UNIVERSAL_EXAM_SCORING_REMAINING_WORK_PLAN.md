@@ -224,3 +224,22 @@ Scoring must return a typed result containing canonical exam/stage/paper/version
 9. Run full Android/backend/emulator suites and exact-head Debug APK; record counts and SHA.
 
 **Current verdict:** FAIL for all-exam parity and the defects above. OPEN for official per-exam coverage, exact current-head CI, migration and ranking end-to-end. No source code or production behavior was changed by this documentation update.
+
+
+## 2026-11-13 Exact-main all-exam audit handoff
+
+The full registry/call-site/source audit is recorded in `docs/ALL_EXAM_SCORING_RANKING_AUDIT_2026-11-13.md` on isolated branch `audit/all-exam-scoring-ranking-2026-11-13`. The draft canonical JSON contract and shared fixtures are in `shared/scoring/` on that branch. They are not runtime wired.
+
+Confirmed current-cycle mismatches include:
+- NEET UG 2026: registry still has optional Section B and 200 minutes; official bulletin has 180 compulsory questions in 180 minutes.
+- JEE Main 2027: registry still has 10 numerical questions with 5 attempts and only Paper 1; official bulletin has 20 MCQ + 5 numerical per subject and distinct Paper 2A/2B.
+- CUET UG 2026: registry says 50 with 40 attempts/45 minutes; official bulletin says 50 compulsory/60 minutes.
+- JEE Advanced 2026: two compulsory papers and per-question CBT marking instructions; registry has one paper/static values.
+- UPSC CSE 2026: registry omits qualifying GS Paper-II.
+- SSC CGL 2026: registry omits Tier-II and section-specific policies.
+- CTET 2026: registry omits Paper-II.
+- RRB ALP 2026: registry omits CBT-II and CBAT.
+
+Backend direct `evaluateTestAttempt` still defaults blank identity to NEET; the main production callable currently guards canonical identity before calling it, but direct/internal use remains unsafe. Android `calculateScore` still falls back to first section marks or +4/-1 when the requested section is absent. Android/backend use independent hardcoded rules and different rounding/numeric parsing. Optional-section max score remains inconsistent.
+
+**Status:** FAIL. Contract and fixture files are DRAFT NOT RUNTIME WIRED; official source mapping for all 25 exams remains incomplete; no parity tests were run. Do not port or enable unverified policies.
