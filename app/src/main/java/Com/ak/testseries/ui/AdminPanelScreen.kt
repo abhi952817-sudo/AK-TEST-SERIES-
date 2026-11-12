@@ -859,6 +859,8 @@ fun GeminiKeyManagerSection(viewModel: NEETViewModel) {
     val promptTokens by viewModel.adminGeminiPromptTokens.collectAsState()
     val outputTokens by viewModel.adminGeminiOutputTokens.collectAsState()
     val totalTokens by viewModel.adminGeminiTotalTokens.collectAsState()
+    val selectedModel by viewModel.activeAiModel.collectAsState()
+    var modelMenuExpanded by remember { mutableStateOf(false) }
 
     AdminSectionCard(
         title = "Admin Gemini Connector",
@@ -886,7 +888,36 @@ fun GeminiKeyManagerSection(viewModel: NEETViewModel) {
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
+        if (models.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { modelMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Model: $selectedModel",
+                        modifier = Modifier.weight(1f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                    )
+                    Icon(Icons.Filled.ArrowDropDown, contentDescription = "Select Gemini model")
+                }
+                DropdownMenu(
+                    expanded = modelMenuExpanded,
+                    onDismissRequest = { modelMenuExpanded = false }
+                ) {
+                    models.forEach { model ->
+                        DropdownMenuItem(
+                            text = { Text(model) },
+                            onClick = {
+                                viewModel.selectAdminGeminiModel(model)
+                                modelMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
         Button(
             onClick = { viewModel.verifyAdminGeminiConnector() },
             enabled = !verifying,
