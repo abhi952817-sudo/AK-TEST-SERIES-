@@ -185,10 +185,9 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
                     coroutineScope.launch { snackbarHostState.showSnackbar("पहले PDF चुनें।") }
                 } else {
                     val examConfig = UniversalExamRegistry.getExam("NEET UG")
-                    val apiKey = viewModel.getGeminiApiKeys().firstOrNull()?.second
-                    if (examConfig == null || apiKey.isNullOrBlank()) {
+                    if (examConfig == null) {
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Exam configuration या Admin Gemini API key उपलब्ध नहीं है।")
+                            snackbarHostState.showSnackbar("Exam configuration उपलब्ध नहीं है।")
                         }
                     } else {
                         isAnalyzingPdf = true
@@ -199,8 +198,10 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
                                     context = context,
                                     pdfUri = selectedUri,
                                     examConfig = examConfig,
-                                    apiKey = apiKey,
-                                    selectedSubject = subject
+                                    selectedSubject = subject,
+                                    serverGenerate = { prompt, instruction ->
+                                        viewModel.callGeminiApiForQuestionsWithFallback(prompt, instruction)
+                                    }
                                 )
                                 pdfReviewSummary = buildString {
                                     append("स्थिति: ${result.status}\\n")
