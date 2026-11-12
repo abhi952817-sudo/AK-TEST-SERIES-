@@ -212,7 +212,7 @@ At minimum inspect NEET UG, JEE Main, JEE Advanced, CUET, UPSC, SSC variants, RR
 ### Ranking integration contract
 Scoring must return a typed result containing canonical exam/stage/paper/version, score, raw score, max score, counts, ungraded count, eligibility and policy version. Ranking consumes this exact server-authoritative result. It must not recalculate marks or infer exam type from display names. Normalization to 10,000 and Full Test 1.0x / Part/Chapter/Topic 0.2x happen only after test type and max score are verified. XP remains separate.
 
-### Par ity acceptance and implementation order
+### Parity acceptance and implementation order
 1. Reject missing/ambiguous exam identity and add regression tests.
 2. Remove Android +4/-1 implicit fallback and add missing-section tests.
 3. Fix maximum-score calculation with deterministic optional-section selection metadata.
