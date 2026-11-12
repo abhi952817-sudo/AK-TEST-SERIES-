@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ak-test-series.invalid/schemas/scoring-policy-contract-v1.json",
+  "title": "AK Test Series Universal Scoring Policy Contract v1",
+  "type": "object",
+  "required": [
+    "contractId",
+    "contractVersion",
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "policyResolutionKey",
+    "rules",
+    "examPolicies"
+  ],
+  "properties": {
+    "contractId": {
+      "const": "ak-test-series-universal-scoring"
+    },
+    "contractVersion": {
+      "const": "1.0.0"
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "enum": [
+        "DRAFT_NOT_RUNTIME_WIRED",
+        "ACTIVE_REVIEWED"
+      ]
+    },
+    "policyResolutionKey": {
+      "type": "array",
+      "const": [
+        "examId",
+        "examYear",
+        "stageId",
+        "paperId",
+        "sectionId",
+        "questionType"
+      ]
+    },
+    "rules": {
+      "type": "object"
+    },
+    "examPolicies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "examId",
+          "examName",
+          "officialPolicyStatus",
+          "scoringEnabled",
+          "rankingEnabled",
+          "stageIds",
+          "paperIds",
+          "sectionIds"
+        ],
+        "properties": {
+          "examId": {
+            "type": "string"
+          },
+          "examName": {
+            "type": "string"
+          },
+          "officialPolicyStatus": {
+            "type": "string"
+          },
+          "officialPolicyYear": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "officialSourceUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "scoringEnabled": {
+            "type": "boolean"
+          },
+          "rankingEnabled": {
+            "type": "boolean"
+          },
+          "stageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "paperIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sectionIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
