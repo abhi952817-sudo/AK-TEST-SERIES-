@@ -8,7 +8,7 @@
 
 ## Executive verdict
 
-**RELEASE BLOCKED.** The registry contains 25 exam IDs, 24 positional/named stage declarations detected (NEET uses a named stage property), 27 paper IDs and 99 section IDs. This is a source inventory, not proof that all official stages, papers or sections are represented. All 25 entries currently have `verified = true` in Kotlin, but that flag has no year/source provenance and is not a defensible official marking verification flag.
+**RELEASE BLOCKED.** The registry contains 25 exam IDs, 25 stage IDs, 28 paper IDs and 99 section IDs. This is a source inventory, not proof that all official stages, papers or sections are represented. All 25 entries currently have `verified = true` in Kotlin, but that flag has no year/source provenance and is not a defensible official marking verification flag.
 
 The draft canonical contract is in `shared/scoring/scoring-policy.v1.json`; the shared fixture set is in `shared/scoring/scoring-golden-v1.json`. Both are **DRAFT / NOT RUNTIME WIRED**. All exam policies remain disabled for official scoring/ranking until contract adapters and parity tests are implemented. This is deliberate fail-closed behavior in the draft, not a runtime behavior change.
 
