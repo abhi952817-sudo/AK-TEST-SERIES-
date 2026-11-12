@@ -196,3 +196,17 @@ No Kotlin, Node, Firestore emulator, concurrency or APK tests were run in this d
 - UPSC CDS II 2026 archive: https://www.upsc.gov.in/exams-related-info/exam-notification/archives
 
 **Final audit status:** NOT READY. Source inventory and draft artifacts are committed to the isolated audit branch only. Runtime scoring, ranking, Kotlin/Node parity and full tests remain blocked/open.
+
+
+## 10. Isolated audit CI workflow
+
+Added `.github/workflows/all-exam-scoring-ranking-audit.yml` on this audit branch. It is configured for pushes to this exact audit branch, relevant pull requests targeting main, and manual dispatch. It runs:
+- JSON inventory validation for 25 exam policies and 6 initial fixtures, and asserts all policies remain disabled until review;
+- Node 18 syntax checks and the existing `examScoring.test.js` + `callableValidation.test.js` suites;
+- JDK 17 / Gradle 9.3.1 `testDebugUnitTest`;
+- Gradle `assembleDebug`;
+- upload of Android test XML/reports and Debug APK artifact.
+
+It does **not** yet run Firestore emulator rules tests, the golden fixtures through both Kotlin and Node (no shared fixture loaders exist yet), ranking transaction/concurrency tests, or policy-source validation. These remain OPEN. The workflow file is committed as `460041d1fb54d9521091df2760688ce0cd9d658f`.
+
+**CI evidence:** the available GitHub commit-status and workflow-run lookups returned no status records for the audit commits. Therefore the workflow is configured but its run is **NOT VERIFIED / OPEN**. No test count, test PASS or APK artifact is claimed.
