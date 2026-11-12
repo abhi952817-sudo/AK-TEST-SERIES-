@@ -194,3 +194,11 @@
 
 - Requested deletion of all historical PASS/FAIL/CANCELLED runs and artifacts is NOT EXECUTED; this connection exposes no delete-run or delete-artifact operation.
 - Workflow YAML definitions are retained. Do not delete active verification runs.
+
+
+## Retrieved failure log evidence (representative failed run)
+
+- Run `43207153439`, Android job `131145110664`: four tests failed in `GeminiResponseValidatorTest`: `rejectsQuestionOutsideRequestedSubjectEvenWhenExamAndSectionExist`, `examConfigRejectsIdentityScoringAndQuestionTypeMismatch`, `acceptsCompleteVerifiedResponse`, and `examConfigAcceptsOnlyExactConfiguredSectionAndMarks`. All reported `Question 1: Question item is not a JSON object.` The test payload/fixture shape is not being parsed as the expected question object, so assertions about subject/exam/valid response are never reached. **Cause confirmed at the validator input boundary; exact code-vs-fixture ownership still needs source inspection.**
+- Same job used JDK 17 and emitted Robolectric's SDK 36 / Java 21 warning, but the four reported assertion failures are the immediate test failures captured in this run.
+- Backend Functions tests passed. Overall run failed because Android unit tests failed.
+- Remediation status: **OPEN**; update validator or fixtures only after confirming the intended JSON contract, then rerun the branch workflow.
