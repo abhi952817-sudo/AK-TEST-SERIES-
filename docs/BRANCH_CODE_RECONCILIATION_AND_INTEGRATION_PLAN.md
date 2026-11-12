@@ -184,3 +184,8 @@ On isolated branch `audit/all-exam-scoring-ranking-2026-11-13`, added a Kotlin t
 - The audit branch has seven policy-vetted shared fixtures and Kotlin/Node consumers. Historical Backend runs passed 62/62 (six fixtures) and 65/65 (intermediate nine-fixture set); the latter included two IBPS vectors later removed because section-specific mapping was incomplete. The current seven-fixture head still needs its own run.
 - Android CI completed 294 tests with 1 failure on the earlier head. The failure was Robolectric SDK 36 requiring Java 21 while the audit workflow used Java 17; Debug APK was skipped. The isolated workflow has been corrected to JDK 21 in commit `f1e967e341e782e1f8865e44f4f932caf875c9fd`; a fresh exact-head run is pending.
 - No ranking transaction/concurrency or Firestore emulator tests have passed in this audit. No merge or deployment is authorized.
+
+
+### 2026-11-13 typed ranking handoff contract
+
+The audit branch's `shared/scoring/scoring-policy.v1.json` now includes a draft `rankingContract`: server-authoritative verified score input, 10,000-point normalization, strict Full=1.0/Part=0.2 weights, competition rank, percentile formula, null-on-error, first valid attempt, canonical answer hash and transactional concurrency. This is a contract draft only; no ranking runtime call site or transaction was changed and no ranking tests passed.
