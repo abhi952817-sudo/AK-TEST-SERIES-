@@ -311,3 +311,34 @@ No ranking runtime code was changed and no ranking transaction, tie, percentile,
 - PR is draft/open for review and CI only. It has not been merged. Do not merge until branch reconciliation, runtime contract integration and all tests are green.
 
 **Current status:** 19/25 official source cycles found; 6 still unverified; all 25 policies disabled in the draft contract; 7 shared fixtures and Kotlin/Node consumers present; latest CI queued; Android prior attempt failed under Java 17 and the isolated workflow now uses Java 21; ranking runtime and integration tests remain open.
+
+
+## 17. Failed CI root-cause register and cleanup status (2026-11-13)
+
+This section records the actual failed jobs separately from the fixes applied. A workflow file being edited is not proof that every workflow using that file has been fixed.
+
+| Run ID | Job | Observed result | Root cause / evidence | Remediation state |
+|---|---|---|---|---|
+| `43325351355` | Android unit tests and Debug APK | **FAIL**; 294 tests completed, 1 failed; APK step skipped | `CrashResilienceTest > classMethod`; Robolectric Android SDK 36 requires Java 21, while this job used JDK 17. Test report artifact: `13992911800`. | JDK 21 was applied to the isolated all-exam audit workflow only. Fresh exact-head verification is pending. |
+| `43325704588` | Android unit tests and Debug APK | **FAIL**; same JDK 17 setup and same Android test-task failure class | Job steps show JDK 17; test task failed before APK build. The prior report attributes the failure to SDK 36/Robolectric requiring Java 21. | Same as above. Do not count as fixed until JDK 21 run completes. |
+| `43325351355` | Backend scoring and callable unit tests | **PASS**; historical 62/62 | Syntax, draft contract validation and backend tests passed on the six-vector revision. | Historical PASS only; not a current-head verification. |
+| `43325704588` | Backend scoring and callable unit tests | **PASS**; historical 65/65 | Passed on an intermediate nine-vector revision. Two IBPS vectors were later removed because their section-level marking was not fully mapped. | Historical PASS only; do not transfer to the current seven-vector head. |
+| `43326951571` | Android unit tests and Debug APK | **IN PROGRESS** at last inspection; JDK 21 setup succeeded | The corrected isolated audit job reached the Android test step. Test and APK results were not yet available. | **FIX APPLIED / VERIFICATION PENDING**. |
+| `43326951571` | Backend scoring and callable unit tests | **IN PROGRESS** at last inspection | Node setup, dependency install and JS syntax check succeeded; contract validation/test results not yet available. | **PENDING**. |
+| `43326951437` | Existing Android CI build | **IN PROGRESS** at last inspection; still uses JDK 17 | Its workflow has a separate JDK 17 setup. The isolated audit workflow's JDK 21 change does not modify this separate workflow. | **NOT FIXED** in this workflow. It must be assessed separately; do not claim all Android CI paths were corrected. |
+
+### Explicit remediation decisions
+
+1. JDK 21 correction is present in `.github/workflows/all-exam-scoring-ranking-audit.yml`. It only addresses the isolated audit workflow.
+2. The separate Android CI workflow still declares JDK 17 at run `43326951437`. This is a confirmed remaining configuration gap. No change to that workflow is claimed in this audit entry.
+3. Backend historical PASS results are retained for traceability, not treated as proof that the latest head passes.
+4. The audit workflow's current test run must finish before its test count, result or Debug APK can be recorded.
+5. No workflow definitions have been deleted. Deleting CI definitions would disable future validation and is not equivalent to deleting historical run logs/artifacts.
+
+### GitHub Actions storage cleanup
+
+Requested cleanup scope: remove failed workflow-run logs and obsolete artifacts only after preserving the failure evidence above. Keep source branches, commits, PR review history, workflow definitions and the Markdown audit record.
+
+**Cleanup execution status: BLOCKED / NOT EXECUTED.** The connected GitHub actions available in this session expose workflow-run job/artifact listing and artifact download, but do not expose the destructive GitHub API operations to delete a workflow run/logs or delete an artifact. The available read-only GitHub fetch operation cannot perform those deletions. No deletion is claimed. Use GitHub repository Actions UI (or an authorized GitHub Actions API token) to delete selected failed runs and their associated artifacts. Do not delete successful runs or the currently running verification run before its results and evidence are captured.
+
+**Important:** GitHub Actions logs and artifacts consume Actions storage; deleting local workflow YAML or branch Markdown does not clear historical run logs. Retention settings can prevent future accumulation but do not retroactively delete existing runs.
