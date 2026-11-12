@@ -151,3 +151,12 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+ 
+// Make the single shared scoring golden-vector file available to every JVM unit-test task.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+  systemProperty(
+    "sharedScoringFixtures",
+    rootProject.file("shared/scoring/scoring-golden-v1.json").absolutePath
+  )
+}
