@@ -1,0 +1,1169 @@
+{
+  "contractId": "ak-test-series-universal-scoring",
+  "contractVersion": "1.0.0",
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-11-13",
+  "status": "DRAFT_NOT_RUNTIME_WIRED",
+  "policyResolutionKey": [
+    "examId",
+    "examYear",
+    "stageId",
+    "paperId",
+    "sectionId",
+    "questionType"
+  ],
+  "rules": {
+    "missingIdentity": "REJECT",
+    "missingPolicy": "REJECT",
+    "unsupportedQuestionType": "REJECT",
+    "unverifiedAnswerKey": "UN_GRADED",
+    "msqDefault": "EXACT_SET",
+    "numericParsing": "STRICT_FINITE_DECIMAL",
+    "numericTolerance": "EXPLICIT_PER_POLICY_ONLY",
+    "rounding": "DECIMAL_HALF_UP_AT_FINAL_PERSISTENCE_BOUNDARY",
+    "optionalSectionSelection": "EXPLICIT_SUBMITTED_SELECTION_METADATA_REQUIRED",
+    "droppedQuestion": "EXPLICIT_POLICY_REQUIRED",
+    "rankingInput": "SERVER_AUTHORITATIVE_VERIFIED_SCORE_AND_MAX_ONLY"
+  },
+  "examPolicies": [
+    {
+      "examId": "neet_ug",
+      "examName": "NEET UG",
+      "shortName": "NEET",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "neet_main"
+      ],
+      "paperIds": [
+        "neet_paper_1"
+      ],
+      "sectionIds": [
+        "phy_sec_a",
+        "phy_sec_b",
+        "chem_sec_a",
+        "chem_sec_b",
+        "bot_sec_a",
+        "bot_sec_b",
+        "zoo_sec_a",
+        "zoo_sec_b"
+      ],
+      "registryPatternRules": [
+        "+4 marks for correct answer, -1 mark penalty for incorrect answer",
+        "Section A: 35 compulsory questions per subject",
+        "Section B: 15 questions per subject (students attempt any 10)",
+        "Total 720 marks (180 questions attempted out of 200)",
+        "Duration 200 minutes (3 hours 20 minutes)",
+        "Strict bilingual formatting in English and Hindi"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/02/202602231394640855.pdf",
+      "officialRules": {
+        "positiveMarks": 4,
+        "negativeMarks": 1,
+        "unansweredMarks": 0,
+        "questionCount": 180,
+        "durationMinutes": 180,
+        "droppedQuestionMarks": 4,
+        "notes": "180 compulsory questions; single shift; old Section A/B optional scheme is obsolete."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "jee_main",
+      "examName": "JEE Main",
+      "shortName": "JEE",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "jee_paper_1"
+      ],
+      "paperIds": [
+        "jee_main_p1"
+      ],
+      "sectionIds": [
+        "phy_sec_a",
+        "phy_sec_b",
+        "chem_sec_a",
+        "chem_sec_b",
+        "math_sec_a",
+        "math_sec_b"
+      ],
+      "registryPatternRules": [
+        "+4 marks for correct, -1 mark penalty for incorrect",
+        "Section A: 20 Multiple Choice Questions (compulsory)",
+        "Section B: 10 Numerical value questions (attempt any 5)",
+        "Total 300 marks (75 questions attempted out of 90)",
+        "Duration 180 minutes (3 hours)"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2027,
+      "officialSourceUrl": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/10/202610241890224107.pdf",
+      "officialRules": {
+        "positiveMarks": 4,
+        "negativeMarks": 1,
+        "unansweredMarks": 0,
+        "questionCount": 75,
+        "durationMinutes": 180,
+        "notes": "2027 Paper 1: per subject 20 MCQ + 5 numerical; all 75 total. Paper 2A and 2B are separate patterns."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "jee_advanced",
+      "examName": "JEE Advanced",
+      "shortName": "JEE Adv",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "jee_adv_paper_1"
+      ],
+      "paperIds": [
+        "jee_adv_p1"
+      ],
+      "sectionIds": [
+        "phy_sec_single",
+        "phy_sec_multi",
+        "phy_sec_num",
+        "chem_sec_single",
+        "chem_sec_multi",
+        "chem_sec_num",
+        "math_sec_single",
+        "math_sec_multi",
+        "math_sec_num"
+      ],
+      "registryPatternRules": [
+        "Section 1 (MCQ Single): +3 marks for correct, -1 mark penalty for incorrect",
+        "Section 2 (Multiple Correct): +4 marks for correct, -2 marks penalty for incorrect",
+        "Section 3 (Numerical Value): +3 marks for correct, 0 penalty for incorrect",
+        "54 questions total (18 Physics, 18 Chemistry, 18 Mathematics), 180 marks, Duration 180 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_DYNAMIC_MARKING",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://jeeadv.ac.in/documents/IBEnglish_2026.pdf",
+      "officialRules": {
+        "questionCount": null,
+        "durationMinutes": 360,
+        "notes": "Two compulsory papers, 180 minutes each. Marking can vary by question; exact instructions shown in candidate CBT. Dropped question awards full marks to all candidates."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "cuet_ug",
+      "examName": "CUET UG",
+      "shortName": "CUET",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "cuet_domain"
+      ],
+      "paperIds": [
+        "cuet_domain_paper"
+      ],
+      "sectionIds": [
+        "domain_sec"
+      ],
+      "registryPatternRules": [
+        "+5 marks for correct, -1 mark penalty for incorrect",
+        "Domain subjects: 50 questions total, attempt any 40",
+        "Duration 45 to 60 minutes per domain test",
+        "Bilingual support in English and Hindi"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://cdnbbsr.s3waas.gov.in/s3d1a21da7bca4abff8b0b61b87597de73/uploads/2026/01/202601031633478370.pdf",
+      "officialRules": {
+        "positiveMarks": 5,
+        "negativeMarks": 1,
+        "unansweredMarks": 0,
+        "questionCount": 50,
+        "durationMinutes": 60,
+        "notes": "50 questions per test paper, all compulsory; 60 minutes. More-than-one-correct and dropped/incorrect question handling must be modelled."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "upsc_cse",
+      "examName": "UPSC Civil Services",
+      "shortName": "UPSC",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "prelims"
+      ],
+      "paperIds": [
+        "gs_paper_1"
+      ],
+      "sectionIds": [
+        "polity_sec",
+        "econ_sec",
+        "hist_sec",
+        "env_sec",
+        "sci_sec"
+      ],
+      "registryPatternRules": [
+        "+2.0 marks for correct answer, -0.66 (1/3rd) penalty for incorrect answer",
+        "100 multiple choice questions, total 200 marks",
+        "Duration 120 minutes (2 hours)",
+        "Strict bilingual formatting (English & Hindi)"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://egazette.gov.in/WriteReadData/2026/269828.pdf",
+      "officialRules": {
+        "positiveMarks": 2,
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "papers": 2,
+        "marksPerPaper": 200,
+        "durationMinutes": 120,
+        "notes": "Prelims GS Paper II is qualifying at 33%; must not be combined into competitive merit score as if Paper I."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ssc_cgl",
+      "examName": "SSC CGL",
+      "shortName": "CGL",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "tier_1"
+      ],
+      "paperIds": [
+        "cgl_tier1_paper"
+      ],
+      "sectionIds": [
+        "gi_sec",
+        "ga_sec",
+        "qa_sec",
+        "eng_sec"
+      ],
+      "registryPatternRules": [
+        "+2 marks for correct answer, -0.50 mark penalty for incorrect answer",
+        "100 questions (25 Reasoning, 25 General Awareness, 25 Quantitative Aptitude, 25 English)",
+        "Total 200 marks, Duration 60 minutes",
+        "Sectional cutoff does not apply in Tier 1"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf",
+      "officialRules": {
+        "tier1": {
+          "positiveMarks": 2,
+          "negativeMarks": 0.5,
+          "questionCount": 100,
+          "maxScore": 200,
+          "durationMinutes": 60
+        },
+        "tier2": {
+          "paper1": {
+            "positiveMarks": 3,
+            "negativeBySection": {
+              "sectionI": 1,
+              "sectionII": 1,
+              "sectionIII": 1
+            },
+            "qualifyingSections": [
+              "computer_knowledge",
+              "dest"
+            ]
+          },
+          "paper2And3": {
+            "positiveMarks": 2,
+            "negativeMarks": 0.5
+          }
+        },
+        "notes": "Two-tier exam. Tier-II includes multiple papers and qualifying skill/knowledge sections; registry currently models only Tier-I."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ssc_chsl",
+      "examName": "SSC CHSL (10+2)",
+      "shortName": "CHSL",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "tier_1"
+      ],
+      "paperIds": [
+        "chsl_tier1_paper"
+      ],
+      "sectionIds": [
+        "gi_sec",
+        "ga_sec",
+        "qa_sec",
+        "eng_sec"
+      ],
+      "registryPatternRules": [
+        "+2 marks for correct, -0.50 mark penalty for incorrect",
+        "100 questions, 200 total marks, Duration 60 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_chsl_2025.pdf",
+      "officialRules": {
+        "tier1": {
+          "positiveMarks": 2,
+          "negativeMarks": 0.5,
+          "unansweredMarks": 0,
+          "questions": 100,
+          "maxScore": 200,
+          "durationMinutes": 60
+        },
+        "tier2": {
+          "sectionI": {
+            "positiveMarks": 3,
+            "negativeMarks": 1
+          },
+          "sectionII": {
+            "positiveMarks": 3,
+            "negativeMarks": 1
+          },
+          "sectionIII": {
+            "qualifying": true,
+            "negativeMarks": 1
+          },
+          "sectionIV": {
+            "qualifying": true,
+            "mode": "SKILL_OR_TYPING"
+          },
+          "durationMinutes": 135
+        },
+        "normalization": "MULTI_SHIFT_NORMALIZATION",
+        "notes": "CHSL 2025 notice includes Tier-II in Feb-Mar 2026; do not label this 2026 exam notice. Tier-II skill/typing and Computer Knowledge qualification must remain separate from merit marks."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ssc_mts",
+      "examName": "SSC MTS & Havaldar",
+      "shortName": "MTS",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "session_1_2"
+      ],
+      "paperIds": [
+        "mts_paper"
+      ],
+      "sectionIds": [
+        "math_sec",
+        "reaz_sec",
+        "ga_sec",
+        "eng_sec"
+      ],
+      "registryPatternRules": [
+        "Session 1: +3 marks per question, NO negative marking",
+        "Session 2: +3 marks per question, -1 mark penalty for incorrect",
+        "Duration 90 minutes total (45 minutes per session)"
+      ],
+      "officialPolicyStatus": "UNVERIFIED",
+      "officialPolicyYear": null,
+      "officialSourceUrl": null,
+      "officialRules": null,
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ssc_gd",
+      "examName": "SSC GD Constable",
+      "shortName": "GD",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "cbe"
+      ],
+      "paperIds": [
+        "gd_cbt"
+      ],
+      "sectionIds": [
+        "gi_sec",
+        "gk_sec",
+        "math_sec",
+        "lang_sec"
+      ],
+      "registryPatternRules": [
+        "+2 marks for correct, -0.25 mark penalty for incorrect",
+        "80 questions (20 each in Reasoning, GK, Math, Hindi/English)",
+        "Total 160 marks, Duration 60 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/notice_01122025.pdf",
+      "officialRules": {
+        "positiveMarks": 2,
+        "negativeMarks": 0.25,
+        "unansweredMarks": 0,
+        "questions": 80,
+        "maxScore": 160,
+        "durationMinutes": 60,
+        "bonusMarks": {
+          "nccA": 2,
+          "nccB": 3,
+          "nccC": 5,
+          "unit": "percent_of_maximum_marks"
+        },
+        "additionalStages": [
+          "PST",
+          "PET",
+          "Medical",
+          "Document_Verification"
+        ],
+        "notes": "SSC GD 2026 notice; CBE has 80 MCQs/160 marks and -0.25. NCC bonus marks affect final merit and need a separate bonus component."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ssc_cpo",
+      "examName": "SSC CPO (Sub-Inspector)",
+      "shortName": "CPO",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "paper_1"
+      ],
+      "paperIds": [
+        "cpo_p1"
+      ],
+      "sectionIds": [
+        "gi_sec",
+        "gk_sec",
+        "qa_sec",
+        "eng_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.25 mark penalty for incorrect",
+        "200 questions (50 each in 4 sections), Total 200 marks, Duration 120 minutes"
+      ],
+      "officialPolicyStatus": "UNVERIFIED",
+      "officialPolicyYear": null,
+      "officialSourceUrl": null,
+      "officialRules": null,
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "rrb_ntpc",
+      "examName": "RRB NTPC",
+      "shortName": "NTPC",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "cbt_1"
+      ],
+      "paperIds": [
+        "ntpc_cbt1"
+      ],
+      "sectionIds": [
+        "ga_sec",
+        "math_sec",
+        "gi_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
+        "100 questions (40 GA, 30 Math, 30 Reasoning), Total 100 marks, Duration 90 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/uploads/2025/07-NTPCUG/072025NTPCUG-CEN.pdf",
+      "officialRules": {
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "graduateAndUndergraduateSeparateCENs": true,
+        "cbt1": {
+          "questions": 100,
+          "maxScore": 100,
+          "durationMinutes": 90,
+          "positiveMarks": 1
+        },
+        "cbt2": {
+          "questions": 120,
+          "maxScore": 120,
+          "durationMinutes": 90,
+          "positiveMarks": 1
+        },
+        "additionalStages": [
+          "CBAT_or_Typing_Test_for_applicable_posts"
+        ],
+        "normalization": "MULTI_SHIFT_NORMALIZATION",
+        "notes": "CEN 06/2025 Graduate and CEN 07/2025 Undergraduate; both require separate post/CEN patterns and qualifying post-specific stages."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "rrb_group_d",
+      "examName": "RRB Group D",
+      "shortName": "Group D",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "cbt"
+      ],
+      "paperIds": [
+        "group_d_paper"
+      ],
+      "sectionIds": [
+        "sci_sec",
+        "math_sec",
+        "gi_sec",
+        "ga_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
+        "100 questions (25 Science, 25 Math, 30 Reasoning, 20 GA/Current Affairs), Total 100 marks, 90 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/2025-09-level1.php",
+      "officialRules": {
+        "positiveMarks": 1,
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "questions": 100,
+        "maxScore": 100,
+        "durationMinutes": 90,
+        "stages": [
+          "CBT",
+          "PET",
+          "Document_Verification",
+          "Medical"
+        ],
+        "notes": "CEN 09/2025 Level-1; CBT is merit-bearing, PET/DV/medical are not scoring sections."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "rrb_alp",
+      "examName": "RRB ALP",
+      "shortName": "ALP",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "cbt_1"
+      ],
+      "paperIds": [
+        "alp_cbt1"
+      ],
+      "sectionIds": [
+        "math_sec",
+        "reason_sec",
+        "sci_sec",
+        "ga_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
+        "75 questions, Total 75 marks, Duration 60 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/uploads/2026/01-ALP/012026ALP-CEN.pdf",
+      "officialRules": {
+        "cbt1": {
+          "positiveMarks": 1,
+          "negativeFraction": 0.3333333333333333,
+          "questionCount": 75,
+          "maxScore": 75,
+          "durationMinutes": 60,
+          "countsForFinalMerit": false
+        },
+        "cbt2": {
+          "negativeFraction": 0.3333333333333333,
+          "partAQuestions": 100,
+          "partBQuestions": 75,
+          "partBQualifying": true
+        },
+        "cbat": {
+          "negativeMarks": 0,
+          "notes": "CBAT has no negative marking; final merit uses CBT-2 Part-A and CBAT at 50:50 after qualifying Part-B."
+        },
+        "notes": "Registry includes only CBT-1, omits CBT-2/CBAT and normalization/final-merit stages."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "rrb_technician",
+      "examName": "RRB Technician",
+      "shortName": "Technician",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "cbt"
+      ],
+      "paperIds": [
+        "tech_paper"
+      ],
+      "sectionIds": [
+        "math_sec",
+        "gi_sec",
+        "sci_sec",
+        "ga_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
+        "100 questions, Total 100 marks, Duration 90 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/uploads/2025/02-TECH/022025-CEN.pdf",
+      "officialRules": {
+        "positiveMarks": 1,
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "questions": 100,
+        "maxScore": 100,
+        "durationMinutes": 90,
+        "grades": [
+          "Technician_Grade_I_Signal",
+          "Technician_Grade_III"
+        ],
+        "notes": "CEN 02/2025 has different Grade-I and Grade-III section distributions; each grade must have separate paper/section policy."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "rrb_je",
+      "examName": "RRB JE",
+      "shortName": "RRB JE",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "cbt_1"
+      ],
+      "paperIds": [
+        "je_cbt1"
+      ],
+      "sectionIds": [
+        "math_sec",
+        "gi_sec",
+        "ga_sec",
+        "sci_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
+        "100 questions, Total 100 marks, Duration 90 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/uploads/2025/05-JE/052025JE-CEN.pdf",
+      "officialRules": {
+        "positiveMarks": 1,
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "cbt1": {
+          "questions": 100,
+          "maxScore": 100,
+          "durationMinutes": 90
+        },
+        "cbt2": {
+          "questions": 150,
+          "maxScore": 150,
+          "durationMinutes": 120
+        },
+        "notes": "CEN 05/2025 JE/DMS/CMA; CBT-I and CBT-II are separate patterns with post-specific sections."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ctet",
+      "examName": "CTET",
+      "shortName": "CTET",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "paper_1"
+      ],
+      "paperIds": [
+        "ctet_p1"
+      ],
+      "sectionIds": [
+        "cdp_sec",
+        "l1_sec",
+        "l2_sec",
+        "math_sec",
+        "evs_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, NO negative marking (0 penalty)",
+        "150 questions total, 150 marks, Duration 150 minutes (2.5 hours)"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://cdnbbsr.s3waas.gov.in/s3443dec3062d0286986e21dc0631734c9/uploads/2026/05/202605111250310617.pdf",
+      "officialRules": {
+        "positiveMarks": 1,
+        "negativeMarks": 0,
+        "unansweredMarks": 0,
+        "papers": [
+          "paper_1",
+          "paper_2"
+        ],
+        "notes": "Two distinct papers; each MCQ is 1 mark and there is no negative marking."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ugc_net",
+      "examName": "UGC NET",
+      "shortName": "UGC NET",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "paper_1_2"
+      ],
+      "paperIds": [
+        "net_p1"
+      ],
+      "sectionIds": [
+        "ta_sec"
+      ],
+      "registryPatternRules": [
+        "+2 marks for correct, NO negative marking (0 penalty)",
+        "Paper 1: 50 questions (100 marks), Composite duration 180 minutes with Paper 2"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/20261016860019603.pdf",
+      "officialRules": {
+        "positiveMarks": 2,
+        "negativeMarks": 0,
+        "unansweredMarks": 0,
+        "questionCount": 150,
+        "durationMinutes": 180,
+        "paperI": {
+          "questions": 50,
+          "maxScore": 100
+        },
+        "paperII": {
+          "questions": 100,
+          "maxScore": 200
+        },
+        "allCompulsory": true,
+        "droppedQuestionMarks": 2,
+        "notes": "UGC-NET December 2026: every correct answer +2; no negative; invalid/multiple-correct/all-correct/dropped handling explicitly differs and is recorded in bulletin."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "cat",
+      "examName": "CAT",
+      "shortName": "CAT",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "cat_exam"
+      ],
+      "paperIds": [
+        "cat_paper"
+      ],
+      "sectionIds": [
+        "varc_sec",
+        "dilr_sec",
+        "qa_sec"
+      ],
+      "registryPatternRules": [
+        "MCQs: +3 marks for correct, -1 mark penalty for incorrect",
+        "Non-MCQs (TITA): +3 marks for correct, 0 penalty for incorrect",
+        "66 questions total, 198 marks, 120 minutes (40 minutes sectional time limit)"
+      ],
+      "officialPolicyStatus": "UNVERIFIED",
+      "officialPolicyYear": null,
+      "officialSourceUrl": null,
+      "officialRules": null,
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ibps_po",
+      "examName": "IBPS PO",
+      "shortName": "IBPS PO",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "prelims"
+      ],
+      "paperIds": [
+        "po_prelims"
+      ],
+      "sectionIds": [
+        "eng_sec",
+        "qa_sec",
+        "reaz_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.25 mark penalty for incorrect",
+        "100 questions (30 English, 35 Quant, 35 Reasoning), Total 100 marks, Duration 60 minutes",
+        "Strict sectional timing: 20 minutes per section"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://www.ibps.in/wp-content/uploads/Detailed-Notification_CRP-PO-XVI_Final_V1_30.06.2026.pdf",
+      "officialRules": {
+        "negativeFraction": 0.25,
+        "unansweredMarks": 0,
+        "prelims": {
+          "questions": 100,
+          "maxScore": 100,
+          "durationMinutes": 60
+        },
+        "mains": {
+          "objectiveQuestions": 170,
+          "objectiveMaxScore": 200,
+          "objectiveDurationMinutes": 160,
+          "descriptiveQuestions": 2,
+          "descriptiveMaxScore": 25,
+          "descriptiveDurationMinutes": 30
+        },
+        "normalization": "EQUI_PERCENTILE",
+        "roundingDecimals": 2,
+        "finalMerit": "MAIN_80_INTERVIEW_20",
+        "notes": "CRP PO/MT-XVI 2026; preliminary and main are separate. Main includes descriptive writing and interview weighting; not a single objective score."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "ibps_clerk",
+      "examName": "IBPS Clerk",
+      "shortName": "IBPS Clerk",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "prelims"
+      ],
+      "paperIds": [
+        "clerk_prelims"
+      ],
+      "sectionIds": [
+        "eng_sec",
+        "num_sec",
+        "reaz_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.25 mark penalty for incorrect",
+        "100 questions (30 English, 35 Quant, 35 Reasoning), Total 100 marks, Duration 60 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://www.ibps.in/wp-content/uploads/Notification_CRP_CSA_XVI-Final.pdf",
+      "officialRules": {
+        "negativeFraction": 0.25,
+        "unansweredMarks": 0,
+        "prelims": {
+          "questions": 100,
+          "maxScore": 100,
+          "durationMinutes": 60
+        },
+        "mains": {
+          "questions": 160,
+          "maxScore": 200,
+          "durationMinutes": 125
+        },
+        "normalization": "EQUI_PERCENTILE",
+        "roundingDecimals": 2,
+        "finalMerit": "MAIN_ONLY",
+        "notes": "CRP CSA-XVI 2026; two tiers, sectional timers in both stages; official corrected score is equi-percentile normalized."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "sbi_clerk",
+      "examName": "SBI Clerk",
+      "shortName": "SBI Clerk",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "prelims"
+      ],
+      "paperIds": [
+        "sbi_clerk_prelims"
+      ],
+      "sectionIds": [
+        "eng_sec",
+        "num_sec",
+        "reaz_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.25 mark penalty for incorrect",
+        "100 questions, Total 100 marks, Duration 60 minutes (20 mins per section)"
+      ],
+      "officialPolicyStatus": "UNVERIFIED",
+      "officialPolicyYear": null,
+      "officialSourceUrl": null,
+      "officialRules": null,
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "sbi_po",
+      "examName": "SBI PO",
+      "shortName": "SBI PO",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "prelims"
+      ],
+      "paperIds": [
+        "sbi_po_prelims"
+      ],
+      "sectionIds": [
+        "eng_sec",
+        "qa_sec",
+        "reaz_sec"
+      ],
+      "registryPatternRules": [
+        "+1 mark for correct, -0.25 mark penalty for incorrect",
+        "100 questions (30 English, 35 Quant, 35 Reasoning), Total 100 marks, 60 minutes"
+      ],
+      "officialPolicyStatus": "UNVERIFIED",
+      "officialPolicyYear": null,
+      "officialSourceUrl": null,
+      "officialRules": null,
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "nda",
+      "examName": "NDA & NA",
+      "shortName": "NDA",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "written"
+      ],
+      "paperIds": [
+        "nda_math",
+        "nda_gat"
+      ],
+      "sectionIds": [
+        "math_sec",
+        "eng_sec",
+        "gk_sec"
+      ],
+      "registryPatternRules": [
+        "Mathematics: +2.5 marks for correct, -0.83 penalty for incorrect (120 Qs, 300 marks, 150 mins)",
+        "GAT: +4 marks for correct, -1.33 penalty for incorrect (150 Qs, 600 marks, 150 mins)",
+        "Total 900 marks written examination"
+      ],
+      "officialPolicyStatus": "UNVERIFIED",
+      "officialPolicyYear": null,
+      "officialSourceUrl": null,
+      "officialRules": null,
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "cds",
+      "examName": "CDS",
+      "shortName": "CDS",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "written"
+      ],
+      "paperIds": [
+        "cds_english",
+        "cds_gk",
+        "cds_math"
+      ],
+      "sectionIds": [
+        "cds_eng_sec",
+        "cds_gk_sec",
+        "cds_math_sec"
+      ],
+      "registryPatternRules": [
+        "English: +0.83 marks for correct, -0.27 penalty for incorrect (120 Qs, 100 marks, 120 mins)",
+        "General Knowledge: +0.83 marks for correct, -0.27 penalty for incorrect (120 Qs, 100 marks, 120 mins)",
+        "Elementary Mathematics: +1.0 mark for correct, -0.33 penalty for incorrect (100 Qs, 100 marks, 120 mins)"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://www.upsc.gov.in/sites/default/files/Notif-CDS-II-2026-Engl-200526.pdf",
+      "officialRules": {
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "multipleAnswersTreatedWrong": true,
+        "paperVariants": {
+          "imaInaAfa": [
+            "english",
+            "general_knowledge",
+            "elementary_mathematics"
+          ],
+          "ota": [
+            "english",
+            "general_knowledge"
+          ]
+        },
+        "paperMarks": {
+          "english": 100,
+          "generalKnowledge": 100,
+          "elementaryMathematics": 100
+        },
+        "durationHoursPerPaper": 2,
+        "tieBreakRoundingDecimals": 2,
+        "ssbInterviewSeparate": true,
+        "notes": "CDS-II 2026 official notice; negative fraction is one-third of the marks assigned to each question; blank answers have no penalty; multiple marked options are wrong."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    },
+    {
+      "examId": "gate",
+      "examName": "GATE",
+      "shortName": "GATE",
+      "registryVerifiedFlag": true,
+      "stageIds": [
+        "gate_cbt"
+      ],
+      "paperIds": [
+        "gate_paper"
+      ],
+      "sectionIds": [
+        "ga_1m",
+        "ga_2m",
+        "tech_1m",
+        "tech_2m"
+      ],
+      "registryPatternRules": [
+        "1-mark MCQ: +1 correct, -0.33 penalty. 2-mark MCQ: +2 correct, -0.66 penalty.",
+        "MSQ and NAT: NO negative marking (0 penalty).",
+        "65 questions total, 100 marks, Duration 180 minutes"
+      ],
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://gate2026.iitg.ac.in/doc/IB/GATE2026-IB-10102025.pdf",
+      "officialRules": {
+        "questionCount": 65,
+        "maxScore": 100,
+        "durationMinutes": 180,
+        "questionTypes": [
+          "MCQ",
+          "MSQ",
+          "NAT"
+        ],
+        "questionMarks": [
+          1,
+          2
+        ],
+        "mcqNegativeByMarks": {
+          "oneMark": 0.3333333333333333,
+          "twoMark": 0.6666666666666666
+        },
+        "msqNegativeMarks": 0,
+        "natNegativeMarks": 0,
+        "msqPartialCredit": false,
+        "natPartialCredit": false,
+        "optionalPaperCodes": [
+          "AR",
+          "GE",
+          "GG",
+          "XE",
+          "XH",
+          "XL"
+        ],
+        "notes": "GATE 2026; optional sections and paper-code-specific subject marks must be represented; no single generic gate paper scheme."
+      },
+      "scoringEnabled": false,
+      "rankingEnabled": false,
+      "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
+    }
+  ],
+  "rankingContract": {
+    "version": "1.0.0",
+    "status": "DRAFT_NOT_RUNTIME_WIRED",
+    "acceptedInput": "SERVER_AUTHORITATIVE_VERIFIED_SCORE_RESULT_ONLY",
+    "scoreResultRequiredFields": [
+      "resultVersion",
+      "examId",
+      "examYear",
+      "stageId",
+      "paperId",
+      "policyVersion",
+      "scoreStatus",
+      "rawScore",
+      "finalScore",
+      "maxScore",
+      "correctCount",
+      "wrongCount",
+      "unansweredCount",
+      "ungradedCount",
+      "rankingEligible",
+      "attemptId",
+      "testType"
+    ],
+    "eligibility": {
+      "requireVerifiedPolicy": true,
+      "requireScoreStatus": "GRADED",
+      "requireUngradedCount": 0,
+      "requirePositiveMaxScore": true,
+      "requireCanonicalExamId": true
+    },
+    "normalization": {
+      "scale": 10000,
+      "formula": "round(finalScore / maxScore * 10000)",
+      "maxClamp": 10000,
+      "minClamp": 0
+    },
+    "weights": {
+      "fullTest": 1,
+      "partChapterTopic": 0.2,
+      "requireVerifiedTestType": true,
+      "rejectArbitraryClientWeight": true
+    },
+    "ranking": {
+      "scopeKey": [
+        "examId",
+        "examYear",
+        "stageId",
+        "paperId",
+        "cohortId"
+      ],
+      "rankType": "COMPETITION",
+      "formula": "higherScoreCount + 1",
+      "tieBehavior": "equal scores share rank; next rank skips tied positions",
+      "unavailableValue": null
+    },
+    "percentile": {
+      "formula": "((lowerScoreCount + equalScoreCount) / totalEligibleCount) * 100",
+      "roundingDecimals": 2,
+      "unavailableValue": null
+    },
+    "attempt": {
+      "qualifyingAttempt": "FIRST_VALID_QUALIFYING_ATTEMPT_PER_TEST",
+      "idempotency": "CANONICAL_SORTED_ANSWER_PAYLOAD_SHA256",
+      "retry": "RETURN_EXISTING_CANONICAL_RESULT_WITHOUT_DOUBLE_COUNT"
+    },
+    "concurrency": {
+      "atomicity": "FIRESTORE_TRANSACTION",
+      "conflictingAttemptId": "REJECT",
+      "rankSnapshot": "CONSISTENT_READ_OR_EXPLICITLY_PROVISIONAL"
+    },
+    "privacy": {
+      "privateProfilesExcluded": true,
+      "bannedSuspendedExcluded": true,
+      "clientDirectWritesDenied": true
+    },
+    "airLabel": {
+      "officialGovernmentAir": false,
+      "allowedLabel": "AK Test Series Rank"
+    }
+  }
+}

@@ -1,0 +1,328 @@
+{
+  "contractId": "ak-test-series-universal-scoring",
+  "contractVersion": "1.0.0",
+  "fixtureVersion": "1.0.0",
+  "purpose": "Shared language-neutral scoring fixtures. These fixtures are authored from official-source-backed policies; no runtime harness has been wired yet.",
+  "fixtures": [
+    {
+      "id": "NEET-UG-2026-BASIC-001",
+      "examId": "neet_ug",
+      "examYear": 2026,
+      "stageId": "neet_main",
+      "paperId": "neet_paper_1",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/02/202602231394640855.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q4",
+          "correctAnswer": "D",
+          "questionType": "MCQ_SINGLE"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "B",
+        "q3": "A",
+        "q4": ""
+      },
+      "expected": {
+        "correctCount": 2,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 8,
+        "negativeMarksPenalty": 1,
+        "rawScore": 7,
+        "finalScore": 7,
+        "maxScore": 16
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "CUET-UG-2026-BASIC-001",
+      "examId": "cuet_ug",
+      "examYear": 2026,
+      "stageId": "cuet_domain",
+      "paperId": "cuet_domain_paper",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://cdnbbsr.s3waas.gov.in/s3d1a21da7bca4abff8b0b61b87597de73/uploads/2026/01/202601031633478370.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C"
+        },
+        {
+          "id": "q4",
+          "correctAnswer": "D"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "B",
+        "q3": "A",
+        "q4": ""
+      },
+      "expected": {
+        "correctCount": 2,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 10,
+        "negativeMarksPenalty": 1,
+        "rawScore": 9,
+        "finalScore": 9,
+        "maxScore": 20
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "CTET-2026-BASIC-001",
+      "examId": "ctet",
+      "examYear": 2026,
+      "stageId": "paper_1_2",
+      "paperId": "ctet_p1",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://cdnbbsr.s3waas.gov.in/s3443dec3062d0286986e21dc0631734c9/uploads/2026/05/202605111250310617.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C"
+        },
+        {
+          "id": "q4",
+          "correctAnswer": "D"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "B",
+        "q3": "A",
+        "q4": ""
+      },
+      "expected": {
+        "correctCount": 2,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 2,
+        "negativeMarksPenalty": 0,
+        "rawScore": 2,
+        "finalScore": 2,
+        "maxScore": 4
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "RRB-ALP-2026-CBT1-001",
+      "examId": "rrb_alp",
+      "examYear": 2026,
+      "stageId": "cbt_1",
+      "paperId": "alp_cbt1",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://www.rrbcdg.gov.in/uploads/2026/01-ALP/012026ALP-CEN.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "C",
+        "q3": ""
+      },
+      "expected": {
+        "correctCount": 1,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 1,
+        "negativeMarksPenalty": 0.33,
+        "rawScore": 0.67,
+        "finalScore": 0.67,
+        "maxScore": 3
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "SSC-CGL-2026-TIER1-001",
+      "examId": "ssc_cgl",
+      "examYear": 2026,
+      "stageId": "tier_1",
+      "paperId": "cgl_tier1_paper",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "C",
+        "q3": ""
+      },
+      "expected": {
+        "correctCount": 1,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 2,
+        "negativeMarksPenalty": 0.5,
+        "rawScore": 1.5,
+        "finalScore": 1.5,
+        "maxScore": 6
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "JEE-MAIN-2027-PAPER1-MIXED-001",
+      "examId": "jee_main",
+      "examYear": 2027,
+      "stageId": "jee_paper_1",
+      "paperId": "jee_main_p1",
+      "sectionId": null,
+      "questionTypes": [
+        "MCQ_SINGLE",
+        "NUMERICAL_VALUE"
+      ],
+      "sourceUrl": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/10/202610241890224107.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "17",
+          "questionType": "NUMERICAL_VALUE"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q4",
+          "correctAnswer": "9",
+          "questionType": "NUMERICAL_VALUE"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "17",
+        "q3": "A",
+        "q4": ""
+      },
+      "expected": {
+        "correctCount": 2,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 8,
+        "negativeMarksPenalty": 1,
+        "rawScore": 7,
+        "finalScore": 7,
+        "maxScore": 16
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "UGC-NET-DEC-2026-BASIC-001",
+      "examId": "ugc_net",
+      "examYear": 2026,
+      "stageId": "paper_1_2",
+      "paperId": "net_p1",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/20261016860019603.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q4",
+          "correctAnswer": "D",
+          "questionType": "MCQ_SINGLE"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "B",
+        "q3": "A",
+        "q4": ""
+      },
+      "expected": {
+        "correctCount": 2,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 4,
+        "negativeMarksPenalty": 0,
+        "rawScore": 4,
+        "finalScore": 4,
+        "maxScore": 8
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    }
+  ]
+}
