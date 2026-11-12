@@ -228,7 +228,7 @@ Added Kotlin test `SharedScoringGoldenVectorParityTest.kt`, Node test `sharedSco
 
 ## 12. Expanded official source verification
 
-Official source review has expanded from eleven to seventeen exam cycles by adding RRB NTPC CEN 06/07-2025, RRB Group-D CEN 09/2025, RRB Technician CEN 02/2025, RRB JE CEN 05/2025, SSC GD 2026 and SSC CHSL 2025 (Tier-II in 2026). The current registry for these exams still omits one or more official papers/stages/grades/bonus components, so the policy is source-verified but mapping remains blocked. The shared fixture set now has nine vectors, and the Kotlin test plus workflow inventory assertion were updated from six to seven. Backend CI previously passed the six-vector version (62/62 tests); the added UGC NET vector has not yet been run in CI. Do not extend that earlier PASS to the new head.
+Official source review has expanded from eleven to seventeen exam cycles by adding RRB NTPC CEN 06/07-2025, RRB Group-D CEN 09/2025, RRB Technician CEN 02/2025, RRB JE CEN 05/2025, SSC GD 2026 and SSC CHSL 2025 (Tier-II in 2026). The current registry for these exams still omits one or more official papers/stages/grades/bonus components, so the policy is source-verified but mapping remains blocked. The shared fixture set now has seven vectors, and the Kotlin test plus workflow inventory assertion were updated from six to seven. Backend CI previously passed the six-vector version (62/62 tests); the added UGC NET vector has not yet been run in CI. Do not extend that earlier PASS to the new head.
 
 
 ## 13. Cross-branch candidate review: `feature/ranking-universal-integration-v1`
@@ -247,7 +247,7 @@ The integration branch was inspected as a candidate because it contains newer fa
 - `getUserRankingDetails` still uses rank 0 / percentile 0 as the "Rank Pending" sentinel. This conflicts with the required null/unavailable contract.
 - Per-test rank and exam rank/percentile are derived from separate count queries after commit / outside a single consistent read snapshot. Concurrent writes can make rank and denominator inconsistent; emulator concurrency tests are required.
 - `examScoring.js` and `rankingEngine.js` both contain percentile helpers. Consolidate one canonical definition and test the exact tie/denominator convention.
-- Registry source verification on this branch is only 2/25, despite 11 official source sets now identified in this audit. Add source packets and stage/paper/section mapping before enabling more exams.
+- Registry source verification on this branch is only 2/25, despite 17 official source sets now identified in this audit. Add source packets and stage/paper/section mapping before enabling more exams.
 - Current branch code has no shared versioned policy JSON consumed by both runtimes; it still mirrors policy logic in Kotlin and Node.
 - Historical CI documented on this branch: run `42355909308` had 306 Android tests with 19 failures, backend 70/71 failed, while Firestore rules and Debug APK assembly passed. Later code/test corrections were made, but README states latest runs were queued and no exact-current-head green run is established. Treat all those results as historical, not current PASS.
 
