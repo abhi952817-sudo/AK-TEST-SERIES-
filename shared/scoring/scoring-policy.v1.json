@@ -306,10 +306,40 @@
         "+2 marks for correct, -0.50 mark penalty for incorrect",
         "100 questions, 200 total marks, Duration 60 minutes"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_chsl_2025.pdf",
+      "officialRules": {
+        "tier1": {
+          "positiveMarks": 2,
+          "negativeMarks": 0.5,
+          "unansweredMarks": 0,
+          "questions": 100,
+          "maxScore": 200,
+          "durationMinutes": 60
+        },
+        "tier2": {
+          "sectionI": {
+            "positiveMarks": 3,
+            "negativeMarks": 1
+          },
+          "sectionII": {
+            "positiveMarks": 3,
+            "negativeMarks": 1
+          },
+          "sectionIII": {
+            "qualifying": true,
+            "negativeMarks": 1
+          },
+          "sectionIV": {
+            "qualifying": true,
+            "mode": "SKILL_OR_TYPING"
+          },
+          "durationMinutes": 135
+        },
+        "normalization": "MULTI_SHIFT_NORMALIZATION",
+        "notes": "CHSL 2025 notice includes Tier-II in Feb-Mar 2026; do not label this 2026 exam notice. Tier-II skill/typing and Computer Knowledge qualification must remain separate from merit marks."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
@@ -366,10 +396,30 @@
         "80 questions (20 each in Reasoning, GK, Math, Hindi/English)",
         "Total 160 marks, Duration 60 minutes"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/notice_01122025.pdf",
+      "officialRules": {
+        "positiveMarks": 2,
+        "negativeMarks": 0.25,
+        "unansweredMarks": 0,
+        "questions": 80,
+        "maxScore": 160,
+        "durationMinutes": 60,
+        "bonusMarks": {
+          "nccA": 2,
+          "nccB": 3,
+          "nccC": 5,
+          "unit": "percent_of_maximum_marks"
+        },
+        "additionalStages": [
+          "PST",
+          "PET",
+          "Medical",
+          "Document_Verification"
+        ],
+        "notes": "SSC GD 2026 notice; CBE has 80 MCQs/160 marks and -0.25. NCC bonus marks affect final merit and need a separate bonus component."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
@@ -423,10 +473,31 @@
         "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
         "100 questions (40 GA, 30 Math, 30 Reasoning), Total 100 marks, Duration 90 minutes"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/uploads/2025/07-NTPCUG/072025NTPCUG-CEN.pdf",
+      "officialRules": {
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "graduateAndUndergraduateSeparateCENs": true,
+        "cbt1": {
+          "questions": 100,
+          "maxScore": 100,
+          "durationMinutes": 90,
+          "positiveMarks": 1
+        },
+        "cbt2": {
+          "questions": 120,
+          "maxScore": 120,
+          "durationMinutes": 90,
+          "positiveMarks": 1
+        },
+        "additionalStages": [
+          "CBAT_or_Typing_Test_for_applicable_posts"
+        ],
+        "normalization": "MULTI_SHIFT_NORMALIZATION",
+        "notes": "CEN 06/2025 Graduate and CEN 07/2025 Undergraduate; both require separate post/CEN patterns and qualifying post-specific stages."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
@@ -452,10 +523,24 @@
         "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
         "100 questions (25 Science, 25 Math, 30 Reasoning, 20 GA/Current Affairs), Total 100 marks, 90 minutes"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/2025-09-level1.php",
+      "officialRules": {
+        "positiveMarks": 1,
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "questions": 100,
+        "maxScore": 100,
+        "durationMinutes": 90,
+        "stages": [
+          "CBT",
+          "PET",
+          "Document_Verification",
+          "Medical"
+        ],
+        "notes": "CEN 09/2025 Level-1; CBT is merit-bearing, PET/DV/medical are not scoring sections."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
@@ -530,10 +615,22 @@
         "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
         "100 questions, Total 100 marks, Duration 90 minutes"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/uploads/2025/02-TECH/022025-CEN.pdf",
+      "officialRules": {
+        "positiveMarks": 1,
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "questions": 100,
+        "maxScore": 100,
+        "durationMinutes": 90,
+        "grades": [
+          "Technician_Grade_I_Signal",
+          "Technician_Grade_III"
+        ],
+        "notes": "CEN 02/2025 has different Grade-I and Grade-III section distributions; each grade must have separate paper/section policy."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
@@ -559,10 +656,25 @@
         "+1 mark for correct, -0.33 (1/3rd) penalty for incorrect",
         "100 questions, Total 100 marks, Duration 90 minutes"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2025,
+      "officialSourceUrl": "https://www.rrbcdg.gov.in/uploads/2025/05-JE/052025JE-CEN.pdf",
+      "officialRules": {
+        "positiveMarks": 1,
+        "negativeFraction": 0.3333333333333333,
+        "unansweredMarks": 0,
+        "cbt1": {
+          "questions": 100,
+          "maxScore": 100,
+          "durationMinutes": 90
+        },
+        "cbt2": {
+          "questions": 150,
+          "maxScore": 150,
+          "durationMinutes": 120
+        },
+        "notes": "CEN 05/2025 JE/DMS/CMA; CBT-I and CBT-II are separate patterns with post-specific sections."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
