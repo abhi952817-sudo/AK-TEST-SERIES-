@@ -59,7 +59,7 @@ The following IDs and their current stage/paper/section identifiers were extract
 | `ctet` | CTET September 2026 bulletin | Two papers; each MCQ +1 and no negative marking | Registry models only one paper with no Paper-I/Paper-II separation. **FAIL: missing paper mapping** |
 | `rrb_alp` | RRB CEN 01/2026 | CBT-1 75 questions/75 marks/60 min, +1/-1/3; CBT-2 Part-A and Part-B; CBAT no negative marking; final merit uses CBT-2 Part-A and CBAT 50:50 after qualifying Part-B | Registry models CBT-1 only. **FAIL: missing CBT-2/CBAT/final-merit flow** |
 | `nda` | UPSC NDA/NA 2026 notice located | Current official 2026 notice exists; detailed paper-level scheme not fully extracted in this pass | **OPEN: source document/paper-level marking review** |
-| `cds` | UPSC CDS 2026 notice located | Current official 2026 notice exists; detailed paper-level scheme not fully extracted in this pass | **OPEN: source document/paper-level marking review** |
+| `cds` | UPSC CDS-II 2026 official notice | IMA/INA/AFA: English, GK, Maths; OTA: English/GK; wrong answer -1/3 of assigned marks; blank 0; multiple answers wrong; tie marks rounded to 2 decimals | Registry must split OTA vs IMA/INA/AFA papers and SSB stage. **SOURCE VERIFIED, MAPPING FAIL** |
 | `ssc_chsl` | SSC CHSL 2025 notice (Tier-II scheduled Feb-Mar 2026) | Tier-I 100/200, 60 min, +2/-0.50; Tier-II Sections I/II +3/-1; Computer Knowledge and Skill/Typing sections qualifying | Registry models only Tier-I. **SOURCE VERIFIED, MAPPING FAIL** |
 | `ssc_mts` | Not yet source-verified | No policy values accepted from registry alone | **UNVERIFIED** |
 | `ssc_gd` | SSC Constable GD 2026 notice (published Dec 2025) | 80 questions/160 marks/60 min, +2/-0.25; NCC bonus 2/3/5% of maximum marks; PET/PST/Medical/DV after CBE | Registry needs explicit NCC bonus and qualifying stages. **SOURCE VERIFIED, MAPPING REQUIRED** |
@@ -74,7 +74,7 @@ The following IDs and their current stage/paper/section identifiers were extract
 | `ibps_clerk` | IBPS CRP CSA-XVI 2026 notification | Prelims 100/100 in 60 min; Mains 160/200 in 125 min; -0.25 of assigned marks; equi-percentile normalization to two decimals; Main only for final merit | Registry has Prelims only. **SOURCE VERIFIED, MAPPING FAIL** |
 | `sbi_clerk` | Not yet source-verified | Must split Prelims/Mains and current advertisement year | **UNVERIFIED** |
 | `sbi_po` | Not yet source-verified | Must split Prelims/Mains/Descriptive/Interview and current advertisement year | **UNVERIFIED** |
-| `gate` | Not yet source-verified | Must verify paper code, 1/2-mark, MCQ/MSQ/NAT and negative/partial marking per year | **UNVERIFIED** |
+| `gate` | GATE 2026 IIT Guwahati Information Brochure | 65 questions/100 marks/180 min; 1- and 2-mark MCQ/MSQ/NAT; MCQ -1/3 or -2/3; MSQ/NAT no negative and no partial credit; optional sections depend on paper code | Registry has one generic paper and no 30 paper-code mapping. **SOURCE VERIFIED, MAPPING FAIL** |
 
 Official source URLs are recorded per exam in the JSON contract. Do not infer an exam's policy from a different exam or a previous year. JEE Advanced is intentionally represented as dynamic marking until the candidate-paper instructions are available.
 
@@ -158,7 +158,7 @@ The initial documentation/contract draft did not run tests. A previous six-vecto
 | Gate | Status | Required evidence |
 |---|---|---|
 | Registry inventory | PASS (source extraction) | 25 exam IDs; 28 paper IDs; 99 section IDs |
-| Official policies | PARTIAL / RELEASE BLOCKED | 17 official-cycle sources located; remaining 8 unverified; mapping incomplete even for sourced exams |
+| Official policies | PARTIAL / RELEASE BLOCKED | 19 official-cycle sources located; remaining 6 unverified; mapping incomplete even for sourced exams |
 | Android/backend call-site audit | FAIL | Fallbacks, independent policy code, optional max and decimal parity defects |
 | Versioned contract | DRAFT | JSON created; not runtime wired |
 | Shared golden fixtures | DRAFT | Seven shared vectors and Kotlin/Node test consumers added; execution NOT VERIFIED |
@@ -203,6 +203,8 @@ The initial documentation/contract draft did not run tests. A previous six-vecto
 - RRB JE CEN 05/2025: https://www.rrbcdg.gov.in/uploads/2025/05-JE/052025JE-CEN.pdf
 - SSC Constable GD 2026 notice (published 01 Dec 2025): https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/notice_01122025.pdf
 - SSC CHSL 2025 notice (Tier-II scheduled Feb-Mar 2026): https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_chsl_2025.pdf
+- GATE 2026 IIT Guwahati Information Brochure: https://gate2026.iitg.ac.in/doc/IB/GATE2026-IB-10102025.pdf
+- UPSC CDS-II 2026 official notice: https://www.upsc.gov.in/sites/default/files/Notif-CDS-II-2026-Engl-200526.pdf
 - UPSC NDA/NA II 2026 notice: https://www.upsc.gov.in/examinations/National%20Defence%20Academy%20and%20Naval%20Academy%20Examination%20%28II%29%2C%202026
 - UPSC CDS II 2026 archive: https://www.upsc.gov.in/exams-related-info/exam-notification/archives
 
@@ -228,7 +230,7 @@ Added Kotlin test `SharedScoringGoldenVectorParityTest.kt`, Node test `sharedSco
 
 ## 12. Expanded official source verification
 
-Official source review has expanded from eleven to seventeen exam cycles by adding RRB NTPC CEN 06/07-2025, RRB Group-D CEN 09/2025, RRB Technician CEN 02/2025, RRB JE CEN 05/2025, SSC GD 2026 and SSC CHSL 2025 (Tier-II in 2026). The current registry for these exams still omits one or more official papers/stages/grades/bonus components, so the policy is source-verified but mapping remains blocked. The shared fixture set now has seven vectors, and the Kotlin test plus workflow inventory assertion were updated from six to seven. Backend CI previously passed the six-vector version (62/62 tests); the added UGC NET vector has not yet been run in CI. Do not extend that earlier PASS to the new head.
+Official source review has expanded from seventeen to nineteen exam cycles by adding GATE 2026 and CDS-II 2026. The current registry for these exams still omits one or more official papers/stages/grades/bonus components, so the policy is source-verified but mapping remains blocked. The shared fixture set now has seven vectors, and the Kotlin test plus workflow inventory assertion were updated from six to seven. Backend CI previously passed the six-vector version (62/62 tests); the added UGC NET vector has not yet been run in CI. Do not extend that earlier PASS to the new head.
 
 
 ## 13. Cross-branch candidate review: `feature/ranking-universal-integration-v1`
@@ -276,3 +278,7 @@ The integration branch was inspected as a candidate because it contains newer fa
 ### Current official-source coverage update
 
 The policy JSON now has 17 source-backed exam cycles and 8 unverified registry identities. Source-backed does not mean enabled: all 25 remain `scoringEnabled=false` and `rankingEnabled=false` until stage/paper/section mapping and runtime contract integration pass. SSC GD's NCC bonus and CHSL's Tier-II qualifying sections, plus the RRB stage/grade splits, are explicitly retained as separate policy fields rather than flattened into one +/− value.
+
+### GATE and CDS source mapping update
+
+GATE 2026 and CDS-II 2026 are now source-backed in the contract. GATE must be split by paper code and optional section structure; CDS must split OTA (two written papers) from IMA/INA/AFA (three written papers), and keep SSB interview separate. These source additions bring the verified-source count to 19/25; six registry IDs remain unverified. No GATE/CDS policy is enabled in runtime.
