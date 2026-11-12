@@ -68,10 +68,10 @@ The following IDs and their current stage/paper/section identifiers were extract
 | `rrb_group_d` | Not yet source-verified | Must use current CEN/year and CBT pattern | **UNVERIFIED** |
 | `rrb_technician` | Not yet source-verified | Must split grade/stage and current CEN/year | **UNVERIFIED** |
 | `rrb_je` | Not yet source-verified | Must split CBT-1/CBT-2 and current CEN/year | **UNVERIFIED** |
-| `ugc_net` | Not yet source-verified | Must verify Paper-I/Paper-II and current cycle | **UNVERIFIED** |
+| `ugc_net` | UGC-NET December 2026 NTA bulletin (updated 16 Oct 2026) | Paper I: 50 MCQ/100 marks; Paper II: 100 MCQ/200 marks; all compulsory, 180 minutes; +2 per correct, no negative; special dropped/multiple-correct rules | Registry has one paper ID and one section only. **SOURCE VERIFIED, MAPPING FAIL** |
 | `cat` | Not yet source-verified | Must verify current CAT year and MCQ/TITA sections | **UNVERIFIED** |
-| `ibps_po` | Not yet source-verified | Must split Prelims/Mains and current CRP year | **UNVERIFIED** |
-| `ibps_clerk` | Not yet source-verified | Must split Prelims/Mains and current CRP year | **UNVERIFIED** |
+| `ibps_po` | IBPS CRP PO/MT-XVI 2026 notification | Prelims 100/100 in 60 min; Mains 170 objective/200 in 160 min plus descriptive 2/25 in 30 min; -0.25 of assigned marks; equi-percentile normalization; final Main:Interview 80:20 | Registry has Prelims only. **SOURCE VERIFIED, MAPPING FAIL** |
+| `ibps_clerk` | IBPS CRP CSA-XVI 2026 notification | Prelims 100/100 in 60 min; Mains 160/200 in 125 min; -0.25 of assigned marks; equi-percentile normalization to two decimals; Main only for final merit | Registry has Prelims only. **SOURCE VERIFIED, MAPPING FAIL** |
 | `sbi_clerk` | Not yet source-verified | Must split Prelims/Mains and current advertisement year | **UNVERIFIED** |
 | `sbi_po` | Not yet source-verified | Must split Prelims/Mains/Descriptive/Interview and current advertisement year | **UNVERIFIED** |
 | `gate` | Not yet source-verified | Must verify paper code, 1/2-mark, MCQ/MSQ/NAT and negative/partial marking per year | **UNVERIFIED** |
@@ -147,7 +147,7 @@ All registry entries in the draft JSON are disabled for official scoring/ranking
 
 Draft fixtures: `shared/scoring/scoring-golden-v1.json`.
 
-Initial source-backed vectors cover NEET 2026, JEE Main 2027, CUET UG 2026, CTET 2026, SSC CGL 2026 Tier-I and RRB ALP 2026 CBT-1. Added consumers: `app/src/test/java/Com/ak/testseries/exam/SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`. Both load the same JSON and compare correct/wrong/unanswered counts, positive/negative marks, raw/final score and maximum score. These tests are **added but execution is NOT VERIFIED**. The tolerance is 0.005 to accommodate the existing 2-decimal backend rounding versus Android Double values; this is not a substitute for the final shared decimal contract. These vectors test current engine behavior for six policy samples, not every stage/paper/section.
+Initial source-backed vectors cover NEET 2026, JEE Main 2027, CUET UG 2026, CTET 2026, SSC CGL 2026 Tier-I, RRB ALP 2026 CBT-1, UGC-NET December 2026, IBPS PO-XVI 2026 Prelims and IBPS CSA-XVI 2026 Prelims. Added consumers: `app/src/test/java/Com/ak/testseries/exam/SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`. Both load the same JSON and compare correct/wrong/unanswered counts, positive/negative marks, raw/final score and maximum score. These tests are **added but execution is NOT VERIFIED**. The tolerance is 0.005 to accommodate the existing 2-decimal backend rounding versus Android Double values; this is not a substitute for the final shared decimal contract. These vectors test current engine behavior for six policy samples, not every stage/paper/section.
 
 Required additional vectors: JEE Advanced dynamic schemes and dropped questions; UPSC qualifying Paper-II; all SSC/RRB stages; UGC NET; CAT MCQ/TITA; IBPS/SBI; GATE MCQ/MSQ/NAT; NDA/CDS; ties, duplicate IDs, missing config, invalid answer keys, NaN/Infinity, malformed decimals, retries and optional sections.
 
@@ -161,7 +161,7 @@ No Kotlin, Node, Firestore emulator, concurrency or APK tests were run in this d
 | Official policies | PARTIAL / RELEASE BLOCKED | 8 official-cycle sources located; remaining 17 unverified; mapping incomplete even for sourced exams |
 | Android/backend call-site audit | FAIL | Fallbacks, independent policy code, optional max and decimal parity defects |
 | Versioned contract | DRAFT | JSON created; not runtime wired |
-| Shared golden fixtures | DRAFT | Six shared vectors and Kotlin/Node test consumers added; execution NOT VERIFIED |
+| Shared golden fixtures | DRAFT | Nine shared vectors and Kotlin/Node test consumers added; execution NOT VERIFIED |
 | Score-to-ranking handoff | FAIL | Raw-score aggregation, unverified weighting and stale pre-transaction rank |
 | Ranking tie/percentile/retry/concurrency | OPEN/FAIL | Exact-head transaction and emulator tests absent |
 | Full Android tests | NOT RUN | Need exact discovered/executed/skipped/failed counts |
@@ -192,6 +192,9 @@ No Kotlin, Node, Firestore emulator, concurrency or APK tests were run in this d
 - SSC CGL 2026 notice: https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf
 - CTET September 2026 Information Bulletin: https://cdnbbsr.s3waas.gov.in/s3443dec3062d0286986e21dc0631734c9/uploads/2026/05/202605111250310617.pdf
 - RRB ALP CEN 01/2026: https://www.rrbcdg.gov.in/uploads/2026/01-ALP/012026ALP-CEN.pdf
+- UGC-NET December 2026 Updated Information Bulletin (16 Oct 2026): https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/20261016860019603.pdf
+- IBPS CRP PO/MT-XVI 2026 notification: https://www.ibps.in/wp-content/uploads/Detailed-Notification_CRP-PO-XVI_Final_V1_30.06.2026.pdf
+- IBPS CRP CSA-XVI 2026 notification: https://www.ibps.in/wp-content/uploads/Notification_CRP_CSA_XVI-Final.pdf
 - UPSC NDA/NA II 2026 notice: https://www.upsc.gov.in/examinations/National%20Defence%20Academy%20and%20Naval%20Academy%20Examination%20%28II%29%2C%202026
 - UPSC CDS II 2026 archive: https://www.upsc.gov.in/exams-related-info/exam-notification/archives
 
@@ -201,16 +204,20 @@ No Kotlin, Node, Firestore emulator, concurrency or APK tests were run in this d
 ## 10. Isolated audit CI workflow
 
 Added `.github/workflows/all-exam-scoring-ranking-audit.yml` on this audit branch. It is configured for pushes to this exact audit branch, relevant pull requests targeting main, and manual dispatch. It runs:
-- JSON inventory validation for 25 exam policies and 6 initial fixtures, and asserts all policies remain disabled until review;
+- JSON inventory validation for 25 exam policies and 9 initial fixtures, and asserts all policies remain disabled until review;
 - Node 18 syntax checks plus `examScoring.test.js`, `callableValidation.test.js` and `sharedScoringGoldenVectors.test.js`;
 - JDK 17 / Gradle 9.3.1 `testDebugUnitTest`;
 - Gradle `assembleDebug`;
 - upload of Android test XML/reports and Debug APK artifact.
 
-It does **not** yet run Firestore emulator rules tests, the golden fixtures through both Kotlin and Node (no shared fixture loaders exist yet), ranking transaction/concurrency tests, or policy-source validation. These remain OPEN. The workflow file is committed as `460041d1fb54d9521091df2760688ce0cd9d658f`.
+It does **not** yet run Firestore emulator rules tests, the golden fixtures through both Kotlin and Node (no shared fixture loaders exist yet), ranking transaction/concurrency tests, or policy-source validation. These remain OPEN. The latest workflow update is committed as `a265229b0f268d2949f2da8350abae050906b666`.
 
 **CI evidence:** the available GitHub commit-status and workflow-run lookups returned no status records for the audit commits. Therefore the workflow is configured but its run is **NOT VERIFIED / OPEN**. No test count, test PASS or APK artifact is claimed.
 
 ## 11. Shared fixture test wiring update
 
 Added Kotlin test `SharedScoringGoldenVectorParityTest.kt`, Node test `sharedScoringGoldenVectors.test.js`, and Gradle test property `sharedScoringFixtures` so both platforms read the same `shared/scoring/scoring-golden-v1.json`. The audit CI workflow includes the new Node test and the Android unit-test task automatically discovers the Kotlin test. This is test wiring only: no scoring engine or ranking production call site was changed. No current-head test result is available, so parity remains NOT VERIFIED.
+
+## 12. Expanded official source verification
+
+Official source review has expanded from eight to eleven exam cycles by adding UGC-NET December 2026, IBPS PO/MT-XVI 2026 and IBPS CSA-XVI 2026. The current registry for each of these still omits one or more official papers/stages, so the policy is source-verified but mapping remains blocked. The shared fixture set now has nine vectors, and the Kotlin test plus workflow inventory assertion were updated from six to nine. Backend CI previously passed the six-vector version (62/62 tests); the new three vectors have not yet been run in CI. Do not extend that earlier PASS to the new head.
