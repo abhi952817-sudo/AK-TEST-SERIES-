@@ -102,3 +102,36 @@ All phases above remain **OPEN / NEEDS CURRENT-HEAD VERIFICATION** unless a late
 | Date | Commit | Work/tests | Result | Remaining |
 |---|---|---|---|---|
 | 2026-11-12 | `a250f54a54035c21363a190df39dcd041d7aa55e` | Branch comparison and plan creation | Audit snapshot only; no code tests run in this audit | All R1–R6 gates |
+
+## 2026-11-12 Cross-branch code reconciliation (X/Y/Z)
+
+### X — KEEP
+- Keep ranking-specific concepts and tests as reference. Do not replace main's newer question planner, fail-closed routing, current scoring contract or database baseline.
+- Keep rank separate from XP. Query failure must return unavailable, never rank 0 or fabricated national AIR.
+
+### Y — PORT only after review
+- Candidate: transaction/idempotency and first qualifying attempt logic from ranking integration. Fix the missing isEligibleHistoricalRankingTest reference and add tests first.
+- Candidate: 10,000-point normalized score, Full Test 1.0x / Part Test 0.2x, visibility, exam isolation, ties and percentile. Verify policy and backfill before activation.
+- Candidate: server-side XP ledger and weekly/monthly boards. XP must remain separate from AIR.
+
+### Z — OBSOLETE / DO NOT PORT WHOLESALE
+- Do not port this branch's entire backend index, stale exam defaults or old planner/scoring snapshots over main.
+- This is a standalone reference, not the integration target. No whole-branch merge.
+
+### PASS / FAIL / OPEN evidence (2026-11-12)
+| Check | Result | Evidence / action |
+|---|---|---|
+| Branch/source comparison | PASS (audit only) | Read-only comparison completed. |
+| Ranking backend integration tests | FAIL | Run 43213240446: isEligibleHistoricalRankingTest is not defined at rankingEngine.js:323; three backend test files did not start. |
+| Ranking Android validation | FAIL | Same run: unresolved assertNull in UniversalRankingAndIsolationTest.kt:38-39. |
+| This branch exact-HEAD CI | OPEN | No current-head green run established. |
+| Migration/backfill/security/concurrency | OPEN | Dry run, emulator, race and rollback evidence required. |
+
+### Ordered work
+1. Fix and test historical-ranking predicate.
+2. Fix Android test import/reference; rerun focused ranking tests.
+3. Reconcile callable exports and named Firestore database usage with main.
+4. Port only reviewed functions into integration branch with concurrency/idempotency tests.
+5. Run backend, emulator, Android full suite and exact-head build; record run IDs and counts.
+
+**Verdict:** KEEP AS REFERENCE / SELECTIVE PORT. No code changed and no test was run by this documentation update.
