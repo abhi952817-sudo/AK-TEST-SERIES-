@@ -759,3 +759,11 @@
 - Requested: delete all historical PASS/FAIL/CANCELLED workflow runs and artifacts after saving this inventory.
 - NOT EXECUTED: current GitHub connection has no delete-workflow-run or delete-artifact action. It exposes read/list/download and file-write operations only.
 - Keep workflow YAML files. Do not delete queued or in-progress verification runs.
+
+
+## Retrieved failure log evidence (representative latest failed run)
+
+- Run `43326984229`, Android job `131561807187`: `UniversalRankingAndIsolationTest.kt:38-39` has unresolved reference `assertNull`; task `:app:compileDebugUnitTestKotlin` failed. **Cause confirmed: test source is missing the required assertion import or equivalent reference. No fix is confirmed in this snapshot.**
+- Same run, Backend job `131561807667`: `backend_functions/rankingEngine.js:323` throws `ReferenceError: isEligibleHistoricalRankingTest is not defined` while requiring the module. **Cause confirmed: exported/referenced helper is undefined in this branch head. No fix is confirmed in this snapshot.**
+- Firestore rules tests passed in that run. Overall run failed because Android and Backend jobs failed.
+- Remediation status: **OPEN** for both code/test failures. Fix each root cause in this branch, then rerun its own workflow.
