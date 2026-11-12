@@ -401,3 +401,30 @@ Until both conditions have evidence, Phase 1 remains OPEN. This addendum is an a
 6. Run Android, backend, emulator, secret-scan and exact-head APK regression.
 
 **Verdict:** SELECTIVE PORT. No connector/PDF phase is PASS based on source presence alone.
+
+
+## 2026-11-12 execution check — Validator / Android inventory / APK
+
+This is a read-only verification update. No application code, tests, workflow files, Firebase resources, or production data were changed.
+
+| Gate | Result | Evidence | Status |
+|---|---|---|---|
+| Validator exact commit CI | OPEN | Commit workflow lookup for `a44de807597eef0d155d6b917dca300395163b1d` returned no workflow runs. The available wrapper filters to pull-request-triggered runs only, while this branch workflow also runs on push; therefore an empty result is inconclusive. | OPEN |
+| Four original Validator failures | OPEN | No run ID, job ID, failing test names, stack traces or logs were available in the retrieved evidence. The current validator source and test file are present, but source presence is not proof that the four failures pass. | OPEN |
+| Android actual test count | OPEN | Branch workflow runs `gradle :app:testDebugUnitTest --info --stacktrace` and uploads XML/HTML reports, but no run artifact/report was available to count discovered, executed, skipped and failed tests. The historical 299 count and target 341 are not current branch inventory evidence. | OPEN |
+| Debug APK | OPEN | Workflow defines `:app:assembleDebug` after unit tests, but no exact-head successful run/artifact was returned. | OPEN |
+| Branch reconciliation | OPEN | GitHub compare currently reports feature branch diverged from main: 322 commits ahead, 94 behind; merge base `d2feae47f908b705209c27b8e61e624f94c400d7`. Do not wholesale merge. | OPEN |
+
+### Source observations
+- `.github/workflows/universal-gemini-validation.yml` has push and pull_request triggers, backend Node tests, Android unit tests and Debug APK assembly.
+- `GeminiResponseValidator.kt` and `GeminiResponseValidatorTest.kt` exist on this branch. They enforce COMPLETE envelope, verified answer, provenance, option/type/marks and exam-section consistency. This is source inspection only.
+- `app/build.gradle.kts` uses Android Gradle plugin / Kotlin / Room and has a debug signing config. The workflow generates a debug keystore before tests/build. No APK artifact was verified in this check.
+
+### Required next evidence before connector implementation
+1. Obtain the exact push/PR Actions run URL or run ID for the feature branch and inspect all four Validator failure logs.
+2. Reproduce and fix each root cause with regression tests; do not relax assertions.
+3. Download the Android XML/HTML test report and calculate discovered, executed, skipped and failed counts on the exact branch SHA. Reconcile the 341 target with the actual suite inventory.
+4. Run `:app:testDebugUnitTest`; only if green, run `:app:assembleDebug` and verify the APK artifact belongs to the same SHA.
+5. Update this table with exact tested SHA, run/job IDs, test counts and artifact URL. Only then proceed to Student/Admin connector implementation.
+
+**Current gate verdict: BLOCKED / OPEN.** No unsupported PASS is recorded. No source code has been changed by this verification.
