@@ -67,11 +67,19 @@ object UniversalPdfPipeline {
         examConfig: ExamConfig,
         apiKey: String? = null,
         selectedSubject: String = "",
-        approvedSyllabusJson: String = ""
+        approvedSyllabusJson: String = "",
+        serverGenerate: (suspend (String, String?) -> String?)? = null
     ): AdminPdfRouteResult = withContext(Dispatchers.IO) {
         val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() }
-        if (effectiveApiKey.isNullOrBlank()) {
-            return@withContext AdminPdfRouteResult("NEEDS_REVIEW", "", null, null, "Gemini API key is unavailable.")
+        if (effectiveApiKey.isNullOrBlank() && serverGenerate == null) {
+            return@withContext AdminPdfRouteResult("NEEDS_REVIEW", "", null, null, "No approved Gemini provider route is configured.")
+        }
+        suspend fun executeGemini(prompt: String, instruction: String?): GeminiApiExecutionResult? {
+            if (serverGenerate != null) {
+                val responseText = serverGenerate.invoke(prompt, instruction) ?: return null
+                return GeminiApiExecutionResult(responseText, "server", "server")
+            }
+            return effectiveApiKey?.let { callGeminiApi(it, prompt, instruction) }
         }
 
         val extractedText = try {
@@ -95,8 +103,7 @@ object UniversalPdfPipeline {
         }
         val documentText = CompactMarkdownFormatter.formatToCompactMarkdown(extractedText).take(50000)
 
-        val routingResult = callGeminiApi(
-            effectiveApiKey,
+        val routingResult = executeGemini(
             UniversalAIContext.buildPdfDocumentRoutingPrompt(examConfig, documentText),
             UniversalAIContext.buildSystemInstruction(examConfig)
         ) ?: return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, null, null, "Gemini document classification failed.")
@@ -135,7 +142,7 @@ object UniversalPdfPipeline {
             else -> return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Unsupported or unsafe route: $nextRoute")
         }
 
-        val analysisResult = callGeminiApi(effectiveApiKey, analysisPrompt, UniversalAIContext.buildSystemInstruction(examConfig))
+        val analysisResult = executeGemini(analysisPrompt, UniversalAIContext.buildSystemInstruction(examConfig))
             ?: return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Gemini document processing failed.")
         val analysisJson = try { JSONObject(analysisResult.responseText) } catch (_: Exception) {
             return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Gemini returned invalid analysis JSON.")
