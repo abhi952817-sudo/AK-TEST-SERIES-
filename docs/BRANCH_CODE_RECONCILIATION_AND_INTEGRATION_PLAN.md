@@ -164,7 +164,7 @@ Draft contract: `shared/scoring/scoring-policy.v1.json`.
 Draft shared fixtures: `shared/scoring/scoring-golden-v1.json` (seven vectors; Kotlin and Node test consumers added on the audit branch).
 JSON schema: `shared/scoring/scoring-policy-contract.schema.v1.json`.
 
-Source inventory: 25 exam IDs, 25 stage IDs, 28 paper IDs and 99 section IDs. Eleven official source sets are now located: NEET, JEE Main, JEE Advanced, CUET, UPSC CSE, SSC CGL, CTET, RRB ALP, UGC-NET, IBPS PO and IBPS CSA. Fourteen registry exams still lack an official source packet or full stage/paper mapping. The rest remain UNVERIFIED. Even sourced exams have registry hierarchy mismatches requiring mapping.
+Source inventory: 25 exam IDs, 25 stage IDs, 28 paper IDs and 99 section IDs. Seventeen official source sets/cycles are now located: NEET, JEE Main, JEE Advanced, CUET, UPSC CSE, SSC CGL, CTET, RRB ALP, UGC-NET, IBPS PO and IBPS CSA. Eight registry exams still lack an official source packet or full stage/paper mapping. The rest remain UNVERIFIED. Even sourced exams have registry hierarchy mismatches requiring mapping.
 
 New source-level blockers: NEET registry retains old optional Section B/200-minute scheme; JEE Main registry retains old 20+10 attempt-5 pattern and omits Paper 2A/2B; CUET registry says attempt 40/45 minutes instead of 50 compulsory/60 minutes; CTET only models one paper; UPSC omits qualifying GS Paper-II; SSC CGL omits Tier-II; RRB ALP omits CBT-2/CBAT; JEE Advanced hardcodes a static scheme although 2026 brochure defers marking details to per-question CBT instructions.
 
