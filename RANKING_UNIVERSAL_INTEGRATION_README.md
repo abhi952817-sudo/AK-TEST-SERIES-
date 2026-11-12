@@ -1241,3 +1241,8 @@ The current main ranking implementation is blocked by raw-score aggregation with
 ### 2026-11-13 shared scoring fixture dependency
 
 The audit branch now contains one JSON fixture set consumed by Kotlin and Node test files, with an isolated workflow configured for test execution and Debug APK build. The tests are added but not yet verified as passing. Ranking integration remains blocked until the canonical scoring contract is runtime wired and all source/year/stage/paper policies are approved.
+
+
+### 2026-11-13 CI and source-coverage update
+
+The separate audit branch now has 11 official source sets identified and seven initial scoring fixtures; 14 exam identities remain without complete official stage/paper mapping. Backend passed 65/65 on an intermediate nine-vector head, but two IBPS vectors were removed because their section-specific mapping was not complete. Android's earlier audit run completed 294 tests with one Java17/Robolectric SDK36 environment failure and skipped APK build; the audit workflow now uses JDK21 but has no fresh green exact-head result. These audit results do not change this branch's historical 306/19 Android failure or 70/71 Backend baseline; current integration-branch CI must still be run on its exact head.
