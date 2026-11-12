@@ -181,3 +181,8 @@ Current main ranking source has confirmed blockers:
 All-exam scoring is itself blocked by source-year/stage/paper mismatches and the shared contract is not runtime wired. Do not compute competitive rank from an unverified score or treat raw marks from different exams as comparable.
 
 **Status:** FAIL / NOT READY. No ranking code, data, Firebase or production records changed in this audit.
+
+
+### 2026-11-13 scoring fixture dependency update
+
+The isolated audit branch has six initial shared scoring fixtures and Kotlin/Node test consumers, but no verified run yet. Ranking must not consume these as a release gate until the policy contract is runtime wired, all exam stages are source-mapped and exact-head tests pass. Raw-score normalization, transaction-safe rank/percentile, null-on-error, tie and concurrency blockers remain unresolved.
