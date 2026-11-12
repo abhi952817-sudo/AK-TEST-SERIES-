@@ -5488,6 +5488,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val _studentGeminiKeyRotationDue = MutableStateFlow(false)
     val studentGeminiKeyRotationDue: StateFlow<Boolean> = _studentGeminiKeyRotationDue.asStateFlow()
     val geminiStatusMessage = MutableStateFlow("Initializing...")
+    val adminGeminiConnectorStatus = MutableStateFlow("Not verified")
+    val adminGeminiConnectorModels = MutableStateFlow<List<String>>(emptyList())
+    val adminGeminiConnectorVerifying = MutableStateFlow(false)
     val activeAiModel = MutableStateFlow("UNAVAILABLE")
 
     init {
@@ -5532,42 +5535,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
         } catch (e: Exception) { e.printStackTrace() }
-    }
-
-    private val adminSecondaryGeminiKeyScope = "akts_admin_secondary_global"
-
-    fun setSecondaryGeminiKey(key: String) {
-        try {
-            val context = getApplication<Application>()
-            val prefs = context.getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
-            if (key.isBlank()) {
-                Com.ak.testseries.utils.StudentGeminiKeyStore.clear(context, adminSecondaryGeminiKeyScope)
-            } else {
-                Com.ak.testseries.utils.StudentGeminiKeyStore.save(context, adminSecondaryGeminiKeyScope, key.trim())
-            }
-            // Remove any legacy plaintext value after the encrypted write succeeds.
-            prefs.edit().remove("sec_gemini_api_key").commit()
-        } catch (_: Exception) {
-            geminiStatusMessage.value = "Admin secondary Gemini key could not be stored securely."
-        }
-    }
-
-    fun getSecondaryGeminiKey(): String {
-        return try {
-            val context = getApplication<Application>()
-            val secureValue = Com.ak.testseries.utils.StudentGeminiKeyStore.read(context, adminSecondaryGeminiKeyScope)
-            if (!secureValue.isNullOrBlank()) return secureValue
-
-            // One-time migration from the previous plaintext preference.
-            val prefs = context.getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
-            val legacyValue = prefs.getString("sec_gemini_api_key", "").orEmpty()
-            if (legacyValue.isNotBlank()) {
-                Com.ak.testseries.utils.StudentGeminiKeyStore.save(context, adminSecondaryGeminiKeyScope, legacyValue)
-                prefs.edit().remove("sec_gemini_api_key").commit()
-                return legacyValue
-            }
-            ""
-        } catch (_: Exception) { "" }
     }
 
     fun refreshStudentGeminiKeyState() {
@@ -5622,23 +5589,53 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getGeminiApiKeys(): List<Pair<Int, String>> {
-        val primary = BuildConfig.GEMINI_API_KEY
-        val secondary = getSecondaryGeminiKey()
+        // Admin credentials are never read from BuildConfig or local preferences.
+        // Admin generation will use the authenticated server-side Connector callable.
+        if (isAdmin) return emptyList()
 
-        val list = mutableListOf<Pair<Int, String>>()
+        val uid = try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+        } catch (_: Exception) {
+            ""
+        }
+        if (uid.isBlank()) return emptyList()
+        val studentKey = Com.ak.testseries.utils.StudentGeminiKeyStore.read(getApplication(), uid)
+        return if (studentKey.isNullOrBlank()) emptyList() else listOf(Pair(2, studentKey))
+    }
+
+    fun verifyAdminGeminiConnector() {
         if (!isAdmin) {
-            val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
-            val studentKey = Com.ak.testseries.utils.StudentGeminiKeyStore.read(getApplication(), uid)
-            // When a student connects a personal key, never silently spend the shared Admin quota as fallback.
-            if (!studentKey.isNullOrBlank()) return listOf(Pair(2, studentKey))
+            adminGeminiConnectorStatus.value = "Permission denied: verified Admin access is required."
+            return
         }
-        if (isPrimaryGeminiActive.value && primary.isNotEmpty() && primary != "MY_GEMINI_API_KEY") {
-            list.add(Pair(0, primary))
+        if (adminGeminiConnectorVerifying.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            adminGeminiConnectorVerifying.value = true
+            adminGeminiConnectorStatus.value = "Checking server-side Gemini secret..."
+            try {
+                val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                    .getHttpsCallable("verifyAdminGeminiConnector")
+                val result = callable.call(emptyMap<String, Any>()).await()
+                val payload = result.data as? Map<*, *> ?: emptyMap<Any, Any>()
+                val models = (payload["models"] as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    ?.filter { it.isNotBlank() }
+                    .orEmpty()
+                if (payload["verified"] == true && models.isNotEmpty()) {
+                    adminGeminiConnectorModels.value = models
+                    adminGeminiConnectorStatus.value = "Connected. ${models.size} Gemini generation model(s) detected."
+                } else {
+                    adminGeminiConnectorModels.value = emptyList()
+                    adminGeminiConnectorStatus.value = "Verification returned an incomplete provider response."
+                }
+            } catch (error: Exception) {
+                adminGeminiConnectorModels.value = emptyList()
+                adminGeminiConnectorStatus.value =
+                    error.localizedMessage?.take(240) ?: "Gemini connector verification failed."
+            } finally {
+                adminGeminiConnectorVerifying.value = false
+            }
         }
-        if (isSecondaryGeminiActive.value && secondary.isNotEmpty() && secondary != "MY_GEMINI_API_KEY") {
-            list.add(Pair(1, secondary))
-        }
-        return list
     }
 
     suspend fun callGeminiApiForQuestionsWithFallback(
