@@ -1192,3 +1192,38 @@ No phase closes based on code presence alone. Attach exact commit SHA, CI run/jo
 6. Run Android, backend, emulator and Debug APK checks; record exact SHA and counts.
 
 **Verdict:** KEEP AS INTEGRATION WORKSPACE, CI BLOCKED. No merge/deployment authorized.
+
+
+## 2026-11-12 Expanded full-system exam marking + ranking audit
+
+### Scoring integration blocker
+The integration branch must consume one server-authoritative score result from the universal scoring contract. It must not maintain a second per-exam marks table or infer rules from exam names. Each ranked result must retain canonical exam ID, year/version, stage, paper, section, scoring-policy version, score, maximum, eligibility and ungraded count.
+
+Source audit on main identified these blockers:
+- Backend missing/null exam identity falls back to NEET in `evaluateTestAttempt`.
+- Android/backend marking rules are separately hardcoded, so parity is not guaranteed.
+- Optional-section backend maximum can include surplus questions that are ignored for attempts.
+- Android can use a +4/-1 fallback when a section policy is absent.
+- Competing Android config models create a second-source-of-truth risk.
+All are FAIL / release blockers until fixed and covered by shared golden vectors.
+
+### Ranking-specific verification register
+| System | Required proof | Current status |
+|---|---|---|
+| Exam isolation | NEET/JEE/CUET/UPSC/SSC/Banking/Railway/Teaching/Defence/Management each use canonical separate ID and board | OPEN |
+| Normalized score | Same verified score/max from canonical scoring contract; deterministic 10,000 scale | OPEN |
+| Test weighting | Full 1.0x; Part/Chapter/Topic 0.2x only after verified test type | OPEN |
+| First qualifying attempt | Draft/non-qualifying ignored; only first valid attempt counts | OPEN |
+| Retry/idempotency | Exact retry no double-count; conflicting attempt ID rejected | OPEN |
+| Concurrency | Transaction/race tests prove one canonical entry | OPEN |
+| Ties/percentile | Competition rank and denominator policy shared by backend and Android | OPEN |
+| Rank errors | Unavailable/null, never fabricated zero or estimated AIR | OPEN |
+| Privacy | Private profile and banned/suspended filtering server-enforced | OPEN |
+| XP | XP, streak and leagues separate from rank score | OPEN |
+| Backfill | Source/key/ownership/order verification, dry-run, resume and rollback | OPEN |
+| Android UI | Top 100, My Rank, exam/cohort filters and provisional label consume same snapshot | OPEN |
+
+### Historical CI correction
+Run 43213240446 reported missing `isEligibleHistoricalRankingTest`; the currently fetched integration-branch `rankingEngine.js` exports that function. Therefore the old failure is historical evidence only and is not proof that the function remains missing. The Android `assertNull` issue and full exact-head CI remain to be verified. Do not mark ranking PASS from source inspection alone.
+
+**Release verdict:** FAIL / NOT READY until scoring parity, exact-head CI, transactional ranking, privacy, migration and Android/backend snapshot tests all pass. This document update changes no app code, ranking data, Firestore or production state.
