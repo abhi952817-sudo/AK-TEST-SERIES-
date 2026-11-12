@@ -186,3 +186,8 @@ All-exam scoring is itself blocked by source-year/stage/paper mismatches and the
 ### 2026-11-13 scoring fixture dependency update
 
 The isolated audit branch has seven shared scoring fixtures and Kotlin/Node test consumers, but the six-vector historical Backend run passed, but the expanded seven-vector exact-head run and Android test/Debug APK are not yet verified. Ranking must not consume these as a release gate until the policy contract is runtime wired, all exam stages are source-mapped and exact-head tests pass. Raw-score normalization, transaction-safe rank/percentile, null-on-error, tie and concurrency blockers remain unresolved.
+
+
+### 2026-11-13 CI and scoring coverage status
+
+The main-based audit has 11 official source sets located, 14 exams still unverified, and seven source-backed scoring vectors. Backend historical tests passed on six- and intermediate nine-vector heads; the current seven-vector head remains pending. Android completed 294 tests with one Java17/Robolectric SDK36 environment failure and skipped APK build; JDK21 correction is committed but unverified. Ranking transaction/concurrency tests remain OPEN.
