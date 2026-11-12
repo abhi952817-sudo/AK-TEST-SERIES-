@@ -316,3 +316,48 @@ Phase 1 now requires both:
 2. The cross-branch reconciliation inventory is complete, with a reviewed disposition for every main-only change that touches shared AI, PDF, exam, scoring, database, backend, rules, workflow, or product-flow files.
 
 Until both conditions have evidence, Phase 1 remains OPEN. This addendum is an audit finding, not a claim that any missing implementation has been completed.
+
+
+---
+
+## 14. Full branch plan refresh — API Management and prior chat decisions (2026-11-12)
+
+### 14.1 Branch-specific UI decision from the latest project discussion
+
+- Integrate the already-built API Management UI/page into the existing Sidebar/navigation structure. Do not create a second API Management screen or a duplicate settings system.
+- Use the existing API Management UI and existing branch implementation as the starting point. Defer a separate Settings-based API page.
+- Student and Admin credentials remain separate. Student BYOK key storage must be encrypted locally (Android Keystore-backed implementation); never store raw keys in ordinary preferences, Firestore, source code or logs.
+- Preserve the existing app UI and working flows. This branch owns connector/backend behavior and the agreed Sidebar entry integration only where required by the existing feature work.
+- Audit the current feature-branch source for the existing API Management page and navigation before coding. The UI currently present on `main` is a reference only; do not modify main to make this branch work.
+
+### 14.2 Remaining connector work
+
+1. **Four Validator failures:** resolve exact Actions push run and failing job logs. The commit `a44de807597eef0d155d6b917dca300395163b1d` changes only `GeminiResponseValidator.kt`; empty status/workflow wrapper responses are inconclusive. Reproduce, root-cause, fix and add tests for each failure.
+2. **Test inventory and APK:** reconcile the historical 299-test baseline and later 341-test target by discovering actual tests on this exact branch. Report discovered/executed/skipped/failed counts; run full suite and Debug APK build only after fixing failures.
+3. **Student/Admin key route:** student-owned key first. Admin-managed key remains server-only in Firebase Secret Manager. A server fallback is allowed only under explicit server policy, verified user/role authorization and auditable route metadata. Never expose Admin key to client or silently charge the Admin key for Student requests.
+4. **Existing API Management UI:** connect existing page to Sidebar; key add/test/replace/remove, provider selection, health status and quota visibility must reflect actual server/client capabilities. Do not create duplicate screens or pretend a key is valid without a real authorized provider test.
+5. **Daily quota:** server-authoritative per-student setting 1/2/3/custom; Admin can configure policy. Atomic enforcement, identity from auth token, reset timezone, idempotency, concurrency, retries, cancelled/failed-job policy and clear quota errors are required.
+6. **PDF ingestion:** original PDF bytes/File API path where supported, real text extraction, configured OCR for scanned pages, mixed pages, diagrams and equations, page boundaries, MIME/signature/page/size limits, retries, retention and cleanup. OCR-unavailable or unsupported content must stop for review, never fabricate text.
+7. **Question provenance/review:** keep page/source references per question through Room, Firestore, Admin review and final test. Preserve private vault, owner-private/Under Review, private answer-key separation and explicit approval before public publication.
+8. **Providers:** Groq and Cerebras as separate adapters behind provider-neutral interfaces; real authenticated tests, bounded retries, timeouts, 401/403/429/5xx handling and no fake-success fallback.
+9. **Usage/cost:** persistent request-level provider/model/user/job/token/cost records with pricing version and traceability. If provider usage or cost is unknown, record unknown, never estimate/fabricate.
+10. **Security/final regression:** role authorization, UID isolation, secret redaction, App Check/rate limits, quota bypass/replay/concurrency, duplicate generation, all exam/question formats, PDF recovery, emulator rules, full Android/backend tests and exact-head APK.
+
+### 14.3 Cross-branch dependencies
+
+- Use the versioned prompt and syllabus contract from `feature/universal-pdf-prompt-contract-v1` only after reviewing its source and tests. Do not fork a second syllabus resolver or Gemini transport.
+- Consume deterministic subject/section allocation from the main-side `UniversalQuestionGenerationPlanner` after a reviewed, tested integration; the planner is absent from this branch at the audit snapshot. No All Subjects fallback to first subject or guessed equal split.
+- Preserve scoring contract from `feature/universal-exam-scoring-v1-2026-11-06` and ranking integration branch. Provider success must not bypass scoring, question validation, source provenance or Admin publication approval.
+- Resolve the 320 feature-only vs 93 main-only commit divergence through file-level reconciliation. Main is not to be merged wholesale.
+
+### 14.4 Exit criteria
+
+- [ ] Four Validator failures individually resolved with current-head CI evidence.
+- [ ] Actual Android test inventory reconciled; full suite passes and Debug APK builds on exact HEAD.
+- [ ] API Management page is connected to existing Sidebar without duplicate page/settings system.
+- [ ] Student/Admin key isolation, encrypted local storage and server secret boundaries pass tests.
+- [ ] Server quota, PDF pipeline, Groq, Cerebras and usage/cost metering pass real integration tests.
+- [ ] No dummy/offline fallback, unapproved publication, data loss or secret leakage.
+- [ ] No deployment or main merge without explicit approval.
+
+**Audit status:** Plan updated only. No application code, CI workflow, Firebase resource or production data was changed by this documentation update.
