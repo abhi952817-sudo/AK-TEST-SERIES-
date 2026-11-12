@@ -1156,3 +1156,39 @@ No phase closes based on code presence alone. Attach exact commit SHA, CI run/jo
 | Date | HEAD | Audit result | Tests run in this audit |
 |---|---|---|---|
 | 2026-11-12 | `6b98ecd52e442747b4d8d784aa8f4ad34f223d20` | Branch comparison and plan refresh only | None |
+
+## 2026-11-12 Cross-branch code reconciliation (X/Y/Z)
+
+### X — KEEP
+- Keep this as ranking integration workspace, but fix observed backend and Android blockers first.
+- Keep strict test classification, ungraded-attempt exclusion, server-authoritative transactions, idempotency, exam isolation, privacy filtering and normalized rank separate from XP.
+
+### Y — PORT / RECONCILE
+- Fix missing isEligibleHistoricalRankingTest in rankingEngine.js.
+- Reconcile backend_functions/index.js with main's named Firestore database selection; do not replace the whole file.
+- Port ungraded counts, exact-set MSQ, finite numeric validation and optional-section caps into one Android/backend scoring contract.
+- Reconcile Room 20→21 exactly once; verify schema, existing rows, backup/restore and supported upgrade paths.
+- Reuse main's deterministic planner and fail-closed routing.
+
+### Z — OBSOLETE / DO NOT PORT
+- Do not wholesale replace main's NEETViewModel.kt, MainActivity.kt, backend index, database or exam registry.
+- Do not treat stale CI as current-head proof or deploy production resources from this branch.
+
+### PASS / FAIL / OPEN evidence (2026-11-12)
+| Check | Result | Evidence / action |
+|---|---|---|
+| Source overlap audit | PASS (read-only) | Shared files and differences identified. |
+| Backend validation | FAIL | Run 43213240446: missing isEligibleHistoricalRankingTest at rankingEngine.js:323. |
+| Android validation | FAIL | Same run: unresolved assertNull at UniversalRankingAndIsolationTest.kt:38-39. |
+| Firestore rules tests | PASS | Same run reports rules tests passed; not deployment approval. |
+| Full current-head regression | OPEN | Rerun after fixes on exact updated HEAD. |
+
+### Ordered work
+1. Repair both CI blockers with regression tests.
+2. Verify all ranking callables use the named Firestore database.
+3. Match Android/backend scoring with shared golden vectors.
+4. Test migration, privacy rules, concurrency, retries and first qualifying attempt.
+5. Integrate current main planner and no-fallback rules.
+6. Run Android, backend, emulator and Debug APK checks; record exact SHA and counts.
+
+**Verdict:** KEEP AS INTEGRATION WORKSPACE, CI BLOCKED. No merge/deployment authorized.
