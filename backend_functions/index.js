@@ -17,8 +17,10 @@ const {
   getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const { verifyAdminGeminiConnector } = require("./aiConnector");
 
 exports.normalizeExamKey = normalizeExamKey;
+exports.verifyAdminGeminiConnector = verifyAdminGeminiConnector;
 
 /**
  * Cloud Function: submitTestAttemptServerSide
