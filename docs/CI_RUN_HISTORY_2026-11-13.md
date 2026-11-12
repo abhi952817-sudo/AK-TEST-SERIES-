@@ -198,3 +198,10 @@
 - Requested: delete all historical PASS/FAIL/CANCELLED workflow runs and artifacts after saving this inventory.
 - NOT EXECUTED: current GitHub connection has no delete-workflow-run or delete-artifact action. It exposes read/list/download and file-write operations only.
 - Keep workflow YAML files. Do not delete queued or in-progress verification runs.
+
+
+## Retrieved failure log evidence (representative latest failed run)
+
+- Run `43326575531`, Android job `131560419213`: `JAVA_HOME` was JDK 17; `CrashResilienceTest > classMethod` failed with `UnsupportedOperationException at DefaultSdkProvider.java:170`; 293 tests completed, 1 failed. This matches the Robolectric Android SDK 36 / Java 21 incompatibility. **Cause confirmed; this workflow's Java 17 configuration was not changed by this audit.**
+- In the same run, Backend unit tests and Firestore rules tests passed. The run overall failed because Android validation failed.
+- Remediation status: **OPEN** for this branch until JDK 21 is configured and a fresh run passes. Do not infer fix from a different workflow's JDK update.
