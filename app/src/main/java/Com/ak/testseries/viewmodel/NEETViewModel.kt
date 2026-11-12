@@ -5499,12 +5499,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadGeminiSettings() {
         try {
-            val prefs = getApplication<Application>().getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
+            val context = getApplication<Application>()
+            val prefs = context.getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
+            // One-time cleanup of legacy Admin secrets previously stored on-device.
+            Com.ak.testseries.utils.StudentGeminiKeyStore.clear(context, "akts_admin_secondary_global")
+            prefs.edit().remove("sec_gemini_api_key").commit()
             isPrimaryGeminiActive.value = prefs.getBoolean("is_primary_gemini_active", true)
             isSecondaryGeminiActive.value = prefs.getBoolean("is_secondary_gemini_active", true)
             primaryGeminiUsage.value = prefs.getInt("primary_gemini_usage", 0)
             secondaryGeminiUsage.value = prefs.getInt("secondary_gemini_usage", 0)
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            android.util.Log.w("NEETViewModel", "Legacy Admin Gemini key cleanup failed.", e)
+        }
     }
 
     fun updateGeminiSettings(primaryActive: Boolean, secondaryActive: Boolean) {
