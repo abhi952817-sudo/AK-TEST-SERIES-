@@ -1071,3 +1071,88 @@ Latest code commit: `89da8e37264f89bc27a0dd699c7b3b1198149507`. GitHub Actions f
 Backfill now also requires the attempt's stored `userId` (when present) to match the user being rebuilt, and requires a finite `timeSpentSeconds` value between 0 and 86,400 seconds. Missing or invalid elapsed time is not inferred. These checks run before recalculation, alongside server-verification, first-qualifying-attempt, explicit ranking eligibility, canonical exam/stage/paper identity, current private answer-key validation, answer-ID validation, score/max reconciliation and zero-ungraded checks.
 
 Latest code commit: `94e6cdd8970047c872751572eec760f7d4fe64ba`. Current-head CI is still waiting in GitHub's queued runner backlog; no green result is claimed.
+
+
+---
+
+# 2026-11-12 Branch-wide audit refresh and remaining-work gate
+
+**Current integration branch HEAD audited:** `6b98ecd52e442747b4d8d784aa8f4ad34f223d20`  
+**Main HEAD:** `b38bd497434dd24438b37b3de87bd26b4fbe98f8`  
+**Git comparison:** 464 commits ahead of main and 93 behind; merge base `d2feae47f908b705209c27b8e61e624f94c400d7`. The branch has diverged substantially. This is an ancestry count, not a completion score.
+
+## Non-negotiable scope
+- This remains the ranking + universal scoring integration branch.
+- Preserve `main`, production Firebase, user data and the two source branches. No merge/deploy is authorized.
+- Preserve the ranking engine branch `feature/ranking-engine-v2-2026-11-06` and scoring source branch `feature/universal-exam-scoring-v1-2026-11-06` until integration is reviewed.
+- No blind merge of either source branch. No cherry-pick based only on commit message.
+- Keep one server-authoritative source for scoring, ranking eligibility, answer keys and score snapshots.
+- No dummy questions/data, estimated AIR, client-side authoritative rank or rank=0 fallback.
+- Update this document with exact commit and test evidence after every phase.
+
+## Current audit findings
+1. The branch already contains a large `RANKING_UNIVERSAL_INTEGRATION_README.md` plan (14 phases and extensive historical evidence). Its older baseline is stale; refresh status using current source and current CI.
+2. GitHub reports 464 commits on this branch not in main and 93 main commits not in this branch. The high divergence means shared source files must be reconciled one by one.
+3. High-conflict files include `NEETViewModel.kt`, `MainActivity.kt`, `ExamScoringEngine.kt`, `UniversalExamRegistry.kt`, `UniversalPdfPipeline.kt`, `UniversalAIContext.kt`, `backend_functions/index.js`, `backend_functions/examScoring.js`, `firestore.rules`, `firestore.indexes.json`, `AppDatabase.kt`, and entities.
+4. Main contains newer fail-closed exam subject routing and `UniversalQuestionGenerationPlanner.kt` / tests. The planner is absent from this integration branch at the current compared source. Review and port the deterministic planner with tests; do not replace it with guessed/equal subject distribution.
+5. Main includes Room schema 21 and Migration20To21 tests. Confirm actual branch DB version, all migration paths, exportSchema and data-preserving migration behavior before integration.
+6. Older README CI entries (including 2026-11-06/07 queued or failing runs) are historical. This audit did not execute CI or local tests for this HEAD.
+
+## Ordered remaining phases
+
+### RI-0. Refresh source-of-truth inventory
+- [ ] Reconcile current HEAD against both source branches and main, by file and behavior.
+- [ ] Produce a disposition table: keep integration implementation, port source-branch implementation, port main safety fix, or retire only after proving no call sites.
+- [ ] Identify all duplicate implementations of scoring, ranking, provider transport, exam configuration and question validation.
+
+### RI-1. Scoring engine integration
+- [ ] One canonical exam/stage/paper/section/year policy shared by Android and backend.
+- [ ] Verify MCQ single, MSQ/exact-set, numerical/NAT/TITA, decimal scoring, negative marks, partial marking, optional sections, tolerance, bonus/dropped questions and unanswered rules.
+- [ ] No guessed +4/-1 or synthetic options/sections.
+- [ ] Test Android/backend parity using the same fixtures and official-source evidence.
+
+### RI-2. Ranking engine integration
+- [ ] Transactional first qualifying attempt; duplicate/replay/concurrency protection.
+- [ ] Full Test 1.0x and Part/Chapter/Topic 0.2x after normalization to verified maximum marks.
+- [ ] Separate NEET/JEE/Class 11/Class 12/Dropper boards as eligibility permits; class rank never called official AIR.
+- [ ] Top100/My Rank, tie/competition rank, percentile, private visibility and banned-account policy.
+- [ ] XP/streak/league ledger is separate from rank score and server authoritative.
+- [ ] Consistent ranking snapshot; no rank 0 on query failure.
+
+### RI-3. Historical ranking migration
+- [ ] Dry-run only first. Revalidate source test, private answer key, attempt owner, first-qualifying status, answer payload, time spent, score/max and zero ungraded questions.
+- [ ] Exclude unverifiable history rather than guessing or choosing a later repeat attempt.
+- [ ] Test >450 writes, paging, resumability, idempotency, rollback and snapshot consistency.
+- [ ] Production migration requires separate explicit approval and backup.
+
+### RI-4. Question integrity and private answer-key boundary
+- [ ] Preserve private answer-key separation and strict fail-closed behavior.
+- [ ] Test question IDs against Firestore document IDs, duplicate IDs, option count, question type, subject/section identity and answer completeness.
+- [ ] Never publish answer keys or explanations through public test payloads unless policy explicitly permits review.
+- [ ] Keep draft/private/Under Review/public states and ownership rules consistent across UI and backend.
+
+### RI-5. Exam registry and exact question planner
+- [ ] Reconcile the main-side deterministic `UniversalQuestionGenerationPlanner` and its tests.
+- [ ] Validate exact question count, capacity, subject and section allocation, option count, marks, stage and paper.
+- [ ] Reject unsupported or unconfigured subject/section routes; no fallback to first subject.
+- [ ] Add tests for NEET 180/200, JEE Main 75 and every other supported exam pattern with verified configuration.
+
+### RI-6. Room / Firestore compatibility
+- [ ] Review schema changes and migrations from the actual lowest supported version to current version.
+- [ ] Verify backup/restore adapters, account switching, ownership and existing attempts.
+- [ ] Emulator tests for Firestore and Storage rules, indexes, callable auth and Admin roles.
+- [ ] No destructive migration fallback or production rules deployment without approval.
+
+### RI-7. Product UI and full regression
+- [ ] Preserve existing student/admin screens and Sidebar/API Management decisions; no duplicate settings/page system.
+- [ ] Test test-taking timer, answer palette, bilingual flow, result/review, private vault, PDF upload, notifications, analytics and ranking.
+- [ ] Android tests, backend Node tests, emulator tests, full build and Debug APK on exact HEAD.
+- [ ] Reconcile actual test discovery count. Historical 299/321/642 test totals belong to different commits and must not be conflated.
+
+## Acceptance and evidence
+No phase closes based on code presence alone. Attach exact commit SHA, CI run/job links, executed test counts, APK artifact, emulator results and remaining defects. Do not merge PRs, deploy Firebase Functions, rules, indexes or migrations until the owner explicitly approves.
+
+### Audit evidence log
+| Date | HEAD | Audit result | Tests run in this audit |
+|---|---|---|---|
+| 2026-11-12 | `6b98ecd52e442747b4d8d784aa8f4ad34f223d20` | Branch comparison and plan refresh only | None |
