@@ -624,10 +624,27 @@
         "+2 marks for correct, NO negative marking (0 penalty)",
         "Paper 1: 50 questions (100 marks), Composite duration 180 minutes with Paper 2"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/20261016860019603.pdf",
+      "officialRules": {
+        "positiveMarks": 2,
+        "negativeMarks": 0,
+        "unansweredMarks": 0,
+        "questionCount": 150,
+        "durationMinutes": 180,
+        "paperI": {
+          "questions": 50,
+          "maxScore": 100
+        },
+        "paperII": {
+          "questions": 100,
+          "maxScore": 200
+        },
+        "allCompulsory": true,
+        "droppedQuestionMarks": 2,
+        "notes": "UGC-NET December 2026: every correct answer +2; no negative; invalid/multiple-correct/all-correct/dropped handling explicitly differs and is recorded in bulletin."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
@@ -682,10 +699,30 @@
         "100 questions (30 English, 35 Quant, 35 Reasoning), Total 100 marks, Duration 60 minutes",
         "Strict sectional timing: 20 minutes per section"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://www.ibps.in/wp-content/uploads/Detailed-Notification_CRP-PO-XVI_Final_V1_30.06.2026.pdf",
+      "officialRules": {
+        "negativeFraction": 0.25,
+        "unansweredMarks": 0,
+        "prelims": {
+          "questions": 100,
+          "maxScore": 100,
+          "durationMinutes": 60
+        },
+        "mains": {
+          "objectiveQuestions": 170,
+          "objectiveMaxScore": 200,
+          "objectiveDurationMinutes": 160,
+          "descriptiveQuestions": 2,
+          "descriptiveMaxScore": 25,
+          "descriptiveDurationMinutes": 30
+        },
+        "normalization": "EQUI_PERCENTILE",
+        "roundingDecimals": 2,
+        "finalMerit": "MAIN_80_INTERVIEW_20",
+        "notes": "CRP PO/MT-XVI 2026; preliminary and main are separate. Main includes descriptive writing and interview weighting; not a single objective score."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
@@ -710,10 +747,27 @@
         "+1 mark for correct, -0.25 mark penalty for incorrect",
         "100 questions (30 English, 35 Quant, 35 Reasoning), Total 100 marks, Duration 60 minutes"
       ],
-      "officialPolicyStatus": "UNVERIFIED",
-      "officialPolicyYear": null,
-      "officialSourceUrl": null,
-      "officialRules": null,
+      "officialPolicyStatus": "SOURCE_VERIFIED_MAPPING_REQUIRED",
+      "officialPolicyYear": 2026,
+      "officialSourceUrl": "https://www.ibps.in/wp-content/uploads/Notification_CRP_CSA_XVI-Final.pdf",
+      "officialRules": {
+        "negativeFraction": 0.25,
+        "unansweredMarks": 0,
+        "prelims": {
+          "questions": 100,
+          "maxScore": 100,
+          "durationMinutes": 60
+        },
+        "mains": {
+          "questions": 160,
+          "maxScore": 200,
+          "durationMinutes": 125
+        },
+        "normalization": "EQUI_PERCENTILE",
+        "roundingDecimals": 2,
+        "finalMerit": "MAIN_ONLY",
+        "notes": "CRP CSA-XVI 2026; two tiers, sectional timers in both stages; official corrected score is equi-percentile normalized."
+      },
       "scoringEnabled": false,
       "rankingEnabled": false,
       "disableReason": "Runtime contract adapter and Kotlin/Node golden parity are not yet implemented; no guessed policy is enabled."
