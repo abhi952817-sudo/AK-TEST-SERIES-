@@ -191,3 +191,8 @@ The isolated audit branch has seven shared scoring fixtures and Kotlin/Node test
 ### 2026-11-13 CI and scoring coverage status
 
 The main-based audit has 19 official source sets located, 6 exams still unverified, and seven source-backed scoring vectors. Backend historical tests passed on six- and intermediate nine-vector heads; the current seven-vector head remains pending. Android completed 294 tests with one Java17/Robolectric SDK36 environment failure and skipped APK build; JDK21 correction is committed but unverified. Ranking transaction/concurrency tests remain OPEN.
+
+
+### 2026-11-13 canonical score handoff contract
+
+The isolated audit branch now defines a draft `rankingContract` inside `shared/scoring/scoring-policy.v1.json`: 10,000 normalized score, strict 1.0/0.2 weights, competition rank/tie rule, percentile formula, null on unavailable/error, first qualifying attempt, canonical answer hash and Firestore transaction. It is not runtime wired and does not close any ranking test gate.
