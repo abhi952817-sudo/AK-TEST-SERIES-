@@ -72,3 +72,32 @@ Secret/ignore policy is verified, no real secrets are tracked, required wrapper 
 
 ### Audit result
 The branch's `.gitignore` currently ignores `.env`, `local.properties`, debug keystore and debug logs. This alone does not prove the full repository/history is secret-free. No secret scan was run in this audit.
+
+## 2026-11-12 Cross-branch code reconciliation (X/Y/Z)
+
+### X — KEEP
+- Keep historical evidence that this branch was created for environment/ignore-file recovery.
+
+### Y — PORT / VERIFY
+- No application implementation approved for porting.
+- Verify main ignore rules, Gradle wrapper and repository secret history with a secret scanner. Rotate any exposed credential; ignore rules do not prove clean history.
+
+### Z — OBSOLETE
+- OBSOLETE AS A DEVELOPMENT BASE: 128 commits behind main and no unique ahead commits.
+- Do not merge/cherry-pick old application files. Do not delete branch without owner approval.
+
+### PASS / FAIL / OPEN evidence (2026-11-12)
+| Check | Result | Evidence / action |
+|---|---|---|
+| Ahead/behind comparison | PASS | 0 unique ahead / 128 behind main in recorded audit. |
+| Current .gitignore entries | PASS (limited) | .env, local.properties, debug keystore and debug logs ignored. |
+| Full history secret scan | OPEN | Not run; do not claim secret-free. |
+| Restore-file necessity | OPEN | Intended restore and original removal commit need verification. |
+| Application port/merge | N/A | No application code should be taken from this branch. |
+
+### Ordered disposition
+1. Run repository/history secret scan; rotate exposed credentials.
+2. Verify wrapper and ignore rules on main.
+3. Retain branch for audit until owner approves deletion.
+
+**Verdict:** OBSOLETE DEVELOPMENT BASE; RETAIN FOR AUDIT. No tests or secret scan were run by this documentation update.
