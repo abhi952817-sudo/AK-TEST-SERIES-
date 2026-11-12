@@ -141,3 +141,9 @@
 
 - Requested deletion of all historical PASS/FAIL/CANCELLED runs and artifacts is NOT EXECUTED; this connection exposes no delete-run or delete-artifact operation.
 - Workflow YAML definitions are retained. Do not delete active verification runs.
+
+
+## Retrieved failure log evidence (representative latest failed run)
+
+- Run `42636054687`, Android job `129224380549`: Kotlin compilation failed at `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt:6850:53` with unresolved reference `examConfig`; task `:app:compileDebugKotlin` failed before unit tests. JDK 17 was configured, but this failure is a source compilation error rather than a test assertion. **Cause confirmed; no fix is confirmed in this snapshot.**
+- Remediation status: **OPEN** until the variable/reference is corrected with intended scope and a fresh Android CI run compiles and passes.
