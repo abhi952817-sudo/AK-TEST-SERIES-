@@ -282,3 +282,20 @@ The policy JSON now has 17 source-backed exam cycles and 8 unverified registry i
 ### GATE and CDS source mapping update
 
 GATE 2026 and CDS-II 2026 are now source-backed in the contract. GATE must be split by paper code and optional section structure; CDS must split OTA (two written papers) from IMA/INA/AFA (three written papers), and keep SSB interview separate. These source additions bring the verified-source count to 19/25; six registry IDs remain unverified. No GATE/CDS policy is enabled in runtime.
+
+
+## 15. Draft typed score-to-ranking contract
+
+The JSON contract now contains a `rankingContract` block (version 1.0.0), and its schema/CI inventory check validates the core invariants. This remains **DRAFT NOT RUNTIME WIRED**.
+
+- Ranking input is only a server-authoritative verified score result carrying exam/year/stage/paper, policy version, raw/final/max score, correct/wrong/unanswered/ungraded counts, attempt ID and verified test type.
+- Normalized score is `round(finalScore / maxScore * 10000)`, clamped to 0..10000.
+- Full Test weight is exactly 1.0; Part/Chapter/Topic exactly 0.2; unknown or client-supplied arbitrary weights are rejected.
+- Competitive rank is `higherScoreCount + 1`; equal scores share rank and subsequent rank positions skip ties.
+- Percentile is `((lowerScoreCount + equalScoreCount) / totalEligibleCount) * 100`, rounded to two decimals. A single authoritative implementation and consistent read snapshot are still required.
+- Rank/percentile unavailable or query failure is `null`, never zero or one.
+- First valid qualifying attempt per test; canonical sorted-answer SHA-256 idempotency; retries do not double-count; conflicting attempt ID reuse rejects.
+- Firestore transaction required for the attempt lock and cumulative score update; rank snapshot must be consistent or explicitly provisional.
+- Private profiles and banned/suspended users are excluded server-side; client direct writes are denied. Label is AK Test Series Rank, never government/NTA AIR.
+
+No ranking runtime code was changed and no ranking transaction, tie, percentile, retry or concurrency test was run on this audit branch. The contract describes the target behavior only.
