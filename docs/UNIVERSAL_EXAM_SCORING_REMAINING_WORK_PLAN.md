@@ -248,3 +248,8 @@ Backend direct `evaluateTestAttempt` still defaults blank identity to NEET; the 
 ### 2026-11-13 shared fixture harness update
 
 The audit branch now contains `SharedScoringGoldenVectorParityTest.kt` and `backend_functions/sharedScoringGoldenVectors.test.js`, both reading `shared/scoring/scoring-golden-v1.json`. Gradle and the isolated audit workflow are configured to run them. Six initial policy vectors exist. They have been added but not executed on an evidenced CI run; therefore no parity PASS is claimed. The versioned contract remains draft and is not wired to production call sites.
+
+
+### 2026-11-13 CI evidence correction
+
+The isolated audit's intermediate nine-vector backend run passed 65/65, but two IBPS vectors were removed because their stage/section-specific marks were not fully mapped. The current seven-vector head needs a fresh run. Android's earlier run completed 294 tests with one Robolectric SDK36/Java17 environment failure; APK build was skipped. The isolated audit workflow is now configured for JDK21, but no fresh exact-head Android result is available. Do not mark parity or APK PASS from these historical runs.
