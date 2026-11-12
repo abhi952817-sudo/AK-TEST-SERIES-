@@ -135,3 +135,57 @@ Scoring is complete only when every enabled exam configuration is source-backed,
 5. Test migrations and backup/restore from every supported schema version.
 
 **Verdict:** SELECTIVE PORT. Android validation is FAIL until the crash-resilience failure is fixed.
+
+
+## 2026-11-12 live parity audit — main HEAD reconciliation
+
+**Main comparison base:** 556617dd978643449c8457fc0bd8fb551773903b (current main base returned by GitHub compare at audit time).  
+**Merge base:** d2feae47f908b705209c27b8e61e624f94c400d7.  
+**Branch divergence:** scoring branch is 135 commits ahead and 94 behind main. This is not safe for a wholesale merge.
+
+### Source-level findings (not yet test-verified)
+
+| Area | Finding | Status |
+|---|---|---|
+| Canonical configuration | Main has both ExamConfig/UniversalExamRegistry and legacy ExamConfiguration/ScoringRule models. Scoring source currently consults the registry; legacy model is a potential second source of truth. | OPEN |
+| Unknown exam fallback | Backend evaluateTestAttempt constructs String(targetExam || "NEET"), so empty/null exam identity silently becomes NEET before validation. This contradicts the existing unknown-exam fail-closed test intent. | FAIL |
+| Android/backend scheme resolution | Both contain separate hardcoded special cases for JEE Advanced, NDA, CDS, GATE and SSC MTS, plus separate exam-name tables. Same-looking code is not a shared authoritative configuration and can drift. | FAIL |
+| Per-question rules | Both engines resolve special cases separately and generic registry fallback separately. Alias/type/section normalization and missing-section behavior require golden parity tests. | OPEN |
+| Optional question caps | Main Android and backend both add every question's positive marks to maxScore before optional surplus is ignored. The reported maximum can therefore exceed the maximum attainable score for papers with optional sections. | FAIL |
+| Configured scoring path | Android calculateScore(examConfig,...) defaults missing section config to the first section's +4/-1 values and does not apply the same optional-section selection policy as evaluateTestAttempt. | FAIL |
+| Numeric/MSQ | Scoring branch adds finite numeric validation and exact-set multi-select; these are useful candidate changes. Must compare both code paths and test index/letter normalization, duplicate tokens and numeric tolerance. | PARTIAL |
+| Fractional marks | Backend rounds aggregate fields to 2 decimal places while Android retains raw Double values. A single documented rounding policy and decimal-safe parity vectors are still required. | OPEN |
+| Question identity | Duplicate/missing question IDs, unknown question types and malformed answers need explicit validation before scoring; no proof of complete symmetric rejection found in this source inspection. | OPEN |
+| Policy authenticity | Hardcoded values in code/tests are not official policy evidence. Each exam needs version/year/stage/paper/section official source provenance and review before verified=true. | OPEN |
+
+### Required canonical contract
+
+- Resolve by canonical examId + examYear/version + stageId + paperId + sectionId + questionType; display names are aliases only and ambiguous aliases must fail closed.
+- Read marks, negative penalty, partial-credit policy, numerical tolerance, unanswered rule, dropped/bonus policy and optional attempt limits from one versioned configuration contract. Do not infer a policy from a broad exam label.
+- Score only verified answer keys. Preserve an explicit UNGRADED count/status; do not silently treat an unverified key as correct, wrong or a normal unanswered question.
+- MCQ_SINGLE uses one accepted option; MSQ uses exact-set matching unless that paper's official rule explicitly defines partial credit; NAT/TITA uses finite decimal/integer parsing and configured tolerance.
+- Apply compulsory/optional selection deterministically using submitted selection metadata where required. Do not silently choose the first N optional questions based on list order.
+- Compute maximum attainable marks from the selected paper's actual rules and valid question selection, not blindly from all loaded questions.
+- Use the same decimal representation/rounding boundary on Android and Backend. Backend remains authoritative for official attempts; client result is a parity-checked preview only.
+- Return explicit validation errors for unsupported exam versions, unknown question types, missing section policy, malformed IDs, duplicate IDs and invalid answer keys.
+
+### Test strategy
+
+Create language-neutral golden fixtures (JSON) consumed by Kotlin and Node tests. Each fixture records config version/source, input questions/answers, expected counts, positive marks, penalty, raw/final/max score, accuracy, ungraded count and error code. Cover NEET optional sections, JEE Main/Advanced distinct question types, CUET, UPSC, SSC tiers, CTET/UGC NET, IBPS/SBI, CAT MCQ/TITA, GATE 1/2-mark MCQ/MSQ/NAT, NDA/CDS section policies, all unanswered, negative raw score, dropped/bonus, partial credit only where official, decimals/tolerance, NaN/Infinity, duplicate IDs, missing config and aliases.
+
+### Execution order
+
+1. Fix the empty/unknown exam fallback and add regression tests.
+2. Define one versioned scoring configuration contract and remove duplicated policy resolution only after all call sites and data migrations are mapped.
+3. Correct optional-question selection and max-score computation in both paths.
+4. Add shared JSON golden vectors and run Kotlin + Node against the same fixtures.
+5. Validate official year-specific policies for every enabled exam. Disable/unverify unsupported configurations rather than guessing.
+6. Run full Android, backend, Firestore rules and exact-head Debug APK build; record counts and SHA.
+7. Only then port the verified scoring contract into the ranking integration branch. No main merge or deployment without approval.
+
+### Current audit verdict
+
+**FAIL:** empty exam identity can fall back to NEET; optional-section max score is inflated; Android configured scoring path has hardcoded +4/-1 defaults; Android and Backend independently encode exam policies.  
+**PARTIAL:** finite-number and exact-set MSQ work on the scoring feature branch is a candidate to retain after parity tests.  
+**OPEN:** complete official source-backed exam matrix, golden fixtures, current-head test run, all-exam Android/backend parity and APK verification.  
+**Change boundary:** this update changes documentation only. No application code or production data was modified.
