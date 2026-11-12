@@ -69,3 +69,9 @@
 
 - Requested deletion of all historical PASS/FAIL/CANCELLED runs and artifacts is NOT EXECUTED; this connection exposes no delete-run or delete-artifact operation.
 - Workflow YAML definitions are retained. Do not delete active verification runs.
+
+
+## Retrieved failure log evidence (representative failed run)
+
+- Run `42459157094`, Android job `128664507818`: JDK 21 was configured; `ExamScoringEngineTest > testNonFiniteAnswerKeysAreRejected` failed with `AssertionError` at `ExamScoringEngineTest.kt:246`; 315 tests completed, 1 failed. This is not the JDK 17 / SDK 36 issue. The current engine behavior or the test expectation does not satisfy the non-finite answer-key rejection contract. **Failure location confirmed; exact assertion mismatch needs source-level review.**
+- Remediation status: **OPEN**; do not mark fixed until the test and implementation agree on NaN/Infinity handling and the branch's own test suite passes.
