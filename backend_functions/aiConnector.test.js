@@ -146,3 +146,23 @@ test("Admin Gemini generation rejects provider errors without exposing raw provi
     error => error.code === "resource-exhausted" && !error.message.includes("private provider details")
   );
 });
+
+test("Admin Gemini text mode requests plain text for AI Mentor explanations", async () => {
+  let requestBody = null;
+  const result = await _test.generateGeminiContent(
+    "AIza-test-secret-key-123456789",
+    { prompt: "Explain this question.", responseMimeType: "text/plain" },
+    async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: "Step one. Step two." }] } }]
+        })
+      };
+    }
+  );
+  assert.equal(requestBody.generationConfig.responseMimeType, "text/plain");
+  assert.equal(result.responseText, "Step one. Step two.");
+});
