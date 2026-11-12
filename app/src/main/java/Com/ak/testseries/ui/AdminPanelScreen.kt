@@ -856,6 +856,9 @@ fun GeminiKeyManagerSection(viewModel: NEETViewModel) {
     val status by viewModel.adminGeminiConnectorStatus.collectAsState()
     val models by viewModel.adminGeminiConnectorModels.collectAsState()
     val verifying by viewModel.adminGeminiConnectorVerifying.collectAsState()
+    val promptTokens by viewModel.adminGeminiPromptTokens.collectAsState()
+    val outputTokens by viewModel.adminGeminiOutputTokens.collectAsState()
+    val totalTokens by viewModel.adminGeminiTotalTokens.collectAsState()
 
     AdminSectionCard(
         title = "Admin Gemini Connector",
@@ -901,6 +904,12 @@ fun GeminiKeyManagerSection(viewModel: NEETViewModel) {
                 Text("Verify Server-side Gemini Connector")
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Last request tokens: input $promptTokens • output $outputTokens • total $totalTokens",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(8.dp))
         Text(
             "Configure AKTS_ADMIN_GEMINI_API_KEY with Firebase CLI before verification. Never paste the secret into GitHub source, Firestore, or this screen.",
