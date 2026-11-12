@@ -122,3 +122,12 @@
 - Deletion is **NOT EXECUTED** by this automation session: the connected GitHub actions expose GET/list/download and repository file writes, but no delete-workflow-run or delete-artifact action. No run or artifact deletion is claimed.
 - Do not delete workflow YAML files. They are the test definitions, not historical run logs.
 - Running/queued jobs are not completed history and must not be deleted while verification is still in progress.
+
+
+## Retrieved failure log evidence (representative failed runs)
+
+- Run `43327051649`, Android job `131562045055`: JDK 17; `CrashResilienceTest > classMethod` failed with `UnsupportedOperationException at DefaultSdkProvider.java:170`; 294 tests completed, 1 failed. Robolectric SDK 36 requires Java 21. **Cause confirmed.**
+- Run `43326951437` and the other Android CI run using the separate standard workflow also used JDK 17. The JDK 21 change in `.github/workflows/all-exam-scoring-ranking-audit.yml` does not alter the separate Android CI workflow. **That workflow's correction remains OPEN.**
+- Run `43326951571` Backend job `131561694616` passed **63/63, 0 failed, 0 skipped**. This is a confirmed Backend pass for the seven-vector audit fixture revision; it is not a ranking transaction/concurrency or runtime contract integration test.
+- The latest Android JDK 21 audit attempt at the time of this snapshot was still running; no Android test or APK PASS is claimed.
+- Remediation status: **PARTIAL**. JDK 21 is applied to the isolated audit workflow, but the separate Android CI workflow remains JDK 17 in observed runs. The CrashResilience failure is not marked fully resolved until a fresh JDK 21 Android run passes.
