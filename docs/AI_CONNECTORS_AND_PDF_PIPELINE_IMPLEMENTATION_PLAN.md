@@ -361,3 +361,43 @@ Until both conditions have evidence, Phase 1 remains OPEN. This addendum is an a
 - [ ] No deployment or main merge without explicit approval.
 
 **Audit status:** Plan updated only. No application code, CI workflow, Firebase resource or production data was changed by this documentation update.
+
+## 2026-11-12 Cross-branch code reconciliation (X/Y/Z)
+
+### X — KEEP
+- Keep one API Management page integrated into existing Sidebar; no duplicate Settings page.
+- Keep Student BYOK and Admin server-secret as separate trust boundaries.
+- Target one canonical provider transport, one response validator and atomic server quota.
+
+### Y — PORT / RECONCILE
+- Port encrypted StudentGeminiKeyStore after UID isolation, replacement/removal, account switching and backup tests.
+- Port Gemini response-validator hardening with null/malformed item tests.
+- Reconcile aiConnector.js and geminiProxy.js into one callable connector preserving auth, BYOK/Admin permission, rate limits, errors and usage metadata.
+- Implement daily quota 1/2/3/custom with atomic server enforcement and concurrency tests.
+- Add Groq/Cerebras through the same provider interface after Gemini is stable; record only actual provider usage/cost.
+
+### Z — OBSOLETE / DO NOT PORT
+- Do not port OfflineMarkdownQuestionParser, bundled catalog generation or silent offline/dummy fallback.
+- Do not retain plaintext SharedPreferences key store as a second store.
+- Do not keep APK BuildConfig Gemini secrets, raw keys in Firestore or keys in URL query parameters.
+- Do not maintain two PDF pipelines or two provider transports.
+
+### PASS / FAIL / OPEN evidence (2026-11-12)
+| Check | Result | Evidence / action |
+|---|---|---|
+| Validator commit a44de807597eef0d155d6b917dca300395163b1d CI | OPEN | No workflow run returned for exact SHA; four Validator failures not proven resolved. |
+| Student/Admin key isolation | OPEN | End-to-end encryption, UID isolation and Secret Manager tests not established. |
+| Existing API Management Sidebar integration | OPEN | Verify actual route and Sidebar call sites before coding. |
+| Daily quota 1/2/3/custom | OPEN | Atomic backend enforcement and concurrency tests required. |
+| PDF/Groq/Cerebras/usage-cost | OPEN | End-to-end integration evidence absent. |
+| Full Android 341 tests + Debug APK | OPEN | Exact inventory and successful current-head build not established. |
+
+### Ordered work
+1. Refresh branch head/CI and resolve four Validator failures individually.
+2. Integrate main planner and remove offline/dummy fallback from active call graph.
+3. Implement one Student/Admin connector and existing Sidebar integration.
+4. Add atomic quota, provider adapters and real usage/cost persistence.
+5. Integrate canonical PDF pipeline.
+6. Run Android, backend, emulator, secret-scan and exact-head APK regression.
+
+**Verdict:** SELECTIVE PORT. No connector/PDF phase is PASS based on source presence alone.
