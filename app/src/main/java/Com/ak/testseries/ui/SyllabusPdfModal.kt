@@ -83,9 +83,11 @@ fun SyllabusPdfModal(
                 if (selectedTab == 0) {
                     val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
                     val examLabel = examConfig?.shortName ?: if (targetExam.isNotBlank()) targetExam else "Exam"
-                    val (posMarks, negMarks) = Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForExam(targetExam)
-                    val posStr = if (posMarks % 1.0 == 0.0) "+${posMarks.toInt()}" else "+$posMarks"
-                    val negStr = if (negMarks % 1.0 == 0.0) "-${negMarks.toInt()}" else "-$negMarks"
+                    val scoring = if (examConfig?.verified == true) {
+                        runCatching { Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForExam(targetExam) }.getOrNull()
+                    } else null
+                    val posStr = scoring?.first?.let { if (it % 1.0 == 0.0) "+${it.toInt()}" else "+$it" }.orEmpty()
+                    val negStr = scoring?.second?.let { if (it % 1.0 == 0.0) "-${it.toInt()}" else "-$it" }.orEmpty()
 
                     Column(modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
                         Text(if (isHindi) "पाठ्यक्रम ($examLabel Syllabus)" else "$examLabel Syllabus", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -100,11 +102,20 @@ fun SyllabusPdfModal(
                         
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(if (isHindi) "मार्किंग स्कीम ($examLabel Marking Scheme)" else "$examLabel Marking Scheme", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Text(
-                            if (isHindi) "$examLabel मोड: $posStr अंक (सही उत्तर), $negStr अंक (गलत उत्तर), 0 अंक (छोड़ा गया)।"
-                            else "$examLabel Mode: $posStr Marks (Correct), $negStr Marks (Incorrect), 0 Marks (Skipped).",
-                            fontSize = 13.sp, color = Color.Gray
-                        )
+                        if (scoring == null) {
+                            Text(
+                                if (isHindi) "इस परीक्षा का आधिकारिक स्कोरिंग पैटर्न सत्यापित नहीं है। स्कोरिंग बंद है।"
+                                else "Official scoring pattern is not verified. Scoring is disabled.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        } else {
+                            Text(
+                                if (isHindi) "$examLabel मोड: $posStr अंक (सही उत्तर), $negStr अंक (गलत उत्तर), 0 अंक (छोड़ा गया)।"
+                                else "$examLabel Mode: $posStr Marks (Correct), $negStr Marks (Incorrect), 0 Marks (Skipped).",
+                                fontSize = 13.sp, color = Color.Gray
+                            )
+                        }
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(if (isHindi) "प्रश्नों की स्थिति के रंग (Question Status Colors)" else "Question Status Colors", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)

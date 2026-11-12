@@ -4,15 +4,44 @@ const {
   RANKING_CONFIG,
   resolveRankingWeight,
   calculateWeightedRankingScore,
+  isEligibleScoringResult,
   getIndiaDateKey,
   getIndiaWeekId,
   getRankingPeriodIds,
+  isValidRankingPeriodId,
+  clampRankingLimit,
+  canAdvanceRankingMigrationCheckpoint,
+  isValidRankingWeekId,
   getLeagueForXp,
+  calculateDailyStreak,
   calculateXpAward,
   calculateCompetitionRank,
   calculatePercentileFromCounts,
+  buildTestRankingSnapshot,
   getRankingStatus
 } = require("./rankingEngine");
+
+test("answer payload canonicalization makes object key order irrelevant but preserves values", () => {
+  const { canonicalizeAnswerPayload } = require("./rankingEngine");
+  const left = canonicalizeAnswerPayload({ q2: { ans: "B", confidence: 1 }, q1: "A" });
+  const right = canonicalizeAnswerPayload({ q1: "A", q2: { confidence: 1, ans: "B" } });
+  assert.equal(left, right);
+  assert.notEqual(
+    canonicalizeAnswerPayload({ q1: "A" }),
+    canonicalizeAnswerPayload({ q1: "B" })
+  );
+  assert.throws(() => canonicalizeAnswerPayload([]), { code: "invalid-argument" });
+});
+
+test("scoring eligibility requires finite bounded score and zero ungraded questions", () => {
+  assert.equal(isEligibleScoringResult({ finalScore: 72, maxScore: 100, ungradedCount: 0 }), true);
+  assert.equal(isEligibleScoringResult({ finalScore: 72, maxScore: 100, ungradedCount: 1 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 72, maxScore: 100 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 101, maxScore: 100, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: -1, maxScore: 100, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 0, maxScore: 0, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult(null), false);
+});
 
 test("ranking score normalizes different test maxima before weight", () => {
   assert.equal(calculateWeightedRankingScore(360, 720, 1), 5000);
@@ -23,6 +52,8 @@ test("ranking score normalizes different test maxima before weight", () => {
 test("ranking score rejects invalid maxima and unsupported weights", () => {
   assert.throws(() => calculateWeightedRankingScore(10, 0, 1), { code: "invalid-argument" });
   assert.throws(() => calculateWeightedRankingScore(10, 20, 0.5), { code: "invalid-argument" });
+  assert.throws(() => calculateWeightedRankingScore(21, 20, 1), { code: "invalid-argument" });
+  assert.throws(() => calculateWeightedRankingScore(-1, 20, 1), { code: "invalid-argument" });
 });
 
 test("test weight resolution recognizes part and chapter tests", () => {
@@ -30,7 +61,17 @@ test("test weight resolution recognizes part and chapter tests", () => {
   assert.equal(resolveRankingWeight({ isPartTest: true }), 0.2);
   assert.equal(resolveRankingWeight({ category: "Full Syllabus Mock" }), 1);
   assert.equal(resolveRankingWeight({ rankingWeight: 0.2 }), 0.2);
-  assert.equal(resolveRankingWeight({ rankingWeight: 0.5, category: "Part Test" }), 0.2);
+  assert.equal(resolveRankingWeight({ rankingWeight: 0.5, category: "Part Test" }), null);
+  assert.equal(resolveRankingWeight({ testType: "Mock Test" }), null);
+  assert.equal(resolveRankingWeight({ category: "Full Syllabus Mock" }), 1);
+  assert.equal(resolveRankingWeight({ isFullTest: true }), 1);
+  assert.equal(resolveRankingWeight({ isChapterTest: true }), 0.2);
+  assert.equal(resolveRankingWeight({ category: "Medical Entrance", testType: "Full Test" }), 1);
+  assert.equal(resolveRankingWeight({ category: "Full Test", testType: "Chapter Test" }), null);
+  assert.equal(resolveRankingWeight({ rankingWeight: 1, isPartTest: true }), null);
+  assert.equal(resolveRankingWeight({ rankingWeight: 0.2, isFullTest: true }), null);
+  assert.equal(resolveRankingWeight({ rankingWeight: 1, category: "Full Test", testType: "Part Test" }), null);
+  assert.equal(resolveRankingWeight({ rankingWeight: 0.2, category: "Part Test", testType: "Full Test" }), null);
 });
 
 test("India date, weekly and half-month periods use Asia/Kolkata", () => {
@@ -86,10 +127,192 @@ test("class level normalization supports class 11, class 12 and dropper cohorts"
   assert.equal(normalizeClassLevel("Dropper"), "Dropper");
   assert.equal(normalizeClassLevel("All"), "All");
 });
+test("class cohort filters reject unknown values instead of silently widening to All", () => {
+  const { resolveClassLevelFilter } = require("./rankingEngine");
+  assert.equal(resolveClassLevelFilter(undefined), "All");
+  assert.equal(resolveClassLevelFilter("All"), "All");
+  assert.equal(resolveClassLevelFilter("Class 11"), "11th");
+  assert.equal(resolveClassLevelFilter("Class 12"), "12th");
+  assert.equal(resolveClassLevelFilter("Dropper"), "Dropper");
+  assert.equal(resolveClassLevelFilter("Class 10"), null);
+  assert.equal(resolveClassLevelFilter("Unknown"), null);
+});
+
 test("class cohort ranking status is not mislabeled as AIR", () => {
   const { getCohortRankingStatus } = require("./rankingEngine");
   assert.equal(getCohortRankingStatus(1000, "All").status, "Official AK AIR");
   assert.equal(getCohortRankingStatus(1000, "11th").status, "Official AK Class Rank");
   assert.equal(getCohortRankingStatus(999, "12th").status, "Provisional Class Rank");
   assert.equal(getCohortRankingStatus(1000, "11th").isOfficialAkAir, false);
+});
+
+
+test("historical ranking backfill accepts only approved public official ranking tests", () => {
+  const { isEligibleHistoricalRankingTest } = require("./rankingEngine");
+  const base = {
+    isOfficial: true,
+    isPublic: true,
+    countsTowardRanking: true,
+    status: "Published"
+  };
+  assert.equal(isEligibleHistoricalRankingTest(base), true);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, isPublic: false }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, isOfficial: false }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, countsTowardRanking: false }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "Under Review" }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "published" }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "approved" }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "Rejected" }), false);
+  assert.equal(isEligibleHistoricalRankingTest({ ...base, status: "" }), false);
+});
+
+test("ranking rejects scoring results with ungraded or invalid marks", () => {
+  const { isEligibleScoringResult } = require("./rankingEngine");
+  assert.equal(isEligibleScoringResult({ finalScore: 3.5, maxScore: 10, ungradedCount: 0 }), true);
+  assert.equal(isEligibleScoringResult({ finalScore: 3.5, maxScore: 10, ungradedCount: 1 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 11, maxScore: 10, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 0, maxScore: 0, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: NaN, maxScore: 10, ungradedCount: 0 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 3, maxScore: 10 }), false);
+  assert.equal(isEligibleScoringResult({ finalScore: 3, maxScore: 10, ungradedCount: -1 }), false);
+});
+
+
+test("scoring result with any ungraded question cannot contribute to AIR", () => {
+  const { evaluateTestAttempt } = require("./examScoring");
+  const { isEligibleScoringResult } = require("./rankingEngine");
+  const result = evaluateTestAttempt(
+    "NEET UG",
+    [
+      { id: "q1", correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" },
+      { id: "q2", correctAnswer: "", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" }
+    ],
+    { q1: { ans: "A" }, q2: { ans: "B" } },
+    60
+  );
+  assert.equal(result.ungradedCount, 1);
+  assert.equal(isEligibleScoringResult(result), false);
+
+  const fullyVerified = evaluateTestAttempt(
+    "NEET UG",
+    [{ id: "q1", correctAnswer: "A", section: "phy_all", subject: "Physics", questionType: "MCQ_SINGLE" }],
+    { q1: { ans: "A" } },
+    30
+  );
+  assert.equal(fullyVerified.ungradedCount, 0);
+  assert.equal(isEligibleScoringResult(fullyVerified), true);
+});
+
+
+test("per-test rank snapshot only ranks the canonical first qualifying board entry", () => {
+  const first = buildTestRankingSnapshot({
+    countsTowardRanking: true,
+    isFirstQualifyingAttempt: true,
+    canonicalEntry: { score: 80, isBanned: false },
+    higherCount: 1,
+    totalCount: 5
+  });
+  assert.deepEqual(first, {
+    rankStatus: "AVAILABLE", testRank: 2, testTotalCandidates: 5, percentile: 80
+  });
+  const repeat = buildTestRankingSnapshot({
+    countsTowardRanking: true,
+    isFirstQualifyingAttempt: false,
+    canonicalEntry: { score: 80 },
+    higherCount: 1,
+    totalCount: 5
+  });
+  assert.deepEqual(repeat, {
+    rankStatus: "NOT_RANKED_REPEAT_ATTEMPT", testRank: null,
+    testTotalCandidates: null, percentile: null
+  });
+});
+
+test("per-test rank snapshot fails closed for missing board entries and invalid populations", () => {
+  const unavailable = buildTestRankingSnapshot({
+    countsTowardRanking: true, isFirstQualifyingAttempt: true,
+    canonicalEntry: null, higherCount: 0, totalCount: 0
+  });
+  assert.equal(unavailable.rankStatus, "UNAVAILABLE");
+  assert.equal(unavailable.testRank, null);
+  const invalidPopulation = buildTestRankingSnapshot({
+    countsTowardRanking: true, isFirstQualifyingAttempt: true,
+    canonicalEntry: { score: 50, isBanned: false }, higherCount: 4, totalCount: 4
+  });
+  assert.equal(invalidPopulation.rankStatus, "UNAVAILABLE");
+  const notEligible = buildTestRankingSnapshot({ countsTowardRanking: false });
+  assert.equal(notEligible.rankStatus, "NOT_ELIGIBLE");
+  assert.equal(notEligible.percentile, null);
+});
+
+
+test("ranking period and weekly leaderboard identifiers reject malformed dates", () => {
+  assert.equal(isValidRankingPeriodId("HALF_MONTH", "2026-11-H1"), true);
+  assert.equal(isValidRankingPeriodId("HALF_MONTH", "2026-11-H2"), true);
+  assert.equal(isValidRankingPeriodId("MONTH", "2026-11"), true);
+  for (const id of ["2026-00-H1", "2026-13-H2", "2026-11-H3", "2026-11", "2026-1-H1"]) {
+    assert.equal(isValidRankingPeriodId("HALF_MONTH", id), false);
+  }
+  assert.equal(isValidRankingPeriodId("MONTH", "2026-11-H1"), false);
+  assert.equal(isValidRankingPeriodId("MONTH", "2026-99"), false);
+  assert.equal(isValidRankingPeriodId("MONTH", "0000-11"), false);
+  assert.equal(isValidRankingPeriodId("HALF_MONTH", "0000-11-H1"), false);
+  assert.equal(isValidRankingWeekId("2026-W01"), true);
+  assert.equal(isValidRankingWeekId("2026-W53"), true);
+  assert.equal(isValidRankingWeekId("2025-W53"), false);
+  assert.equal(isValidRankingWeekId("2020-W53"), true);
+  assert.equal(isValidRankingWeekId("2021-W53"), false);
+  assert.equal(isValidRankingWeekId("2026-W00"), false);
+  assert.equal(isValidRankingWeekId("2026-W54"), false);
+});
+
+
+test("migration checkpoint only advances from the exact server cursor and never overwrites completion", () => {
+  assert.equal(canAdvanceRankingMigrationCheckpoint({}, null), true);
+  assert.equal(canAdvanceRankingMigrationCheckpoint({ lastProcessedUid: "user-10" }, "user-10"), true);
+  assert.equal(canAdvanceRankingMigrationCheckpoint({ lastProcessedUid: "user-20" }, "user-10"), false);
+  assert.equal(canAdvanceRankingMigrationCheckpoint({ completed: true, lastProcessedUid: "user-20" }, "user-20"), false);
+});
+
+test("ranking query limits are finite integers within endpoint bounds", () => {
+  assert.equal(clampRankingLimit(undefined, 100, 1, 100), 100);
+  assert.equal(clampRankingLimit(2.9, 100, 1, 100), 2);
+  assert.equal(clampRankingLimit(0, 100, 1, 100), 1);
+  assert.equal(clampRankingLimit(-5, 100, 1, 100), 1);
+  assert.equal(clampRankingLimit(1000, 10, 1, 20), 20);
+  assert.equal(clampRankingLimit("not-a-number", 10, 1, 20), 10);
+  assert.equal(clampRankingLimit(Infinity, 10, 1, 20), 10);
+});
+
+
+test("per-test rank snapshot does not rank a banned canonical board entry", () => {
+  const result = buildTestRankingSnapshot({
+    countsTowardRanking: true, isFirstQualifyingAttempt: true,
+    canonicalEntry: { score: 100, isBanned: true }, higherCount: 0, totalCount: 1
+  });
+  assert.equal(result.rankStatus, "UNAVAILABLE");
+  assert.equal(result.testRank, null);
+});
+
+
+test("per-test rank snapshot rejects negative canonical scores", () => {
+  const result = buildTestRankingSnapshot({
+    countsTowardRanking: true,
+    isFirstQualifyingAttempt: true,
+    canonicalEntry: { score: -1, isBanned: false },
+    higherCount: 0,
+    totalCount: 1
+  });
+  assert.equal(result.rankStatus, "UNAVAILABLE");
+  assert.equal(result.testRank, null);
+});
+
+test("daily streak updates on consecutive days and never increments twice in one day", () => {
+  assert.equal(calculateDailyStreak("2026-11-06", "2026-11-06", 4), 4);
+  assert.equal(calculateDailyStreak("2026-11-06", "2026-11-07", 4), 5);
+  assert.equal(calculateDailyStreak("2026-11-04", "2026-11-07", 4), 1);
+  assert.equal(calculateDailyStreak("", "2026-11-07", 0), 1);
+  assert.equal(calculateDailyStreak("invalid", "2026-11-07", 2), 1);
+  assert.equal(calculateDailyStreak("2026-11-06", "2026-02-30", 4), 4);
+  assert.equal(calculateDailyStreak("2026-02-30", "2026-11-07", 2), 1);
 });

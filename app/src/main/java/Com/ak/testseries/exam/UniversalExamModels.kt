@@ -26,7 +26,8 @@ enum class QuestionType {
     MATCHING,
     STATEMENT_BASED,
     DIAGRAM_BASED,
-    TABLE_BASED;
+    TABLE_BASED,
+    UNKNOWN;
 
     val displayName: String
         get() = when (this) {
@@ -43,6 +44,7 @@ enum class QuestionType {
             PASSAGE_BASED -> "Passage Based"
             CASE_BASED -> "Case Based"
             TABLE_BASED -> "Table Based"
+            UNKNOWN -> "Unverified Type"
         }
 }
 
@@ -97,7 +99,8 @@ data class SectionConfig(
     val positiveMarks: Double,
     val negativeMarks: Double,
     val questionType: QuestionType = QuestionType.MCQ_SINGLE,
-    val optionsCount: Int = 4
+    val optionsCount: Int = 4,
+    val integerAnswerRequired: Boolean = false
 )
 
 data class SubjectConfig(
@@ -135,7 +138,10 @@ data class ExamConfig(
     val language: String = "Bilingual (English & Hindi)",
     val defaultOptionCount: Int = 4,
     val active: Boolean = true,
-    val verified: Boolean = false // Indicates if the configuration has been audited/verified
+    val verified: Boolean = false, // Indicates if the configuration has been audited/verified
+    val sourceYear: Int? = null,
+    val sourceTitle: String? = null,
+    val sourceUrl: String? = null
 )
 
 typealias ExamPatternConfig = ExamConfig
@@ -180,11 +186,11 @@ data class UniversalQuestionModel(
     val explanation: String = "",
     val explanationHi: String? = null,
     val difficulty: DifficultyLevel = DifficultyLevel.MEDIUM,
-    val questionType: QuestionType = QuestionType.DIRECT_MCQ,
-    val positiveMarks: Double = 4.0,
-    val negativeMarks: Double = 1.0,
-    val difficultyScore: Int = 50, // 0-100
-    val qualityScore: Int = 85, // 0-100
+    val questionType: QuestionType = QuestionType.UNKNOWN,
+    val positiveMarks: Double = 0.0,
+    val negativeMarks: Double = 0.0,
+    val difficultyScore: Int = 0, // 0-100; zero means not assessed
+    val qualityScore: Int = 0, // 0-100; zero means not assessed
     val qualityMetrics: QualityMetrics = QualityMetrics(),
     val validationStatus: ValidationStatus = ValidationStatus.NEEDS_REVIEW,
     val validationReasons: List<String> = emptyList(),
@@ -192,7 +198,7 @@ data class UniversalQuestionModel(
     val diagramUrl: String? = null,
     val diagramMetadata: DiagramCropMetadata? = null,
     val sourceName: String = "",
-    val sourcePage: Int = 1,
+    val sourcePage: Int = 0, // Zero means unknown source page
     val isOfficialPYQ: Boolean = false,
     val questionVersion: Int = 1,
     val validationVersion: Int = 1,

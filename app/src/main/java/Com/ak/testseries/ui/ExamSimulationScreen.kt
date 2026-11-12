@@ -290,12 +290,25 @@ fun ExamSimulationScreen(
                         .weight(1f)
                 ) { pageIndex ->
                     val question = questions[pageIndex]
-                    val (qPosMark, qNegMark) = remember(targetExamName, question) {
-                        Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(
-                            examName = targetExamName,
-                            sectionIdOrName = question.section,
-                            subjectName = question.subject,
-                            questionTypeStr = question.questionType
+                    val scoringPolicy = remember(targetExamName, question) {
+                        runCatching {
+                            Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(
+                                examName = targetExamName,
+                                sectionIdOrName = question.section,
+                                subjectName = question.subject,
+                                questionTypeStr = question.questionType
+                            )
+                        }.getOrNull()
+                    }
+                    val qPosMark = scoringPolicy?.first ?: 0.0
+                    val qNegMark = scoringPolicy?.second ?: 0.0
+                    if (scoringPolicy == null) {
+                        Text(
+                            if (isHindi) "इस प्रश्न की परीक्षा/सेक्शन नीति सत्यापित नहीं है। स्कोरिंग बंद है।"
+                            else "Exam/section policy is not verified. Scoring is disabled for this question.",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                         )
                     }
                     ExamQuestionPageView(
@@ -311,21 +324,12 @@ fun ExamSimulationScreen(
                         onSelectAnswer = { opt ->
                             val success = viewModel.selectAnswer(question.id, opt)
                             if (!success) {
-                                val limit = Com.ak.testseries.exam.UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
-                                    examName = targetExamName,
-                                    sectionNameOrId = question.section,
-                                    subjectName = question.subject
-                                ) ?: 10
-                                val limitMsg = if (isHindi) {
-                                    "${question.subject.ifBlank { "इस विषय" }} के ${question.section} में अधिकतम $limit प्रश्नों की अनुमति है!"
+                                val message = if (isHindi) {
+                                    "उत्तर सेव नहीं हुआ। परीक्षा/सेक्शन नीति सत्यापित नहीं है या चयन की अनुमति नहीं है।"
                                 } else {
-                                    "Attempt limit reached: Max $limit questions allowed in ${question.subject.ifBlank { "this section" }}"
+                                    "Answer not saved. Exam/section policy is unverified or this selection is not allowed."
                                 }
-                                Toast.makeText(
-                                    context,
-                                    limitMsg,
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                             }
                         },
                         onReportError = {

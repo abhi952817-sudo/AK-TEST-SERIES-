@@ -368,6 +368,30 @@ test("F-016: Student CANNOT read private_keys subcollection or TestAnswerKeys di
   );
 });
 
+test("LiveTests: students can read the public live test but cannot read its private answer key", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const liveRef = ctx.firestore().collection("LiveTests").doc("live_secure_1");
+    await liveRef.set({
+      title: "Live Practice Test",
+      questionsJson: JSON.stringify([{ id: "q1", questionText: "2+2?" }])
+    });
+    await liveRef.collection("private_keys").doc("answerKey").set({
+      questions: [{ id: "q1", correctAnswer: "A", explanation: "Private explanation" }]
+    });
+  });
+
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(aliceDb.collection("LiveTests").doc("live_secure_1").get());
+  await assertFails(
+    aliceDb.collection("LiveTests").doc("live_secure_1").collection("private_keys").doc("answerKey").get()
+  );
+
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await assertSucceeds(
+    adminDb.collection("LiveTests").doc("live_secure_1").collection("private_keys").doc("answerKey").get()
+  );
+});
+
 // =========================================================================
 // 5. COMMUNITY POSTS AND DISCUSSIONS SECURITY
 // =========================================================================
@@ -561,15 +585,32 @@ test("Leaderboard: Students CAN read public leaderboard, CANNOT write directly w
       displayName: "Bob",
       score: 710,
       targetExam: "NEET",
+      profileVisibility: "PUBLIC",
+    });
+    await ctx.firestore().collection("Leaderboard").doc("rank_private").set({
+      userId: "private_uid",
+      displayName: "Private Student",
+      score: 700,
+      targetExam: "NEET",
+      profileVisibility: "PRIVATE",
+    });
+    await ctx.firestore().collection("Leaderboard").doc("rank_legacy_missing_visibility").set({
+      userId: "legacy_uid",
+      displayName: "Legacy Student",
+      score: 690,
+      targetExam: "NEET",
     });
   });
 
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
 
-  // Alice can read public leaderboard rankings
+  // Only explicitly public rows can be read. Private and legacy rows without visibility fail closed.
   await assertSucceeds(aliceDb.collection("Leaderboard").doc("rank_1").get());
-  await assertSucceeds(aliceDb.collection("Leaderboard").get());
+  await assertFails(aliceDb.collection("Leaderboard").doc("rank_private").get());
+  await assertFails(aliceDb.collection("Leaderboard").doc("rank_legacy_missing_visibility").get());
+  await assertSucceeds(aliceDb.collection("Leaderboard").where("profileVisibility", "==", "PUBLIC").get());
+  await assertFails(aliceDb.collection("Leaderboard").get());
 
   // Alice CANNOT create or modify leaderboard rankings (anti-tamper)
   await assertFails(
@@ -826,7 +867,7 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
 
 
 
-test("Ranking v2: public exam/XP boards are readable but client writes are denied", async () => {
+test("Ranking v2: raw ranking materializations are callable-only and private from direct client reads", async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await db.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).set({
@@ -838,6 +879,11 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
     await db.collection("XP_Leaderboard_Weekly").doc("2026-W45").collection("Entries").doc(ALICE_UID).set({
       userId: ALICE_UID, xp: 100
     });
+    await db.collection("Test_Leaderboards").doc("test_private").collection("Entries").doc(ALICE_UID).set({
+      userId: ALICE_UID, score: 80, isBanned: false
+    });
+    await db.collection("Ranking_Periods").doc("NEET").collection("Periods").doc("2026-11-H1")
+      .collection("Entries").doc(ALICE_UID).set({ userId: ALICE_UID, rankingScore: 9000 });
     await db.collection("XP_Transactions").doc("xp_alice").set({
       userId: ALICE_UID, xp: 100
     });
@@ -860,8 +906,15 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
   await assertFails(
     aliceDb.collection("Users_Data").doc(ALICE_UID).update({ classLevel: "University" })
   );
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).get()
+  );
+  await assertFails(
+    aliceDb.collection("Test_Leaderboards").doc("test_private").collection("Entries").doc(ALICE_UID).get()
+  );
+  await assertFails(
+    aliceDb.collection("Ranking_Periods").doc("NEET").collection("Periods").doc("2026-11-H1")
+      .collection("Entries").doc(ALICE_UID).get()
   );
   await assertFails(
     aliceDb.collection("Exam_Leaderboards").doc("NEET").collection("Entries").doc(ALICE_UID).update({ score: 999999 })
@@ -872,7 +925,7 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
   await assertFails(
     bobDb.collection("User_Ranks").doc(ALICE_UID).collection("Exams").doc("NEET").get()
   );
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("XP_Leaderboard_Weekly").doc("2026-W45").collection("Entries").doc(ALICE_UID).get()
   );
   await assertFails(
@@ -881,4 +934,19 @@ test("Ranking v2: public exam/XP boards are readable but client writes are denie
   await assertSucceeds(aliceDb.collection("XP_Transactions").doc("xp_alice").get());
   await assertFails(bobDb.collection("XP_Transactions").doc("xp_alice").get());
   await assertFails(aliceDb.collection("XP_Transactions").doc("xp_forged").set({ userId: ALICE_UID, xp: 999999 }));
+});
+
+
+test("Student: uppercase PUBLISHED is readable only when isPublic is explicitly true", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Tests").doc("published_uppercase").set({
+      status: "PUBLISHED", isPublic: true, isOfficial: true, creatorId: "admin"
+    });
+    await ctx.firestore().collection("Tests").doc("private_official").set({
+      status: "Published", isPublic: false, isOfficial: true, creatorId: "admin"
+    });
+  });
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(aliceDb.collection("Tests").doc("published_uppercase").get());
+  await assertFails(aliceDb.collection("Tests").doc("private_official").get());
 });

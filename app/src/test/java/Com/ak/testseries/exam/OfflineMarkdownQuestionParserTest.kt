@@ -103,6 +103,8 @@ class OfflineMarkdownQuestionParserTest {
         assertEquals("Al2O3", entities[0].optionB)
         assertEquals("B", entities[0].correctAnswer)
         assertEquals("Chemistry", entities[0].subject)
+        assertEquals("", entities[0].section)
+        assertEquals("", entities[0].questionType)
 
         assertEquals("test_123_q2", entities[1].id)
         assertEquals("Fluorine", entities[1].optionC)
@@ -120,18 +122,61 @@ class OfflineMarkdownQuestionParserTest {
             Ans: B
         """.trimIndent()
 
-        val examConfig = UniversalExamRegistry.findExamByNameOrShortName("UPSC CSE")!!
+        val examConfig = UniversalExamRegistry.getExamById("upsc_cse")!!
         val models = OfflineMarkdownQuestionParser.parseMarkdownToQuestions(
             markdown = text,
             examConfig = examConfig,
-            subjectId = "Indian Polity"
+            subjectId = "Indian Polity",
+            stageId = "unverified",
+            paperId = "unverified"
         )
+        assertTrue("Unverified exam configs must not receive fabricated section/marks", models.isEmpty())
+    }
 
+
+    @Test
+    fun verifiedNeetPdfParsingUsesConfiguredSectionAndMarks() {
+        val text = """
+            1. Which quantity is measured in volts?
+            (A) Current
+            (B) Potential difference
+            (C) Resistance
+            (D) Power
+            Answer Key:
+            1. B
+        """.trimIndent()
+        val config = UniversalExamRegistry.findExamByNameOrShortName("NEET UG")!!
+        val models = OfflineMarkdownQuestionParser.parseMarkdownToQuestions(
+            markdown = text,
+            examConfig = config,
+            subjectId = "physics",
+            stageId = "neet_main",
+            paperId = "neet_paper_1"
+        )
         assertEquals(1, models.size)
-        assertEquals("The Indian Constitution was adopted on:", models[0].questionText)
-        assertEquals("B", models[0].correctAnswer)
-        assertEquals("Indian Polity", models[0].subjectId)
-        assertEquals(ValidationStatus.APPROVED, models[0].validationStatus)
-        assertEquals("Extracted PDF Test Paper", models[0].sourceName)
+        assertEquals("phy_all", models.single().sectionId)
+        assertEquals(4.0, models.single().positiveMarks, 0.0)
+        assertEquals(1.0, models.single().negativeMarks, 0.0)
+        assertEquals(QuestionType.MCQ_SINGLE, models.single().questionType)
+    }
+
+    @Test
+    fun missingAnswerKeyIsNeverInventedAsOptionA() {
+        val text = """
+            1. Which quantity is measured in volts?
+            (A) Current
+            (B) Potential difference
+            (C) Resistance
+            (D) Power
+        """.trimIndent()
+        val parsed = OfflineMarkdownQuestionParser.parseStructuredQuestions(text)
+        assertEquals(1, parsed.size)
+        assertEquals("", parsed.single().correctAnswer)
+    }
+
+    @Test
+    fun emptyOrUnstructuredPdfDoesNotCreateSyntheticQuestions() {
+        assertTrue(OfflineMarkdownQuestionParser.parseStructuredQuestions("").isEmpty())
+        assertTrue(OfflineMarkdownQuestionParser.parseStructuredQuestions("random OCR noise without a question").isEmpty())
     }
 }

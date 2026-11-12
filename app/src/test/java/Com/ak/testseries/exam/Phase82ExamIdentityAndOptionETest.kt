@@ -171,10 +171,9 @@ class Phase82ExamIdentityAndOptionETest {
     }
 
     @Test
-    fun testExamFormatStandardizerPreservesFiveOptionsForBanking() {
+    fun testExamFormatStandardizerBlocksUnverifiedBankingPatterns() {
         val ibpsConfig = UniversalExamRegistry.getExam("IBPS_PO")
         assertNotNull(ibpsConfig)
-
         val uq = UniversalQuestionModel(
             questionId = "uq_bank_1",
             examId = "IBPS_PO",
@@ -182,23 +181,18 @@ class Phase82ExamIdentityAndOptionETest {
             questionText = "What is the reserve ratio set by RBI?",
             options = listOf("3.5%", "4.0%", "4.5%", "5.0%", "None of the above"),
             correctAnswer = "E",
-            explanation = "The current CRR is 4.5%."
+            explanation = "Source sample explanation."
         )
-
-        val standardizedPaper = ExamFormatStandardizer.standardizeExamOutput(
-            examConfig = ibpsConfig!!,
-            subjectId = "quantitative_aptitude",
-            questions = listOf(uq)
-        )
-
-        assertNotNull(standardizedPaper)
-        assertTrue(standardizedPaper.sectionGroups.isNotEmpty())
-        val firstSectionQuestions = standardizedPaper.sectionGroups.first().questions
-        assertTrue(firstSectionQuestions.isNotEmpty())
-        val q1 = firstSectionQuestions.first()
-        assertEquals(5, q1.options.size)
-        assertEquals("None of the above", q1.options[4])
-        assertEquals("E", q1.correctAnswer)
+        try {
+            ExamFormatStandardizer.standardizeExamOutput(
+                examConfig = ibpsConfig!!,
+                subjectId = "quantitative_aptitude",
+                questions = listOf(uq)
+            )
+            throw AssertionError("Unverified banking patterns must not be standardized for scoring/publishing")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("unverified", ignoreCase = true))
+        }
     }
 
     @Test
@@ -246,30 +240,19 @@ class Phase82ExamIdentityAndOptionETest {
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("E", q.correctAnswer))
         assertTrue(ExamScoringEngine.isUserAnswerCorrect("5", q.correctAnswer)) // Index 5 maps to option E
 
-        // Evaluate attempt using ExamScoringEngine with Banking rules (+1.0, -0.25)
+        // Generic option-E comparison remains available, but unverified exam scoring is blocked.
         val answersCorrect = mapOf(q.id to "E")
-        val resultCorrect = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "IBPS PO",
-            questions = listOf(q),
-            userAnswers = answersCorrect,
-            timeSpentSeconds = 60
-        )
-        assertEquals(1.0, resultCorrect.finalScore, 0.001)
-        assertEquals(1, resultCorrect.correctCount)
-        assertEquals(0, resultCorrect.wrongCount)
-
-        // Evaluate incorrect answer
-        val answersWrong = mapOf(q.id to "A")
-        val resultWrong = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "IBPS PO",
-            questions = listOf(q),
-            userAnswers = answersWrong,
-            timeSpentSeconds = 60
-        )
-        assertEquals(0.25, resultWrong.negativeMarksPenalty, 0.001)
-        assertEquals(-0.25, resultWrong.rawScore, 0.001)
-        assertEquals(0, resultWrong.correctCount)
-        assertEquals(1, resultWrong.wrongCount)
+        try {
+            ExamScoringEngine.evaluateTestAttempt(
+                targetExam = "IBPS PO",
+                questions = listOf(q),
+                userAnswers = answersCorrect,
+                timeSpentSeconds = 60
+            )
+            throw AssertionError("Unverified banking scoring must not use a guessed +1/-0.25 scheme")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("source-verified", ignoreCase = true))
+        }
     }
 
     @Test

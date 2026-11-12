@@ -40,7 +40,7 @@ object UniversalPdfPipeline {
                 return sec
             }
         }
-        return sections.lastOrNull()
+        return null
     }
 
     suspend fun processPdfForExam(
@@ -48,8 +48,9 @@ object UniversalPdfPipeline {
         pdfUri: Uri,
         examConfig: ExamConfig,
         subjectId: String,
-        stageId: String = "",
-        expectedQuestions: Int = 20,
+        stageId: String,
+        paperId: String,
+        expectedQuestions: Int,
         batchSize: Int = 10,
         resumeFromBatch: Int = 1,
         existingQuestionsCache: List<UniversalQuestionModel> = emptyList(),
@@ -67,6 +68,63 @@ object UniversalPdfPipeline {
                 )
             )
             return@withContext emptyList()
+        }
+        require(examConfig.active && examConfig.verified) {
+            "This exam configuration is not source-verified. PDF ingestion is blocked until official pattern evidence is reviewed."
+        }
+        require(expectedQuestions > 0 && batchSize > 0 && resumeFromBatch > 0) {
+            "Expected question count, batch size and resume batch must be positive."
+        }
+        require(stageId.isNotBlank() && paperId.isNotBlank()) {
+            "Explicit stageId and paperId are required; implicit first-stage/paper selection is disabled."
+        }
+        val selectedStage = examConfig.stages.singleOrNull { it.stageId == stageId }
+            ?: throw IllegalArgumentException("Unknown or ambiguous stageId: $stageId")
+        val selectedPaper = selectedStage.papers.singleOrNull { it.paperId == paperId }
+            ?: throw IllegalArgumentException("Unknown or ambiguous paperId: $paperId")
+        require(subjectId.isNotBlank() && selectedPaper.subjects.any { it.subjectId == subjectId }) {
+            "Select a subject belonging to the selected paper."
+        }
+        require(selectedPaper.durationMinutes > 0 && selectedPaper.totalMarks > 0.0) {
+            "Selected paper has incomplete duration or maximum marks configuration."
+        }
+        val selectedSubject = selectedPaper.subjects.single { it.subjectId == subjectId }
+        require(selectedSubject.sections.isNotEmpty()) {
+            "Selected subject has no verified section/marking configuration."
+        }
+        val maxSubjectQuestions = selectedSubject.sections.sumOf { it.totalQuestions }
+        require(expectedQuestions <= maxSubjectQuestions) {
+            "Expected question count $expectedQuestions exceeds the verified subject maximum $maxSubjectQuestions."
+        }
+        require(existingQuestionsCache.size <= expectedQuestions) {
+            "Cached questions exceed the configured subject question count."
+        }
+        val resolvedStageId = selectedStage.stageId
+        val validSectionIds = selectedSubject.sections.map { it.sectionId }.toSet()
+        require(existingQuestionsCache.all { cached ->
+            val section = selectedSubject.sections.singleOrNull { it.sectionId == cached.sectionId }
+            val numerical = section?.questionType in setOf(QuestionType.NUMERICAL_VALUE, QuestionType.TITA)
+            val answer = cached.correctAnswer.trim().uppercase()
+            val answerValid = if (numerical) answer.toDoubleOrNull()?.isFinite() == true
+                else answer in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+            cached.examId == examConfig.examId &&
+                cached.stageId == resolvedStageId &&
+                cached.paperId == selectedPaper.paperId &&
+                cached.subjectId == selectedSubject.subjectId &&
+                cached.sectionId in validSectionIds &&
+                section != null &&
+                cached.questionType == section.questionType &&
+                cached.positiveMarks == section.positiveMarks &&
+                cached.negativeMarks == section.negativeMarks &&
+                cached.questionText.isNotBlank() &&
+                answerValid &&
+                cached.questionId.isNotBlank()
+        }) {
+            "Cached questions contain missing or cross-exam/stage/paper/subject identities."
+        }
+        require(existingQuestionsCache.map { it.questionId }.distinct().size == existingQuestionsCache.size &&
+            existingQuestionsCache.map { it.duplicateHash }.distinct().size == existingQuestionsCache.size) {
+            "Cached question IDs or normalized hashes overlap."
         }
         val extractedQuestions = mutableListOf<UniversalQuestionModel>()
         extractedQuestions.addAll(existingQuestionsCache)
@@ -114,7 +172,14 @@ object UniversalPdfPipeline {
         } else ""
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
-        val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
+        require(resumeFromBatch <= totalBatches + 1) {
+            "Resume batch exceeds the configured extraction batch count."
+        }
+        val expectedCachedCount = ((resumeFromBatch - 1) * batchSize).coerceAtMost(expectedQuestions)
+        require(existingQuestionsCache.size == expectedCachedCount) {
+            "Resume cache mismatch: expected $expectedCachedCount validated questions before batch $resumeFromBatch, found ${existingQuestionsCache.size}."
+        }
+        val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }.toMutableMap()
         val effectiveApiKey = apiKey ?: BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
 
         // Process in controlled batches to save API tokens and maintain reliability
@@ -142,7 +207,7 @@ object UniversalPdfPipeline {
                 // Dynamically build the prompt injecting aiSystemInstruction, pattern rules, and compact Markdown
                 val prompt = UniversalAIContext.buildDynamicGenerationPrompt(
                     examConfig = examConfig,
-                    subject = subjectId.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "Core Domain" },
+                    subject = selectedSubject.subjectName,
                     testTitle = "${examConfig.shortName} Diagnostic Paper",
                     compactMarkdownPayload = compactMarkdown,
                     currentChunkSize = questionsInThisBatch,
@@ -155,16 +220,19 @@ object UniversalPdfPipeline {
 
                 // Call Gemini API if key is available
                 var batchModels: List<UniversalQuestionModel>? = null
-                if (!effectiveApiKey.isNullOrBlank()) {
+                if (!effectiveApiKey.isNullOrBlank() && compactMarkdown.isNotBlank()) {
                     val apiResult = callGeminiApi(effectiveApiKey, prompt, systemInstruction)
                     if (apiResult != null) {
                         val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Gemini API Generation"
                         batchModels = parseGeminiResponse(
                             jsonString = apiResult.responseText,
                             examConfig = examConfig,
-                            stageId = stageId,
+                            stageId = resolvedStageId,
                             subjectId = subjectId,
+                            paperId = paperId,
+                            subjectConfig = selectedSubject,
                             batchIndex = batchIndex,
+                            batchSize = batchSize,
                             existingHashes = existingHashes,
                             actualModel = apiResult.modelVersion,
                             actualSource = source
@@ -172,67 +240,15 @@ object UniversalPdfPipeline {
                     }
                 }
 
-                // If API call succeeded, add parsed models; otherwise generate structured fallback
+                // Only call the model when actual PDF text was extracted; never invent a paper from an empty/unreadable PDF.
                 if (!batchModels.isNullOrEmpty()) {
-                    var finalBatch = batchModels
-                    val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
-
-                    if (!initialValidation.isCompliant && !effectiveApiKey.isNullOrBlank() && initialValidation.deficientLevels.isNotEmpty()) {
-                        // Attempt targeted regeneration for deficient difficulty types
-                        val deficientLevel = initialValidation.deficientLevels.first()
-                        val neededCount = when (deficientLevel) {
-                            DifficultyLevel.EASY -> (initialValidation.targetEasyCount - initialValidation.easyCount).coerceIn(1, 3)
-                            DifficultyLevel.MEDIUM -> (initialValidation.targetMediumCount - initialValidation.mediumCount).coerceIn(1, 3)
-                            DifficultyLevel.HARD -> (initialValidation.targetHardCount - initialValidation.hardCount).coerceIn(1, 3)
-                        }
-
-                        onProgress(
-                            BatchProgress(
-                                totalBatches = totalBatches,
-                                currentBatch = currentBatchNumber,
-                                processedQuestions = extractedQuestions.size,
-                                statusMessage = "Batch $currentBatchNumber: Rebalancing difficulty (${deficientLevel.name} deficient)..."
-                            )
-                        )
-
-                        val targetedPrompt = """
-                            ${UniversalAIContext.buildSystemInstruction(examConfig)}
-                            Generate exactly $neededCount high-quality ${deficientLevel.name} difficulty questions for ${examConfig.examName} ($subjectId).
-                            Difficulty requirement: Strictly ${deficientLevel.name} level questions only.
-                            Output strictly a valid JSON array of questions matching schema.
-                        """.trimIndent()
-
-                        try {
-                            val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null)
-                            if (regenResult != null) {
-                                val regenQuestions = parseGeminiResponse(
-                                    jsonString = regenResult.responseText,
-                                    examConfig = examConfig,
-                                    stageId = stageId,
-                                    subjectId = subjectId,
-                                    batchIndex = batchIndex,
-                                    existingHashes = existingHashes,
-                                    actualModel = regenResult.modelVersion,
-                                    actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
-                                ).filter { it.difficulty == deficientLevel }
-
-                                if (regenQuestions.isNotEmpty()) {
-                                    val excessLevel = initialValidation.excessLevels.firstOrNull()
-                                    val mutableBatch = finalBatch.toMutableList()
-                                    var replaced = 0
-                                    for (idx in mutableBatch.indices) {
-                                        if (replaced < regenQuestions.size && (excessLevel == null || mutableBatch[idx].difficulty == excessLevel)) {
-                                            mutableBatch[idx] = regenQuestions[replaced]
-                                            replaced++
-                                        }
-                                    }
-                                    finalBatch = mutableBatch
-                                }
-                            }
-                        } catch (e: Exception) {
-                            // Targeted regeneration error fallback to status tagging
-                        }
+                    require(batchModels.size == questionsInThisBatch) {
+                        "Batch $currentBatchNumber returned ${batchModels.size} valid questions; expected $questionsInThisBatch. Partial batch is rejected."
                     }
+                    batchModels.forEach { existingHashes[it.duplicateHash] = it.questionText }
+                    var finalBatch = batchModels
+                    // Imported PDF batches are never supplemented with generated replacement questions.
+                    // Difficulty imbalance is flagged for review below; source fidelity takes priority.
 
                     // Post-check: Never silently accept incorrect ratios!
                     val postValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
@@ -249,114 +265,72 @@ object UniversalPdfPipeline {
 
                     extractedQuestions.addAll(finalBatch)
                 } else {
-                    val offlineModel = if (compactMarkdown.isNotBlank()) "pdf-real-extractor-v1" else "bundled-exam-catalog-v1"
-                    val offlineSource = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "${examConfig.examName} Authentic Catalog"
+                    val parsedFromSourcePdf = if (compactMarkdown.isNotBlank()) {
+                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, resolvedStageId, paperId)
+                    } else {
+                        emptyList()
+                    }
 
-                    // Real extraction from parsed markdown or authentic exam catalog (Zero dummy data)
-                    val realExtractedFromMarkdown = if (compactMarkdown.isNotBlank()) {
-                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, stageId)
-                    } else emptyList()
-
-                    val bundledExamTests = BundledExamCatalog.getBundledTestsForExam(examConfig.examName)
-                    val bundledQuestions = bundledExamTests.flatMap { it.second }
-
-                    for (i in 1..questionsInThisBatch) {
-                        val qIndex = (batchIndex * batchSize) + i
-                        val diffRatio = examConfig.difficultyRatio
-                        val diffLevel = when {
-                            (i % 10) < (diffRatio.easyPercent / 10) -> DifficultyLevel.EASY
-                            (i % 10) < ((diffRatio.easyPercent + diffRatio.mediumPercent) / 10) -> DifficultyLevel.MEDIUM
-                            else -> DifficultyLevel.HARD
-                        }
-
-                        val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex)
-                        val qType = resolvedSection?.questionType ?: examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
-                        val secId = resolvedSection?.sectionId ?: "SECTION_A"
-                        val secName = resolvedSection?.sectionName ?: "Section A"
-                        val posMark = resolvedSection?.positiveMarks ?: 4.0
-                        val negMark = resolvedSection?.negativeMarks ?: 1.0
-
-                        // 1. Prefer real question extracted from source PDF markdown
-                        val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
-                        // 2. Otherwise match authentic question from Bundled Exam Catalog
-                        val bundledCandidate = bundledQuestions.getOrNull((qIndex - 1) % bundledQuestions.size.coerceAtLeast(1))
-
-                        val questionText = markdownCandidate?.questionText
-                            ?: bundledCandidate?.questionText
-                            ?: "${examConfig.shortName} Practice Problem $qIndex: Analyze the foundational principles of $subjectId under official exam examination criteria."
-
-                        val options = if (markdownCandidate != null && markdownCandidate.options.isNotEmpty()) {
-                            markdownCandidate.options
-                        } else if (bundledCandidate != null && bundledCandidate.optionA.isNotBlank()) {
-                            listOfNotNull(
-                                bundledCandidate.optionA.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionB.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionC.takeIf { it.isNotBlank() },
-                                bundledCandidate.optionD.takeIf { it.isNotBlank() }
+                    if (parsedFromSourcePdf.isEmpty()) {
+                        onProgress(
+                            BatchProgress(
+                                totalBatches = totalBatches,
+                                currentBatch = currentBatchNumber,
+                                processedQuestions = extractedQuestions.size,
+                                statusMessage = "No valid questions were extracted from the source PDF. No placeholder or fabricated questions were generated; check PDF text/OCR and retry."
                             )
-                        } else if (qType == QuestionType.NUMERICAL || qType == QuestionType.NUMERICAL_VALUE) {
-                            emptyList()
-                        } else {
-                            listOf(
-                                "Statement I is correct and explains the phenomenon accurately.",
-                                "Statement II is correct, but Statement I represents an incorrect condition.",
-                                "Both Statements I and II are valid under standard parameters.",
-                                "Neither Statement satisfies the core criteria."
+                        )
+                    } else {
+                        val reviewedBatch = parsedFromSourcePdf
+                            .drop(batchIndex * batchSize)
+                            .take(questionsInThisBatch)
+                            .mapNotNull { candidate ->
+                            val candidateSection = selectedSubject.sections.singleOrNull { it.sectionId == candidate.sectionId }
+                                ?: return@mapNotNull null
+                            val duplicate = DuplicateDetectionEngine.checkDuplicate(
+                                candidate.questionText,
+                                candidate.options,
+                                existingHashes
                             )
+                            if (duplicate.exactDuplicate || duplicate.nearDuplicate || duplicate.semanticDuplicate) return@mapNotNull null
+                            val validation = QuestionValidationEngine.validateQuestion(
+                                questionText = candidate.questionText,
+                                options = candidate.options,
+                                correctAnswer = candidate.correctAnswer,
+                                explanation = candidate.explanation,
+                                hasDiagramAttached = !candidate.diagramUrl.isNullOrBlank(),
+                                duplicateResult = duplicate,
+                                questionType = candidate.questionType,
+                                expectedOptionCount = candidateSection.optionsCount
+                            )
+                            candidate.copy(
+                                validationStatus = ValidationStatus.NEEDS_REVIEW,
+                                validationReasons = (
+                                    validation.issues +
+                                        candidate.validationReasons +
+                                        "PDF-extracted content is unverified. Admin must confirm provenance, answer key and exam pattern."
+                                    ).distinct(),
+                                qualityScore = validation.qualityScore,
+                                qualityMetrics = validation.qualityMetrics,
+                                duplicateHash = DuplicateDetectionEngine.generateNormalizedHash(candidate.questionText, candidate.options),
+                                sourceName = "Uploaded PDF (unverified provenance)",
+                                isOfficialPYQ = false
+                            ).also { reviewed ->
+                                existingHashes[reviewed.duplicateHash] = reviewed.questionText
+                            }
                         }
-
-                        val correctAnswer = markdownCandidate?.correctAnswer
-                            ?: bundledCandidate?.correctAnswer
-                            ?: if (options.isEmpty()) "${((qIndex * 7) % 50) + 1}" else "A"
-
-                        val explanation = markdownCandidate?.explanation
-                            ?: bundledCandidate?.explanation
-                            ?: "Option $correctAnswer is correct according to the official ${examConfig.examName} syllabus curriculum."
-
-                        val hash = DuplicateDetectionEngine.generateNormalizedHash(questionText, options)
-                        val dupResult = DuplicateDetectionEngine.checkDuplicate(questionText, options, existingHashes)
-                        val validation = QuestionValidationEngine.validateQuestion(
-                            questionText = questionText,
-                            options = options,
-                            correctAnswer = correctAnswer,
-                            explanation = explanation,
-                            hasDiagramAttached = false,
-                            duplicateResult = dupResult,
-                            questionType = qType,
-                            expectedOptionCount = examConfig.defaultOptionCount
+                        require(reviewedBatch.size == questionsInThisBatch) {
+                            "Source PDF batch $currentBatchNumber produced ${reviewedBatch.size} valid questions; expected $questionsInThisBatch. Partial batch is rejected."
+                        }
+                        extractedQuestions.addAll(reviewedBatch)
+                        onProgress(
+                            BatchProgress(
+                                totalBatches = totalBatches,
+                                currentBatch = currentBatchNumber,
+                                processedQuestions = extractedQuestions.size,
+                                statusMessage = "Extracted ${reviewedBatch.size} source questions. All are marked NEEDS_REVIEW until an Admin verifies them."
+                            )
                         )
-
-                        val model = UniversalQuestionModel(
-                            questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_$qIndex",
-                            examId = examConfig.examId,
-                            stageId = stageId,
-                            paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
-                            sectionId = secId,
-                            sectionName = secName,
-                            subjectId = subjectId,
-                            questionText = questionText,
-                            options = options,
-                            correctAnswer = correctAnswer,
-                            sourceAnswer = null,
-                            explanation = explanation,
-                            difficulty = diffLevel,
-                            questionType = qType,
-                            positiveMarks = posMark,
-                            negativeMarks = negMark,
-                            difficultyScore = validation.difficultyScore,
-                            qualityScore = validation.qualityScore,
-                            qualityMetrics = validation.qualityMetrics,
-                            validationStatus = validation.status,
-                            validationReasons = validation.issues,
-                            duplicateHash = hash,
-                            sourceName = offlineSource,
-                            sourcePage = (qIndex / 5) + 1,
-                            questionVersion = 1,
-                            validationVersion = 1,
-                            generationModel = offlineModel,
-                            generationTimestamp = System.currentTimeMillis()
-                        )
-                        extractedQuestions.add(model)
                     }
                 }
             } catch (e: Exception) {
@@ -373,16 +347,17 @@ object UniversalPdfPipeline {
             delay(500)
         }
 
-        if (extractedQuestions.size >= expectedQuestions) {
-            onProgress(
-                BatchProgress(
-                    totalBatches = totalBatches,
-                    currentBatch = totalBatches,
-                    processedQuestions = extractedQuestions.size,
-                    statusMessage = "Extraction Complete! ${extractedQuestions.size} questions ready for Review."
-                )
-            )
+        require(extractedQuestions.size == expectedQuestions) {
+            "Incomplete extraction: expected $expectedQuestions questions but validated ${extractedQuestions.size}. No partial test is returned."
         }
+        onProgress(
+            BatchProgress(
+                totalBatches = totalBatches,
+                currentBatch = totalBatches,
+                processedQuestions = extractedQuestions.size,
+                statusMessage = "Extraction Complete! ${extractedQuestions.size} validated questions ready for Review."
+            )
+        )
 
         return@withContext extractedQuestions
     }
@@ -392,12 +367,16 @@ object UniversalPdfPipeline {
         examConfig: ExamConfig,
         stageId: String,
         subjectId: String,
+        paperId: String,
+        subjectConfig: SubjectConfig,
         batchIndex: Int,
+        batchSize: Int,
         existingHashes: Map<String, String>,
         actualModel: String = "UNAVAILABLE",
         actualSource: String = "UNAVAILABLE"
     ): List<UniversalQuestionModel> {
         val resultList = mutableListOf<UniversalQuestionModel>()
+        val seenHashes = existingHashes.toMutableMap()
         try {
             val cleanJson = jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
             val jsonArray = if (cleanJson.startsWith("[")) {
@@ -423,46 +402,62 @@ object UniversalPdfPipeline {
                 val optE = item.optString("optionEEn").ifBlank { item.optString("optionE") }
                 val options = listOf(optA, optB, optC, optD, optE).filter { it.isNotBlank() }
 
-                val qIndexInBatch = (batchIndex * 10) + i + 1
-                val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndexInBatch)
-                val parsedSecId = item.optString("sectionId").ifBlank { resolvedSection?.sectionId ?: "SECTION_A" }
-                val parsedSecName = item.optString("sectionName").ifBlank { resolvedSection?.sectionName ?: "Section A" }
-                val parsedPosMarks = if (item.has("positiveMarks")) item.optDouble("positiveMarks", 4.0) else (resolvedSection?.positiveMarks ?: 4.0)
-                val parsedNegMarks = if (item.has("negativeMarks")) item.optDouble("negativeMarks", 1.0) else (resolvedSection?.negativeMarks ?: 1.0)
+                val qIndexInBatch = (batchIndex * batchSize) + i + 1
+                var sectionQuestionEnd = 0
+                val resolvedSection = subjectConfig.sections.singleOrNull { section ->
+                    sectionQuestionEnd += section.totalQuestions
+                    qIndexInBatch <= sectionQuestionEnd
+                }
+                val expectedSection = resolvedSection ?: continue
+                val suppliedSectionId = item.optString("sectionId").takeIf { it.isNotBlank() }
+                if (suppliedSectionId != null && suppliedSectionId != expectedSection.sectionId) continue
+                val parsedSecId = expectedSection.sectionId
+                val sectionConfig = subjectConfig.sections.singleOrNull { it.sectionId == parsedSecId } ?: continue
+                val suppliedSectionName = item.optString("sectionName").takeIf { it.isNotBlank() }
+                if (suppliedSectionName != null && !suppliedSectionName.equals(sectionConfig.sectionName, true)) continue
+                val parsedSecName = sectionConfig.sectionName
+                val parsedPosMarks = if (item.has("positiveMarks")) item.optDouble("positiveMarks", Double.NaN) else sectionConfig.positiveMarks
+                val parsedNegMarks = if (item.has("negativeMarks")) item.optDouble("negativeMarks", Double.NaN) else sectionConfig.negativeMarks
+                if (!parsedPosMarks.isFinite() || parsedPosMarks <= 0.0 || !parsedNegMarks.isFinite() || parsedNegMarks < 0.0) continue
+                if (parsedPosMarks != sectionConfig.positiveMarks || parsedNegMarks != sectionConfig.negativeMarks) continue
 
-                val diffStr = item.optString("difficulty", "MEDIUM").uppercase()
-                val diffLevel = when {
-                    diffStr.contains("EASY") -> DifficultyLevel.EASY
-                    diffStr.contains("HARD") -> DifficultyLevel.HARD
-                    else -> DifficultyLevel.MEDIUM
+                val diffStr = item.optString("difficulty").uppercase()
+                val diffLevel = when (diffStr) {
+                    "EASY" -> DifficultyLevel.EASY
+                    "MEDIUM" -> DifficultyLevel.MEDIUM
+                    "HARD" -> DifficultyLevel.HARD
+                    else -> continue
                 }
 
-                val qTypeStr = item.optString("questionType").uppercase()
-                val parsedQType = when {
-                    qTypeStr.contains("STATEMENT_I") || qTypeStr.contains("STATEMENT_1") -> QuestionType.STATEMENT_I_II
-                    qTypeStr.contains("ASSERTION") -> QuestionType.ASSERTION_REASON
-                    qTypeStr.contains("MATCH") -> QuestionType.MATCH_LIST_I_II
-                    qTypeStr.contains("MULTI") -> QuestionType.MULTI_STATEMENT
-                    qTypeStr.contains("NUMERICAL") || qTypeStr.contains("NAT") || qTypeStr.contains("NVQ") -> QuestionType.NUMERICAL_VALUE
-                    qTypeStr.contains("DIAGRAM") || qTypeStr.contains("IMAGE") -> QuestionType.DIAGRAM_LABELING
-                    qTypeStr.contains("GRAPH") -> QuestionType.GRAPH
-                    qTypeStr.contains("DIRECT") || qTypeStr.contains("MCQ") -> QuestionType.DIRECT_MCQ
-                    else -> resolvedSection?.questionType ?: examConfig.supportedQuestionTypes.firstOrNull() ?: QuestionType.DIRECT_MCQ
+                val qTypeStr = item.optString("questionType").trim().uppercase()
+                val suppliedType = when {
+                    qTypeStr.isBlank() -> sectionConfig.questionType
+                    qTypeStr in setOf("MCQ", "MCQ_SINGLE", "DIRECT_MCQ") -> QuestionType.MCQ_SINGLE
+                    qTypeStr in setOf("NUMERICAL", "NUMERICAL_VALUE", "NAT", "NVQ", "TITA") -> QuestionType.NUMERICAL_VALUE
+                    else -> continue
                 }
+                if (suppliedType != sectionConfig.questionType ||
+                    suppliedType !in examConfig.supportedQuestionTypes) continue
 
-                val isNumerical = (parsedQType == QuestionType.NUMERICAL_VALUE || parsedQType == QuestionType.NUMERICAL || parsedQType == QuestionType.TITA)
+                val isNumerical = sectionConfig.questionType in setOf(
+                    QuestionType.NUMERICAL_VALUE, QuestionType.NUMERICAL, QuestionType.TITA
+                )
+                if (isNumerical && options.isNotEmpty()) continue
+                if (!isNumerical && (options.size != sectionConfig.optionsCount ||
+                    options.any { it.isBlank() } ||
+                    options.distinctBy { it.trim().lowercase() }.size != sectionConfig.optionsCount)) continue
                 val finalOptions = if (isNumerical) emptyList() else options
 
-                val rawAnswer = item.optString("correctAnswer", "").trim()
-                val correctAnswer = if (isNumerical) {
-                    rawAnswer // Preserve full integer, decimal, or negative numerical answer
-                } else {
-                    if (rawAnswer.length == 1) rawAnswer.uppercase() else rawAnswer
-                }
+                val rawAnswer = item.optString("correctAnswer").trim()
+                val correctAnswer = rawAnswer.uppercase()
+                val validAnswerKey = if (isNumerical) correctAnswer.toDoubleOrNull()?.isFinite() == true
+                    else correctAnswer in setOf("A", "B", "C", "D", "1", "2", "3", "4")
+                if (!validAnswerKey) continue
                 val explanation = item.optString("explanationEn").ifBlank { item.optString("explanation") }
 
                 val hash = DuplicateDetectionEngine.generateNormalizedHash(qText, finalOptions)
-                val dupResult = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, existingHashes)
+                val dupResult = DuplicateDetectionEngine.checkDuplicate(qText, finalOptions, seenHashes)
+                if (dupResult.exactDuplicate || dupResult.nearDuplicate || dupResult.semanticDuplicate) continue
                 val validation = QuestionValidationEngine.validateQuestion(
                     questionText = qText,
                     options = finalOptions,
@@ -470,15 +465,15 @@ object UniversalPdfPipeline {
                     explanation = explanation,
                     hasDiagramAttached = false,
                     duplicateResult = dupResult,
-                    questionType = parsedQType,
-                    expectedOptionCount = examConfig.defaultOptionCount
+                    questionType = sectionConfig.questionType,
+                    expectedOptionCount = sectionConfig.optionsCount
                 )
 
                 val model = UniversalQuestionModel(
-                    questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_${batchIndex}_$i",
+                    questionId = "uq_${examConfig.examId}_${java.util.UUID.randomUUID()}",
                     examId = examConfig.examId,
                     stageId = stageId,
-                    paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
+                    paperId = paperId,
                     sectionId = parsedSecId,
                     sectionName = parsedSecName,
                     subjectId = subjectId,
@@ -497,23 +492,25 @@ object UniversalPdfPipeline {
                     explanation = explanation,
                     explanationHi = item.optString("explanationHi").takeIf { it.isNotBlank() },
                     difficulty = diffLevel,
-                    questionType = parsedQType,
+                    questionType = sectionConfig.questionType,
                     positiveMarks = parsedPosMarks,
                     negativeMarks = parsedNegMarks,
                     difficultyScore = validation.difficultyScore,
                     qualityScore = validation.qualityScore,
                     qualityMetrics = validation.qualityMetrics,
-                    validationStatus = validation.status,
-                    validationReasons = validation.issues,
+                    validationStatus = ValidationStatus.NEEDS_REVIEW,
+                    validationReasons = (validation.issues + "AI/PDF-derived content requires Admin verification of source, answer key and exam pattern before approval.").distinct(),
                     duplicateHash = hash,
                     sourceName = actualSource,
-                    sourcePage = batchIndex + 1,
+                    isOfficialPYQ = false,
+                    sourcePage = item.optInt("sourcePage", 0).coerceAtLeast(0),
                     questionVersion = 1,
                     validationVersion = 1,
                     generationModel = actualModel,
                     generationTimestamp = System.currentTimeMillis()
                 )
                 resultList.add(model)
+                seenHashes[hash] = qText
             }
         } catch (e: Exception) {
             e.printStackTrace()

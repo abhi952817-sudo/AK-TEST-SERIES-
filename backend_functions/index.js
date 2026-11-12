@@ -6,19 +6,71 @@ admin.initializeApp();
 const db = admin.firestore();
 const {
   evaluateTestAttempt,
-  calculatePopulationPercentile,
   validateAndMergeAnswerKeys,
-  getExamEligibility,
   normalizeExamKey,
+  resolveCanonicalExamIdentity,
+  getMarkingSchemeForExam,
 } = require("./examScoring");
 const {
-  RANKING_CONFIG, resolveRankingWeight, calculateWeightedRankingScore,
-  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, normalizeClassLevel,
-  getLeagueForXp, calculateXpAward, calculatePercentileFromCounts, getRankingStatus, getCohortRankingStatus
+  RANKING_CONFIG, clampRankingLimit, canAdvanceRankingMigrationCheckpoint, canonicalizeAnswerPayload, resolveRankingWeight, calculateWeightedRankingScore,
+  isEligibleScoringResult, isEligibleHistoricalRankingTest,
+  getIndiaDateKey, getIndiaWeekId, getRankingPeriodIds, isValidRankingPeriodId, isValidRankingWeekId, normalizeClassLevel, resolveClassLevelFilter,
+  getLeagueForXp, calculateXpAward, calculateDailyStreak, calculatePercentileFromCounts, buildTestRankingSnapshot, getRankingStatus, getCohortRankingStatus
 } = require("./rankingEngine");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 
 exports.normalizeExamKey = normalizeExamKey;
+
+// Unknown or malformed visibility values fail closed; only explicit PUBLIC is public.
+function isProfilePublic(value) {
+  return String(value || "").trim().toUpperCase() === "PUBLIC";
+}
+
+async function getCurrentPublicVisibilityByUid(userIds) {
+  const uniqueIds = [...new Set(userIds.map(uid => String(uid || "").trim()).filter(Boolean))];
+  const result = new Map();
+  if (uniqueIds.length === 0) return result;
+  try {
+    const refs = uniqueIds.map(uid => db.collection("Users_Data").doc(uid));
+    const snapshots = await db.getAll(...refs);
+    uniqueIds.forEach((uid, index) => {
+      const snapshot = snapshots[index];
+      result.set(uid, Boolean(snapshot && snapshot.exists &&
+        isProfilePublic(snapshot.data().profileVisibility)));
+    });
+  } catch (error) {
+    console.error("Failed to verify live profile visibility for leaderboard response; hiding all affected identities.", error);
+    uniqueIds.forEach(uid => result.set(uid, false));
+  }
+  return result;
+}
+
+function requireCanonicalExamId(value, fieldName = "targetExam") {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      fieldName + " is required; the ranking API will not silently default to NEET."
+    );
+  }
+  const canonical = normalizeExamKey(value);
+  if (!canonical || canonical === "UNKNOWN" || canonical === "ALL") {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "A specific, supported exam identity is required for ranking."
+    );
+  }
+  try {
+    // Reuse the scoring engine's supported-exam gate so unknown aliases cannot
+    // create empty or misleading boards under arbitrary canonical-looking IDs.
+    getMarkingSchemeForExam(canonical);
+  } catch (_) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "The requested exam does not have a supported scoring policy."
+    );
+  }
+  return canonical;
+}
 
 /**
  * Cloud Function: submitTestAttemptServerSide
@@ -65,6 +117,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const answerKeysCount = Object.keys(answers).length;
+  const canonicalAnswersJson = canonicalizeAnswerPayload(answers);
+  const answersHash = crypto.createHash("sha256").update(canonicalAnswersJson).digest("hex");
   if (answerKeysCount > 1000) {
     throw new functions.https.HttpsError(
       "invalid-argument",
@@ -134,10 +188,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const isCreator = (testData.creatorId && testData.creatorId === userId) ||
                     (testData.uploaderId && testData.uploaderId === userId);
 
-  const testStatus = String(testData.status || "").trim().toUpperCase();
-  const isApprovedOrPublished = testStatus === "APPROVED" || testStatus === "PUBLISHED";
+  const testStatus = String(testData.status || "").trim();
+  // Match Firestore Rules exactly; lowercase or unknown status variants are not student-visible.
+  const isApprovedOrPublished = ["APPROVED", "PUBLISHED", "Published"].includes(testStatus);
   const isExplicitlyRestricted = testStatus === "UNDER REVIEW" || testStatus === "REJECTED" || testStatus === "DRAFT";
-  const hasPublicFlag = testData.isPublic === true || testData.isOfficial === true;
+  // Official status is provenance, not visibility. A private official paper is not
+  // publicly attemptable and must not award public XP or competitive ranking points.
+  const hasPublicFlag = testData.isPublic === true;
 
   // A public flag alone MUST NOT allow a pending or rejected test to be treated as approved
   const isPubliclyAvailable = isApprovedOrPublished && !isExplicitlyRestricted && hasPublicFlag;
@@ -149,9 +206,27 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     );
   }
 
-  const countsTowardRanking = testData.countsTowardRanking === true && isPubliclyAvailable;
-  const canonicalExam = normalizeExamKey(testData.targetExam || testData.subject || "NEET");
-  const rankingWeight = resolveRankingWeight(testData);
+  // Competitive AIR is restricted to explicitly approved, public, official papers.
+  // A public community/practice test must never enter the official exam ranking.
+  const testCountsTowardRanking =
+    testData.countsTowardRanking === true &&
+    testData.isOfficial === true &&
+    testData.isPublic === true &&
+    isPubliclyAvailable;
+  let canonicalExam;
+  try {
+    canonicalExam = resolveCanonicalExamIdentity(testData);
+  } catch (err) {
+    throw new functions.https.HttpsError(err.code || "failed-precondition", err.message);
+  }
+  const resolvedRankingWeight = resolveRankingWeight(testData);
+  if (testCountsTowardRanking && resolvedRankingWeight === null) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Official ranking test has no verified Full Test (1.0x) or Part Test (0.2x) classification."
+    );
+  }
+  const rankingWeight = testCountsTowardRanking ? resolvedRankingWeight : 0;
 
   // 4. Load questions and trusted answer keys (Protected Separation)
   let questions = [];
@@ -166,11 +241,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   if (!questions || questions.length === 0) {
     const qSnap = await testDoc.ref.collection("questions").get();
     if (!qSnap.empty) {
-      questions = qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      questions = qSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
     } else {
       const qSnapUpper = await testDoc.ref.collection("Questions").get();
       if (!qSnapUpper.empty) {
-        questions = qSnapUpper.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        questions = qSnapUpper.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       }
     }
   }
@@ -182,6 +257,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+  const initialAnswerKeyPayload = privateKeyData && privateKeyData.questions !== undefined
+    ? privateKeyData.questions
+    : null;
+  const initialAnswerKeyHash = crypto.createHash("sha256")
+    .update(canonicalizeAnswerPayload(initialAnswerKeyPayload)).digest("hex");
   let solutionKeys = {};
   try {
     const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
@@ -219,9 +299,14 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
   // 5. Authoritatively evaluate score on the server
   const evalResult = evaluateTestAttempt(canonicalExam, questions, answers, cleanTimeSpent);
+  // A result with any ungraded response or invalid score bounds must never affect AIR.
+  const countsTowardRanking = testCountsTowardRanking && isEligibleScoringResult(evalResult);
 
   const attemptDocId = attemptSessionToken.trim();
-  const attemptsRef = userRef.collection("Attempts");
+  // Lowercase `attempts` is the app repository’s canonical history path.
+  // Uppercase `Attempts` is read-only legacy compatibility; new attempts are not mirrored there.
+  const attemptsRef = userRef.collection("attempts");
+  const legacyAttemptsRef = userRef.collection("Attempts");
   const stableUserTestKey = userId + ":" + cleanTestId;
   const stableKeyHash = crypto.createHash("sha256").update(stableUserTestKey).digest("hex");
   const firstAttemptLockRef = db.collection("Ranking_Attempt_Locks").doc(stableKeyHash);
@@ -229,43 +314,85 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const examEntryRef = db.collection("Exam_Leaderboards").doc(canonicalExam)
     .collection("Entries").doc(userId);
 
-  // 5b. Compute population-based percentile on this test if it qualifies for competitive ranking
-  let testTotalCandidates = 0;
-  let testHigherCount = 0;
-  let testRank = 0;
-  let attemptPercentile = 0.0;
-
-  if (countsTowardRanking) {
-    try {
-      const testEntriesRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries");
-      const higherSnap = await testEntriesRef.where("score", ">", evalResult.finalScore).count().get();
-      testHigherCount = higherSnap.data().count;
-
-      const totalSnap = await testEntriesRef.count().get();
-      const existingCount = totalSnap.data().count;
-      testRank = testHigherCount + 1;
-      testTotalCandidates = Math.max(1, existingCount + 1);
-      attemptPercentile = calculatePopulationPercentile(testRank, testTotalCandidates);
-    } catch (e) {
-      testRank = 0;
-      testTotalCandidates = 0;
-      attemptPercentile = 0.0;
-    }
-  }
-
   // 6. Atomic, Idempotent Transaction for Competitive Ranking and Persistence
-  return db.runTransaction(async (transaction) => {
+  const submissionResult = await db.runTransaction(async (transaction) => {
     // Recompute India-local period boundaries on every transaction retry.
     const rankingNow = Date.now();
     const rankingDateKey = getIndiaDateKey(rankingNow);
     const rankingWeekId = getIndiaWeekId(rankingNow);
     const rankingPeriodIds = getRankingPeriodIds(rankingNow);
+
+    // Re-read the exact test and answer-key documents inside the transaction.
+    // If an admin edits visibility, identity, scoring metadata, or keys while this
+    // submission is being evaluated, abort instead of persisting a stale score.
+    const currentTestSnap = await transaction.get(testDoc.ref);
+    const currentPrivateKeySnap = await transaction.get(privateKeyDoc.ref);
+    if (!currentTestSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Test was removed during submission.");
+    }
+    const currentTestData = currentTestSnap.data() || {};
+    const immutableSubmissionFields = [
+      "isPublic", "isOfficial", "countsTowardRanking", "status", "examId",
+      "targetExam", "stageId", "paperId", "testType", "testCategory", "category",
+      "durationMinutes", "questionsJson"
+    ];
+    for (const field of immutableSubmissionFields) {
+      if (currentTestData[field] !== testData[field]) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Test configuration changed during submission. Refresh the test and submit again."
+        );
+      }
+    }
+    const currentAnswerKeyPayload = currentPrivateKeySnap.exists
+      ? (currentPrivateKeySnap.get("questions") ?? null)
+      : null;
+    const currentAnswerKeyHash = crypto.createHash("sha256")
+      .update(canonicalizeAnswerPayload(currentAnswerKeyPayload)).digest("hex");
+    if (currentAnswerKeyHash !== initialAnswerKeyHash) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "The answer key changed during submission. Refresh the test before retrying."
+      );
+    }
+
     const attemptDocRef = attemptsRef.doc(attemptDocId);
+    const legacyAttemptDocRef = legacyAttemptsRef.doc(attemptDocId);
     const existingAttemptSnap = await transaction.get(attemptDocRef);
+    const legacyAttemptDocSnap = await transaction.get(legacyAttemptDocRef);
+
+    // Idempotency check across canonical and legacy locations. If both copies exist,
+    // they must describe the same logical attempt; never silently pick conflicting data.
+    const storedHashFor = (record) => {
+      if (record && record.answersHash) return record.answersHash;
+      if (!record || record.answersJson === undefined) return null;
+      try {
+        const legacyAnswers = typeof record.answersJson === "string"
+          ? JSON.parse(record.answersJson)
+          : record.answersJson;
+        return crypto.createHash("sha256").update(canonicalizeAnswerPayload(legacyAnswers)).digest("hex");
+      } catch (_) {
+        return null;
+      }
+    };
+    if (existingAttemptSnap.exists && legacyAttemptDocSnap.exists) {
+      const canonical = existingAttemptSnap.data();
+      const legacy = legacyAttemptDocSnap.data();
+      if (canonical.userId !== legacy.userId || canonical.testId !== legacy.testId ||
+          storedHashFor(canonical) !== storedHashFor(legacy)) {
+        throw new functions.https.HttpsError(
+          "data-loss",
+          "Conflicting canonical and legacy copies exist for this attempt. Manual reconciliation is required."
+        );
+      }
+    }
+    const existingRecord = existingAttemptSnap.exists
+      ? existingAttemptSnap.data()
+      : (legacyAttemptDocSnap.exists ? legacyAttemptDocSnap.data() : null);
 
     // Idempotency check: handle identical retries vs conflicting reuse
-    if (existingAttemptSnap.exists) {
-      const existing = existingAttemptSnap.data();
+    if (existingRecord) {
+      const existing = existingRecord;
       if (existing.userId !== userId || existing.testId !== cleanTestId) {
         throw new functions.https.HttpsError(
           "already-exists",
@@ -274,10 +401,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }
 
       // Check whether payload matches previous submission
-      const currentAnswersStr = typeof answers === "string" ? answers : JSON.stringify(answers);
-      const storedAnswersStr = typeof existing.answersJson === "string" ? existing.answersJson : JSON.stringify(existing.answersJson);
+      const storedAnswersHash = storedHashFor(existing);
 
-      if (currentAnswersStr === storedAnswersStr) {
+      if (storedAnswersHash && storedAnswersHash === answersHash) {
         // Return existing canonical result without re-incrementing counters
         return {
           success: true,
@@ -288,18 +414,17 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
           score: existing.score,
           rawScore: existing.rawScore || existing.score,
           maxScore: existing.maxScore,
-          percentile: existing.percentile || 0.0,
-          testRank: existing.testRank || 1,
-          testTotalCandidates: existing.testTotalCandidates || 1,
+
           accuracy: existing.accuracy,
           correctCount: existing.correctCount,
           incorrectCount: existing.incorrectCount,
           skippedCount: existing.skippedCount,
+          ungradedCount: existing.ungradedCount || 0,
           positiveMarksEarned: existing.positiveMarksEarned || 0,
           negativeMarksPenalty: existing.negativeMarksPenalty || 0,
           isFirstAttempt: existing.isFirstAttempt || false,
-          isFirstQualifyingAttempt: existing.isFirstQualifyingAttempt || false,
-          countsTowardRanking: existing.countsTowardRanking || false,
+          isFirstQualifyingAttempt: existing.isFirstQualifyingAttempt === true,
+          countsTowardRanking: existing.countsTowardRanking === true,
           isRetry: true
         };
       } else {
@@ -317,7 +442,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       attemptsRef.where("testId", "==", cleanTestId).limit(1)
     );
     const legacyExistingAttemptsSnap = await transaction.get(
-      userRef.collection("attempts").where("testId", "==", cleanTestId).limit(1)
+      legacyAttemptsRef.where("testId", "==", cleanTestId).limit(1)
     );
     const isFirstAttempt = existingAttemptsSnap.empty && legacyExistingAttemptsSnap.empty;
     const priorQualifyingAttemptsSnap = countsTowardRanking ? await transaction.get(
@@ -326,7 +451,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         .where("verifiedServerSide", "==", true).limit(1)
     ) : null;
     const legacyPriorQualifyingAttemptsSnap = countsTowardRanking ? await transaction.get(
-      userRef.collection("attempts").where("testId", "==", cleanTestId)
+      legacyAttemptsRef.where("testId", "==", cleanTestId)
         .where("countsTowardRanking", "==", true)
         .where("verifiedServerSide", "==", true).limit(1)
     ) : null;
@@ -358,31 +483,24 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     };
 
     if (evalResult.finalScore > currentMaxScore) {
-      updates.maxScore = Math.round(evalResult.finalScore);
+      updates.maxScore = evalResult.finalScore;
     }
 
     // Award ranking points only on FIRST valid attempt on QUALIFYING OFFICIAL tests
-    const examScoreKey = `cumulativeScore_${canonicalExam}`;
-    const examQCountKey = `qualifyingTestsCount_${canonicalExam}`;
-    // Never seed v2 ranking with legacy raw-mark aggregates. Only the v2 materialized
-    // entry is a valid base; the admin backfill rebuilds legacy attempts into this schema.
+    // Exam_Leaderboards is the single source of truth for v2 cumulative score/count.
+    // Legacy Users_Data score aggregates are intentionally not read or updated.
     const v2RankData = existingV2RankSnap.exists ? existingV2RankSnap.data() : {};
     const currentExamScore = Number(v2RankData.score || 0);
     const currentExamQCount = Number(v2RankData.qualifyingTestsCount || 0);
-    const currentTotalScore = Number(userData.totalCumulativeScoreV2 || 0);
     let newExamScore = currentExamScore;
 
     // Normalize to a common 10,000-point full-test scale before applying test weight.
-    const weightedScore = calculateWeightedRankingScore(
-      evalResult.finalScore, evalResult.maxScore, rankingWeight
-    );
+    const weightedScore = isFirstQualifyingAttempt
+      ? calculateWeightedRankingScore(evalResult.finalScore, evalResult.maxScore, rankingWeight)
+      : 0;
 
     if (isFirstQualifyingAttempt) {
       newExamScore = currentExamScore + weightedScore;
-      updates[examQCountKey] = currentExamQCount + 1;
-      updates.qualifyingTestsCount = (userData.qualifyingTestsCount || 0) + 1;
-      updates[examScoreKey] = newExamScore;
-      updates.totalCumulativeScoreV2 = currentTotalScore + weightedScore;
     }
 
     // All transaction reads must happen before writes.
@@ -390,14 +508,12 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     const shouldAwardXp = isFirstAttempt && !xpTransactionSnap.exists && isPubliclyAvailable;
     const xpAward = shouldAwardXp ? calculateXpAward(evalResult.correctCount) : 0;
     const currentXpTotal = Number(userData.xpTotal || 0);
-    const profileIsPublic = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
+    const profileIsPublic = isProfilePublic(userData.profileVisibility);
     const userIsBanned = userData.isBanned === true;
     const currentWeekXp = userData.xpWeekId === rankingWeekId ? Number(userData.xpThisWeek || 0) : 0;
     const previousActivityDate = String(userData.lastActivityDateIST || "");
-    const yesterdayDateKey = getIndiaDateKey(rankingNow - 86400000);
-    const currentStreak = previousActivityDate === rankingDateKey
-      ? Number(userData.currentStreak || 0)
-      : (previousActivityDate === yesterdayDateKey ? Number(userData.currentStreak || 0) + 1 : 1);
+    const currentStreak = calculateDailyStreak(previousActivityDate, rankingDateKey, userData.currentStreak);
+    const shouldRecordActivity = isPubliclyAvailable;
     const newXpTotal = currentXpTotal + xpAward;
     const newWeekXp = currentWeekXp + xpAward;
 
@@ -416,13 +532,15 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       monthPeriodSnap = await transaction.get(monthPeriodRef);
     }
 
+    if (shouldRecordActivity) {
+      updates.currentStreak = currentStreak;
+      updates.longestStreak = Math.max(Number(userData.longestStreak || 0), currentStreak);
+      updates.lastActivityDateIST = rankingDateKey;
+    }
     if (shouldAwardXp) {
       updates.xpTotal = newXpTotal;
       updates.xpThisWeek = newWeekXp;
       updates.xpWeekId = rankingWeekId;
-      updates.currentStreak = currentStreak;
-      updates.longestStreak = Math.max(Number(userData.longestStreak || 0), currentStreak);
-      updates.lastActivityDateIST = rankingDateKey;
       updates.xpLeague = getLeagueForXp(newXpTotal);
     }
 
@@ -455,12 +573,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }, { merge: true });
     }
 
-    const qualifyingTests = updates[examQCountKey] !== undefined
-      ? updates[examQCountKey]
-      : currentExamQCount;
-
+    const qualifyingTests = currentExamQCount + (isFirstQualifyingAttempt ? 1 : 0);
     const isEligible = qualifyingTests >= RANKING_CONFIG.minQualifyingTests && !userIsBanned;
-    const competitiveScore = updates[examScoreKey] !== undefined ? updates[examScoreKey] : currentExamScore;
+    const competitiveScore = newExamScore;
 
     if (isFirstQualifyingAttempt) {
       const periodBase = {
@@ -493,27 +608,26 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       }, { merge: true });
     }
 
-    // Persist detailed authoritative attempt record in Attempts collection
+    // Persist the single canonical authoritative attempt record in the app history collection.
     const attemptRecord = {
       userId,
       testId: cleanTestId,
       testTitle: testData.title || "",
       targetExam: canonicalExam,
-      score: Math.round(evalResult.finalScore),
+      score: evalResult.finalScore,
       rawScore: evalResult.rawScore,
-      maxScore: Math.round(evalResult.maxScore),
-      percentile: attemptPercentile, // Real population-based percentile calculated against candidate cohort
-      testRank: testRank,
-      testTotalCandidates: testTotalCandidates,
+      maxScore: evalResult.maxScore,
       accuracy: evalResult.accuracyPercent,
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
       skippedCount: evalResult.unansweredCount,
+      ungradedCount: evalResult.ungradedCount || 0,
       positiveMarksEarned: evalResult.positiveMarksEarned,
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
       timeSpentSeconds: cleanTimeSpent,
       dateTaken: clientTimestamp || Date.now(),
-      answersJson: typeof answers === "string" ? answers : JSON.stringify(answers),
+      answersJson: canonicalAnswersJson,
+      answersHash,
       attemptSessionToken: attemptDocId,
       isFirstAttempt,
       countsTowardRanking,
@@ -528,49 +642,24 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
     transaction.set(attemptDocRef, attemptRecord, { merge: true });
 
-    // Mirror to legacy lowercase attempts subcollection for backwards compatibility
-    const legacyAttemptRef = userRef.collection("attempts").doc(attemptDocId);
-    transaction.set(legacyAttemptRef, attemptRecord, { merge: true });
-
     // Atomically maintain per-test leaderboard entry for qualifying first attempts
     if (isFirstQualifyingAttempt) {
       const testEntryRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries").doc(userId);
       transaction.set(testEntryRef, {
         userId,
-        displayName: userData.name || "Student",
-        score: Math.round(evalResult.finalScore),
+        displayName: profileIsPublic ? (userData.displayName || userData.name || "Student") : "Private Student",
+        profileVisibility: profileIsPublic ? "PUBLIC" : "PRIVATE",
+        isBanned: userIsBanned,
+        isEligibleForRanking: isEligible,
+        score: evalResult.finalScore,
         rawScore: evalResult.rawScore,
         accuracy: evalResult.accuracyPercent,
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
     }
 
-    // Atomically maintain public Leaderboard using the consistent competitive score
-    // Only write to competitive Leaderboard if the attempt counts toward ranking or user is already ranked
-    if (isFirstQualifyingAttempt) {
-      const leaderboardRef = db.collection("Leaderboard").doc(`${canonicalExam}_${userId}`);
-      transaction.set(leaderboardRef, {
-        userId,
-        displayName: userData.name || "Student",
-        targetExam: canonicalExam,
-        score: competitiveScore, // Consistent: ranking score is the cumulative competitive score!
-        maxSingleScore: updates.maxScore || currentMaxScore,
-        totalTestsAttempted: updates.totalTestsAttempted || totalTests + 1,
-        qualifyingTestsCount: qualifyingTests,
-        isEligibleForRanking: isEligible,
-        scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
-        rankingWeightVersion: RANKING_CONFIG.version,
-        profileVisibility: userData.profileVisibility || "PUBLIC",
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-    } else if (userData[examQCountKey] && userData[examQCountKey] >= 2) {
-      // User is already an eligible ranked participant for this canonicalExam; keep test count updated without altering score
-      const leaderboardRef = db.collection("Leaderboard").doc(`${canonicalExam}_${userId}`);
-      transaction.set(leaderboardRef, {
-        totalTestsAttempted: updates.totalTestsAttempted || totalTests + 1,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-    }
+    // Exam_Leaderboards is the sole canonical AIR source. Do not dual-write the legacy
+    // Leaderboard collection; stale legacy rows remain untouched until a separately approved migration.
 
     if (isFirstQualifyingAttempt) {
       const publicProfile = profileIsPublic;
@@ -582,7 +671,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         classLevel: normalizeClassLevel(userData.classLevel),
         targetExam: canonicalExam,
         score: competitiveScore,
-        maxSingleScore: Math.round(evalResult.finalScore),
+        maxSingleScore: evalResult.finalScore,
         qualifyingTestsCount: qualifyingTests,
         isEligibleForRanking: isEligible,
         scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
@@ -590,14 +679,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      transaction.set(db.collection("User_Ranks").doc(userId)
-        .collection("Exams").doc(canonicalExam), {
-          userId, targetExam: canonicalExam, score: competitiveScore,
-          classLevel: normalizeClassLevel(userData.classLevel),
-          qualifyingTestsCount: qualifyingTests, isEligibleForRanking: isEligible, isBanned: userIsBanned,
-          scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+      // Per-user rank details are derived from the canonical Exam_Leaderboards entry.
     }
 
     return {
@@ -606,16 +688,14 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       attemptId: attemptDocId,
       testId: cleanTestId,
       targetExam: canonicalExam,
-      score: Math.round(evalResult.finalScore),
+      score: evalResult.finalScore,
       rawScore: evalResult.rawScore,
-      maxScore: Math.round(evalResult.maxScore),
-      percentile: attemptPercentile,
-      testRank,
-      testTotalCandidates,
+      maxScore: evalResult.maxScore,
       accuracy: evalResult.accuracyPercent,
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
       skippedCount: evalResult.unansweredCount,
+      ungradedCount: evalResult.ungradedCount || 0,
       positiveMarksEarned: evalResult.positiveMarksEarned,
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
       isFirstAttempt,
@@ -626,10 +706,64 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       xpTotal: newXpTotal,
       xpThisWeek: newWeekXp,
       xpLeague: getLeagueForXp(newXpTotal),
-      currentStreak: shouldAwardXp ? currentStreak : Number(userData.currentStreak || 0),
+      currentStreak: shouldRecordActivity ? currentStreak : Number(userData.currentStreak || 0),
       rankingPeriodIds: isFirstQualifyingAttempt ? rankingPeriodIds : null,
+      isFirstQualifyingAttempt
     };
   });
+
+  // Per-test rank is a post-commit live snapshot of the canonical first-attempt
+  // leaderboard row. A retry resolves the same row; repeat attempts never rank
+  // their uncommitted score. Rank-query failure cannot undo a committed score.
+  let testRankingSnapshot;
+  if (!submissionResult.countsTowardRanking) {
+    testRankingSnapshot = {
+      rankStatus: "NOT_ELIGIBLE",
+      testRank: null,
+      testTotalCandidates: null,
+      percentile: null
+    };
+  } else if (!submissionResult.isFirstQualifyingAttempt) {
+    testRankingSnapshot = {
+      rankStatus: "NOT_RANKED_REPEAT_ATTEMPT",
+      testRank: null,
+      testTotalCandidates: null,
+      percentile: null
+    };
+  } else {
+    try {
+      const testEntryRef = db.collection("Test_Leaderboards").doc(cleanTestId)
+        .collection("Entries").doc(userId);
+      const canonicalEntrySnap = await testEntryRef.get();
+      if (!canonicalEntrySnap.exists) {
+        throw new Error("Canonical per-test leaderboard entry is missing after commit.");
+      }
+      const canonicalEntry = canonicalEntrySnap.data() || {};
+      const testEntriesRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries");
+      const [higherSnap, totalSnap] = await Promise.all([
+        testEntriesRef.where("isBanned", "==", false)
+          .where("score", ">", Number(canonicalEntry.score)).count().get(),
+        testEntriesRef.where("isBanned", "==", false).count().get()
+      ]);
+      testRankingSnapshot = buildTestRankingSnapshot({
+        countsTowardRanking: true,
+        isFirstQualifyingAttempt: true,
+        canonicalEntry,
+        higherCount: higherSnap.data().count,
+        totalCount: totalSnap.data().count
+      });
+    } catch (rankError) {
+      console.error("Per-test rank snapshot unavailable after committed submission:", rankError);
+      testRankingSnapshot = {
+        rankStatus: "UNAVAILABLE",
+        testRank: null,
+        testTotalCandidates: null,
+        percentile: null
+      };
+    }
+  }
+
+  return { ...submissionResult, ...testRankingSnapshot };
 });
 
 /**
@@ -641,8 +775,8 @@ exports.syncRankingProfileVisibility = functions.firestore
   .onUpdate(async (change, context) => {
     const before = change.before.data() || {};
     const after = change.after.data() || {};
-    const beforeVisibility = String(before.profileVisibility || "PUBLIC").toUpperCase();
-    const afterVisibility = String(after.profileVisibility || "PUBLIC").toUpperCase();
+    const beforeVisibility = String(before.profileVisibility || "").trim().toUpperCase();
+    const afterVisibility = String(after.profileVisibility || "").trim().toUpperCase();
     const beforeName = before.displayName || before.name || "Student";
     const afterName = after.displayName || after.name || "Student";
     const beforeBanned = before.isBanned === true;
@@ -652,16 +786,17 @@ exports.syncRankingProfileVisibility = functions.firestore
     if (beforeVisibility === afterVisibility && beforeName === afterName &&
         beforeBanned === afterBanned && beforeClassLevel === afterClassLevel) return null;
 
-    const isPublic = afterVisibility !== "PRIVATE";
+    const isPublic = isProfilePublic(after.profileVisibility);
     const displayName = isPublic ? afterName : "Private Student";
     const entrySnapshot = await db.collectionGroup("Entries")
       .where("userId", "==", context.params.userId).get();
     const allTimeSnapshot = await db.collection("XP_Leaderboard_AllTime")
       .doc("Entries").collection("Students")
       .where("userId", "==", context.params.userId).get();
-    const userRanksSnapshot = await db.collection("User_Ranks").doc(context.params.userId)
-      .collection("Exams").get();
-    const docs = [...entrySnapshot.docs, ...allTimeSnapshot.docs, ...userRanksSnapshot.docs];
+    // Legacy rows are updated only for privacy/ban hygiene; no new score writes target this collection.
+    const legacyLeaderboardSnapshot = await db.collection("Leaderboard")
+      .where("userId", "==", context.params.userId).get();
+    const docs = [...entrySnapshot.docs, ...allTimeSnapshot.docs, ...legacyLeaderboardSnapshot.docs];
     for (let offset = 0; offset < docs.length; offset += 450) {
       const batch = db.batch();
       docs.slice(offset, offset + 450).forEach(doc => {
@@ -697,7 +832,45 @@ async function rebuildRankingV2ForUser(userId) {
     userRef.collection("attempts").get()
   ]);
   const byAttemptId = new Map();
-  [...upperSnap.docs, ...lowerSnap.docs].forEach(doc => byAttemptId.set(doc.id, doc.data()));
+  const answerHashForMigration = record => {
+    if (record && typeof record.answersHash === "string" && record.answersHash) return record.answersHash;
+    if (!record || record.answersJson === undefined) return null;
+    try {
+      const answers = typeof record.answersJson === "string"
+        ? JSON.parse(record.answersJson)
+        : record.answersJson;
+      return crypto.createHash("sha256").update(canonicalizeAnswerPayload(answers)).digest("hex");
+    } catch (_) {
+      return null;
+    }
+  };
+  [...upperSnap.docs, ...lowerSnap.docs].forEach(doc => {
+    const record = doc.data();
+    // Offline/local backup records are history only, never ranking inputs and never
+    // candidates for reconciliation against the server-authoritative attempt copy.
+    if (record.verifiedServerSide !== true || record.countsTowardRanking !== true) return;
+    const key = String(record.attemptSessionToken || doc.id);
+    const previous = byAttemptId.get(key);
+    if (previous) {
+      const sameIdentity = previous.userId === record.userId && previous.testId === record.testId;
+      const previousHash = answerHashForMigration(previous);
+      const currentHash = answerHashForMigration(record);
+      const sameResult = Number(previous.authoritativeScore ?? previous.score) ===
+          Number(record.authoritativeScore ?? record.score) &&
+        Number(previous.maxScore) === Number(record.maxScore) &&
+        previous.countsTowardRanking === record.countsTowardRanking;
+      if (!sameIdentity || !previousHash || !currentHash || previousHash !== currentHash || !sameResult) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Conflicting canonical/legacy attempt copies found. Ranking backfill stopped for manual reconciliation."
+        );
+      }
+      // Prefer the app's lowercase canonical history document after proving equivalence.
+      if (doc.ref.parent.id === "attempts") byAttemptId.set(key, record);
+    } else {
+      byAttemptId.set(key, record);
+    }
+  });
   const attemptTime = attempt => {
     const value = attempt && (attempt.submittedAt || attempt.dateTaken);
     if (value && typeof value.toMillis === "function") return value.toMillis();
@@ -705,70 +878,194 @@ async function rebuildRankingV2ForUser(userId) {
     const parsed = Date.parse(String(value || ""));
     return Number.isFinite(parsed) ? parsed : 0;
   };
-  const attempts = [...byAttemptId.values()].sort((a, b) => attemptTime(a) - attemptTime(b));
+  const attempts = [...byAttemptId.values()].sort((a, b) => {
+    const aTime = attemptTime(a);
+    const bTime = attemptTime(b);
+    if (aTime === 0 && bTime !== 0) return 1;
+    if (bTime === 0 && aTime !== 0) return -1;
+    return aTime - bTime ||
+      (a.isFirstQualifyingAttempt === true ? -1 : 0) -
+        (b.isFirstQualifyingAttempt === true ? -1 : 0) ||
+      String(a.attemptSessionToken || "").localeCompare(String(b.attemptSessionToken || ""));
+  });
   const seenTests = new Set();
   const exams = new Map();
   const periods = new Map();
+  const validatedTestCache = new Map();
+
+  const loadValidatedMigrationTest = async testId => {
+    if (validatedTestCache.has(testId)) return validatedTestCache.get(testId);
+    let testSnap = await db.collection("Tests_Data").doc(testId).get();
+    if (!testSnap.exists) testSnap = await db.collection("Tests").doc(testId).get();
+    if (!testSnap.exists) {
+      validatedTestCache.set(testId, null);
+      return null;
+    }
+    const testData = testSnap.data() || {};
+    if (!isEligibleHistoricalRankingTest(testData)) {
+      validatedTestCache.set(testId, null);
+      return null;
+    }
+
+    let examId;
+    let weight;
+    try {
+      examId = resolveCanonicalExamIdentity(testData);
+      weight = resolveRankingWeight(testData);
+      if (weight !== 1 && weight !== 0.2) throw new Error("Missing or conflicting Full/Part classification.");
+    } catch (_) {
+      validatedTestCache.set(testId, null);
+      return null;
+    }
+
+    let questions = [];
+    if (Array.isArray(testData.questionsJson)) {
+      questions = testData.questionsJson;
+    } else if (typeof testData.questionsJson === "string" && testData.questionsJson.trim()) {
+      try { questions = JSON.parse(testData.questionsJson); } catch (_) { questions = []; }
+    }
+    if (!Array.isArray(questions) || questions.length === 0) {
+      const lowerQuestions = await testSnap.ref.collection("questions").get();
+      if (!lowerQuestions.empty) {
+        questions = lowerQuestions.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      } else {
+        const upperQuestions = await testSnap.ref.collection("Questions").get();
+        if (!upperQuestions.empty) {
+          questions = upperQuestions.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        }
+      }
+    }
+
+    let privateKeyDoc = await testSnap.ref.collection("private_keys").doc("answerKey").get();
+    if (!privateKeyDoc.exists) privateKeyDoc = await db.collection("TestAnswerKeys").doc(testId).get();
+    const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+    try {
+      const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
+      const context = { testData, examId, weight, questions: validated.questions };
+      validatedTestCache.set(testId, context);
+      return context;
+    } catch (_) {
+      validatedTestCache.set(testId, null);
+      return null;
+    }
+  };
 
   for (const attempt of attempts) {
     const testId = String(attempt.testId || "");
     if (!testId || seenTests.has(testId)) continue;
-    if (attempt.verifiedServerSide !== true || attempt.countsTowardRanking !== true) continue;
+    if (attempt.userId && String(attempt.userId) !== uid) continue;
+    if (attempt.verifiedServerSide !== true || attempt.countsTowardRanking !== true ||
+        attempt.isFirstQualifyingAttempt === false) continue;
+    const timeSpentSeconds = Number(attempt.timeSpentSeconds);
+    if (attempt.timeSpentSeconds === undefined || attempt.timeSpentSeconds === null ||
+        !Number.isFinite(timeSpentSeconds) || timeSpentSeconds < 0 || timeSpentSeconds > 86400) continue;
+    // Claim the canonical first qualifying attempt before revalidation. If its trusted
+    // source data is missing/corrupt, never substitute a later repeat attempt.
+    seenTests.add(testId);
 
     const rawScore = Number(attempt.authoritativeScore !== undefined ? attempt.authoritativeScore : attempt.score);
     const maxScore = Number(attempt.maxScore);
-    if (!Number.isFinite(rawScore) || !Number.isFinite(maxScore) || maxScore <= 0) continue;
-    seenTests.add(testId);
+    if (!isEligibleScoringResult({
+      finalScore: rawScore,
+      maxScore,
+      ungradedCount: attempt.ungradedCount
+    })) continue;
 
-    let testData = {};
-    let testSnap = await db.collection("Tests_Data").doc(testId).get();
-    if (!testSnap.exists) testSnap = await db.collection("Tests").doc(testId).get();
-    if (testSnap.exists) testData = testSnap.data() || {};
+    const testContext = await loadValidatedMigrationTest(testId);
+    if (!testContext) continue;
+    if (attempt.targetExam && normalizeExamKey(attempt.targetExam) !== testContext.examId) continue;
+    if (attempt.examId && normalizeExamKey(attempt.examId) !== testContext.examId) continue;
+    if (attempt.stageId && attempt.stageId !== testContext.testData.stageId) continue;
+    if (attempt.paperId && attempt.paperId !== testContext.testData.paperId) continue;
+    if (attempt.rankingWeight !== undefined && attempt.rankingWeight !== null &&
+        Number(attempt.rankingWeight) !== testContext.weight) continue;
 
-    const examId = normalizeExamKey(attempt.targetExam || testData.targetExam || testData.subject || "UNKNOWN");
-    if (examId === "UNKNOWN" || examId === "ALL") continue;
-    const storedWeight = Number(attempt.rankingWeight);
-    const weight = storedWeight === 1 || storedWeight === 0.2 ? storedWeight : resolveRankingWeight(testData);
+    let answers;
+    try {
+      answers = typeof attempt.answersJson === "string"
+        ? JSON.parse(attempt.answersJson)
+        : attempt.answersJson;
+    } catch (_) {
+      continue;
+    }
+    if (!answers || typeof answers !== "object" || Array.isArray(answers)) continue;
+    const validQuestionIds = new Set(testContext.questions.map(question => String(question.id)));
+    if (Object.keys(answers).some(questionId => !validQuestionIds.has(String(questionId)))) continue;
+
+    let recalculated;
+    try {
+      recalculated = evaluateTestAttempt(
+        testContext.examId,
+        testContext.questions,
+        answers,
+        timeSpentSeconds
+      );
+    } catch (_) {
+      continue;
+    }
+    if (!isEligibleScoringResult(recalculated) ||
+        Math.abs(recalculated.finalScore - rawScore) > 0.001 ||
+        Math.abs(recalculated.maxScore - maxScore) > 0.001) continue;
+
+    const weight = testContext.weight;
     const points = calculateWeightedRankingScore(rawScore, maxScore, weight);
-    const aggregate = exams.get(examId) || { score: 0, count: 0, maxSingleScore: 0 };
+    const aggregate = exams.get(testContext.examId) || { score: 0, count: 0, maxSingleScore: 0 };
     aggregate.score += points;
     aggregate.count += 1;
     aggregate.maxSingleScore = Math.max(aggregate.maxSingleScore, rawScore);
-    exams.set(examId, aggregate);
+    exams.set(testContext.examId, aggregate);
 
-    const timestamp = attemptTime(attempt) || Date.now();
-    const periodIds = getRankingPeriodIds(timestamp);
-    for (const item of [
-      { type: "HALF_MONTH", id: periodIds.halfMonthId },
-      { type: "MONTH", id: periodIds.monthId }
-    ]) {
-      const key = examId + ":" + item.type + ":" + item.id;
-      const period = periods.get(key) || {
-        examId, periodType: item.type, periodId: item.id, score: 0, count: 0
-      };
-      period.score += points;
-      period.count += 1;
-      periods.set(key, period);
+    const timestamp = attemptTime(attempt);
+    // Invalid historical timestamps may contribute to the exam aggregate, but never to a guessed period.
+    if (timestamp > 0) {
+      const periodIds = getRankingPeriodIds(timestamp);
+      for (const item of [
+        { type: "HALF_MONTH", id: periodIds.halfMonthId },
+        { type: "MONTH", id: periodIds.monthId }
+      ]) {
+        const key = testContext.examId + ":" + item.type + ":" + item.id;
+        const period = periods.get(key) || {
+          examId: testContext.examId, periodType: item.type, periodId: item.id, score: 0, count: 0
+        };
+        period.score += points;
+        period.count += 1;
+        periods.set(key, period);
+      }
     }
   }
 
   const userData = userSnap.data();
-  const isPublic = String(userData.profileVisibility || "PUBLIC").toUpperCase() !== "PRIVATE";
+  const isPublic = isProfilePublic(userData.profileVisibility);
   const displayName = isPublic ? (userData.displayName || userData.name || "Student") : "Private Student";
   const classLevel = normalizeClassLevel(userData.classLevel);
   const userIsBanned = userData.isBanned === true;
   const userUpdates = { rankingBackfillVersion: RANKING_CONFIG.version,
     rankingBackfilledAt: admin.firestore.FieldValue.serverTimestamp() };
   let totalCumulativeScore = 0;
-  const batch = db.batch();
+  let batch = db.batch();
+  let batchWriteCount = 0;
+  const enqueueSet = (ref, data, options) => {
+    batch.set(ref, data, options);
+    batchWriteCount += 1;
+  };
+  const enqueueUpdate = (ref, data) => {
+    batch.update(ref, data);
+    batchWriteCount += 1;
+  };
+  const flushBatchIfNeeded = async () => {
+    if (batchWriteCount < 450) return;
+    await batch.commit();
+    batch = db.batch();
+    batchWriteCount = 0;
+  };
 
   for (const [examId, aggregate] of exams.entries()) {
     const eligible = aggregate.count >= RANKING_CONFIG.minQualifyingTests;
-    userUpdates["cumulativeScore_" + examId] = aggregate.score;
-    userUpdates["qualifyingTestsCount_" + examId] = aggregate.count;
+    // Exam_Leaderboards is the only canonical exam-score store. Do not mirror the
+    // same aggregate into Users_Data, which previously created a second source of truth.
     totalCumulativeScore += aggregate.score;
 
-    batch.set(db.collection("Exam_Leaderboards").doc(examId).collection("Entries").doc(userId), {
+    enqueueSet(db.collection("Exam_Leaderboards").doc(examId).collection("Entries").doc(userId), {
       userId, displayName, profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
       isBanned: userIsBanned, classLevel,
       targetExam: examId, score: aggregate.score, maxSingleScore: aggregate.maxSingleScore,
@@ -776,20 +1073,14 @@ async function rebuildRankingV2ForUser(userId) {
       scoreBasis: "NORMALIZED_WEIGHTED_10000_V2", rankingWeightVersion: RANKING_CONFIG.version,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
     }, { merge: true });
+    await flushBatchIfNeeded();
 
-    batch.set(db.collection("User_Ranks").doc(userId).collection("Exams").doc(examId), {
-      userId, targetExam: examId, score: aggregate.score, classLevel,
-      qualifyingTestsCount: aggregate.count, isEligibleForRanking: eligible && !userIsBanned,
-      isBanned: userIsBanned,
-      scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
-    }, { merge: true });
+    // User_Ranks is a legacy duplicate; the rebuilt Exam_Leaderboards entry is canonical.
   }
-  userUpdates.totalCumulativeScoreV2 = totalCumulativeScore;
 
   for (const period of periods.values()) {
     const eligible = period.count >= RANKING_CONFIG.minQualifyingTests;
-    batch.set(db.collection("Ranking_Periods").doc(period.examId)
+    enqueueSet(db.collection("Ranking_Periods").doc(period.examId)
       .collection("Periods").doc(period.periodId).collection("Entries").doc(userId), {
         userId, displayName, profileVisibility: isPublic ? "PUBLIC" : "PRIVATE",
         isBanned: userIsBanned, classLevel,
@@ -799,9 +1090,10 @@ async function rebuildRankingV2ForUser(userId) {
         scoreBasis: "NORMALIZED_WEIGHTED_10000_V2",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(), backfilled: true
       }, { merge: true });
+    await flushBatchIfNeeded();
   }
 
-  batch.update(userRef, userUpdates);
+  enqueueUpdate(userRef, userUpdates);
   await batch.commit();
   return {
     userId, migrated: true, examsMigrated: exams.size,
@@ -809,6 +1101,17 @@ async function rebuildRankingV2ForUser(userId) {
     periodsMigrated: periods.size, totalCumulativeScore
   };
 }
+
+exports.hasTestRankingContributions = functions.https.onCall(async (data, context) => {
+  try { validateSetAdminRoleAuth(context); }
+  catch (err) {
+    throw new functions.https.HttpsError(err.code || "permission-denied", err.message);
+  }
+  const testId = String((data || {}).testId || "").trim();
+  if (!testId) throw new functions.https.HttpsError("invalid-argument", "testId is required.");
+  const entries = await db.collection("Test_Leaderboards").doc(testId).collection("Entries").limit(1).get();
+  return { success: true, hasContributions: !entries.empty };
+});
 
 exports.getRankingMigrationStatus = functions.https.onCall(async (data, context) => {
   try { validateSetAdminRoleAuth(context); }
@@ -836,11 +1139,22 @@ exports.rebuildRankingV2Batch = functions.https.onCall(async (data, context) => 
     throw new functions.https.HttpsError(err.code || "permission-denied", err.message);
   }
   const input = data || {};
-  const limit = Math.min(20, Math.max(1, Number(input.limit) || 10));
+  const limit = clampRankingLimit(input.limit, 10, 1, 20);
   const migrationStateRef = db.collection("Config").doc("Ranking_Migration_State");
   const migrationStateSnap = await migrationStateRef.get();
-  const savedCursor = migrationStateSnap.exists ? migrationStateSnap.data().lastProcessedUid : null;
-  const effectiveCursor = input.cursor || savedCursor || null;
+  const migrationState = migrationStateSnap.exists ? migrationStateSnap.data() : {};
+  const savedCursor = migrationState.lastProcessedUid || null;
+  const requestedCursor = input.cursor ? String(input.cursor) : null;
+  if (requestedCursor && requestedCursor !== savedCursor) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Migration cursor does not match the server checkpoint. Refresh migration status and continue from the saved cursor."
+    );
+  }
+  if (migrationState.completed === true) {
+    return { success: true, processed: 0, nextCursor: null, hasMore: false, alreadyCompleted: true, results: [] };
+  }
+  const effectiveCursor = savedCursor;
   let query = db.collection("Users_Data").orderBy(admin.firestore.FieldPath.documentId()).limit(limit);
   if (effectiveCursor) query = query.startAfter(String(effectiveCursor));
   const snapshot = await query.get();
@@ -848,18 +1162,32 @@ exports.rebuildRankingV2Batch = functions.https.onCall(async (data, context) => 
   for (const doc of snapshot.docs) {
     results.push(await rebuildRankingV2ForUser(doc.id));
   }
-  const nextCursor = snapshot.size === limit ? snapshot.docs[snapshot.docs.length - 1].id : null;
-  const hasMore = snapshot.size === limit;
-  await migrationStateRef.set({
-    lastProcessedUid: nextCursor || effectiveCursor || null,
-    hasMore,
-    completed: !hasMore,
-    lastBatchProcessed: snapshot.size,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
+  const proposedCursor = snapshot.size === limit ? snapshot.docs[snapshot.docs.length - 1].id : null;
+  const proposedHasMore = snapshot.size === limit;
+  let nextCursor = proposedCursor || effectiveCursor || null;
+  let hasMore = proposedHasMore;
+  let checkpointAdvanced = false;
+  await db.runTransaction(async transaction => {
+    const latestStateSnap = await transaction.get(migrationStateRef);
+    const latestState = latestStateSnap.exists ? latestStateSnap.data() : {};
+    if (!canAdvanceRankingMigrationCheckpoint(latestState, effectiveCursor)) {
+      // Another worker already advanced or completed this checkpoint. Never regress it.
+      nextCursor = latestState.completed === true ? null : (latestState.lastProcessedUid || null);
+      hasMore = latestState.completed === true ? false : latestState.hasMore === true;
+      return;
+    }
+    transaction.set(migrationStateRef, {
+      lastProcessedUid: proposedCursor || effectiveCursor || null,
+      hasMore: proposedHasMore,
+      completed: !proposedHasMore,
+      lastBatchProcessed: snapshot.size,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    checkpointAdvanced = true;
+  });
   return {
     success: true, processed: snapshot.size,
-    nextCursor, hasMore, results
+    nextCursor, hasMore, checkpointAdvanced, results
   };
 });
 
@@ -878,8 +1206,9 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   const userId = context.auth.uid;
   const { targetExam } = data || {};
-  const canonicalExam = normalizeExamKey(targetExam || "NEET");
-  const classLevel = normalizeClassLevel((data || {}).classLevel || "All");
+  const canonicalExam = requireCanonicalExamId(targetExam);
+  const classLevel = resolveClassLevelFilter((data || {}).classLevel);
+  if (classLevel === null) throw new functions.https.HttpsError("invalid-argument", "classLevel must be All, Class 11, Class 12, or Dropper.");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
 
   const userDoc = await db.collection("Users_Data").doc(userId).get();
@@ -920,26 +1249,24 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
     };
   }
 
-  const eligibility = getExamEligibility(userData, canonicalExam);
-  const qualifyingCount = eligibility.qualifyingCount;
-  const competitiveScore = eligibility.competitiveScore;
-
-  if (qualifyingCount >= RANKING_CONFIG.minQualifyingTests) {
-    const materializedEntry = await db.collection("Exam_Leaderboards").doc(canonicalExam)
-      .collection("Entries").doc(userId).get();
-    if (!materializedEntry.exists) {
-      return {
-        isEligible: false, status: "Ranking Migration Pending",
-        rank: 0, rankString: "Pending", percentile: 0.0,
-        competitiveScore, qualifyingTestsCount: qualifyingCount,
-        minQualifyingTests: RANKING_CONFIG.minQualifyingTests,
-        totalEligible: 0, isOfficialAir: false, isOfficialAkAir: false,
-        rankingScope: "AK_TEST_SERIES",
-        message: "Your previous qualifying attempts are waiting for the v2 ranking migration. Your scores have not been discarded.",
-        targetExam: canonicalExam
-      };
-    }
+  const materializedEntry = await db.collection("Exam_Leaderboards").doc(canonicalExam)
+    .collection("Entries").doc(userId).get();
+  const entryData = materializedEntry.exists ? materializedEntry.data() : null;
+  const legacyQualifyingCount = Number(userData["qualifyingTestsCount_" + canonicalExam] || 0);
+  if (!entryData && legacyQualifyingCount > 0) {
+    return {
+      isEligible: false, status: "Ranking Migration Pending",
+      rank: 0, rankString: "Pending", percentile: 0.0,
+      competitiveScore: 0, qualifyingTestsCount: legacyQualifyingCount,
+      minQualifyingTests: RANKING_CONFIG.minQualifyingTests,
+      totalEligible: 0, isOfficialAir: false, isOfficialAkAir: false,
+      rankingScope: "AK_TEST_SERIES",
+      message: "Legacy ranking data is awaiting a verified v2 rebuild. Legacy score fields are not used as the new ranking source.",
+      targetExam: canonicalExam
+    };
   }
+  const qualifyingCount = entryData ? Number(entryData.qualifyingTestsCount || 0) : 0;
+  const competitiveScore = entryData ? Number(entryData.score || 0) : 0;
 
   // Query eligible participant population for this specific exam
   const eligibleQuery = applyClassFilter(
@@ -951,7 +1278,7 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
   const eligibleSnap = await eligibleQuery.count().get();
   const totalEligible = eligibleSnap.data().count;
 
-  if (qualifyingCount < 2) {
+  if (qualifyingCount < RANKING_CONFIG.minQualifyingTests || !entryData || entryData.isEligibleForRanking !== true) {
     return {
       isEligible: false,
       status: "Rank Pending",
@@ -1007,17 +1334,24 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
     ).limit(1).get();
     if (!higherDocsSnap.empty) {
       const targetDoc = higherDocsSnap.docs[0].data();
-      const targetScore = targetDoc.score || 0;
+      const targetScore = Number(targetDoc.score || 0);
       const ptsAway = Math.max(0, targetScore - competitiveScore);
+      const targetHigherSnap = await applyClassFilter(
+        db.collection("Exam_Leaderboards").doc(canonicalExam).collection("Entries")
+          .where("isEligibleForRanking", "==", true)
+          .where("isBanned", "==", false)
+          .where("score", ">", targetScore)
+      ).count().get();
+      const targetRank = targetHigherSnap.data().count + 1;
       const name = targetDoc.displayName || "Student";
-      nextTarget = { name, rank: rank - 1, ptsAway };
+      nextTarget = { name, rank: targetRank, ptsAway };
     }
   }
 
   const message = rank === 1
     ? `🎉 Congratulations! You are Rank #1 on the ${canonicalExam} Leaderboard!`
     : nextTarget
-      ? `Next target: ${nextTarget.name} (#${nextTarget.rank}) — You are ${nextTarget.ptsAway} pts away! Take 1 test to overtake.`
+      ? `Next target: ${nextTarget.name} (#${nextTarget.rank}) is ${nextTarget.ptsAway} normalized ranking points ahead.`
       : `Keep practicing to climb higher on the ${canonicalExam} leaderboard!`;
 
   return {
@@ -1050,10 +1384,11 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
   }
   const input = data || {};
-  const examId = normalizeExamKey(input.targetExam || "NEET");
-  const classLevel = normalizeClassLevel(input.classLevel || "All");
+  const examId = requireCanonicalExamId(input.targetExam);
+  const classLevel = resolveClassLevelFilter(input.classLevel);
+  if (classLevel === null) throw new functions.https.HttpsError("invalid-argument", "classLevel must be All, Class 11, Class 12, or Dropper.");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
-  const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
+  const limit = clampRankingLimit(input.limit, 100, 1, 100);
   const snapshot = await applyClassFilter(db.collection("Exam_Leaderboards").doc(examId)
     .collection("Entries").where("isEligibleForRanking", "==", true)
     .where("isBanned", "==", false))
@@ -1064,16 +1399,19 @@ exports.getExamLeaderboard = functions.https.onCall(async (data, context) => {
   const totalEligible = totalSnap.data().count;
   const airStatus = getCohortRankingStatus(totalEligible, classLevel);
   const rows = snapshot.docs.map(doc => doc.data());
+  const rowUserIds = snapshot.docs.map(doc => doc.id);
+  const currentVisibility = await getCurrentPublicVisibilityByUid(rowUserIds);
   let previousScore = null;
   let competitionRank = 0;
   const entries = rows.map((row, index) => {
     const score = Number(row.score || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
+    const uid = rowUserIds[index];
+    const isPrivate = !isProfilePublic(row.profileVisibility) || currentVisibility.get(uid) !== true;
     return {
       rank: competitionRank,
-      userId: isPrivate ? null : row.userId,
+      userId: isPrivate ? null : uid,
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
       score,
       qualifyingTestsCount: Number(row.qualifyingTestsCount || 0),
@@ -1095,8 +1433,9 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
     throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
   }
   const input = data || {};
-  const examId = normalizeExamKey(input.targetExam || "NEET");
-  const classLevel = normalizeClassLevel(input.classLevel || "All");
+  const examId = requireCanonicalExamId(input.targetExam);
+  const classLevel = resolveClassLevelFilter(input.classLevel);
+  if (classLevel === null) throw new functions.https.HttpsError("invalid-argument", "classLevel must be All, Class 11, Class 12, or Dropper.");
   const applyClassFilter = query => classLevel === "All" ? query : query.where("classLevel", "==", classLevel);
   const periodType = String(input.periodType || "HALF_MONTH").toUpperCase();
   if (!["HALF_MONTH", "MONTH"].includes(periodType)) {
@@ -1104,28 +1443,30 @@ exports.getRankingPeriodLeaderboard = functions.https.onCall(async (data, contex
   }
   const currentPeriods = getRankingPeriodIds(Date.now());
   const periodId = String(input.periodId || (periodType === "MONTH" ? currentPeriods.monthId : currentPeriods.halfMonthId));
-  if (!/^\d{4}-\d{2}(-H[12])?$/.test(periodId) ||
-      (periodType === "HALF_MONTH" && !/-H[12]$/.test(periodId)) ||
-      (periodType === "MONTH" && /-H[12]$/.test(periodId))) {
+  if (!isValidRankingPeriodId(periodType, periodId)) {
     throw new functions.https.HttpsError("invalid-argument", "Invalid ranking period identifier.");
   }
-  const limit = Math.min(100, Math.max(1, Number(input.limit) || 100));
+  const limit = clampRankingLimit(input.limit, 100, 1, 100);
   const snapshot = await applyClassFilter(db.collection("Ranking_Periods").doc(examId)
     .collection("Periods").doc(periodId).collection("Entries")
     .where("isEligibleForRanking", "==", true)
     .where("isBanned", "==", false))
     .orderBy("rankingScore", "desc").limit(limit).get();
+  const periodRows = snapshot.docs.map(doc => doc.data());
+  const periodUserIds = snapshot.docs.map(doc => doc.id);
+  const currentVisibility = await getCurrentPublicVisibilityByUid(periodUserIds);
   let previousScore = null;
   let competitionRank = 0;
   const entries = snapshot.docs.map((doc, index) => {
-    const row = doc.data();
+    const row = periodRows[index];
     const score = Number(row.rankingScore || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
+    const uid = periodUserIds[index];
+    const isPrivate = !isProfilePublic(row.profileVisibility) || currentVisibility.get(uid) !== true;
     return {
       rank: competitionRank,
-      userId: isPrivate ? null : (row.userId || doc.id),
+      userId: isPrivate ? null : uid,
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
       score,
       qualifyingTestsCount: Number(row.qualifyingTestsCount || 0)
@@ -1147,29 +1488,36 @@ exports.getXpLeaderboard = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("unauthenticated", "Authentication is required.");
   }
   const mode = String((data || {}).mode || "WEEKLY").toUpperCase();
-  const limit = Math.min(100, Math.max(1, Number((data || {}).limit) || 100));
+  const limit = clampRankingLimit((data || {}).limit, 100, 1, 100);
   let query;
   if (mode === "ALL_TIME") {
     query = db.collection("XP_Leaderboard_AllTime").doc("Entries")
       .collection("Students").where("isBanned", "==", false).orderBy("xpTotal", "desc").limit(limit);
   } else if (mode === "WEEKLY") {
     const weekId = String((data || {}).weekId || getIndiaWeekId(Date.now()));
+    if (!isValidRankingWeekId(weekId)) {
+      throw new functions.https.HttpsError("invalid-argument", "weekId must be a valid ISO week identifier (YYYY-Www).");
+    }
     query = db.collection("XP_Leaderboard_Weekly").doc(weekId)
       .collection("Entries").where("isBanned", "==", false).orderBy("xp", "desc").limit(limit);
   } else {
     throw new functions.https.HttpsError("invalid-argument", "mode must be WEEKLY or ALL_TIME.");
   }
   const snapshot = await query.get();
+  const xpRows = snapshot.docs.map(doc => doc.data());
+  const xpUserIds = snapshot.docs.map(doc => doc.id);
+  const currentVisibility = await getCurrentPublicVisibilityByUid(xpUserIds);
   let previousScore = null;
   let competitionRank = 0;
   const entries = snapshot.docs.map((doc, index) => {
-    const row = doc.data();
+    const row = xpRows[index];
     const score = Number(mode === "ALL_TIME" ? row.xpTotal || 0 : row.xp || 0);
     if (previousScore === null || score !== previousScore) competitionRank = index + 1;
     previousScore = score;
-    const isPrivate = String(row.profileVisibility || "PUBLIC").toUpperCase() === "PRIVATE";
+    const uid = xpUserIds[index];
+    const isPrivate = !isProfilePublic(row.profileVisibility) || currentVisibility.get(uid) !== true;
     return {
-      rank: competitionRank, userId: isPrivate ? null : (row.userId || doc.id),
+      rank: competitionRank, userId: isPrivate ? null : uid,
       displayName: isPrivate ? "Private Student" : (row.displayName || "Student"),
       xp: score, league: row.xpLeague || null
     };
@@ -1361,11 +1709,11 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   if (!questions || questions.length === 0) {
     const qSnap = await testDoc.ref.collection("questions").get();
     if (!qSnap.empty) {
-      questions = qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      questions = qSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
     } else {
       const qSnapUpper = await testDoc.ref.collection("Questions").get();
       if (!qSnapUpper.empty) {
-        questions = qSnapUpper.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        questions = qSnapUpper.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       }
     }
   }
