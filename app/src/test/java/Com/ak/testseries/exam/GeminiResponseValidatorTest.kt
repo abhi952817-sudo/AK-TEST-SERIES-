@@ -39,7 +39,7 @@ class GeminiResponseValidatorTest {
 
         val report = GeminiResponseValidator.parseResponse(root.toString())
 
-        assertTrue(report.isUsable)
+        assertTrue("Validator errors: ${report.errors}", report.isUsable)
         assertEquals(1, report.questions.length())
         assertEquals(0, report.rejectedCount)
     }
@@ -151,7 +151,7 @@ class GeminiResponseValidatorTest {
         val root = JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(wrongExam)).put("errors", JSONArray())
         val report = GeminiResponseValidator.parseResponse(root.toString(), testExamConfig())
         assertFalse(report.isUsable)
-        assertTrue(report.errors.any { it.contains("examId") })
+        assertTrue("Expected examId rejection, got: ${report.errors}", report.errors.any { it.contains("examId") })
     }
 
     @Test
@@ -159,7 +159,7 @@ class GeminiResponseValidatorTest {
         val item = validMcq().put("examId", "neet_ug").put("subjectId", "physics")
         val root = JSONObject().put("status", "COMPLETE").put("questions", JSONArray().put(item)).put("errors", JSONArray())
         val report = GeminiResponseValidator.parseResponse(root.toString(), testExamConfig())
-        assertTrue(report.isUsable)
+        assertTrue("Expected configured question to pass, got: ${report.errors}", report.isUsable)
         assertEquals(1, report.questions.length())
     }
 
@@ -180,7 +180,7 @@ class GeminiResponseValidatorTest {
         )
 
         assertFalse(report.isUsable)
-        assertTrue(report.errors.any { it.contains("subjectId") })
+        assertTrue("Expected subjectId rejection, got: ${report.errors}", report.errors.any { it.contains("subjectId") })
     }
 
     @Test
