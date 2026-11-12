@@ -100,3 +100,38 @@ Scoring is complete only when every enabled exam configuration is source-backed,
 | Date | Commit | Evidence | Status |
 |---|---|---|---|
 | 2026-11-12 | `9b105e9e7c614d615becb99a72b3dc5e50799e05` | Git branch comparison and tracker review | Audit snapshot only; tests not run |
+
+## 2026-11-12 Cross-branch code reconciliation (X/Y/Z)
+
+### X — KEEP
+- Keep exam-specific scoring engine and focused tests as the reference for advanced scoring behavior.
+- Keep explicit exam/stage/paper/section configuration. Unknown marking rules fail closed.
+
+### Y — PORT / RECONCILE INTO MAIN
+- Port ungraded answer-key handling and explicit ungraded counts.
+- Port exact-set MSQ, finite-number validation (reject NaN/Infinity), decimal-safe marks and optional-section caps.
+- Require Android/backend parity through shared golden test vectors.
+- Reuse Room schema 21 / Migration20To21 only once. Both scoring and Gemini branches contain identical migration content in this audit; do not create duplicate migration histories.
+
+### Z — OBSOLETE / DO NOT PORT
+- Do not replace main's newer fail-closed subject planner or current exam routing with old defaults.
+- Do not create a second ranking implementation here.
+
+### PASS / FAIL / OPEN evidence (2026-11-12)
+| Check | Result | Evidence / action |
+|---|---|---|
+| Android scoring validation | FAIL | Run 43213218295: 299 tests, 1 failure in CrashResilienceTest; UnsupportedOperationException at DefaultSdkProvider.java:170. |
+| Backend unit tests | PASS | Same run reports backend tests PASS. |
+| Firestore rules tests | PASS | Same run reports rules tests PASS. |
+| Android compile/debug assemble | PASS (partial) | Compilation/assemble completed, but Android validation remains FAIL due to unit test. |
+| 341-test target / current-head APK | OPEN | 299-test run is not proof of the 341-test target. |
+| Older Room upgrade paths | OPEN | 20→21 test alone is insufficient. |
+
+### Ordered work
+1. Reproduce/fix CrashResilienceTest without weakening the test.
+2. Run focused scoring tests, full Android suite and exact-head Debug APK.
+3. Verify exam policies against official year-specific sources.
+4. Test Android/backend parity for MCQ, MSQ, NAT/TITA, decimal, negative, ungraded and optional sections.
+5. Test migrations and backup/restore from every supported schema version.
+
+**Verdict:** SELECTIVE PORT. Android validation is FAIL until the crash-resilience failure is fixed.
