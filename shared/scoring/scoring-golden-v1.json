@@ -274,6 +274,153 @@
         "maxScore": 16
       },
       "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "UGC-NET-DEC-2026-BASIC-001",
+      "examId": "ugc_net",
+      "examYear": 2026,
+      "stageId": "paper_1_2",
+      "paperId": "net_p1",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/20261016860019603.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q4",
+          "correctAnswer": "D",
+          "questionType": "MCQ_SINGLE"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "B",
+        "q3": "A",
+        "q4": ""
+      },
+      "expected": {
+        "correctCount": 2,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 4,
+        "negativeMarksPenalty": 0,
+        "rawScore": 4,
+        "finalScore": 4,
+        "maxScore": 8
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "IBPS-PO-XVI-2026-PRELIMS-001",
+      "examId": "ibps_po",
+      "examYear": 2026,
+      "stageId": "prelims",
+      "paperId": "po_prelims",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://www.ibps.in/wp-content/uploads/Detailed-Notification_CRP-PO-XVI_Final_V1_30.06.2026.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q4",
+          "correctAnswer": "D",
+          "questionType": "MCQ_SINGLE"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "B",
+        "q3": "A",
+        "q4": ""
+      },
+      "expected": {
+        "correctCount": 2,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 2,
+        "negativeMarksPenalty": 0.25,
+        "rawScore": 1.75,
+        "finalScore": 1.75,
+        "maxScore": 4
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
+    },
+    {
+      "id": "IBPS-CSA-XVI-2026-PRELIMS-001",
+      "examId": "ibps_clerk",
+      "examYear": 2026,
+      "stageId": "prelims",
+      "paperId": "clerk_prelims",
+      "sectionId": null,
+      "questionType": "MCQ_SINGLE",
+      "sourceUrl": "https://www.ibps.in/wp-content/uploads/Notification_CRP_CSA_XVI-Final.pdf",
+      "questions": [
+        {
+          "id": "q1",
+          "correctAnswer": "A",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q2",
+          "correctAnswer": "B",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q3",
+          "correctAnswer": "C",
+          "questionType": "MCQ_SINGLE"
+        },
+        {
+          "id": "q4",
+          "correctAnswer": "D",
+          "questionType": "MCQ_SINGLE"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "B",
+        "q3": "A",
+        "q4": ""
+      },
+      "expected": {
+        "correctCount": 2,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 2,
+        "negativeMarksPenalty": 0.25,
+        "rawScore": 1.75,
+        "finalScore": 1.75,
+        "maxScore": 4
+      },
+      "status": "SOURCE_BACKED_POLICY_VECTOR"
     }
   ]
 }
