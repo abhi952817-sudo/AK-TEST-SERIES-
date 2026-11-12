@@ -6661,6 +6661,7 @@ fun AdminTestGenerationContent(viewModel: NEETViewModel) {
     var negativeMarking by remember { mutableStateOf("1") }
 
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         Text(stringRes("Upload New Test"), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -6819,7 +6820,10 @@ fun AdminTestGenerationContent(viewModel: NEETViewModel) {
                                 timestamp = System.currentTimeMillis(),
                                 imageUrl = imageUrl.ifEmpty { null }
                             )
-                            viewModel.addNewTest(newTest) // Need to define this in viewModel
+                            viewModel.addNewTest(newTest) { success, error ->
+                                val message = error ?: if (success) "Private test saved." else "Test upload failed."
+                                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(40.dp),
