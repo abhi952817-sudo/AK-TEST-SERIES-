@@ -2,7 +2,6 @@ package Com.ak.testseries.exam
 
 import android.content.Context
 import android.net.Uri
-import Com.ak.testseries.BuildConfig
 import Com.ak.testseries.utils.CompactMarkdownFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -70,9 +69,7 @@ object UniversalPdfPipeline {
         selectedSubject: String = "",
         approvedSyllabusJson: String = ""
     ): AdminPdfRouteResult = withContext(Dispatchers.IO) {
-        val effectiveApiKey = apiKey ?: BuildConfig.GEMINI_API_KEY.takeIf {
-            it.isNotBlank() && it != "MY_GEMINI_API_KEY"
-        }
+        val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() }
         if (effectiveApiKey.isNullOrBlank()) {
             return@withContext AdminPdfRouteResult("NEEDS_REVIEW", "", null, null, "Gemini API key is unavailable.")
         }
@@ -220,7 +217,7 @@ object UniversalPdfPipeline {
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
         val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
-        val effectiveApiKey = apiKey ?: BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
+        val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() }
 
         // Process in controlled batches to save API tokens and maintain reliability
         for (batchIndex in (resumeFromBatch - 1) until totalBatches) {
