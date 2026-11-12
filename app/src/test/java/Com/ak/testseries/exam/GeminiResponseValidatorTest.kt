@@ -22,6 +22,8 @@ class GeminiResponseValidatorTest {
             .put("verificationSummary", "The selected option matches the governing law.")
             .put("needsReview", false)
             .put("provenanceType", "GENERATED_PRACTICE")
+            .put("examId", "neet_ug")
+            .put("subjectId", "physics")
             .put("sectionId", "PHYSICS_A")
             .put("sectionName", "Physics")
             .put("positiveMarks", 4.0)
@@ -86,7 +88,9 @@ class GeminiResponseValidatorTest {
     fun acceptsNumericalAnswerWithoutOptions() {
         val numerical = JSONObject()
             .put("questionTextEn", "Calculate the acceleration of a body from the given force and mass.")
+            .put("difficulty", "MEDIUM")
             .put("correctAnswer", "-2.5")
+            .put("explanationEn", "Divide the net force by the mass to obtain acceleration.")
             .put("answerStatus", "INDEPENDENTLY_VERIFIED")
             .put("answerConfidence", 92)
             .put("verificationSummary", "The force-to-mass calculation gives the stated value.")
