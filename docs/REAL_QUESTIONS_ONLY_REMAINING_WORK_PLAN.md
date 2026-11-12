@@ -105,3 +105,37 @@ This plan is based on the branch tracker and chat decisions. Historical run 4245
 |---|---|---|---|
 | 2026-11-08 | `71d422d2614d493bd9bbc54721d26107a78e326f` | Historical run 42459562922 | Historical pass on that SHA only; not current HEAD |
 | 2026-11-12 | `c6110e5ca7c89c25c9dc5312666f367c976d3290` | Git comparison and tracker review | Audit only; tests not run |
+
+## 2026-11-12 Cross-branch code reconciliation (X/Y/Z)
+
+### X — KEEP
+- Keep real-source provenance, private review-before-publication and fail-closed validation requirements.
+- Keep PDF byte extraction, page order, OCR and source identity as independently verified stages.
+
+### Y — PORT / RECONCILE
+- Port UniversalPdfDocumentExtractor and GeneratedQuestionAnswerValidator only after checking call sites/tests against main pipeline.
+- Reuse canonical Student key store and single Admin connector; do not add another key store/client.
+- Separate answer-key extraction and independent verification. Conflicts remain UNVERIFIED/CONFLICT and private pending Admin approval.
+
+### Z — OBSOLETE / DO NOT PORT
+- Remove dummy samples, offline parser generation, canned responses, silent subject substitution and bundled catalog fallbacks from active call graph.
+- Do not port whole NEETViewModel.kt, MainActivity.kt or duplicate API transport.
+- COMPLETE model status does not authorize automatic publication.
+
+### PASS / FAIL / OPEN evidence (2026-11-12)
+| Check | Result | Evidence / action |
+|---|---|---|
+| Historical run 42459562922 | PASS (historical SHA only) | Passed 71d422d2614d493bd9bbc54721d26107a78e326f; not current branch head. |
+| Current branch-head CI | OPEN | No current-head test evidence established. |
+| Real PDF/OCR | OPEN | Requires authorized PDF fixtures and actual OCR verification. |
+| No-fallback guarantee | OPEN | Call-graph and failure tests must prove zero fabricated/public questions. |
+| Answer-key security/Admin review | OPEN | Server rules and public payload sanitization tests required. |
+
+### Ordered work
+1. Trace all generation paths; remove dummy/offline fallbacks from active call graph.
+2. Test provider/parser failure creates and publishes zero questions.
+3. Verify PDF bytes, MIME, OCR, source page, diagrams and provenance.
+4. Verify private answer key and Admin review in emulator tests.
+5. Integrate canonical planner/key store/connector; run exact-head regression.
+
+**Verdict:** SELECTIVE PORT. Historical PASS does not close current branch.
