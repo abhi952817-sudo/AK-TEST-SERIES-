@@ -39,6 +39,11 @@ jobs:
           node --check backend_functions/index.js
           node --check backend_functions/examScoring.js
 
+
+      - name: Validate draft scoring contract and fixture inventory
+        run: |
+          node -e "const p=require('./shared/scoring/scoring-policy.v1.json'); const f=require('./shared/scoring/scoring-golden-v1.json'); if(p.examPolicies.length!==25) throw new Error('Expected 25 registry exams'); if(f.fixtures.length!==6) throw new Error('Expected 6 initial golden fixtures'); if(p.examPolicies.some(e=>e.scoringEnabled || e.rankingEnabled)) throw new Error('Unreviewed scoring/ranking policy must remain disabled');"
+
       - name: Run backend unit tests
         run: node --test backend_functions/examScoring.test.js backend_functions/callableValidation.test.js
 
