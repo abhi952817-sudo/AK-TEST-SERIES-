@@ -135,3 +135,31 @@ All phases above remain **OPEN / NEEDS CURRENT-HEAD VERIFICATION** unless a late
 5. Run backend, emulator, Android full suite and exact-head build; record run IDs and counts.
 
 **Verdict:** KEEP AS REFERENCE / SELECTIVE PORT. No code changed and no test was run by this documentation update.
+
+
+## 2026-11-12 Expanded all-exam ranking and score-contract audit
+
+Ranking cannot be certified exam-by-exam until the universal scoring contract supplies verified canonical score/max/policy-version. The ranking engine must not infer marking rules from exam display names or re-score attempts independently.
+
+### Mandatory audit matrix
+For each enabled exam, stage, paper, year/version and cohort, record: canonical exam ID; verified policy version; max marks; normalization formula; Full/Part test classification; weight; first qualifying attempt; repeat/idempotency behavior; eligibility; rank/tie rule; percentile denominator; visibility; banned/suspended exclusion; migration provenance; Android display and backend source. Distinct exam stages and papers must not be collapsed into one row.
+
+### Defect and verification register
+| Item | Finding / gate | Status |
+|---|---|---|
+| Score input | Must consume the scoring engine's server-authoritative typed result; no display-name fallback or duplicate scoring. | OPEN |
+| Test classification | Full Test 1.0x / Part-Chapter-Topic 0.2x only when source test metadata is verified. | OPEN |
+| First qualifying attempt | Only first valid qualifying attempt; drafts/nonqualifying attempts do not consume slot. | OPEN |
+| Idempotency/concurrency | Same attempt retry returns canonical result; conflicting ID reuse fails; transaction/race tests required. | OPEN |
+| Rank unavailable | Query or eligibility failure must return null/unavailable, never rank 0. | OPEN |
+| Exam isolation | Every canonical exam ID has independent board and eligibility counters. | OPEN |
+| Ties/percentile | Competition rank, tie policy and denominator must be identical in query and UI. | OPEN |
+| Privacy | Private profiles and banned/suspended users excluded server-side; client writes denied. | OPEN |
+| Backfill | Source test, trusted answer key, user ownership, attempt order and score/max must be verified; dry-run/rollback required. | OPEN |
+| XP separation | XP, streak and leagues remain separate from competitive rank. | OPEN |
+
+### Known historical blockers
+- Workflow run 43213240446 reported missing `isEligibleHistoricalRankingTest` and Android unresolved `assertNull`. The fetched integration-branch source now exports `isEligibleHistoricalRankingTest`, so the historical backend failure must be rechecked against the exact current HEAD rather than copied forward as a confirmed present defect. Android source/test and current CI still need exact-head verification.
+- No current-head end-to-end evidence was established in this audit. Historical PASS does not close current blockers.
+
+**Status:** All-exam ranking policy, scoring integration, current CI, transaction/concurrency, privacy, migration and UI parity remain OPEN / NOT VERIFIED. No ranking implementation or production data changed by this documentation update.
