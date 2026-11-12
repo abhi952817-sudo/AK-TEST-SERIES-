@@ -1236,3 +1236,8 @@ The isolated report `docs/ALL_EXAM_SCORING_RANKING_AUDIT_2026-11-13.md` and draf
 The current main ranking implementation is blocked by raw-score aggregation without max normalization, unbounded client/test-data rankingWeight, rank/percentile calculation outside transaction, rank-zero persistence on query error, retry rank-1 substitution, and property-order-sensitive answer payload comparison. Current main scoring is also blocked by exam-year/paper/section mismatches and duplicated Android/backend rules.
 
 **Status:** FAIL / NOT READY. Port only after a verified typed score contract and shared Kotlin/Node golden tests exist. No code or production data changed on this branch.
+
+
+### 2026-11-13 shared scoring fixture dependency
+
+The audit branch now contains one JSON fixture set consumed by Kotlin and Node test files, with an isolated workflow configured for test execution and Debug APK build. The tests are added but not yet verified as passing. Ranking integration remains blocked until the canonical scoring contract is runtime wired and all source/year/stage/paper policies are approved.
