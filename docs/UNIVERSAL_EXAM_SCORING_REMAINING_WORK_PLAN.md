@@ -228,7 +228,7 @@ Scoring must return a typed result containing canonical exam/stage/paper/version
 
 ## 2026-11-13 Exact-main all-exam audit handoff
 
-The full registry/call-site/source audit is recorded in `docs/ALL_EXAM_SCORING_RANKING_AUDIT_2026-11-13.md` on isolated branch `audit/all-exam-scoring-ranking-2026-11-13`. The draft canonical JSON contract and shared fixtures are in `shared/scoring/` on that branch. They are not runtime wired.
+The full registry/call-site/source audit is recorded in `docs/ALL_EXAM_SCORING_RANKING_AUDIT_2026-11-13.md` on isolated branch `audit/all-exam-scoring-ranking-2026-11-13`. The draft canonical JSON contract and seven shared fixtures are in `shared/scoring/` on that branch. Kotlin and Node test consumers are added, but the contract is not runtime wired and the expanded test run is not yet verified.
 
 Confirmed current-cycle mismatches include:
 - NEET UG 2026: registry still has optional Section B and 200 minutes; official bulletin has 180 compulsory questions in 180 minutes.
@@ -242,7 +242,7 @@ Confirmed current-cycle mismatches include:
 
 Backend direct `evaluateTestAttempt` still defaults blank identity to NEET; the main production callable currently guards canonical identity before calling it, but direct/internal use remains unsafe. Android `calculateScore` still falls back to first section marks or +4/-1 when the requested section is absent. Android/backend use independent hardcoded rules and different rounding/numeric parsing. Optional-section max score remains inconsistent.
 
-**Status:** FAIL. Contract and fixture files are DRAFT NOT RUNTIME WIRED; official source mapping for all 25 exams remains incomplete; no parity tests were run. Do not port or enable unverified policies.
+**Status:** FAIL. Contract and fixture files are DRAFT NOT RUNTIME WIRED; official source mapping for all 25 exams remains incomplete; Kotlin/Node shared-fixture consumers were added on the audit branch; exact-head execution remains unverified. Do not port or enable unverified policies.
 
 
 ### 2026-11-13 shared fixture harness update
