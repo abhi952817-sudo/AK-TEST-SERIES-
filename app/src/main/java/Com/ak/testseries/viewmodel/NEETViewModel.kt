@@ -5665,8 +5665,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "prompt" to prompt,
                 "modelName" to activeAiModel.value.takeIf {
                     it.startsWith("gemini-") && it.length <= 80
-                }.orEmpty().ifBlank { "gemini-2.5-flash" }
-                , "responseMimeType" to if (responseMimeType == "text/plain") "text/plain" else "application/json"
+                }.orEmpty().ifBlank { "gemini-2.5-flash" },
+                "responseMimeType" to if (responseMimeType == "text/plain") "text/plain" else "application/json"
             )
             if (!systemInstruction.isNullOrBlank()) args["systemInstruction"] = systemInstruction
             val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
