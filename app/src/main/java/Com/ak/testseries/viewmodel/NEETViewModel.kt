@@ -1615,44 +1615,47 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         return qJsonArray.toString()
     }
 
-    private fun createSampleQuestionsForTest(test: TestEntity): List<QuestionEntity> {
-        val questions = mutableListOf<QuestionEntity>()
-        val count = if (test.questionsCount > 0) test.questionsCount else 10
-        for (i in 0 until count) {
-            questions.add(
-                QuestionEntity(
-                    id = "${test.id}_q${i}",
-                    testId = test.id,
-                    questionText = "${test.subject} Question ${i + 1} (${test.chapter.ifEmpty { "General" }})",
-                    optionA = "Option A",
-                    optionB = "Option B",
-                    optionC = "Option C",
-                    optionD = "Option D",
-                    correctAnswer = "A",
-                    explanation = "Explanation for Question ${i + 1}",
-                    subject = test.subject,
-                    chapter = test.chapter,
-                    topic = test.topic,
-                    questionTextHi = "${test.subject} प्रश्न ${i + 1} (${test.chapter.ifEmpty { "सामान्य" }})",
-                    optionAHi = "विकल्प A",
-                    optionBHi = "विकल्प B",
-                    optionCHi = "विकल्प C",
-                    optionDHi = "विकल्प D",
-                    explanationHi = "प्रश्न ${i + 1} का व्याख्यात्मक उत्तर"
-                )
-            )
-        }
-        return questions
-    }
-
-    fun addNewTest(test: TestEntity) {
+    fun addNewTest(
+        test: TestEntity,
+        questions: List<QuestionEntity> = emptyList(),
+        onResult: ((Boolean, String?) -> Unit)? = null
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val questions = createSampleQuestionsForTest(test)
-            val questionsJsonString = serializeQuestionsToJson(questions)
-            val testWithJson = test.copy(questionsJson = questionsJsonString, questionsCount = questions.size)
-            repository.insertTest(testWithJson)
-            repository.insertQuestions(questions)
-            uploadTestToFirestore(testWithJson, questionsJsonString)
+            if (questions.isEmpty()) {
+                val message = "Test upload blocked: add real questions or upload a source PDF. Placeholder questions are not allowed."
+                aiGenStatusMessage.value = message
+                withContext(Dispatchers.Main) { onResult?.invoke(false, message) }
+                return@launch
+            }
+            val normalizedQuestions = questions.mapIndexed { index, question ->
+                question.copy(id = "${test.id}_q${index + 1}", testId = test.id)
+            }
+            val questionsJsonString = serializeQuestionsToJson(normalizedQuestions)
+            val testWithQuestions = test.copy(
+                questionsJson = questionsJsonString,
+                questionsCount = normalizedQuestions.size,
+                status = "Under Review",
+                isPublic = false,
+                isOfficial = false,
+                isVerifiedCommunity = false,
+                countsTowardRanking = false
+            )
+            try {
+                repository.insertTest(testWithQuestions)
+                repository.insertQuestions(normalizedQuestions)
+                val saved = uploadTestToFirestore(testWithQuestions, questionsJsonString)
+                if (!saved) {
+                    val message = "Test saved locally, but server upload failed. It remains private."
+                    aiGenStatusMessage.value = message
+                    withContext(Dispatchers.Main) { onResult?.invoke(false, message) }
+                    return@launch
+                }
+                withContext(Dispatchers.Main) { onResult?.invoke(true, null) }
+            } catch (e: Exception) {
+                val message = "Test could not be saved: ${e.localizedMessage ?: "storage error"}"
+                aiGenStatusMessage.value = message
+                withContext(Dispatchers.Main) { onResult?.invoke(false, message) }
+            }
         }
     }
 
@@ -1673,14 +1676,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val db = firestoreDb
                 val testId = "live_" + System.currentTimeMillis()
 
-                val questions = if (!customQuestions.isNullOrEmpty()) {
-                    customQuestions.mapIndexed { idx, q -> q.copy(id = "${testId}_q$idx", testId = testId) }
-                } else if (pdfUri == null) {
-                    buildDynamicQuestionsForExam(targetExam, subject, testId).take(questionsCount).ifEmpty {
-                        emptyList()
-                    }
-                } else {
-                    emptyList()
+                if (customQuestions.isNullOrEmpty() && pdfUri == null) {
+                    val message = "Live test creation blocked: provide real questions or upload a source PDF. Synthetic questions are disabled."
+                    aiGenStatusMessage.value = message
+                    return@launch
+                }
+                val questions = customQuestions.orEmpty().mapIndexed { idx, q ->
+                    q.copy(id = "${testId}_q${idx + 1}", testId = testId)
                 }
                 val questionsJsonString = serializeQuestionsToJson(questions)
                 val effectiveQCount = if (questions.isNotEmpty()) questions.size else questionsCount
@@ -6473,253 +6475,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-    }
-
-    private fun buildDynamicQuestionsForExam(targetExam: String, subject: String, testId: String): List<QuestionEntity> {
-        val upper = targetExam.uppercase()
-        val questions = mutableListOf<QuestionEntity>()
-
-        when {
-            upper.contains("BANK") || upper.contains("IBPS") || upper.contains("SBI") -> {
-                val bankItems = listOf(
-                    Triple("If a sum doubles itself in 5 years at simple interest, in how many years will it become 4 times at the same rate?", "यदि कोई राशि साधारण ब्याज पर 5 वर्षों में दोगुनी हो जाती है, तो उसी दर पर कितने वर्षों में वह 4 गुनी हो जाएगी?", "15 years"),
-                    Triple("In a class of 60 students, the ratio of boys to girls is 3:2. If 10 more girls join, what is the new ratio?", "60 विद्यार्थियों की एक कक्षा में लड़कों और लड़कियों का अनुपात 3:2 है। यदि 10 और लड़कियाँ शामिल हो जाएँ, तो नया अनुपात क्या होगा?", "6:5"),
-                    Triple("Statements: All pens are books. All books are pencils.\nConclusion: All pens are pencils.", "कथन: सभी पेन किताबें हैं। सभी किताबें पेंसिल हैं।\nनिष्कर्ष: सभी पेन पेंसिल हैं।", "Conclusion follows"),
-                    Triple("Choose the correctly spelt word from the options:", "दिए गए विकल्पों में से सही वर्तनी वाला शब्द चुनें:", "Accommodate"),
-                    Triple("What is the next number in the sequence: 4, 9, 25, 49, 121, ?", "श्रृंखला में अगली संख्या ज्ञात करें: 4, 9, 25, 49, 121, ?", "169")
-                )
-                bankItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "Banking aptitude question (+1.0 for correct, -0.25 penalty).",
-                            subject = subject.ifBlank { "Quantitative Aptitude" },
-                            chapter = "Banking Core Topics",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("RAILWAY") || upper.contains("RRB") || upper.contains("NTPC") || upper.contains("ALP") || upper.contains("GROUP D") -> {
-                val rrbItems = listOf(
-                    Triple("Which organelle is known as the powerhouse of the cell?", "कोशिका का पावरहाउस किस कोशिकांग को कहा जाता है?", "Mitochondria (माइटोकॉन्ड्रिया)"),
-                    Triple("What is the acceleration due to gravity on the surface of the Earth?", "पृथ्वी की सतह पर गुरुत्वीय त्वरण का मान क्या होता है?", "9.8 m/s²"),
-                    Triple("Find the LCM of 24, 36 and 40.", "24, 36 और 40 का ल.स.प. (LCM) ज्ञात कीजिए।", "360"),
-                    Triple("Which country hosted the first Asian Games in 1951?", "1951 में पहले एशियाई खेलों की मेजबानी किस देश ने की थी?", "India (भारत)"),
-                    Triple("Which chemical element has the atomic number 1?", "किस रासायनिक तत्व की परमाणु संख्या 1 है?", "Hydrogen (हाइड्रोजन)")
-                )
-                rrbItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "RRB NTPC question (+1.0 for correct, -0.33 penalty).",
-                            subject = subject.ifBlank { "General Science" },
-                            chapter = "Railway General Syllabus",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("SSC") || upper.contains("CGL") || upper.contains("CHSL") || upper.contains("MTS") -> {
-                val sscItems = listOf(
-                    Triple("If a + 1/a = 3, find the value of a³ + 1/a³.", "यदि a + 1/a = 3 है, तो a³ + 1/a³ का मान ज्ञात कीजिए।", "18"),
-                    Triple("Which Part of the Indian Constitution contains the Directive Principles of State Policy (DPSP)?", "भारतीय संविधान के किस भाग में राज्य के नीति निदेशक तत्व शामिल हैं?", "Part IV (भाग IV)"),
-                    Triple("Select the antonym of the given word: BENEVOLENT", "दिए गए शब्द का विलोम शब्द चुनें: BENEVOLENT", "Malevolent"),
-                    Triple("The Battle of Plassey was fought in which year?", "प्लासी का युद्ध किस वर्ष लड़ा गया था?", "1757"),
-                    Triple("Find the odd one out among the given options:", "दिए गए विकल्पों में से विषम का चयन करें:", "Ohm-meter")
-                )
-                sscItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "SSC CGL Tier-1 question (+2.0 for correct, -0.50 penalty).",
-                            subject = subject.ifBlank { "General Studies" },
-                            chapter = "SSC Core Modules",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("CAT") || upper.contains("MANAGEMENT") -> {
-                val catItems = listOf(
-                    Triple("A train traveling at 72 km/h crosses a man standing on a platform in 15 seconds. Find the length of the train.", "QA TSD: Length = 72 * (5/18) * 15 = 300 meters.", "300 meters"),
-                    Triple("Find the maximum value of f(x) = -2x² + 8x - 3.", "QA Algebra: Max at x = -b/2a = 8/4 = 2. f(2) = -8 + 16 - 3 = 5.", "5"),
-                    Triple("How many trailing zeros are in the expansion of 100!?", "QA Number Theory: [100/5] + [100/25] = 20 + 4 = 24 zeros.", "24"),
-                    Triple("TITA Question: If log_3(x) = 4, enter the value of x.", "QA TITA: x = 3^4 = 81.", "81")
-                )
-                catItems.forEachIndexed { i, (qEn, exp, ans) ->
-                    val isTita = i == 3
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qEn,
-                            optionA = if (isTita) "" else ans,
-                            optionAHi = if (isTita) "" else ans,
-                            optionB = if (isTita) "" else "10",
-                            optionBHi = if (isTita) "" else "10",
-                            optionC = if (isTita) "" else "15",
-                            optionCHi = if (isTita) "" else "15",
-                            optionD = if (isTita) "" else "20",
-                            optionDHi = if (isTita) "" else "20",
-                            correctAnswer = ans,
-                            explanation = exp,
-                            subject = subject.ifBlank { "Quantitative Ability" },
-                            chapter = "CAT Core Modules",
-                            section = "SECTION_A",
-                            difficulty = "Hard",
-                            questionType = if (isTita) "TITA" else "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("UGC") || upper.contains("NET") || upper.contains("CTET") -> {
-                val ugcItems = listOf(
-                    Triple("Which statistical tool is used to test the significance of difference between two sample means?", "दो प्रतिदर्श माध्यों के बीच अंतर की सार्थकता का परीक्षण करने के लिए किस सांख्यिकीय उपकरण का उपयोग किया जाता है?", "t-test (टी-परीक्षण)"),
-                    Triple("Which of the following belongs to non-probability sampling techniques?", "निम्नलिखित में से कौन गैर-संभाव्यता प्रतिचयन तकनीकों से संबंधित है?", "Purposive Sampling (सोद्देश्य प्रतिचयन)"),
-                    Triple("What is the full form of URL in computer networks?", "कंप्यूटर नेटवर्क में URL का पूर्ण रूप क्या है?", "Uniform Resource Locator"),
-                    Triple("Which atmospheric layer absorbs harmful ultraviolet (UV) radiation from the Sun?", "वायुमंडल की कौन सी परत सूर्य से आने वाली हानिकारक पराबैंगनी किरणों को अवशोषित करती है?", "Stratosphere / Ozone layer (समताप मंडल)")
-                )
-                ugcItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Distractor Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Distractor Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Distractor Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "UGC NET Paper 1 Question (+2.0 correct, 0.0 penalty).",
-                            subject = subject.ifBlank { "Teaching & Research Aptitude" },
-                            chapter = "Paper 1 Syllabus",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-            upper.contains("JEE") -> {
-                val jeeItems = listOf(
-                    Triple("The dimensional formula of Planck's constant is:", "प्लांक नियतांक का विमीय सूत्र है:", "[ML²T⁻¹]"),
-                    Triple("A projectile is fired at an angle of 45° with kinetic energy K. What is its kinetic energy at the highest point?", "एक प्रक्षेप्य को 45° के कोण पर गतिज ऊर्जा K के साथ प्रक्षेपित किया जाता है। उच्चतम बिंदु पर इसकी गतिज ऊर्जा क्या होगी?", "K / 2"),
-                    Triple("The electric potential at the center of a uniformly charged conducting sphere of radius R and charge Q is:", "त्रिज्या R और आवेश Q वाले एकसमान आवेशित चालक गोले के केंद्र पर विद्युत विभव होता है:", "kQ / R"),
-                    Triple("[SECTION B - NUMERICAL]\nA body of mass 2 kg moving at 4 m/s collides elastically with a stationary body of mass 2 kg. Find the velocity of the second body after collision in m/s.", "द्रव्यमान 2 kg का एक पिंड 4 m/s की चाल से चलते हुए स्थिर 2 kg के पिंड से प्रत्यास्थ टक्कर करता है। टक्कर के बाद दूसरे पिंड का वेग (m/s) ज्ञात कीजिए।", "4")
-                )
-                jeeItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    val isNum = i == 3
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = if (isNum) "4" else ans,
-                            optionAHi = if (isNum) "4" else ans,
-                            optionB = "2",
-                            optionBHi = "2",
-                            optionC = "8",
-                            optionCHi = "8",
-                            optionD = "Zero",
-                            optionDHi = "शून्य",
-                            correctAnswer = ans,
-                            explanation = "JEE Main authoritative problem (+4.0 correct, -1.0 penalty).",
-                            subject = subject.ifBlank { "Physics" },
-                            chapter = "Mechanics & Electrostatics",
-                            section = if (isNum) "SECTION_B" else "SECTION_A",
-                            difficulty = "Hard",
-                            questionType = if (isNum) "NUMERICAL" else "MCQ"
-                        )
-                    )
-                }
-            }
-            else -> {
-                // NEET UG default
-                val neetItems = listOf(
-                    Triple("Which of the following organelles is responsible for cellular respiration in eukaryotes?", "यूकेरियोट्स में कोशिकीय श्वसन के लिए निम्नलिखित में से कौन सा कोशिकांग उत्तरदायी है?", "Mitochondria (माइटोकॉन्ड्रिया)"),
-                    Triple("In Mendelian monohybrid cross, the phenotypic ratio in F2 generation is:", "मेंडेलियन एकसंकर संकरण में, F2 पीढ़ी में लक्षणप्ररूपी अनुपात होता है:", "3 : 1"),
-                    Triple("The dimensional formula of gravitational constant G is:", "सार्वत्रिक गुरुत्वाकर्षण नियतांक G का विमीय सूत्र है:", "[M⁻¹L³T⁻²]"),
-                    Triple("The pH of human blood under normal physiological conditions is approximately:", "सामान्य शारीरिक परिस्थितियों में मानव रक्त का pH लगभग होता है:", "7.4"),
-                    Triple("Which hormone is primarily responsible for the 'fight or flight' response in humans?", "मनुष्यों में 'करो या मरो' अनुक्रिया के लिए मुख्य रूप से कौन सा हार्मोन उत्तरदायी है?", "Adrenaline (एपिनेफ्रीन / एड्रेनालिन)")
-                )
-                neetItems.forEachIndexed { i, (qEn, qHi, ans) ->
-                    questions.add(
-                        QuestionEntity(
-                            id = "${testId}_q${i + 1}",
-                            testId = testId,
-                            questionText = qEn,
-                            questionTextHi = qHi,
-                            optionA = ans,
-                            optionAHi = ans,
-                            optionB = "Option B",
-                            optionBHi = "विकल्प B",
-                            optionC = "Option C",
-                            optionCHi = "विकल्प C",
-                            optionD = "Option D",
-                            optionDHi = "विकल्प D",
-                            correctAnswer = "A",
-                            explanation = "NEET UG NCERT authoritative syllabus question (+4.0 correct, -1.0 penalty).",
-                            subject = subject.ifBlank { "Biology" },
-                            chapter = "NCERT Core Curriculum",
-                            section = "SECTION_A",
-                            difficulty = "Medium",
-                            questionType = "MCQ"
-                        )
-                    )
-                }
-            }
-        }
-        return questions
     }
 
     fun resetAiGenState() {
