@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
+  validateCommunityReplyCreate,
+  validateCommunityReaction,
   splitLegacySharedQuestions,
   resolveCommunityExamSubject,
 } = require("./communityValidation");
@@ -110,4 +112,28 @@ test("Community subject registry resolves canonical names and rejects unknown ex
   });
   assert.throws(() => resolveCommunityExamSubject("Unknown Exam", "Physics"), { code: "invalid-argument" });
   assert.throws(() => resolveCommunityExamSubject("NEET UG", "Mathematics"), { code: "invalid-argument" });
+});
+
+
+test("Manual Community replies require bounded text and an idempotency key", () => {
+  assert.deepEqual(validateCommunityReplyCreate({
+    postId: "post-1",
+    content: "Manual student answer",
+    requestId: "reply-request-1"
+  }), {
+    postId: "post-1",
+    content: "Manual student answer",
+    requestId: "reply-request-1"
+  });
+  for (const payload of [
+    { postId: "", content: "Reply", requestId: "r1" },
+    { postId: "post-1", content: "", requestId: "r1" },
+    { postId: "post-1", content: "Reply", requestId: "" },
+    { postId: "post-1", content: "x".repeat(2001), requestId: "r1" }
+  ]) assert.throws(() => validateCommunityReplyCreate(payload), { code: "invalid-argument" });
+});
+
+test("Community reaction requires a valid post ID", () => {
+  assert.deepEqual(validateCommunityReaction({ postId: "post-1" }), { postId: "post-1" });
+  assert.throws(() => validateCommunityReaction({ postId: "" }), { code: "invalid-argument" });
 });
