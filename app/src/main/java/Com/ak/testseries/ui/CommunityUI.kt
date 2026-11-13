@@ -1269,6 +1269,12 @@ fun CreatePostScreen(
             imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
             return
         }
+        if (selectedPostType == "DOUBT" && cleanContent.isBlank()) {
+            clearPendingImage(deleteRemote = true)
+            imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+            uploadError = "Write one doubt question before publishing."
+            return
+        }
         if (selectedPostType != "MCQ" && cleanContent.isBlank() && imageUrl.isNullOrBlank()) {
             imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
             return
@@ -1348,7 +1354,7 @@ fun CreatePostScreen(
                         onClick = {
                             val uid = creatorUid
                             if (uid != null && selectedSubject in subjects && !isUploading && !creatingMcq &&
-                                (if (selectedPostType == "MCQ") content.isNotBlank() else content.isNotBlank() || selectedImageUri != null) &&
+                                (if (selectedPostType == "MCQ") content.isNotBlank() else if (selectedPostType == "DOUBT") content.isNotBlank() else content.isNotBlank() || selectedImageUri != null) &&
                                 (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() })
                             ) {
                                 val uri = selectedImageUri
@@ -1392,7 +1398,7 @@ fun CreatePostScreen(
                             }
                         },
                         enabled = creatorUid != null && selectedSubject in subjects &&
-                            (if (selectedPostType == "MCQ") content.isNotBlank() else content.isNotBlank() || selectedImageUri != null) &&
+                            (if (selectedPostType == "MCQ") content.isNotBlank() else if (selectedPostType == "DOUBT") content.isNotBlank() else content.isNotBlank() || selectedImageUri != null) &&
                             (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() }) &&
                             !isUploading && !creatingMcq
                     ) {
