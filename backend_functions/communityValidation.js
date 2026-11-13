@@ -165,6 +165,19 @@ function validateCommunityReplyCreate(data) {
   return { postId, content, requestId };
 }
 
+function validateCommunityReplyDelete(data) {
+  const payload = data || {};
+  const postId = typeof payload.postId === "string" ? payload.postId.trim() : "";
+  const commentId = typeof payload.commentId === "string" ? payload.commentId.trim() : "";
+  if (!postId || postId.length > 150) {
+    throw makeValidationError("invalid-argument", "A valid postId is required.");
+  }
+  if (!commentId || commentId.length > 150) {
+    throw makeValidationError("invalid-argument", "A valid commentId is required.");
+  }
+  return { postId, commentId };
+}
+
 function validateCommunityReaction(data) {
   const payload = data || {};
   const postId = typeof payload.postId === "string" ? payload.postId.trim() : "";
@@ -179,6 +192,7 @@ function validateCommunityReaction(data) {
 
 module.exports = {
   validateCommunityReplyCreate,
+  validateCommunityReplyDelete,
   validateCommunityReaction,
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
