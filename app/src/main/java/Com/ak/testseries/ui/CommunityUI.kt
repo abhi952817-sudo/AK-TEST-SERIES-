@@ -141,6 +141,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "topic" to post.topic,
         "userReaction" to post.userReaction,
         "mcqOptions" to post.mcqOptions,
+        "moderationState" to "VISIBLE",
         // Replies live in Community_Posts/{postId}/Comments/{commentId}; never write a shared array.
     )
 }
@@ -373,8 +374,12 @@ fun CommunityScreen(
             if (cursor != null && canLoadMorePosts && !isLoadingMorePosts) {
                 isLoadingMorePosts = true
                 loadMoreError = null
-                db.collection("Community_Posts")
+                var nextPageQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
                     .whereEqualTo("targetExam", targetExam)
+                if (!isAdmin) {
+                    nextPageQuery = nextPageQuery.whereEqualTo("moderationState", "VISIBLE")
+                }
+                nextPageQuery
                     .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
                     .startAfter(cursor)
                     .limit(20)
@@ -394,8 +399,12 @@ fun CommunityScreen(
             }
         }
 
-        val listenerRegistration = db.collection("Community_Posts")
+        var feedQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
             .whereEqualTo("targetExam", targetExam)
+        if (!isAdmin) {
+            feedQuery = feedQuery.whereEqualTo("moderationState", "VISIBLE")
+        }
+        val listenerRegistration = feedQuery
             .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(20)
             .addSnapshotListener { snapshot, error ->
