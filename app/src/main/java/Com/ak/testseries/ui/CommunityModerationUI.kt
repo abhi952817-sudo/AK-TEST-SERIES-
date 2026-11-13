@@ -299,6 +299,7 @@ fun CommunityAdminAuditScreen(viewModel: NEETViewModel) {
         }
         val registration = FirebaseFirestore.getInstance()
             .collection("Community_Moderation_Audit")
+            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(100)
             .addSnapshotListener { snapshot, listenerError ->
                 if (listenerError != null) {
@@ -371,6 +372,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
             return@DisposableEffect onDispose {}
         }
         val registration = db.collection("Community_Reports")
+            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(100)
             .addSnapshotListener { snapshot, listenerError ->
                 if (listenerError != null) {
@@ -480,7 +482,10 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
 
     fun refreshReports() {
         loading = true
-        db.collection("Community_Reports").limit(100).get()
+        db.collection("Community_Reports")
+            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(100)
+            .get()
             .addOnSuccessListener { snapshot ->
                 reports.clear()
                 reports.addAll(snapshot.documents.map(::mapCommunityReport).sortedByDescending { it.createdAt })
