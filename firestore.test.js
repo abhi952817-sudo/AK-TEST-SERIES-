@@ -827,7 +827,7 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
       subject: "Biology",
       targetExam: "NEET UG",
       creatorId: ALICE_UID,
-      createdAt: new Date().toISOString()
+      timestamp: Date.now()
     })
   );
 });
@@ -861,7 +861,7 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
       subject: "Biology",
       targetExam: "NEET UG",
       creatorId: BOB_UID,
-      createdAt: new Date().toISOString()
+      timestamp: Date.now()
     })
   );
 
