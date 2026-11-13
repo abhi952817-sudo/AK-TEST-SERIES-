@@ -16,6 +16,7 @@ const {
 } = require("./examScoring");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
 const { validateCommunityMcqPost, gradeCommunityMcqAttempt } = require("./communityMvp");
+const { isCommunitySubjectValid } = require("./communitySubjectRegistry");
 
 exports.normalizeExamKey = normalizeExamKey;
 
@@ -1215,4 +1216,180 @@ exports.backfillCommunityVisibility = functions.https.onCall(async (data, contex
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
   });
   return { success: true, alreadyCompleted: false, updatedCount };
+});
+
+
+/**
+ * Creates ordinary Community posts through a trusted server boundary.
+ * Subject validation uses a versioned mirror that is regression-tested against
+ * UniversalExamRegistry.kt. Client writes cannot bypass the subject registry.
+ */
+exports.createCommunityPost = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in before publishing to Community.");
+  }
+  const uid = context.auth.uid;
+  const post = data && data.post && typeof data.post === "object" ? data.post : null;
+  if (!post) {
+    throw new functions.https.HttpsError("invalid-argument", "Community post payload is missing.");
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const userSnapshot = await userRef.get();
+  try {
+    assertActiveUserStatus(userSnapshot.exists ? userSnapshot.data() : null, uid);
+  } catch (statusError) {
+    throw new functions.https.HttpsError(statusError.code || "permission-denied", statusError.message);
+  }
+
+  const userData = userSnapshot.data() || {};
+  const isCallerAdmin = Boolean(
+    context.auth.token && (
+      context.auth.token.admin === true ||
+      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+    )
+  );
+  const postId = typeof post.id === "string" ? post.id.trim() : "";
+  const targetExam = typeof post.targetExam === "string" ? post.targetExam.trim() : "";
+  const subject = typeof post.subject === "string" ? post.subject.trim() : "";
+  const postType = typeof post.postType === "string" ? post.postType.trim().toUpperCase() : "";
+  const title = typeof post.title === "string" ? post.title.trim() : "";
+  const content = typeof post.content === "string" ? post.content.trim() : "";
+  const imageUrl = typeof post.imageUrl === "string" ? post.imageUrl.trim() : "";
+  const imageStoragePath = typeof post.imageStoragePath === "string" ? post.imageStoragePath.trim() : "";
+
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(postId)) {
+    throw new functions.https.HttpsError("invalid-argument", "Community post ID is invalid.");
+  }
+  if (post.creatorId && post.creatorId !== uid) {
+    throw new functions.https.HttpsError("permission-denied", "Post creator identity cannot be changed.");
+  }
+  if (!["DISCUSSION", "DOUBT", "MCQ"].includes(postType)) {
+    throw new functions.https.HttpsError("invalid-argument", "Unsupported Community post type.");
+  }
+  if (!targetExam || !subject || !isCommunitySubjectValid(targetExam, subject)) {
+    throw new functions.https.HttpsError("invalid-argument", "Select a subject registered for the selected exam.");
+  }
+  if (title.length > 2000 || content.length > 5000) {
+    throw new functions.https.HttpsError("invalid-argument", "Post text exceeds the allowed length.");
+  }
+  if (postType === "DOUBT" && !title) {
+    throw new functions.https.HttpsError("invalid-argument", "A Doubt must contain one question.");
+  }
+  if (postType === "MCQ" && !title) {
+    throw new functions.https.HttpsError("invalid-argument", "An MCQ must contain exactly one question.");
+  }
+  if (!content && !imageStoragePath && postType === "DISCUSSION") {
+    throw new functions.https.HttpsError("invalid-argument", "Add text or one image before publishing.");
+  }
+  if (!content && !imageStoragePath && postType === "DOUBT" && !title) {
+    throw new functions.https.HttpsError("invalid-argument", "Add a question before publishing.");
+  }
+  if (Object.prototype.hasOwnProperty.call(post, "pdfUrl") ||
+      Object.prototype.hasOwnProperty.call(post, "pdfFileName")) {
+    throw new functions.https.HttpsError("invalid-argument", "PDF attachments are not supported in Community.");
+  }
+
+  let verifiedImageUrl = null;
+  let verifiedImageStoragePath = null;
+  if (imageStoragePath || imageUrl) {
+    if (!imageStoragePath || !imageUrl ||
+        !imageStoragePath.startsWith("community_images/" + uid + "/") ||
+        imageStoragePath.includes("..") ||
+        imageStoragePath.length > 512 ||
+        imageUrl.length > 2048 ||
+        !imageUrl.includes(encodeURIComponent(imageStoragePath))) {
+      throw new functions.https.HttpsError("invalid-argument", "Community image reference is invalid.");
+    }
+    try {
+      const [metadata] = await admin.storage().bucket().file(imageStoragePath).getMetadata();
+      const size = Number(metadata.size);
+      const contentType = String(metadata.contentType || "").toLowerCase();
+      if (!Number.isFinite(size) || size <= 0 || size >= 5 * 1024 * 1024 ||
+          !["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+        throw new Error("Unsupported image metadata.");
+      }
+      verifiedImageUrl = imageUrl;
+      verifiedImageStoragePath = imageStoragePath;
+    } catch (imageError) {
+      console.warn("Community image verification failed:", imageError.message);
+      throw new functions.https.HttpsError("failed-precondition", "The uploaded Community image could not be verified.");
+    }
+  }
+
+  const creatorRole = isCallerAdmin ? "ADMIN" : "STUDENT";
+  const publicPost = {
+    id: postId,
+    authorName: String(userData.name || userData.displayName || context.auth.token.name || "Student").slice(0, 80),
+    authorSubtitle: targetExam + " Aspirant",
+    isOfficial: false,
+    isMonitor: false,
+    timeAgo: "Just now",
+    title,
+    content,
+    isPinned: false,
+    upvotes: 0,
+    comments: 0,
+    views: "0",
+    subject,
+    targetExam,
+    imageUrl: verifiedImageUrl,
+    imageStoragePath: verifiedImageStoragePath,
+    isBookmarked: false,
+    timestamp: Date.now(),
+    postType,
+    creatorId: uid,
+    isHidden: false,
+    userReaction: null,
+  };
+
+  const batch = db.batch();
+  const postRef = db.collection("Community_Posts").doc(postId);
+  batch.create(postRef, publicPost);
+
+  if (postType === "MCQ") {
+    const quizOptions = post.quizOptions;
+    const validation = validateCommunityMcqPost({
+      postType: "MCQ",
+      creatorRole,
+      title,
+      quizOptions,
+    });
+    const correctOptionIndex = data.quizCorrectOptionIndex;
+    const explanation = typeof data.quizExplanation === "string" ? data.quizExplanation.trim() : "";
+    if (!validation.valid ||
+        !Number.isInteger(correctOptionIndex) ||
+        correctOptionIndex < 0 ||
+        correctOptionIndex >= validation.options.length ||
+        explanation.length > 2000) {
+      throw new functions.https.HttpsError("invalid-argument", "MCQ options, correct answer or explanation are invalid.");
+    }
+    publicPost.quizOptions = validation.options;
+    publicPost.creatorRole = creatorRole;
+    // Rebuild the batch after the public payload has its validated, public options.
+    const answerRef = db.collection("Community_MCQ_AnswerKeys").doc(postId);
+    batch.set(postRef, publicPost);
+    batch.create(answerRef, {
+      creatorId: uid,
+      correctOptionIndex,
+      explanation,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } else if (post.quizOptions !== undefined ||
+             data.quizCorrectOptionIndex !== undefined ||
+             data.quizExplanation !== undefined) {
+    throw new functions.https.HttpsError("invalid-argument", "Quiz fields are allowed only on an MCQ post.");
+  }
+
+  try {
+    await batch.commit();
+  } catch (writeError) {
+    if (writeError.code === 6 || writeError.code === "already-exists") {
+      throw new functions.https.HttpsError("already-exists", "This Community post ID already exists.");
+    }
+    console.error("createCommunityPost failed:", writeError);
+    throw new functions.https.HttpsError("internal", "Community post could not be published.");
+  }
+
+  return { success: true, postId, creatorRole };
 });
