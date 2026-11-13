@@ -596,16 +596,9 @@ fun CommunityScreen(
     }
 
     fun deletePostInFirebase(post: CommunityPost) {
-        val db = FirebaseFirestore.getInstance()
-        db.collection("Community_Posts").document(post.id).delete()
-            .addOnSuccessListener {
-                post.imagePath?.takeIf { it.startsWith("community_images/") }?.let { path ->
-                    FirebaseStorage.getInstance().reference.child(path).delete()
-                        .addOnFailureListener { error ->
-                            android.util.Log.w("Community", "Post image cleanup failed: ${error.message}")
-                        }
-                }
-            }
+        com.google.firebase.functions.FirebaseFunctions.getInstance()
+            .getHttpsCallable("deleteCommunityPost")
+            .call(mapOf("postId" to post.id))
             .addOnFailureListener { error ->
                 android.widget.Toast.makeText(
                     context,
