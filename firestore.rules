@@ -466,7 +466,8 @@ service cloud.firestore {
                             || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
                         && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName']));
 
-      allow delete: if isAdmin() || (isAuthenticated() && !isUserBanned(request.auth.uid) && resource.data.creatorId == request.auth.uid);
+      // Owner deletion goes through the callable so replies and the owned image are cleaned up.
+      allow delete: if isAdmin();
 
       match /Comments/{commentId} {
         allow read: if isAuthenticated()
