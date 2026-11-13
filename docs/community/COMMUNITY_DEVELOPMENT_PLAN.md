@@ -1,9 +1,9 @@
 # AK Test Series Community Development Plan
 
-> **Document status:** Planning baseline  
-> **Plan branch:** `feature/community-development-plan-2026-11-13`  
+> **Document status:** Active implementation plan after P0 foundation merge  
+> **Implementation branch:** `feature/community-completion-2026-11-13`  
 > **Base branch:** `main`  
-> **Scope:** Community feature only. This document is a work plan, not authorization to merge or modify Main.  
+> **Scope:** Complete remaining Community MVP features on a dedicated branch. Main remains unchanged until the final tested PR is explicitly merged.  
 > **Last reviewed:** 2026-11-13
 
 ## 0. First-priority MVP scope (decision recorded 2026-11-13)
@@ -79,19 +79,19 @@ Read-only inspection of the current Community code on this branch confirms the f
 
 ## 0.2 Implementation progress (2026-11-13)
 
-Work is being implemented on this feature branch only. This progress table supersedes any assumption that a planned item is complete merely because it appears in the scope above.
+The first-priority foundation was merged to Main in PR #6 (merge commit `1e236d099522d63ec89ab0d11287b48315efc48c`). Remaining features are being implemented on `feature/community-completion-2026-11-13`. This table records verified status, not intended status.
 
 | Work item | Current state | Evidence / remaining work |
 |---|---|---|
-| Read-only baseline audit | **Completed** | Community UI, Admin UI, Firestore rules, Storage rules, registry, and existing Firestore tests inspected. |
-| Mandatory registry subject | **Implemented in branch; CI pending** | Community composer and feed now use `getRegisteredSubjectsForExamName`, which returns no generic fallback. Firestore rejects blank and `General` subjects. |
-| Community PDF prohibition | **Implemented in branch; CI pending** | PDF fields removed from the Community Kotlin model, parser and new writes; Firestore rejects `pdfUrl` / `pdfFileName`. Other Admin/test PDF workflows remain intact. |
-| One-image post | **Camera/gallery flow implemented; device validation pending** | One selected JPEG/PNG/WebP image, maximum 5 MB, preview/remove, Storage upload and post image rendering. Upload failure blocks publishing. Camera uses Android preview capture and saves a temporary JPEG before upload. |
-| Safe replies | **Implemented in branch; CI pending** | Replies now use `Community_Posts/{postId}/Comments/{commentId}`; reply creator is recorded and only its author/Admin can delete. Shared parent-array writes and client counter mutation removed. |
-| Community Storage paths | **Rules + emulator tests implemented; CI pending** | `community_images/{uid}/{fileName}` is owner-write, authenticated-read, image-only, max 5 MB. Private report-evidence path is Admin/reporter-read and image-only. `storage.test.js` and a dedicated Community Rules CI workflow now exercise owner-path, PDF/MIME rejection and private-evidence access. |
-| Report/block Firestore security | **Rules scaffolding implemented; UI pending** | Private `Community_Reports` records and owner-managed `Blocked_Users` records have rules and tests authored. Report form, optional private evidence upload, block controls and Admin report inbox are not yet implemented. |
+| P0 foundation merged | **Completed** | PR #6 merged to Main. Strict subject selection, one-image post support, PDF rejection, per-reply ownership, Community Storage rules and 32 Firestore/Storage emulator tests were delivered. Main Android CI #405 passed. |
+| Mandatory registry subject | **Merged to Main** | Community composer and feed now use `getRegisteredSubjectsForExamName`, which returns no generic fallback. Firestore rejects blank and `General` subjects. |
+| Community PDF prohibition | **Merged to Main** | PDF fields removed from the Community Kotlin model, parser and new writes; Firestore rejects `pdfUrl` / `pdfFileName`. Other Admin/test PDF workflows remain intact. |
+| One-image post | **Merged to Main; physical-device QA pending** | One selected JPEG/PNG/WebP image, maximum 5 MB, preview/remove, Storage upload and post image rendering. Upload failure blocks publishing. Camera uses Android preview capture and saves a temporary JPEG before upload. |
+| Safe replies | **Merged to Main** | Replies now use `Community_Posts/{postId}/Comments/{commentId}`; reply creator is recorded and only its author/Admin can delete. Shared parent-array writes and client counter mutation removed. |
+| Community Storage paths | **Merged to Main; emulator tests passed** | `community_images/{uid}/{fileName}` is owner-write, authenticated-read, image-only, max 5 MB. Private report-evidence path is Admin/reporter-read and image-only. `storage.test.js` and a dedicated Community Rules CI workflow now exercise owner-path, PDF/MIME rejection and private-evidence access. |
+| Report/block Firestore security | **Foundation merged; UI and workflow pending** | Private `Community_Reports` records and owner-managed `Blocked_Users` records have rules and tests authored. Report form, optional private evidence upload, block controls and Admin report inbox are not yet implemented. |
 | Single-question MCQ | **Not implemented** | One question, 4/5 options and secure answer reveal remain pending. Do not treat this PR as delivering quiz creation/attempt scoring. |
-| Automated validation | **Rules PASS; Android unit tests PASS; APK build pending** | Latest Firestore/Storage emulator run on the current rules/test head: **32 passed, 0 failed**. Android CI now uses JDK 21; latest Android run has completed the Unit Tests step successfully and is running `assembleDebug`. JDK 21 resolves the known Robolectric SDK 36 / `DefaultSdkProvider.java:170` failure previously seen on Main with JDK 17. Merge only after the current-head Android build and both current-head workflows finish successfully. |
+| Automated validation | **P0 merge validated** | Firestore/Storage emulator suite: 32 passed, 0 failed. Post-merge Main Android CI #405 completed successfully, including unit tests, debug build and APK artifact upload. |
 
 ### Implementation commits
 
@@ -101,9 +101,40 @@ Work is being implemented on this feature branch only. This progress table super
 - Per-reply documents and ownership enforcement.
 - Firestore security regression test updates.
 
-### Merge gate
+### P0 merge record
 
-This branch is not ready to merge while Android CI is running or Firestore/Storage rules are unvalidated. The pull request is draft. Merge only after reviewing the final diff, passing Android unit tests/build, validating Firestore/Storage rules, and confirming no unrelated Main changes are included.
+PR #6 was merged to Main after current-head Android CI and Firebase Rules CI passed. Merge commit: `1e236d099522d63ec89ab0d11287b48315efc48c`. The current completion branch is separate and must pass its own final validation before a later merge.
+
+## 0.3 Remaining MVP completion plan (post-P0 merge)
+
+The following work completes the user-facing MVP that the P0 foundation intentionally left incomplete. Implement in dependency order on `feature/community-completion-2026-11-13`. No fake posts, placeholder answers, seeded reports, or mock students are allowed.
+
+| Phase | Scope | Required files / systems | Exit criteria |
+|---|---|---|---|
+| C1 — Report and block student flow | Report a post or its author with a reason and optional one private image; block/unblock an author; hide blocked authors' posts in feed; report submission confirmation and errors. | `CommunityUI.kt`, dedicated Community report components if needed, Firestore/Storage rules, `firestore.test.js`, `storage.test.js` | Two authenticated users verify report privacy, private evidence access, owner-only block list, blocked-post filtering, and suspended-user denial. |
+| C2 — Admin moderation inbox | Live report queue, report detail, status transitions, hide/restore/remove post, suspend/unban reported account, immutable moderation audit event for every privileged action. | `CommunityAdminUI.kt`, moderation repository/helper, `firestore.rules`, `firestore.test.js` | Only trusted Admin can read reports or moderate; every action stores actor, action, target, reason and timestamp; UI handles empty/loading/error states. |
+| C3 — Single-question MCQ backend | One question, optional one image, exactly 4 or 5 options, one correct option. Store correct option separately in an Admin/backend-only collection. Callable creation and attempt functions; one attempt per student; reveal correct answer only after a recorded attempt. | `backend_functions/index.js`, `backend_functions/*test.js`, `CommunityUI.kt`, `firestore.rules`, indexes, Android callable integration | Student cannot read answer key or write attempt result directly. Callable validates authentication, ban status, fields and option index; retries are idempotent; correct answer is never in public post document. |
+| C4 — Community UX and integrity | My Posts tab, pagination, search/filter against server data, post owner delete affordance, reply/edit/delete consistency, loading/empty/offline/error states, moderation visibility and notification hooks only where existing infrastructure is safe. | `CommunityUI.kt`, Community repository/view-model if compatible with current app architecture, Firestore indexes and rules | No duplicates across pages; owner deletion works; hidden/removed content is not shown to students; no existing feed/bookmark/test navigation regression. |
+| C5 — End-to-end security and release QA | Firestore/Storage/Functions emulator coverage, Android unit/UI tests, multi-account manual test checklist, APK build, CI, plan and audit evidence. | `firestore.test.js`, `storage.test.js`, backend Functions tests, CI workflows, this plan | All required tests pass on exact PR head; no AI call in Doubt/reply path; no answer-key leak; no PDF route; no unrelated Main changes. |
+
+### Exact product and data contracts for remaining work
+
+- **Report:** `Community_Reports/{reportId}` contains reporter UID, target post ID and/or target user UID, bounded reason, optional private Storage object path, status, created/updated timestamps. Student reads are denied. Evidence is not stored as a public download URL in the report document.
+- **Block:** `Users_Data/{uid}/Blocked_Users/{blockedUid}` is private to its owner. Blocking is a feed preference, not a platform-wide ban and does not notify or expose the block list to the blocked user.
+- **Moderation audit:** `Community_Moderation_Audit/{eventId}` is append-only for clients; only Admin can create/read. Each event records trusted actor UID, action, target type/ID, reason and server timestamp. Students cannot alter or delete events.
+- **MCQ public post:** contains one question, one optional image, 4/5 option strings and no correct-answer field, answer index, explanation key or secret metadata.
+- **MCQ answer key:** `Community_MCQ_AnswerKeys/{postId}` is server-written and never client-readable by students. Correct answer is returned only by a callable after a student's first answer is durably recorded.
+- **MCQ attempt:** `Community_MCQ_Attempts/{postId}/Users/{uid}` is server-written, private to the student and Admin, one canonical attempt per user. Repeated identical calls return the stored result; conflicting retries cannot replace the first answer.
+- **Doubt:** remains a manual text-reply workflow. Do not import or call Gemini, Groq, Cerebras, any other AI connector, or any offline AI fallback from Doubt or reply UI/backend.
+- **Community PDF:** remains permanently unsupported. Do not modify global PDF upload utilities or official test-PDF workflows as part of Community work.
+
+### Completion branch change policy
+
+- Update this same plan as each phase is implemented and validated.
+- Inspect exact call sites before modifying shared files such as `CommunityUI.kt`, `CommunityAdminUI.kt`, `firestore.rules`, and backend Functions.
+- Keep existing Community bookmarks, test-sharing navigation and official test workflows intact unless the plan explicitly requires a scoped change.
+- Never expose answer keys or private report evidence to clients through a public collection or download URL.
+- Do not deploy Firebase Functions or rules to production from this workflow. Prepare code, emulator tests and deployment instructions; production deployment remains a separate explicit operation.
 
 ## 1. Purpose and working rules
 
