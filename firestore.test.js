@@ -575,6 +575,18 @@ test("Community posts reject General subject and PDF attachment fields", async (
       ...base, subject: "Botany", pdfUrl: "https://example.invalid/test.pdf"
     })
   );
+  await assertFails(aliceDb.collection("Community_Posts").doc("foreign_image_path").set({
+    ...base,
+    subject: "Botany",
+    imageUrl: `https://firebasestorage.googleapis.com/v0/b/test-bucket/o/community_images%2F${BOB_UID}%2Fimage.jpg?alt=media&token=test-token`,
+    imagePath: `community_images/${BOB_UID}/image.jpg`
+  }));
+  await assertFails(aliceDb.collection("Community_Posts").doc("external_image_url").set({
+    ...base,
+    subject: "Botany",
+    imageUrl: "https://example.invalid/image.jpg",
+    imagePath: `community_images/${ALICE_UID}/image.jpg`
+  }));
   await assertFails(
     aliceDb.collection("Community_Posts").doc("multiple_images_post").set({
       ...base, subject: "Botany", imageUrls: ["https://example.invalid/1.jpg", "https://example.invalid/2.jpg"]
@@ -1242,7 +1254,8 @@ test("Community doubt posts require question text even when an image is attached
     creatorId: ALICE_UID,
     title: "Doubt",
     content: "",
-    imageUrl: "https://example.invalid/doubt.jpg",
+    imageUrl: `https://firebasestorage.googleapis.com/v0/b/test-bucket/o/community_images%2F${ALICE_UID}%2Fdoubt.jpg?alt=media&token=test-token`,
+    imagePath: `community_images/${ALICE_UID}/doubt.jpg`,
     subject: "Botany",
     targetExam: "NEET UG",
     examId: "neet_ug",
