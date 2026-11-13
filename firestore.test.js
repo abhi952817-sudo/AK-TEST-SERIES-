@@ -1103,3 +1103,58 @@ test("Community moderation: hidden post is readable only by Admin and owner", as
   await assertFails(bobDb.collection("Community_Posts").doc("hidden_post").get());
   await assertSucceeds(adminDb.collection("Community_Posts").doc("hidden_post").get());
 });
+
+
+test("Community reports: only Admin can resolve reports with approved fields", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await testEnv.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().collection("Community_Reports").doc("report_moderation_1").set({
+      reporterId: ALICE_UID,
+      postId: "post-1",
+      reason: "Unsafe content",
+      status: "OPEN",
+      createdAt: Date.now()
+    });
+  });
+  await assertFails(aliceDb.collection("Community_Reports").doc("report_moderation_1").update({
+    status: "RESOLVED"
+  }));
+  await assertSucceeds(adminDb.collection("Community_Reports").doc("report_moderation_1").update({
+    status: "RESOLVED",
+    resolvedBy: ADMIN_UID,
+    resolvedAt: Date.now(),
+    resolutionNote: "Reviewed"
+  }));
+  await assertFails(adminDb.collection("Community_Reports").doc("report_moderation_1").update({
+    status: "OPEN",
+    arbitraryPrivilegedField: true
+  }));
+});
+
+test("Community reports: suspended students cannot submit reports", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  await adminDb.collection("Users_Data").doc(BOB_UID).set({ uid: BOB_UID, isBanned: true });
+  await assertFails(bobDb.collection("Community_Reports").doc("banned_report").set({
+    reporterId: BOB_UID,
+    reportedUserId: ALICE_UID,
+    reason: "A report from a suspended account",
+    status: "OPEN",
+    createdAt: Date.now()
+  }));
+});
+
+test("Admin audit log: Community moderation records cannot be changed or deleted by Admin clients", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await assertSucceeds(adminDb.collection("Admin_Audit_Logs").doc("community_audit_1").set({
+    action: "COMMUNITY_HIDE_POST",
+    performedBy: ADMIN_UID,
+    targetId: "post-1",
+    timestamp: Date.now()
+  }));
+  await assertFails(adminDb.collection("Admin_Audit_Logs").doc("community_audit_1").update({
+    action: "COMMUNITY_RESTORE_POST"
+  }));
+  await assertFails(adminDb.collection("Admin_Audit_Logs").doc("community_audit_1").delete());
+});
