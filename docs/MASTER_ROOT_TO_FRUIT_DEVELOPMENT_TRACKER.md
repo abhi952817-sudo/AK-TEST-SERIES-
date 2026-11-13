@@ -977,3 +977,111 @@ Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. 
 - Local private-file directories are explicitly excluded from Android backup/device-transfer XML rules (`private_tests` and `secure_ai_tests`), and local backup adapters scope test exports by authenticated UID. Keep these protections when implementing recipient-local copies.
 - Current Room database is schema version 20 and has explicit migrations through 19→20, but also uses `fallbackToDestructiveMigration()`. Any future recipient-grant/local-entitlement schema change must include a forward migration and schema/restore regression tests; do not rely on destructive fallback.
 - Repository-wide code searches for `recipientUid`, `testAccessGrant`, `invitedUsers`, `shareToken`, `testInvite`, and `testPermission` returned no matching implementation. This supports the finding that a recipient grant system was not found, but remains a static search result rather than proof about live Firestore data or external services.
+
+
+## 24. Admin direct test upload → NEET student attempt — end-to-end static audit (2026-11-13)
+
+**Branch:** `integration/root-to-fruit-master-2026-11-13`  
+**Audit baseline before this section:** `910bf0f78a76ab9f55f1339230a1007e6ebd3c3d`  
+**Scope:** Admin dashboard direct Live Test upload, Admin Universal Exam PDF import/review/publish, NEET exam registry, Firestore/Storage rules, Student test feed, Room persistence, start/timer/answer/submit, server scoring/solutions/ranking.  
+**Code changes:** none. **Runtime:** no Android build/device run, Firebase Emulator run, live Firebase read/write, or Node test run performed in this audit.
+
+### 24.1 Existing NEET configuration
+
+- `UniversalExamRegistry.kt` already registers `neet_ug` / `NEET UG`, one stage `neet_main`, one paper `neet_paper_1`.
+- Registry currently defines Physics, Chemistry, Botany and Zoology separately. Each subject has Section A (35 questions) and Section B (15 questions; attempt 10), +4/-1. Registry pattern text currently says 200 questions, 180 attempted, 720 marks and 200 minutes.
+- The NEET exam identity and marking scheme therefore exist in the app. However, the current upload screens/defaults do not align with this configuration, and the registry's exam-pattern values need a separate official-current-pattern verification before launch.
+
+### 24.2 Two distinct Admin upload routes found
+
+**Route A — Main Admin Dashboard “Upload & Schedule Live Test”**
+- UI: `MainActivity.kt` around lines 7466–7605. It selects exam, class, subject, chapter, title, schedule, duration and question count.
+- The visible dashboard form does not provide a PDF picker and calls `scheduleLiveTest(... targetExam=targetExam)` without `pdfUri` or custom questions.
+- `NEETViewModel.scheduleLiveTest()` around lines 1530–1554 creates an empty question list and explicitly returns when both questions are empty and `pdfUri == null`.
+- The UI immediately sets a success message and clears the title/chapter after launching the asynchronous ViewModel call; it does not receive or await a success/failure result.
+- **Finding UPLOAD-NEET-001 — CRITICAL/FUNCTIONAL:** the visible dashboard upload button cannot create a test as wired (no PDF/questions are passed), but reports success and clears the form. The separate `AdminLiveTestUploadSection` in `AdminPanelScreen.kt` has a PDF picker but repository search found no call site; treat it as unused/unwired, not as the working route.
+
+**Route B — Admin → Universal Exams → Process PDF**
+- This route is wired in `MainActivity.kt` AdminMenu.UNIVERSAL_EXAMS around lines 6477–6489.
+- `UniversalExamAdminScreen.kt` picks a PDF, calls `UniversalPdfPipeline.processPdfForExam(... expectedQuestions = 20)`, shows local question review, and calls `publishUniversalTest()` for the questions marked APPROVED in the current screen state.
+- This is the currently wired Admin PDF-processing route; it is a one-subject, 20-question batch flow, not a complete NEET full-paper upload path.
+- The review approvals are local Compose state. The callback immediately attempts publication; there is no durable server-side review queue or persisted question-by-question approval record in this route.
+
+### 24.3 NEET upload configuration blockers
+
+**UPLOAD-NEET-002 — HIGH: Biology subject identity mismatch in direct Live Test scheduler.**
+- Dashboard subject dropdown offers `Biology`, while the NEET registry contains `Botany` and `Zoology`, not a single `Biology` subject.
+- `scheduleLiveTest()` resolves the selected subject with `singleOrNull(subjectId or subjectName)`; selecting Biology therefore fails registry resolution and returns without creating the test.
+- The dropdown also offers `Full Syllabus`, which is not a single configured subject and cannot resolve through this single-subject path.
+
+**UPLOAD-NEET-003 — HIGH: question-count/duration defaults and subject scope do not represent the configured NEET paper.**
+- Dashboard defaults are 90 questions / 180 minutes; the NEET registry currently defines 50 questions per subject and 200 total across four configured subjects, with 200 minutes.
+- `scheduleLiveTest()` passes the user-entered expected count to Gemini for one selected subject. `GeminiPdfExtractor` enforces only the exact total count and per-question section ID/type/marking; it does not enforce the configured section capacity/distribution (35 Section A + 15 Section B per subject).
+- Universal PDF import hardcodes `expectedQuestions = 20` and selects one subject. Its Review tab defaults duration from the full paper duration (currently 200 minutes) unless the Admin manually changes it.
+- Result: the app has NEET identity/marking metadata, but neither upload route currently creates a validated complete four-subject NEET paper with the configured structure.
+
+### 24.4 Live Test PDF processing and publication path
+
+- `scheduleLiveTest()` writes the initial document to `LiveTests/{testId}` with `isPublic=true`, `isOfficial=false`, `countsTowardRanking=false`, status `Under Review`, and `processingStatus=Pending Extraction`; it uploads the source PDF to Storage `LiveTests/{testId}.pdf`.
+- It broadcasts a “Live Test started” notification immediately after the initial pending document is written, before Gemini extraction succeeds.
+- It then launches `GeminiPdfExtractor.processPdfWithGemini()` using a Gemini key obtained by the Android client. Extractor downloads the PDF (maximum 15 MB), sends the PDF bytes inline to Gemini, parses JSON, validates exact count, configured section/type/marking, options and answer format, then writes public question documents plus `private_keys/answerKey`.
+- On success the extractor itself sets `questionsVerified=true`, `processingStatus=Ready`, `status=Published`, and `isPublic=true`. No separate Admin approval action is required after extraction.
+- On failure it records `processingStatus=Failed: ...` and `questionsVerified=false`; the student LiveTests listener will not list it.
+- **UPLOAD-NEET-004 — HIGH/POLICY:** direct Live Test extraction auto-publishes after technical validation; it bypasses the separate Admin academic review/approval decision. The pre-extraction notification can also announce a test that is not yet ready.
+- **UPLOAD-NEET-005 — HIGH/SECURITY ARCHITECTURE:** this route obtains and uses the Gemini API key on Android and sends it from the client to the provider. This is not the planned Firebase Secret Manager/server-side provider architecture; migrate before production.
+- Storage rules restrict LiveTests PDF writes to Admin and PDF MIME/size, and Firestore rules restrict LiveTests parent writes to Admin. The callable/backend and client code should still add clear early Admin checks and user-visible error states; current ViewModel method does not return a result to the UI.
+
+### 24.5 Universal Exams PDF publish route defects
+
+- `publishUniversalTest()` saves the complete test and questions in local Room first; it syncs to `Tests_Data` only when `genIsPublic.value` is true.
+- Its Firestore map includes `isPublic=true` but omits required publication metadata such as `status=Published` and `uploaderId`; it also does not write the answer-key separation document.
+- The serialized `qJsonArray` includes `correctAnswer` and `explanationEn`, and that same JSON is written to public `Tests_Data/{testId}.questionsJson`.
+- **UPLOAD-NEET-006 — CRITICAL/ANSWER-KEY LEAK:** Universal PDF publication writes correct answers/explanations into the public parent document instead of using `separatePublicAndSecretQuestions()` and protected `private_keys/answerKey`.
+- **UPLOAD-NEET-007 — HIGH/FUNCTIONAL + SECURITY:** missing `status`/creator metadata means Firestore rules' published predicate is not satisfied and the Student listener may not be authorized to read the document. The test can remain visible on the Admin device via local Room while failing to appear on Student devices. This route also lacks a complete publication/answer-key contract.
+- This is distinct from `uploadTestToFirestore()`, which correctly strips answer/explanation fields into private keys for its own `Tests_Data` path. The two publication paths are inconsistent and must converge on that one canonical helper/service.
+
+### 24.6 Student discovery and local question loading
+
+- `FirebaseRemoteDataSourceImpl.observeTests()` listens to `Tests_Data` and `LiveTests`.
+- For `LiveTests`, it requires `processingStatus == Ready`, `status == Published`, and a verified question payload before mapping the test. It reads `isOfficial`, `isPublic`, `countsTowardRanking` from Firestore.
+- `TestRepositoryImpl.persistRemoteTests()` saves test metadata and parses public question JSON into Room `QuestionEntity` rows. Public Live Test question JSON omits correct answers/explanations, as intended; the server holds them in `private_keys/answerKey`.
+- Student `testsList` filters by selected target exam and `TestVisibilityManager`; NEET/NEET UG matching exists. Hierarchical test screen renders matching full-mock tests with Start buttons.
+- **Caveat:** the Admin local Room test created by the Live Test path is only inserted immediately when the question list was already non-empty. PDF-backed upload starts with an empty list; students rely on the later Firestore listener sync.
+
+### 24.7 Start → timer → answer → submit → result → solutions → ranking
+
+- `startTest()` checks banned status and `TestVisibilityManager`, loads Room questions (or falls back to `questionsJson`), restores locally saved progress if present, and starts the timer.
+- NEET duration uses the test's `durationMinutes` when present; otherwise it uses the registry duration/per-question fallback.
+- `selectAnswer()` enforces configured Section B attempt caps (NEET: 10) on the client.
+- Timer auto-submits only when `activeTest.isOfficial == true`. The LiveTests extractor sets `isOfficial=false`, and Universal publication also creates `isOfficial=false` tests.
+- **UPLOAD-NEET-008 — HIGH/FUNCTIONAL:** Admin-uploaded NEET tests arrive on the Student device as `isOfficial=false`, so timer expiry does not auto-submit them. They require manual submission after time reaches zero.
+- `submitTest()` first calculates a local preview, stores a pending local attempt, then calls `submitTestAttemptServerSide` for authenticated users. On server success it replaces the score/result with the authoritative server score and requests solutions via `getTestAttemptSolutions`; it then refreshes leaderboard/rank. If server submission fails, the app still proceeds to Result Analysis with the local preview and the attempt remains pending/offline.
+- **UPLOAD-NEET-009 — HIGH/FUNCTIONAL:** timeSpent is calculated as `questions.size * 60 - remainingTime`, not `configuredDurationSeconds - remainingTime`. For a 90-question / 180-minute upload this is negative at the beginning and can be rejected by the backend's non-negative time validation; for a 20-question / 200-minute test it is also negative at the beginning and under-reports elapsed time even at timeout.
+- Backend `submitTestAttemptServerSide` fetches the test from `Tests_Data`, `Tests`, or `LiveTests`; rejects LiveTests unless Ready and verified; enforces Published/approved policy for non-owner/non-admin users; validates protected answer keys; scores server-side; and stores idempotent attempts.
+- NEET server marking is +4/-1. Section B attempt cap is recognized when section IDs contain `sec_b`, so the registry IDs such as `phy_sec_b` are recognized.
+- **UPLOAD-NEET-010 — MEDIUM/HIGH/SCORING:** backend maxScore adds +4 for every question in the paper before applying optional Section B attempt limits. For NEET's 15 Section B questions where only 10 are attempted, maxScore is overstated by 20 marks per subject (e.g. 200 rather than 180 for a 50-question subject; 800 rather than 720 for the 200-question four-subject paper). The final earned score still applies the attempt cap, but the displayed maximum/percentage can be wrong.
+- The Live Test upload path sets `countsTowardRanking=false` and `isOfficial=false`; Universal publication also defaults to non-official/non-qualifying. Therefore these Admin-uploaded tests can produce a server-verified score, but they do **not** enter the NEET competitive leaderboard/ranking. This must be an explicit Admin policy, not an accidental default.
+- Answer-key separation and authorized post-attempt solution retrieval exist in the canonical LiveTests/Tests_Data backend path. The Universal PDF route currently bypasses the canonical answer-key writer, so it cannot be assumed to have working server scoring/review.
+
+### 24.8 Permission/approval conclusion
+
+- **Admin write permission exists at Firebase Rules:** `LiveTests/{testId}` writes are Admin-only; `Storage /LiveTests/{fileName}` uploads are Admin-only and limited to PDFs under 50 MB.
+- The visible dashboard UI itself does not surface the permission failure reliably: it shows success immediately even when ViewModel silently returns or Firebase rejects the operation.
+- The Live Test PDF extraction path technically validates content but automatically publishes on successful extraction; it does not wait for an explicit Admin approval.
+- The Universal Exams route has an in-screen local question review but its Firestore publication metadata and answer-key handling are defective.
+- NEET is already present in the Exam Registry, but **the full Admin upload → reviewed/published Student NEET test → correct timed attempt → correct score/rank flow is NOT currently end-to-end ready**.
+
+### 24.9 Next development sequence (do not implement until approved)
+
+1. Choose one canonical Admin NEET upload route and retire/unwire the misleading no-PDF dashboard button or connect it to the real PDF picker with awaited success/failure.
+2. Define NEET test types explicitly: full paper (all subjects), subject test (Physics/Chemistry/Botany/Zoology), chapter test. Validate exact configured question counts and Section A/B distribution.
+3. Make upload create a private/pending Admin draft; extraction only sets processing Ready. Require explicit Admin approve/publish action after review.
+4. Route both Admin upload UIs through one canonical publisher that writes public question projection and protected answer keys; never serialize answer/explanation into public parent docs.
+5. Ensure publisher writes complete metadata: status, isPublic, isOfficial policy, uploaderId/creatorId, examId/stageId/paperId, duration, question count, scoring version, countsTowardRanking.
+6. Fix Student timer auto-submit to use explicit test lifecycle/availability rather than `isOfficial`; fix elapsed-time computation using initial duration minus remaining time.
+7. Fix NEET maxScore calculation to respect optional Section B attempts; add server tests for 50-question subject and full-paper maximum marks.
+8. Add end-to-end test coverage: Admin permission denied/success, PDF upload failure, Gemini failure/partial/malformed batch, pending not listed, explicit approval then listed, student question download, answer key inaccessible before completion, timer expiry auto-submit, manual submit, idempotent server score, authorized solutions, rank eligibility only when configured.
+9. Verify NEET official-current exam pattern against authoritative NTA source before freezing question-count/time defaults.
+10. Run Android build/unit tests, Node backend tests, Firestore/Storage emulator rules tests, then a controlled test-device Firebase E2E. Until those are actually run, keep this audit static/unverified.
+
+**Audit status:** CONFIRMED STATIC FINDINGS; implementation NOT STARTED. Main branch unchanged.
