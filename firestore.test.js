@@ -57,6 +57,15 @@ beforeEach(async () => {
   }
 });
 
+
+test("Students can read but cannot alter the canonical Community exam registry", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const registryRef = aliceDb.collection("Community_Exam_Subjects").doc("neet_ug");
+  await assertSucceeds(registryRef.get());
+  await assertFails(registryRef.update({ subjects: ["General"] }));
+  await assertFails(registryRef.set({ examId: "forged", subjects: ["Anything"] }));
+});
+
 // =========================================================================
 // 1. UNAUTHENTICATED ACCESS SECURITY BOUNDS
 // =========================================================================
