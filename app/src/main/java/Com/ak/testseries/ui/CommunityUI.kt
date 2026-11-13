@@ -618,6 +618,7 @@ fun CommunityScreen(
                     val db = FirebaseFirestore.getInstance()
                     val reportRef = db.collection("Community_Reports").document()
                     val reportId = reportRef.id
+                    reportTarget = null
                     fun saveReport(evidencePath: String?) {
                         val payload = hashMapOf<String, Any?>(
                             "reporterId" to uid,
@@ -638,6 +639,10 @@ fun CommunityScreen(
                                 ).show()
                             }
                             .addOnFailureListener {
+                                if (!evidencePath.isNullOrBlank()) {
+                                    com.google.firebase.storage.FirebaseStorage.getInstance()
+                                        .reference.child(evidencePath).delete()
+                                }
                                 android.widget.Toast.makeText(
                                     context,
                                     it.localizedMessage ?: "Report could not be submitted",
