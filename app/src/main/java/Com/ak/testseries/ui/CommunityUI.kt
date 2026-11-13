@@ -1440,7 +1440,7 @@ fun PostDetailScreen(
                 },
                 actions = {
                     val viewerUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
-                    if (viewerUid != null && viewerUid != post.creatorId) {
+                    if (viewerUid != null && !post.creatorId.isNullOrBlank() && viewerUid != post.creatorId) {
                         IconButton(onClick = { onToggleBlockUser(post.creatorId.orEmpty()) }) {
                             Icon(
                                 if (isAuthorBlocked) Icons.Default.PersonAdd else Icons.Default.Block,
