@@ -493,9 +493,12 @@ fun CommunityScreen(
         }
     }
 
-    val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
+    val createPostInFirebase: (CommunityPost, (Exception?) -> Unit) -> Unit = { newPost, onComplete ->
         val db = FirebaseFirestore.getInstance()
-        db.collection("Community_Posts").document(newPost.id).set(communityPostToMap(newPost))
+        db.collection("Community_Posts").document(newPost.id)
+            .set(communityPostToMap(newPost))
+            .addOnSuccessListener { onComplete(null) }
+            .addOnFailureListener { error -> onComplete(error) }
     }
 
     val toggleBlockUser: (String) -> Unit = { blockedUid ->
@@ -572,9 +575,11 @@ fun CommunityScreen(
             CreatePostScreen(
                 targetExam = targetExam,
                 onBack = { currentRoute = CommunityRoute.FEED },
-                onPostCreated = { newPost ->
-                    createPostInFirebase(newPost)
-                    currentRoute = CommunityRoute.FEED
+                onPostCreated = { newPost, onComplete ->
+                    createPostInFirebase(newPost) { error ->
+                        if (error == null) currentRoute = CommunityRoute.FEED
+                        onComplete(error)
+                    }
                 },
                 onMcqCreated = { currentRoute = CommunityRoute.FEED }
             )
@@ -1140,7 +1145,7 @@ fun PostCard(
 fun CreatePostScreen(
     targetExam: String,
     onBack: () -> Unit,
-    onPostCreated: (CommunityPost) -> Unit,
+    onPostCreated: (CommunityPost, (Exception?) -> Unit) -> Unit,
     onMcqCreated: () -> Unit = {}
 ) {
     var title by remember { mutableStateOf("") }
@@ -1189,17 +1194,27 @@ fun CreatePostScreen(
         }
     }
 
-    fun publish(imageUrl: String?) {
+    fun publish(imageUrl: String?, imagePath: String? = null) {
         val uid = creatorUid ?: return
         val cleanContent = content.trim()
-        if (examId.isNullOrBlank() || selectedSubject !in subjects) return
-        if (selectedPostType == "MCQ" && cleanContent.isBlank()) return
-        if (selectedPostType != "MCQ" && cleanContent.isBlank() && imageUrl.isNullOrBlank()) return
+        if (examId.isNullOrBlank() || selectedSubject !in subjects) {
+            imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+            return
+        }
+        if (selectedPostType == "MCQ" && cleanContent.isBlank()) {
+            imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+            return
+        }
+        if (selectedPostType != "MCQ" && cleanContent.isBlank() && imageUrl.isNullOrBlank()) {
+            imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+            return
+        }
         if (selectedPostType == "MCQ") {
             val options = optionTexts.take(optionCount).map { it.trim() }
             if (options.any { it.isBlank() } || options.distinctBy { it.lowercase() }.size != optionCount ||
                 correctOptionIndex !in options.indices
             ) {
+                imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
                 uploadError = "Enter $optionCount different options and select one correct option."
                 return
             }
@@ -1243,7 +1258,12 @@ fun CreatePostScreen(
                 postType = selectedPostType,
                 timestamp = System.currentTimeMillis()
             )
-        )
+        ) { error ->
+            if (error != null) {
+                imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+                uploadError = error.localizedMessage ?: "Post could not be published."
+            }
+        }
     }
 
     Scaffold(
@@ -1275,18 +1295,19 @@ fun CreatePostScreen(
                                         uploadError = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
                                     } else {
                                         isUploading = true
-                                        val fileRef = FirebaseStorage.getInstance().reference
-                                            .child("community_images/$uid/${UUID.randomUUID()}")
+                                        val imagePath = "community_images/$uid/${UUID.randomUUID()}"
+                                        val fileRef = FirebaseStorage.getInstance().reference.child(imagePath)
                                         val metadata = StorageMetadata.Builder().setContentType(mimeType).build()
                                         fileRef.putFile(uri, metadata)
                                             .addOnSuccessListener {
                                                 fileRef.downloadUrl
                                                     .addOnSuccessListener { downloadUri ->
                                                         isUploading = false
-                                                        publish(downloadUri.toString())
+                                                        publish(downloadUri.toString(), imagePath)
                                                     }
                                                     .addOnFailureListener { error ->
                                                         isUploading = false
+                                                        fileRef.delete()
                                                         uploadError = error.localizedMessage ?: "Image URL could not be loaded."
                                                     }
                                             }
