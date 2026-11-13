@@ -89,7 +89,7 @@ Severity: `P0` release/security blocker, `P1` critical functionality, `P2` impor
 |---|---|---|---|
 | `main` | Baseline app, master tracker, existing services and architecture | Protected baseline; integrate accepted work only after review | INVENTORY_DONE (partial review) |
 | `audit/all-exam-scoring-ranking-2026-11-13` | Cross-exam scoring/ranking audit, policy gaps, golden tests | Audit source; port verified fixes/tests only | INVENTORY_DONE (report reviewed; code verification pending) |
-| `feature/community-completion-2026-11-13` | Compare against main; identify unique delta | Reported identical to main in prior comparison; re-check SHA before deciding | PARTIAL |
+| `feature/community-completion-2026-11-13` | Community implementation, moderation, posts, shared questions | 41 commits ahead of main; inspect unique delta and reconcile with community-development branch | INVENTORY_DONE (source verification pending) |
 | `feature/community-development-plan-2026-11-13` | Community feature plan, moderation, posts, shared questions | Inspect implementation vs plan; port only missing, tested pieces | INVENTORY_DONE (plan reviewed; source verification pending) |
 | `feature/ranking-engine-v2-2026-11-06` | Ranking v2, transactions, eligibility, idempotency, CI | Diverged; do not merge wholesale; selectively port proven components | INVENTORY_DONE (plan/CI report reviewed; source verification pending) |
 | `feature/ranking-universal-integration-v1` | Universal ranking integration, exam verification, roadmap | Reconcile contracts and migrations with canonical scoring/ranking | INVENTORY_DONE (selected docs reviewed) |
@@ -604,3 +604,40 @@ Comparison base: `main` (HEAD `1e236d099522d63ec89ab0d11287b48315efc48c`). GitHu
 ### 14.4 Verification honesty
 
 The above observations are static GitHub source/compare inspections. No local checkout, Android build, Node test suite, Firebase emulator, physical-device run, or live provider test was executed in this pass. All code changes remain subject to those test gates.
+
+
+---
+
+## 15. Execution Update — 2026-11-13 (Scoring Security Batch 1)
+
+### 15.1 Completed source changes
+
+**F-004 — permissive numerical parsing: minimal fix committed**
+
+- File: `backend_functions/examScoring.js`
+- Change: replaced `parseFloat` prefix acceptance with a strict finite-number validator. Decimal and scientific notation are accepted only when the complete trimmed input matches the numeric grammar. Inputs such as `12abc` and `3.5kg` no longer compare as numeric prefixes.
+- Numerical-response comparisons now fail closed when either value is not a complete finite number.
+- Regression tests added in `backend_functions/examScoring.test.js` for valid scientific notation, equivalent decimal values, and malformed suffix/prefix inputs.
+- Implementation commit: `a5984c2eb5b956893949ef5ec3957b93b050cb88`
+- Test commit: `ac353a52ed9cef25e89876cdda5dd48bdc07f1a8`
+- Status: `IMPLEMENTED_UNVERIFIED`. GitHub source read-back confirms the helper and test cases are present. The Node test suite was **not run** because this session has static GitHub access only; do not mark VERIFIED yet.
+
+### 15.2 Re-verified findings
+
+| Finding | Current source evidence | Status / action |
+|---|---|---|
+| F-016 — answer-key leak from submission response | `submitTestAttemptServerSide` loads trusted `solutionKeys` locally for scoring, but the transaction's first-submit and retry response payloads do not include them. The persisted attempt record contains submitted answers and score fields, not the solution-key map. A separate review callable exists for authorized solution retrieval. | **Not confirmed in current integration branch.** Keep the authorized review flow; add/retain regression coverage and inspect the full review callable/rules before closure. |
+| F-004 — permissive numeric parsing | `areOptionsEquivalent` previously used `parseFloat`, accepting numeric prefixes. Strict parser and regression cases now committed as above. | `IMPLEMENTED_UNVERIFIED`; requires Node test execution and integration checks. |
+| F-023 — shared community test answer leakage | In `NEETViewModel.kt` community-share path, the standardized question object explicitly copies `correctAnswer` and `explanation`; the later public `qMap` also includes both fields. The separate `uploadTestToFirestore` path has a public/private separation helper, but that does not prove the community-share write path is protected. | **Confirmed candidate leak in the community-share payload.** Trace the final Firestore write, backend validation, and rules; then remove private fields from public payload and store them only in the protected answer-key path. Do not assume the separate upload path protects community sharing. |
+| F-009 — synthetic/mock AI fallback | Current integration-branch `NEETViewModel.kt` read did not contain the literal `generateMockAiTest`; earlier line references are not sufficient evidence for this branch. | Re-search all source files and call graph before classifying; no change made. |
+
+### 15.3 Next implementation sequence
+
+1. Trace the full community-share function from question serialization through final Firestore write; inspect backend validation and Firestore rules. Implement one safe public/private separation path with tests.
+2. Inspect `getTestAttemptSolutions` end-to-end and add a direct test proving submission responses never contain answer keys while authorized review returns them only to the owner/authorized reviewer.
+3. Inspect and run the Node scoring tests in an environment with repository dependencies; record actual output. Then refresh CI.
+4. Continue Phase 0 source inventory for AI/PDF call graph, Firestore/Storage rules, Room migrations, and ranking idempotency.
+
+### 15.4 Verification boundary
+
+These two code commits were made only on `integration/root-to-fruit-master-2026-11-13`. No production deployment, database migration, branch merge, or main-branch modification occurred. The changes were read back from GitHub, but no Node tests, Android build, Firebase Emulator, device test, or live-provider test was executed. The scoring fix remains `IMPLEMENTED_UNVERIFIED`.
