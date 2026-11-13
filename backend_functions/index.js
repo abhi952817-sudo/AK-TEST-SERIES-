@@ -1065,9 +1065,14 @@ exports.moderateCommunityReport = functions.https.onCall(async (data, context) =
     } else if (action === "RESTORE_POST") {
       await postRef.update({ isHidden: false, moderatedAt: now, moderatedBy: actorUid });
     } else {
+      const postData = postSnapshot.data();
+      const imagePath = typeof postData.imageStoragePath === "string" ? postData.imageStoragePath : "";
       await db.recursiveDelete(postRef);
       await db.collection("Community_MCQ_AnswerKeys").doc(postId).delete().catch(() => {});
       await db.recursiveDelete(db.collection("Community_MCQ_Attempts").doc(postId));
+      if (imagePath.startsWith("community_images/" + postData.creatorId + "/")) {
+        await admin.storage().bucket().file(imagePath).delete({ ignoreNotFound: true }).catch(() => {});
+      }
     }
   }
 
@@ -1132,9 +1137,13 @@ exports.deleteCommunityPost = functions.https.onCall(async (data, context) => {
     }
   }
 
+  const imagePath = typeof post.imageStoragePath === "string" ? post.imageStoragePath : "";
   await db.recursiveDelete(postRef);
   await db.collection("Community_MCQ_AnswerKeys").doc(postId).delete().catch(() => {});
   await db.recursiveDelete(db.collection("Community_MCQ_Attempts").doc(postId));
+  if (imagePath.startsWith("community_images/" + post.creatorId + "/")) {
+    await admin.storage().bucket().file(imagePath).delete({ ignoreNotFound: true }).catch(() => {});
+  }
 
   if (isCallerAdmin) {
     await db.collection("Admin_Audit_Logs").add({
