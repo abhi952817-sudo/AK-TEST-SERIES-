@@ -407,8 +407,13 @@ test("Student: normal Community posts require the trusted callable; legacy test 
   );
 });
 
-test("Student: CANNOT spoof isPinned or isOfficial on community post creation", async () => {
+test("Student: CANNOT spoof isPinned or isOfficial on a valid owner test-share post", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await testEnv.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().collection("Shared_Community_Tests").doc("alice_test_spoof").set({
+      creatorId: ALICE_UID, title: "Alice test", targetExam: "NEET UG"
+    });
+  });
   await assertFails(
     aliceDb.collection("Community_Posts").doc("alice_fake_pinned").set({
       creatorId: ALICE_UID,
@@ -416,7 +421,9 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       content: "Exam Cancelled",
       subject: "Biology",
       targetExam: "NEET UG",
-      postType: "DISCUSSION",
+      postType: "TEST_SHARE",
+      testId: "alice_test_spoof",
+      isHidden: false,
       isPinned: true, // Malicious spoof
     })
   );
@@ -428,7 +435,9 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       content: "Free VIP for everyone",
       subject: "Biology",
       targetExam: "NEET UG",
-      postType: "DISCUSSION",
+      postType: "TEST_SHARE",
+      testId: "alice_test_spoof",
+      isHidden: false,
       isOfficial: true, // Malicious spoof
     })
   );
