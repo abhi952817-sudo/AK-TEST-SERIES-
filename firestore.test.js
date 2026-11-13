@@ -553,6 +553,12 @@ test("Community reports are private to Admin and block lists are owner-managed",
   await assertFails(aliceDb.collection("Community_Reports").doc("report_1").get());
   await assertFails(bobDb.collection("Community_Reports").doc("report_1").get());
   await assertSucceeds(adminDb.collection("Community_Reports").doc("report_1").get());
+  await assertFails(aliceDb.collection("Community_Reports").doc("report_1").update({ status: "RESOLVED" }));
+  await assertSucceeds(adminDb.collection("Community_Reports").doc("report_1").update({
+    status: "RESOLVED",
+    resolvedBy: ADMIN_UID,
+    resolvedAt: Date.now()
+  }));
 
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).set({
@@ -562,6 +568,12 @@ test("Community reports are private to Admin and block lists are owner-managed",
   );
   await assertFails(
     bobDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).delete()
+  );
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).get()
+  );
+  await assertFails(
+    bobDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).get()
   );
 });
 
