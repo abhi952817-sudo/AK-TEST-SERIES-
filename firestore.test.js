@@ -961,7 +961,9 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
       content: "Back from suspension",
       subject: "Biology",
       targetExam: "NEET UG",
-      postType: "DISCUSSION",
+      postType: "TEST_SHARE",
+      testId: "test_reinstated_1",
+      isHidden: false,
       creatorId: BOB_UID
     })
   );
