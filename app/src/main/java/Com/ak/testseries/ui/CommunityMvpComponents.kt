@@ -216,6 +216,7 @@ private data class CommunityAdminReport(
     val reason: String,
     val evidencePath: String?,
     val status: String,
+    val resolutionNote: String?,
     val createdAt: Long,
 )
 
@@ -249,6 +250,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
                             reason = doc.getString("reason") ?: "",
                             evidencePath = doc.getString("evidenceImagePath"),
                             status = doc.getString("status") ?: "OPEN",
+                            resolutionNote = doc.getString("resolutionNote"),
                             createdAt = millis
                         )
                     })
@@ -334,7 +336,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
                                         OutlinedButton(onClick = { moderate(report, "REMOVE_POST") }, enabled = busyReportId != report.id, modifier = Modifier.weight(1f)) { Text("Remove post") }
                                     }
                                 }
-                            } else if (!report.postId.isNullOrBlank()) {
+                            } else if (!report.postId.isNullOrBlank() && report.resolutionNote == "HIDE_POST") {
                                 TextButton(
                                     onClick = { moderate(report, "RESTORE_POST") },
                                     enabled = busyReportId != report.id,
