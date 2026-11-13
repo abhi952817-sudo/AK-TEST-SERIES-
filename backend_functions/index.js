@@ -19,6 +19,7 @@ const {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
   validateCommunityReplyCreate,
+  validateCommunityPostDelete,
   validateCommunityReplyDelete,
   validateCommunityReaction,
   splitLegacySharedQuestions
@@ -929,6 +930,96 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
 });
 
 
+
+/**
+ * Deletes a post only for its creator or an authorized Admin. The post is first
+ * marked REMOVED to stop concurrent replies/attempts, then child replies and
+ * its owned image are cleaned up.
+ */
+exports.deleteCommunityPost = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to delete this Community post.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityPostDelete(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  let isAdmin = false;
+  try {
+    validateSetAdminRoleAuth(context);
+    isAdmin = true;
+  } catch (_) {
+    isAdmin = false;
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  try {
+    const removal = await db.runTransaction(async transaction => {
+      if (!isAdmin) {
+        const userSnap = await transaction.get(userRef);
+        assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+      }
+      const postSnap = await transaction.get(postRef);
+      if (!postSnap.exists) return { exists: false, imagePath: null };
+      const postData = postSnap.data();
+      if (!isAdmin && postData.creatorId !== uid) {
+        throw new functions.https.HttpsError("permission-denied", "Only the post author or an Admin can delete this post.");
+      }
+      transaction.update(postRef, {
+        moderationState: "REMOVED",
+        moderatedBy: uid,
+        moderatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return {
+        exists: true,
+        imagePath: typeof postData.imagePath === "string" ? postData.imagePath : null
+      };
+    });
+
+    if (!removal.exists) return { success: true, deleted: false, duplicate: true };
+
+    const commentsSnapshot = await postRef.collection("Comments").get();
+    for (let offset = 0; offset < commentsSnapshot.docs.length; offset += 400) {
+      const batch = db.batch();
+      commentsSnapshot.docs.slice(offset, offset + 400).forEach(comment => batch.delete(comment.ref));
+      await batch.commit();
+    }
+    await postRef.delete();
+
+    if (removal.imagePath && removal.imagePath.startsWith("community_images/") &&
+        removal.imagePath.split("/").length === 3 && !removal.imagePath.includes("..")) {
+      try {
+        await admin.storage().bucket().file(removal.imagePath).delete({ ignoreNotFound: true });
+      } catch (storageError) {
+        console.error("deleteCommunityPost image cleanup failed", storageError);
+      }
+    }
+
+    if (isAdmin) {
+      await db.collection("Community_Moderation_Audit").add({
+        actorUid: uid,
+        action: "DELETE_POST",
+        targetType: "COMMUNITY_POST",
+        targetId: payload.postId,
+        reason: "Admin permanently deleted a Community post and its stored replies.",
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    return { success: true, deleted: true, duplicate: false };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("deleteCommunityPost failed", error);
+    throw new functions.https.HttpsError("internal", "Community post could not be deleted.");
+  }
+});
 
 /**
  * Creates a one-question Community MCQ. The public post contains options only;
