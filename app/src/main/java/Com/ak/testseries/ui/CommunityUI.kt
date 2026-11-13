@@ -1394,10 +1394,16 @@ fun CreatePostScreen(
                                     publish(null)
                                 } else {
                                     val mimeType = context.contentResolver.getType(uri) ?: if (uri.scheme == "file") "image/jpeg" else ""
-                                    val size = try {
-                                        context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
-                                    } catch (_: Exception) { null }
-                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || (size != null && size > 5L * 1024L * 1024L)) {
+                                    val size = if (uri.scheme == "file") {
+                                        java.io.File(uri.path.orEmpty()).length()
+                                    } else {
+                                        try {
+                                            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                                        } catch (_: Exception) {
+                                            -1L
+                                        }
+                                    }
+                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || size <= 0L || size > 5L * 1024L * 1024L) {
                                         uploadError = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
                                     } else {
                                         isUploading = true
