@@ -19,10 +19,21 @@ function isAnswerKeyVerified(key) {
   return false;
 }
 
+function isStrictNumericValue(value) {
+  // Accept complete decimal/scientific notation only; reject parseFloat-style prefixes
+  // such as "12abc", "3.5kg", and empty strings.
+  return /^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[+-]?\\d+)?$/i.test(value) &&
+    Number.isFinite(Number(value));
+}
+
 function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
-  if (!ans1 || !ans2) return false;
+  if (ans1 === null || ans1 === undefined || ans2 === null || ans2 === undefined) return false;
   const a = String(ans1).trim().toUpperCase();
   const b = String(ans2).trim().toUpperCase();
+  if (!a || !b) return false;
+
+  // Numerical-response questions must contain two complete finite numeric values.
+  if (isNumerical && (!isStrictNumericValue(a) || !isStrictNumericValue(b))) return false;
   if (a === b) return true;
 
   if (!isNumerical) {
@@ -30,10 +41,9 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
     if (mapIndex[a] === b || mapIndex[b] === a) return true;
   }
 
-  const num1 = parseFloat(a);
-  const num2 = parseFloat(b);
-  if (!isNaN(num1) && !isNaN(num2)) {
-    return Math.abs(num1 - num2) < 0.0001;
+  // Never accept a numeric prefix when the remaining input contains non-numeric text.
+  if (isStrictNumericValue(a) && isStrictNumericValue(b)) {
+    return Math.abs(Number(a) - Number(b)) < 0.0001;
   }
   return false;
 }
