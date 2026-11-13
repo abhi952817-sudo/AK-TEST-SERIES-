@@ -372,9 +372,9 @@ test("F-016: Student CANNOT read private_keys subcollection or TestAnswerKeys di
 // 5. COMMUNITY POSTS AND DISCUSSIONS SECURITY
 // =========================================================================
 
-test("Student: CAN create community post with own creatorId", async () => {
+test("Student: normal Community posts require the trusted callable; legacy test sharing remains owner-scoped", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("alice_post_1").set({
       creatorId: ALICE_UID,
       authorName: "Alice",
@@ -385,6 +385,19 @@ test("Student: CAN create community post with own creatorId", async () => {
       postType: "DISCUSSION",
       upvotes: 0,
       comments: 0,
+    })
+  );
+  await assertSucceeds(
+    aliceDb.collection("Community_Posts").doc("alice_test_share_1").set({
+      creatorId: ALICE_UID,
+      authorName: "Alice",
+      title: "Shared practice test",
+      content: "Try this owner-shared test.",
+      subject: "Physics",
+      targetExam: "JEE Main",
+      postType: "TEST_SHARE",
+      testId: "alice_test_1",
+      isHidden: false,
     })
   );
 });
@@ -836,7 +849,9 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
       content: "Active student post",
       subject: "Biology",
       targetExam: "NEET UG",
-      postType: "DISCUSSION",
+      postType: "TEST_SHARE",
+      testId: "test_active_1",
+      isHidden: false,
       creatorId: ALICE_UID,
       timestamp: Date.now()
     })
@@ -871,7 +886,9 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
       content: "Spam",
       subject: "Biology",
       targetExam: "NEET UG",
-      postType: "DISCUSSION",
+      postType: "TEST_SHARE",
+      testId: "test_banned_1",
+      isHidden: false,
       creatorId: BOB_UID,
       timestamp: Date.now()
     })
@@ -910,7 +927,9 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
       content: "Back from suspension",
       subject: "Biology",
       targetExam: "NEET UG",
-      postType: "DISCUSSION",
+      postType: "TEST_SHARE",
+      testId: "test_reinstated_1",
+      isHidden: false,
       creatorId: BOB_UID
     })
   );
@@ -940,46 +959,46 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
 // COMMUNITY MVP COMPLETION: MCQ ANSWER PRIVACY, REPORTS, BLOCKS AND HIDING
 // =========================================================================
 
-test("Community MCQ: owner creates public question and private answer key atomically", async () => {
+test("Community MCQ: private answer keys are readable only by their creator and Admin", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const batch = aliceDb.batch();
-  const postRef = aliceDb.collection("Community_Posts").doc("mcq_private_1");
-  const keyRef = aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1");
-  batch.set(postRef, {
-    id: "mcq_private_1",
-    creatorId: ALICE_UID,
-    creatorRole: "STUDENT",
-    authorName: "Alice",
-    title: "Which is the SI unit of force?",
-    content: "",
-    subject: "Physics",
-    targetExam: "NEET UG",
-    postType: "MCQ",
-    quizOptions: ["Newton", "Joule", "Watt", "Pascal"],
-    imageUrl: null,
-    isHidden: false,
-    timestamp: Date.now()
+  await testEnv.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().collection("Community_Posts").doc("mcq_private_1").set({
+      id: "mcq_private_1",
+      creatorId: ALICE_UID,
+      creatorRole: "STUDENT",
+      authorName: "Alice",
+      title: "Which is the SI unit of force?",
+      content: "",
+      subject: "Physics",
+      targetExam: "NEET UG",
+      postType: "MCQ",
+      quizOptions: ["Newton", "Joule", "Watt", "Pascal"],
+      imageUrl: null,
+      isHidden: false,
+      timestamp: Date.now()
+    });
+    await ctx.firestore().collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").set({
+      creatorId: ALICE_UID,
+      correctOptionIndex: 0,
+      explanation: "Force is measured in newtons.",
+      createdAt: Date.now()
+    });
   });
-  batch.set(keyRef, {
-    creatorId: ALICE_UID,
-    correctOptionIndex: 0,
-    explanation: "Force is measured in newtons.",
-    createdAt: Date.now()
-  });
-  await assertSucceeds(batch.commit());
 
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   await assertFails(bobDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").get());
   await assertSucceeds(aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").get());
-  await assertFails(bobDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").set({
+  await assertFails(bobDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_2").set({
     creatorId: BOB_UID, correctOptionIndex: 2, explanation: "Forged", createdAt: Date.now()
   }));
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await assertSucceeds(adminDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").get());
   await assertFails(aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").update({
     correctOptionIndex: 2
   }));
 });
 
-test("Community MCQ: rejects invalid option count, missing option and public answer leakage", async () => {
+test("Community MCQ: clients cannot bypass server-side MCQ creation or inject answer fields", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const base = {
     creatorId: ALICE_UID,
@@ -989,20 +1008,16 @@ test("Community MCQ: rejects invalid option count, missing option and public ans
     subject: "Physics",
     targetExam: "NEET UG",
     postType: "MCQ",
+    quizOptions: ["A", "B", "C", "D"],
     isHidden: false,
     timestamp: Date.now()
   };
-  await assertFails(aliceDb.collection("Community_Posts").doc("mcq_three_options").set({
-    ...base, quizOptions: ["A", "B", "C"]
-  }));
-  await assertFails(aliceDb.collection("Community_Posts").doc("mcq_blank_option").set({
-    ...base, quizOptions: ["A", "", "C", "D"]
-  }));
+  await assertFails(aliceDb.collection("Community_Posts").doc("mcq_direct_create").set(base));
   await assertFails(aliceDb.collection("Community_Posts").doc("mcq_answer_leak").set({
-    ...base, quizOptions: ["A", "B", "C", "D"], correctOptionIndex: 1
+    ...base, correctOptionIndex: 1
   }));
-  await assertFails(aliceDb.collection("Community_Posts").doc("mcq_wrong_role").set({
-    ...base, creatorRole: "ADMIN", quizOptions: ["A", "B", "C", "D"]
+  await assertFails(aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_direct_key").set({
+    creatorId: ALICE_UID, correctOptionIndex: 0, explanation: "Client write", createdAt: Date.now()
   }));
 });
 
