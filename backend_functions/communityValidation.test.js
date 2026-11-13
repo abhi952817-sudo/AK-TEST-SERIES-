@@ -4,12 +4,13 @@ const {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
   splitLegacySharedQuestions,
+  resolveCommunityExamSubject,
 } = require("./communityValidation");
 
 const validCreate = {
   title: "Cell biology",
   question: "Which organelle produces ATP?",
-  subject: "Biology",
+  subject: "Botany",
   targetExam: "NEET UG",
   options: ["Nucleus", "Mitochondrion", "Ribosome", "Golgi body"],
   correctOptionIndex: 1,
@@ -20,6 +21,7 @@ test("MCQ creation accepts exactly four options and one correct index", () => {
   const result = validateCommunityMcqCreate(validCreate);
   assert.equal(result.options.length, 4);
   assert.equal(result.correctOptionIndex, 1);
+  assert.equal(result.examId, "neet_ug");
 });
 
 test("MCQ creation accepts exactly five options", () => {
@@ -97,4 +99,15 @@ test("Legacy shared-test migration fails closed for missing answers, duplicate I
   assert.throws(() => splitLegacySharedQuestions(Array.from({ length: 201 }, (_, i) => ({
     id: `q${i}`, questionText: "Q", correctAnswer: "A"
   })), "test"), { code: "failed-precondition" });
+});
+
+
+test("Community subject registry resolves canonical names and rejects unknown exam/subject pairs", () => {
+  assert.deepEqual(resolveCommunityExamSubject("NEET", "Botany"), {
+    examId: "neet_ug",
+    examName: "NEET UG",
+    subject: "Botany"
+  });
+  assert.throws(() => resolveCommunityExamSubject("Unknown Exam", "Physics"), { code: "invalid-argument" });
+  assert.throws(() => resolveCommunityExamSubject("NEET UG", "Mathematics"), { code: "invalid-argument" });
 });
