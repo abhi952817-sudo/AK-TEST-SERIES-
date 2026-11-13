@@ -1,0 +1,264 @@
+{
+  "registryVersion": "universal-exam-registry-2026-11-13",
+  "exams": [
+    {
+      "examId": "neet_ug",
+      "examName": "NEET UG",
+      "shortName": "NEET",
+      "subjects": [
+        "Physics",
+        "Chemistry",
+        "Botany",
+        "Zoology"
+      ]
+    },
+    {
+      "examId": "jee_main",
+      "examName": "JEE Main",
+      "shortName": "JEE",
+      "subjects": [
+        "Physics",
+        "Chemistry",
+        "Mathematics"
+      ]
+    },
+    {
+      "examId": "jee_advanced",
+      "examName": "JEE Advanced",
+      "shortName": "JEE Adv",
+      "subjects": [
+        "Physics",
+        "Chemistry",
+        "Mathematics"
+      ]
+    },
+    {
+      "examId": "cuet_ug",
+      "examName": "CUET UG",
+      "shortName": "CUET",
+      "subjects": [
+        "Domain Subject"
+      ]
+    },
+    {
+      "examId": "upsc_cse",
+      "examName": "UPSC Civil Services",
+      "shortName": "UPSC",
+      "subjects": [
+        "Indian Polity & Governance",
+        "Economic & Social Development",
+        "History of India & Art & Culture",
+        "Geography & Environment Ecology",
+        "General Science & Technology"
+      ]
+    },
+    {
+      "examId": "ssc_cgl",
+      "examName": "SSC CGL",
+      "shortName": "CGL",
+      "subjects": [
+        "General Intelligence & Reasoning",
+        "General Awareness",
+        "Quantitative Aptitude",
+        "English Comprehension"
+      ]
+    },
+    {
+      "examId": "ssc_chsl",
+      "examName": "SSC CHSL (10+2)",
+      "shortName": "CHSL",
+      "subjects": [
+        "Reasoning",
+        "General Awareness",
+        "Quant Aptitude",
+        "English Language"
+      ]
+    },
+    {
+      "examId": "ssc_mts",
+      "examName": "SSC MTS & Havaldar",
+      "shortName": "MTS",
+      "subjects": [
+        "Numerical Ability (No Neg)",
+        "Reasoning (No Neg)",
+        "General Awareness",
+        "English Language"
+      ]
+    },
+    {
+      "examId": "ssc_gd",
+      "examName": "SSC GD Constable",
+      "shortName": "GD",
+      "subjects": [
+        "General Intelligence",
+        "General Knowledge",
+        "Elementary Mathematics",
+        "English/Hindi"
+      ]
+    },
+    {
+      "examId": "ssc_cpo",
+      "examName": "SSC CPO (Sub-Inspector)",
+      "shortName": "CPO",
+      "subjects": [
+        "Reasoning",
+        "General Knowledge",
+        "Quant",
+        "English"
+      ]
+    },
+    {
+      "examId": "rrb_ntpc",
+      "examName": "RRB NTPC",
+      "shortName": "NTPC",
+      "subjects": [
+        "General Awareness",
+        "Mathematics",
+        "Reasoning"
+      ]
+    },
+    {
+      "examId": "rrb_group_d",
+      "examName": "RRB Group D",
+      "shortName": "Group D",
+      "subjects": [
+        "General Science",
+        "Mathematics",
+        "Reasoning",
+        "Current Affairs"
+      ]
+    },
+    {
+      "examId": "rrb_alp",
+      "examName": "RRB ALP",
+      "shortName": "ALP",
+      "subjects": [
+        "Mathematics",
+        "Reasoning",
+        "General Science",
+        "General Awareness"
+      ]
+    },
+    {
+      "examId": "rrb_technician",
+      "examName": "RRB Technician",
+      "shortName": "Technician",
+      "subjects": [
+        "Mathematics",
+        "General Intelligence",
+        "General Science",
+        "General Awareness"
+      ]
+    },
+    {
+      "examId": "rrb_je",
+      "examName": "RRB JE",
+      "shortName": "RRB JE",
+      "subjects": [
+        "Mathematics",
+        "General Intelligence",
+        "General Awareness",
+        "General Science"
+      ]
+    },
+    {
+      "examId": "ctet",
+      "examName": "CTET",
+      "shortName": "CTET",
+      "subjects": [
+        "Child Development & Pedagogy",
+        "Language I (Compulsory)",
+        "Language II (Compulsory)",
+        "Mathematics & Pedagogy",
+        "Environmental Studies (EVS)"
+      ]
+    },
+    {
+      "examId": "ugc_net",
+      "examName": "UGC NET",
+      "shortName": "UGC NET",
+      "subjects": [
+        "Teaching & Research Aptitude"
+      ]
+    },
+    {
+      "examId": "cat",
+      "examName": "CAT",
+      "shortName": "CAT",
+      "subjects": [
+        "Verbal Ability & Reading Comprehension",
+        "Data Interpretation & Logical Reasoning",
+        "Quantitative Ability"
+      ]
+    },
+    {
+      "examId": "ibps_po",
+      "examName": "IBPS PO",
+      "shortName": "IBPS PO",
+      "subjects": [
+        "English Language",
+        "Quantitative Aptitude",
+        "Reasoning Ability"
+      ]
+    },
+    {
+      "examId": "ibps_clerk",
+      "examName": "IBPS Clerk",
+      "shortName": "IBPS Clerk",
+      "subjects": [
+        "English Language",
+        "Numerical Ability",
+        "Reasoning Ability"
+      ]
+    },
+    {
+      "examId": "sbi_clerk",
+      "examName": "SBI Clerk",
+      "shortName": "SBI Clerk",
+      "subjects": [
+        "English Language",
+        "Numerical Ability",
+        "Reasoning Ability"
+      ]
+    },
+    {
+      "examId": "sbi_po",
+      "examName": "SBI PO",
+      "shortName": "SBI PO",
+      "subjects": [
+        "English Language",
+        "Quantitative Aptitude",
+        "Reasoning Ability"
+      ]
+    },
+    {
+      "examId": "nda",
+      "examName": "NDA & NA",
+      "shortName": "NDA",
+      "subjects": [
+        "Mathematics",
+        "English",
+        "General Knowledge"
+      ]
+    },
+    {
+      "examId": "cds",
+      "examName": "CDS",
+      "shortName": "CDS",
+      "subjects": [
+        "English",
+        "General Knowledge",
+        "Elementary Mathematics"
+      ]
+    },
+    {
+      "examId": "gate",
+      "examName": "GATE",
+      "shortName": "GATE",
+      "subjects": [
+        "General Aptitude",
+        "Engineering Mathematics & Technical Core"
+      ]
+    }
+  ]
+}
