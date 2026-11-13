@@ -52,6 +52,31 @@ PDF attachments in Community (permanently disallowed); multi-question quizzes; q
 - [ ] No fake/demo posts, users, answers, reactions or quiz data are introduced.
 - [ ] Relevant Firestore/Storage tests and Android build/tests run successfully; exact results are recorded.
 
+## 0.1 First-priority implementation audit findings
+
+Read-only inspection of the current Community code on this branch confirms the following. These are concrete implementation targets, not claims that the MVP is already implemented.
+
+| File | Confirmed current state | Required first-priority change |
+|---|---|---|
+| `app/src/main/java/Com/ak/testseries/ui/CommunityUI.kt` | `CommunityPost` still has `pdfUrl` and `pdfFileName`; serializer writes them and parser reads them. Create screen defaults subject to `General`, appends `General` to registry subjects, requires both title and content, and has no image picker/upload. | Remove PDF fields from new Community writes/UI; do not create any PDF upload action. Require a real registry subject. Support text and/or one image, including image-only where policy permits. Add upload state and image preview/removal. Add explicit DISCUSSION/DOUBT/MCQ post kinds without multi-question sets. |
+| `CommunityUI.kt` feed/reply operations | UI directly reads/writes Firestore. Replies are embedded in `commentsList`; student updates can rewrite the entire list and comment counter. | Keep UI thin; move sensitive writes to a controlled repository/backend path. Use separately owned reply records or another concurrency-safe contract. Do not let a student overwrite other students' replies or counters. |
+| `CommunityUI.kt` delete/detail actions | Delete helper calls document delete; visible card delete control is currently Admin-only. | Expose delete for the post owner and Admin, with confirmation and rules enforcing ownership. |
+| `app/src/main/java/Com/ak/testseries/ui/CommunityAdminUI.kt` | Existing settings/users/manage-posts UI exists; no report inbox or report-evidence review flow was found. | Add a small Admin report inbox, hide/remove action, suspend/unban and moderation audit. Do not add a manual approval queue for ordinary posts. |
+| `firestore.rules` | Student create rule does not require a valid subject or constrain Community post types/content/image count. Other students may update `upvotes`, `views`, `comments` and the full `commentsList`. `Shared_Community_Tests` is separately readable by all authenticated users. | Add exact post field/type/subject/content constraints; protect answer-bearing shared-test data as a separate security task; prohibit client-side counter/list overwrites; add owner-created report and block data rules. |
+| `storage.rules` | No Community-specific Storage path exists. Existing default rule is Admin-only. | Add a dedicated image-only Community path with authenticated UID ownership, strict MIME/size limits, safe read policy and owner/Admin deletion. No PDF content type or Community PDF path. |
+| `firestore.test.js` | Current tests explicitly expect any student to update another user's `commentsList` and comment count. Post create tests omit mandatory subject. | Replace those expectations with per-reply ownership and mandatory-subject tests; add tests for 1-image limit, PDF rejection, report privacy, block ownership, owner delete and suspended-user denial. |
+| `app/src/main/java/Com/ak/testseries/utils/FileUploaderUtil.kt` | Existing generic image helper uploads under `chart_images/` and falls back to a local cache URI if Firebase Storage fails. | Do not reuse this helper for Community. Community must fail the publish operation if its remote image upload fails; a local cache URI must never be saved as a public Community attachment. |
+
+### Safe implementation order after this audit
+
+1. Define exact Firestore/Storage contracts and backward compatibility before changing rules.
+2. Add and test the Community image Storage path and report-evidence privacy.
+3. Refactor Community create-post state and UI for mandatory subject, text/one-image, and no PDF.
+4. Move replies to a per-reply ownership model and add author delete.
+5. Add one-question MCQ fields and validation.
+6. Add report/block flows and the minimal Admin report inbox.
+7. Run Firestore emulator tests, Android unit tests and debug APK build. If any command cannot be run in the available environment, record it as NOT RUN rather than PASS.
+
 ## 1. Purpose and working rules
 
 This document is the implementation guide for anyone assigned to develop the Community module. Read it before changing code.
