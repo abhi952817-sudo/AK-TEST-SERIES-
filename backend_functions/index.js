@@ -1196,3 +1196,67 @@ exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, 
     nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1].id : null
   };
 });
+
+
+/**
+ * Admin-only, paged migration that marks pre-moderation Community posts visible.
+ * Hidden/removed posts are never overwritten. Dry-run is the default.
+ */
+exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (data, context) => {
+  try {
+    validateSetAdminRoleAuth(context);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+
+  const dryRun = !data || data.dryRun !== false;
+  if (!dryRun && data.confirm !== "MIGRATE_COMMUNITY_POST_VISIBILITY") {
+    throw new functions.https.HttpsError("failed-precondition", "A write migration requires explicit confirmation after reviewing the dry run.");
+  }
+  const pageSize = Math.max(1, Math.min(Number.isInteger(data?.pageSize) ? data.pageSize : 50, 100));
+  const cursor = typeof data?.startAfter === "string" ? data.startAfter.trim() : "";
+  let query = db.collection("Community_Posts")
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(pageSize);
+  if (cursor) query = query.startAfter(cursor);
+
+  const snapshot = await query.get();
+  const results = [];
+  let readyCount = 0;
+  let skippedCount = 0;
+
+  for (const doc of snapshot.docs) {
+    const state = doc.get("moderationState");
+    if (typeof state === "string" && state.length > 0) {
+      results.push({ postId: doc.id, status: state === "VISIBLE" ? "ALREADY_VISIBLE" : "PRESERVED_" + state });
+      skippedCount += 1;
+      continue;
+    }
+
+    if (!dryRun) {
+      const batch = db.batch();
+      batch.update(doc.ref, { moderationState: "VISIBLE" });
+      batch.set(db.collection("Community_Moderation_Audit").doc(), {
+        actorUid: context.auth.uid,
+        action: "MIGRATE_POST_VISIBILITY",
+        targetType: "COMMUNITY_POST",
+        targetId: doc.id,
+        reason: "Set the legacy post visibility state to VISIBLE; no content was changed.",
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+    }
+    readyCount += 1;
+    results.push({ postId: doc.id, status: dryRun ? "WOULD_SET_VISIBLE" : "SET_VISIBLE" });
+  }
+
+  return {
+    success: true,
+    dryRun,
+    scannedCount: snapshot.size,
+    readyOrUpdatedCount: readyCount,
+    skippedCount,
+    results,
+    nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1].id : null
+  };
+});
