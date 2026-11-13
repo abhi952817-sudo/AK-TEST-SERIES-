@@ -641,3 +641,70 @@ The above observations are static GitHub source/compare inspections. No local ch
 ### 15.4 Verification boundary
 
 These two code commits were made only on `integration/root-to-fruit-master-2026-11-13`. No production deployment, database migration, branch merge, or main-branch modification occurred. The changes were read back from GitHub, but no Node tests, Android build, Firebase Emulator, device test, or live-provider test was executed. The scoring fix remains `IMPLEMENTED_UNVERIFIED`.
+
+
+---
+
+## 16. User Requirement — Exactly Two AI Provider Connectors for NEET (2026-11-13)
+
+**User direction:** The NEET release must support two AI provider connectors, and both providers must be usable by the app's AI workflows. Avoid parallel prompt systems, duplicate pipelines, or provider-specific business logic.
+
+### 16.1 Canonical provider decision
+
+The target pair for the first implementation is:
+
+1. **Google Gemini** — reuse the existing Gemini prompt/validation work and the secret-backed Cloud Functions connector found on `feature/universal-gemini-ai-10-phase-2026-11-08`.
+2. **OpenAI** — add a second provider adapter behind the same provider-neutral contract. Repository search on the current baseline did not find an existing OpenAI connector or OpenAI API call site; do not claim one already exists.
+
+These are two transport/provider adapters, not two separate AI systems. Both must call the same canonical prompt engine, task contracts, exam registry, question schema, validation pipeline, provenance policy, quota/metering layer, and persistence/approval flow.
+
+### 16.2 Required shared interface
+
+- One `AIProvider` contract with provider/model selection and normalized response + usage metadata.
+- Exactly two supported provider adapters for this release: `GeminiProvider` and `OpenAIProvider`.
+- One server-side provider router; no provider API secrets in APK, client preferences, Firestore documents, logs, analytics, or crash reports.
+- Provider selection must be explicit/configurable; no silent provider or model substitution.
+- Both adapters must support the task modes required by NEET: PDF/text understanding (with actual PDF bytes where provider supports it), syllabus/exam metadata extraction, question generation, answer/explanation generation, question validation/repair, bilingual output, and doubt assistance where the task contract permits.
+- Shared validation is mandatory after either provider: strict JSON/schema, NEET syllabus scope, source/page provenance, answer correctness checks, duplicate detection, image/diagram references, question type/marking metadata, and fail-closed rejection.
+- One Admin kill switch, per-user/server-enforced quotas, provider/model allowlist, timeout/retry policy, token/cost metering, safe error normalization, and audit events.
+- Student/Admin authorization must be task-specific. Students may use only approved student-facing tasks and their own authorized quota; Admin-only configuration, publishing, and key verification remain Admin-only.
+- If one provider is unavailable, fallback to the other is allowed only when explicitly enabled by policy and logged; do not silently switch model/provider during an active generation or lose provenance.
+
+### 16.3 Existing branch reconciliation — Gemini
+
+The Gemini feature branch contains:
+- `backend_functions/aiConnector.js`: v2 callable functions, server-secret-backed Gemini key, Admin-only verify/generate, global AI kill switch, normalized usage metadata.
+- `backend_functions/aiConnector.test.js`: unit coverage for auth, kill switch, secret handling, verification, malformed prompts/model IDs, and provider failures.
+- `app/src/main/java/Com/ak/testseries/exam/UniversalAIContext.kt`: shared prompt policy (branch version); it is provider-neutral in credential selection but its documentation and task coverage still need reconciliation.
+- Branch tracker reports existing student-owned Gemini key flows and AndroidKeyStore protection, but their exact integration/call sites and current-branch compatibility remain to be verified.
+
+**Important compatibility blocker:** Current integration branch uses the existing v1 callable export style and Node 18 Functions package. The Gemini branch connector uses Functions v2 `onCall` and Secret Manager `defineSecret`. Do not copy files without checking deployed Functions generation compatibility, secret binding, exports, region, database ID, and test setup.
+
+### 16.4 OpenAI implementation gate
+
+No OpenAI source implementation was found by repository code search on the current baseline. Add it only as the second adapter under the same provider-neutral interface. Use a server-managed secret and OpenAI's supported API contract; never embed a key in Android. Tests must mock network calls and assert that secrets never enter URLs, client responses, logs, or persisted records.
+
+### 16.5 NEET acceptance tests for both providers
+
+For each provider independently:
+- Authenticated Admin can configure/verify and generate allowed test content.
+- Authorized student task flows can use the configured provider without receiving secrets.
+- Same prompt version, exam configuration, question schema, validation, and approval rules are applied.
+- Valid output passes shared validation; malformed JSON, out-of-syllabus content, missing/contradictory answer keys, missing provenance where required, duplicate questions, unsupported types, and incomplete batches fail closed.
+- PDF page/source references survive extraction -> generation -> validation -> draft persistence -> Admin review.
+- Provider errors, timeouts, quota exhaustion, retries, usage/cost metadata, and explicit fallback are covered.
+- Neither provider may auto-publish generated questions or expose private answer keys.
+
+### 16.6 Status and next actions
+
+| Work item | Status |
+|---|---|
+| Existing Gemini server connector branch identified and source/test inspected | INVENTORY_DONE (compatibility/integration pending) |
+| Existing Gemini Android/student-key flow | PARTIAL (exact current call graph and secret storage verification pending) |
+| OpenAI connector | NOT_STARTED (no existing implementation found) |
+| Provider-neutral shared interface/router | NOT_STARTED |
+| Both-provider task-mode integration across NEET app | NOT_STARTED |
+| Shared validation/quota/cost controls and provider contract tests | NOT_STARTED |
+| Real PDF and NEET end-to-end provider tests | NOT_STARTED |
+
+**Implementation order:** reconcile and selectively port the existing Gemini connector and prompt engine; define the shared provider contract; implement OpenAI adapter; connect all approved NEET task modes through the single router; add security/quota/metering/tests; then validate both providers independently. No API keys are available in this repository inspection, so live provider verification cannot be claimed until securely configured by the project owner.
