@@ -429,6 +429,9 @@ service cloud.firestore {
                     && (!('imagePath' in request.resource.data) || request.resource.data.imagePath == null
                         || (request.resource.data.imagePath is string
                             && request.resource.data.imagePath.matches('community_images/' + request.auth.uid + '/[^/]+')))
+                    && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl == null
+                        || (request.resource.data.imageUrl is string
+                            && request.resource.data.imageUrl.matches('https://firebasestorage\\.googleapis\\.com/v0/b/[^/]+/o/community_images%2F' + request.auth.uid + '%2F[^?]+\\?alt=media.*')))
                     && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName'])
                     && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
                     && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
