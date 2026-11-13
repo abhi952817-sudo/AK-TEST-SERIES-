@@ -941,7 +941,7 @@ exports.createCommunityMcq = functions.https.onCall(async (data, context) => {
   const uid = context.auth.uid;
   let payload;
   try {
-    payload = validateCommunityMcqCreate(data);
+    payload = validateCommunityMcqCreate(data, context.auth.uid);
   } catch (error) {
     throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
   }
@@ -989,6 +989,7 @@ exports.createCommunityMcq = functions.https.onCall(async (data, context) => {
     targetExam: payload.targetExam,
     examId: payload.examId,
     imageUrl: payload.imageUrl,
+    imagePath: payload.imagePath,
     postType: "MCQ",
     mcqOptions: payload.options,
     creatorId: uid,
