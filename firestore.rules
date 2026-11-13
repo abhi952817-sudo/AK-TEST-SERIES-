@@ -330,10 +330,11 @@ service cloud.firestore {
         }
         function safeQuestionFields(data) {
           return data.keys().hasOnly([
-            'id', 'testId', 'questionText', 'optionA', 'optionB', 'optionC',
-            'optionD', 'optionE', 'options', 'questionType', 'positiveMarks',
-            'negativeMarks', 'section', 'sectionName', 'subject', 'chapter',
-            'topic', 'difficulty', 'imageUrl', 'questionTextHi', 'optionAHi',
+            'id', 'testId', 'questionText', 'questionTextEn', 'optionA', 'optionB', 'optionC',
+            'optionD', 'optionE', 'optionAEn', 'optionBEn', 'optionCEn', 'optionDEn', 'optionEEn',
+            'options', 'questionType', 'positiveMarks',
+            'negativeMarks', 'section', 'sectionId', 'sectionName', 'subject', 'chapter',
+            'topic', 'difficulty', 'imageUrl', 'needsImage', 'questionTextHi', 'optionAHi',
             'optionBHi', 'optionCHi', 'optionDHi', 'optionEHi'
           ])
           && data.questionText is string
