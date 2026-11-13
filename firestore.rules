@@ -279,6 +279,7 @@ service cloud.firestore {
                     && request.resource.data.status == 'Published'
                     && request.resource.data.examId is string
                     && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+                    && request.resource.data.targetExam in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.aliases
                     && (request.resource.data.subject == 'Full Syllabus'
                         || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
                     && request.resource.data.keys().hasOnly([
@@ -303,6 +304,7 @@ service cloud.firestore {
         && request.resource.data.status == 'Published'
         && request.resource.data.examId is string
         && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+        && request.resource.data.targetExam in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.aliases
         && (request.resource.data.subject == 'Full Syllabus'
             || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
         && request.resource.data.keys().hasOnly([
@@ -402,6 +404,7 @@ service cloud.firestore {
                     && request.resource.data.examId is string
                     && request.resource.data.examId.size() > 0
                     && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+                    && request.resource.data.targetExam in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.aliases
                     && ((request.resource.data.postType == 'TEST_SHARE'
                           && request.resource.data.subject == 'Full Syllabus')
                         || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
