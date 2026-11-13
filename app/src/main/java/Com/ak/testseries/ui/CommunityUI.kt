@@ -45,7 +45,7 @@ enum class CommunityRoute {
 }
 
 enum class CommunityTab {
-    FEED, BOOKMARKS, MY_POSTS
+    FEED, BOOKMARKS, MY_POSTS, BLOCKED_USERS
 }
 
 data class CommunityPost(
@@ -525,6 +525,13 @@ fun CommunityScreen(
                 isAdmin = isAdmin,
                 targetExam = targetExam,
                 posts = postsWithUserStatus,
+                blockedUserIds = blockedUserIds.toList(),
+                onUnblockUser = { blockedUid ->
+                    currentUid?.let { uid ->
+                        FirebaseFirestore.getInstance().collection("Users_Data").document(uid)
+                            .collection("Blocked_Users").document(blockedUid).delete()
+                    }
+                },
                 onNavigateToCreate = { currentRoute = CommunityRoute.CREATE_POST },
                 onNavigateToDetail = { post ->
                     selectedPostId = post.id
@@ -673,6 +680,8 @@ fun CommunityFeedScreen(
     isAdmin: Boolean,
     targetExam: String,
     posts: List<CommunityPost>,
+    blockedUserIds: List<String> = emptyList(),
+    onUnblockUser: (String) -> Unit = {},
     onNavigateToCreate: () -> Unit,
     onNavigateToDetail: (CommunityPost) -> Unit,
     onUpdatePost: (CommunityPost) -> Unit,
@@ -798,6 +807,12 @@ fun CommunityFeedScreen(
                     onClick = { currentTab = CommunityTab.BOOKMARKS },
                     modifier = Modifier.weight(1f)
                 )
+                CommunityTabItem(
+                    title = "Blocked",
+                    isSelected = currentTab == CommunityTab.BLOCKED_USERS,
+                    onClick = { currentTab = CommunityTab.BLOCKED_USERS },
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             // Subject Filter
@@ -830,6 +845,7 @@ fun CommunityFeedScreen(
                 val matchesTab = when(currentTab) {
                     CommunityTab.FEED -> true
                     CommunityTab.BOOKMARKS -> it.isBookmarked
+                    CommunityTab.BLOCKED_USERS -> false
                     else -> true
                 }
                 val matchesSubject = if (currentTab == CommunityTab.FEED && selectedSubject != "All") {
@@ -846,32 +862,55 @@ fun CommunityFeedScreen(
             // Deduplicate safely by unique post id
             val finalPosts = filteredPosts.distinctBy { it.id }
             
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(finalPosts, key = { it.id }) { post ->
-                    PostCard(
-                        post = post,
-                        isAdmin = isAdmin,
-                        onClick = { onNavigateToDetail(post) },
-                        onUpdatePost = onUpdatePost,
-                        onDeletePost = onDeletePost,
-                        onOpenTest = onOpenTest,
-                        onToggleBookmark = onToggleBookmark,
-                        onToggleLike = onToggleLike
-                    )
+            if (currentTab == CommunityTab.BLOCKED_USERS) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item { Text("Blocked users", fontWeight = FontWeight.Bold) }
+                    items(blockedUserIds, key = { it }) { blockedUid ->
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(blockedUid, modifier = Modifier.weight(1f), fontSize = 13.sp)
+                                TextButton(onClick = { onUnblockUser(blockedUid) }) { Text("Unblock") }
+                            }
+                        }
+                    }
+                    if (blockedUserIds.isEmpty()) {
+                        item { Text("You have not blocked anyone.", modifier = Modifier.padding(24.dp), color = Color.Gray) }
+                    }
                 }
-                
-                if (finalPosts.isEmpty()) {
-                    item {
-                        Text(
-                            text = "No posts found.",
-                            modifier = Modifier.fillMaxWidth().padding(32.dp),
-                            textAlign = TextAlign.Center,
-                            color = Color.Gray
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(finalPosts, key = { it.id }) { post ->
+                        PostCard(
+                            post = post,
+                            isAdmin = isAdmin,
+                            onClick = { onNavigateToDetail(post) },
+                            onUpdatePost = onUpdatePost,
+                            onDeletePost = onDeletePost,
+                            onOpenTest = onOpenTest,
+                            onToggleBookmark = onToggleBookmark,
+                            onToggleLike = onToggleLike
                         )
+                    }
+                    if (finalPosts.isEmpty()) {
+                        item {
+                            Text(
+                                text = "No posts found.",
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                textAlign = TextAlign.Center,
+                                color = Color.Gray
+                            )
+                        }
                     }
                 }
             }
