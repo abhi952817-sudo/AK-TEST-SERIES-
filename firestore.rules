@@ -389,7 +389,7 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly([
                       'id', 'authorName', 'authorSubtitle', 'isOfficial', 'isMonitor',
                       'timeAgo', 'title', 'content', 'isPinned', 'upvotes', 'comments',
-                      'views', 'subject', 'targetExam', 'imageUrl', 'isBookmarked',
+                      'views', 'subject', 'targetExam', 'examId', 'imageUrl', 'isBookmarked',
                       'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
                       'classLevel', 'totalMarks', 'topic', 'userReaction', 'mcqOptions',
@@ -402,7 +402,9 @@ service cloud.firestore {
                     && request.resource.data.examId is string
                     && request.resource.data.examId.size() > 0
                     && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
-                    && request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects
+                    && ((request.resource.data.postType == 'TEST_SHARE'
+                          && request.resource.data.subject == 'Full Syllabus')
+                        || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
                     && request.resource.data.targetExam is string
                     && request.resource.data.targetExam.size() > 0
                     // MCQ documents are created only by the trusted callable so the
