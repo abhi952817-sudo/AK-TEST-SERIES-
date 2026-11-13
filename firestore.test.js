@@ -518,6 +518,11 @@ test("Community posts reject General subject and PDF attachment fields", async (
       ...base, subject: "Biology", pdfUrl: "https://example.invalid/test.pdf"
     })
   );
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("multiple_images_post").set({
+      ...base, subject: "Biology", imageUrls: ["https://example.invalid/1.jpg", "https://example.invalid/2.jpg"]
+    })
+  );
 });
 
 test("Community reports are private to Admin and block lists are owner-managed", async () => {
