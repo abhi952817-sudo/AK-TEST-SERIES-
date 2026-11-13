@@ -59,8 +59,19 @@ test("MCQ creation rejects 3/6 options, duplicate options and invalid answer ind
   ]) assert.throws(() => validateCommunityMcqCreate(payload), { code: "invalid-argument" });
 });
 
-test("MCQ creation rejects arbitrary image hosts and missing idempotency key", () => {
-  assert.throws(() => validateCommunityMcqCreate({ ...validCreate, imageUrl: "https://evil.example/image.png" }), { code: "invalid-argument" });
+test("MCQ creation rejects arbitrary image hosts, foreign paths and missing idempotency key", () => {
+  assert.throws(() => validateCommunityMcqCreate({ ...validCreate, imageUrl: "https://evil.example/image.png" }, "user-123"), { code: "invalid-argument" });
+  const imagePath = "community_images/user-123/image.jpg";
+  const imageUrl = "https://firebasestorage.googleapis.com/v0/b/test-bucket/o/" +
+    encodeURIComponent(imagePath) + "?alt=media&token=test-token";
+  const ownedImage = validateCommunityMcqCreate({ ...validCreate, imageUrl, imagePath }, "user-123");
+  assert.equal(ownedImage.imagePath, imagePath);
+  assert.throws(() => validateCommunityMcqCreate({
+    ...validCreate,
+    imageUrl,
+    imagePath: "community_images/another-user/image.jpg"
+  }, "user-123"), { code: "invalid-argument" });
+  assert.throws(() => validateCommunityMcqCreate({ ...validCreate, imageUrl }, "user-123"), { code: "invalid-argument" });
   assert.throws(() => validateCommunityMcqCreate({ ...validCreate, requestId: "" }), { code: "invalid-argument" });
 });
 
