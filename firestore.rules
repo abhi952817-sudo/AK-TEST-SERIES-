@@ -354,8 +354,7 @@ service cloud.firestore {
 
     match /Community_Posts/{postId} {
       allow read: if isAuthenticated()
-                  && (isAdmin() || !('moderationState' in resource.data)
-                      || resource.data.moderationState != 'HIDDEN');
+                  && (isAdmin() || resource.data.moderationState == 'VISIBLE');
 
       // A Community post is text and/or one image. PDF metadata is never accepted.
       // The Android client selects subjects only from UniversalExamRegistry; rules
@@ -369,11 +368,13 @@ service cloud.firestore {
                       'views', 'subject', 'targetExam', 'imageUrl', 'isBookmarked',
                       'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
-                      'classLevel', 'totalMarks', 'topic', 'userReaction', 'mcqOptions'
+                      'classLevel', 'totalMarks', 'topic', 'userReaction', 'mcqOptions',
+                      'moderationState'
                     ])
                     && request.resource.data.subject is string
                     && request.resource.data.subject.size() > 0
                     && request.resource.data.subject != 'General'
+                    && request.resource.data.moderationState == 'VISIBLE'
                     && request.resource.data.targetExam is string
                     && request.resource.data.targetExam.size() > 0
                     // MCQ documents are created only by the trusted callable so the
