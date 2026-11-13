@@ -1210,6 +1210,7 @@ object UniversalExamRegistry {
      * for unknown exams or incomplete registry entries.
      */
     fun getRegisteredSubjectsForExamName(examName: String): List<String> {
+        if (examName.isBlank()) return emptyList()
         val config = findExamByNameOrShortName(examName) ?: return emptyList()
         return config.stages.flatMap { stage ->
             stage.papers.flatMap { paper ->
