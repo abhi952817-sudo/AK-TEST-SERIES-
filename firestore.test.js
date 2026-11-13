@@ -413,7 +413,7 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
   );
 });
 
-test("Student: CAN upvote/comment on another's post, but CANNOT edit title/content or delete it", async () => {
+test("Student: CANNOT mutate another post or shared counters, but CAN create and delete their own reply", async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await ctx.firestore().collection("Community_Posts").doc("bob_post").set({
       creatorId: BOB_UID,
