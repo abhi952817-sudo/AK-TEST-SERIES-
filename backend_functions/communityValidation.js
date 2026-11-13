@@ -147,7 +147,36 @@ function splitLegacySharedQuestions(rawQuestions, testId) {
   return { publicQuestions, privateKeys };
 }
 
+
+function validateCommunityReplyCreate(data) {
+  const payload = data || {};
+  const postId = typeof payload.postId === "string" ? payload.postId.trim() : "";
+  const content = typeof payload.content === "string" ? payload.content.trim() : "";
+  const requestId = typeof payload.requestId === "string" ? payload.requestId.trim() : "";
+  if (!postId || postId.length > 150) {
+    throw makeValidationError("invalid-argument", "A valid postId is required.");
+  }
+  if (!content || content.length > 2000) {
+    throw makeValidationError("invalid-argument", "Reply text must contain 1 to 2000 characters.");
+  }
+  if (!requestId || requestId.length > 100) {
+    throw makeValidationError("invalid-argument", "A stable requestId is required for duplicate protection.");
+  }
+  return { postId, content, requestId };
+}
+
+function validateCommunityReaction(data) {
+  const payload = data || {};
+  const postId = typeof payload.postId === "string" ? payload.postId.trim() : "";
+  if (!postId || postId.length > 150) {
+    throw makeValidationError("invalid-argument", "A valid postId is required.");
+  }
+  return { postId };
+}
+
 module.exports = {
+  validateCommunityReplyCreate,
+  validateCommunityReaction,
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
   resolveCommunityExamSubject,
