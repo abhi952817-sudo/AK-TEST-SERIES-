@@ -2446,6 +2446,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     return@launch
                 }
+                val canonicalCommunityTargetExam = communityExamConfig.examName
                 val communityRegisteredSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
                 val communityShareSubject = test.subject.takeIf { it in communityRegisteredSubjects } ?: "Full Syllabus"
 
@@ -2470,7 +2471,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "scoringVersion" to (test.scoringVersion ?: 1),
                     "title" to test.title,
                     "description" to test.description,
-                    "targetExam" to targetExam,
+                    "targetExam" to canonicalCommunityTargetExam,
                     "subject" to communityShareSubject,
                     "classLevel" to test.classLevel,
                     "chapter" to test.chapter,
