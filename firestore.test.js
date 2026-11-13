@@ -1136,6 +1136,15 @@ test("Community moderation: hidden post is readable only by Admin and owner", as
       postType: "DISCUSSION",
       isHidden: true
     });
+    await ctx.firestore().collection("Community_Posts").doc("visible_post").set({
+      creatorId: ALICE_UID,
+      title: "Visible",
+      content: "Visible content",
+      subject: "Physics",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
+      isHidden: false
+    });
   });
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
@@ -1143,6 +1152,11 @@ test("Community moderation: hidden post is readable only by Admin and owner", as
   await assertSucceeds(aliceDb.collection("Community_Posts").doc("hidden_post").get());
   await assertFails(bobDb.collection("Community_Posts").doc("hidden_post").get());
   await assertSucceeds(adminDb.collection("Community_Posts").doc("hidden_post").get());
+  const visibleQuery = await assertSucceeds(
+    bobDb.collection("Community_Posts").where("isHidden", "==", false).get()
+  );
+  if (visibleQuery.size !== 1) throw new Error("Student feed must return only visible Community posts.");
+  await assertFails(bobDb.collection("Community_Posts").get());
 });
 
 
