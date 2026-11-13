@@ -1148,6 +1148,19 @@ exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, 
       skippedCount += 1;
       continue;
     }
+    const targetExam = String(existing.targetExam || existing.examId || "").trim().toLocaleLowerCase();
+    const examMatches = communityExamSubjects.exams.filter(exam =>
+      [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === targetExam)
+    );
+    if (examMatches.length !== 1) {
+      results.push({ testId: doc.id, status: "SKIPPED_UNKNOWN_EXAM" });
+      skippedCount += 1;
+      continue;
+    }
+    const canonicalExam = examMatches[0];
+    const existingSubject = String(existing.subject || "").trim();
+    const canonicalSubject = canonicalExam.subjects.find(subject => subject.toLocaleLowerCase() === existingSubject.toLocaleLowerCase())
+      || "Full Syllabus";
 
     if (!dryRun) {
       const batch = db.batch();
@@ -1160,6 +1173,8 @@ exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, 
         isOfficial: false,
         countsTowardRanking: false,
         status: "Published",
+        examId: canonicalExam.examId,
+        subject: canonicalSubject,
         migratedAt: admin.firestore.FieldValue.serverTimestamp()
       });
       for (const question of separated.publicQuestions) {
@@ -1237,22 +1252,36 @@ exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (dat
       skippedCount += 1;
       continue;
     }
+    const postData = doc.data();
+    const targetExam = String(postData.targetExam || "").trim().toLocaleLowerCase();
+    const examMatches = communityExamSubjects.exams.filter(exam =>
+      [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === targetExam)
+    );
+    const canonicalExam = examMatches.length === 1 ? examMatches[0] : null;
+    const visibility = canonicalExam ? "VISIBLE" : "HIDDEN";
+    const reason = canonicalExam
+      ? "Set legacy post visibility to VISIBLE and attached its canonical exam ID."
+      : "Hidden legacy post because its exam could not be resolved against the canonical registry.";
 
     if (!dryRun) {
       const batch = db.batch();
-      batch.update(doc.ref, { moderationState: "VISIBLE" });
+      batch.update(doc.ref, {
+        moderationState: visibility,
+        ...(canonicalExam ? { examId: canonicalExam.examId } : {}),
+        moderationMigrationReason: canonicalExam ? admin.firestore.FieldValue.delete() : "UNKNOWN_EXAM_REGISTRY_MAPPING"
+      });
       batch.set(db.collection("Community_Moderation_Audit").doc(), {
         actorUid: context.auth.uid,
-        action: "MIGRATE_POST_VISIBILITY",
+        action: canonicalExam ? "MIGRATE_POST_VISIBILITY" : "HIDE_UNMAPPED_LEGACY_POST",
         targetType: "COMMUNITY_POST",
         targetId: doc.id,
-        reason: "Set the legacy post visibility state to VISIBLE; no content was changed.",
+        reason,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
       await batch.commit();
     }
     readyCount += 1;
-    results.push({ postId: doc.id, status: dryRun ? "WOULD_SET_VISIBLE" : "SET_VISIBLE" });
+    results.push({ postId: doc.id, status: dryRun ? "WOULD_SET_" + visibility : "SET_" + visibility });
   }
 
   return {
