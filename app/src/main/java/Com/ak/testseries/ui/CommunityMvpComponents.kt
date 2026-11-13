@@ -357,3 +357,88 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
         }
     }
 }
+
+
+private data class CommunityAuditItem(
+    val id: String,
+    val action: String,
+    val actor: String,
+    val target: String,
+    val details: String,
+    val timestamp: Long,
+)
+
+@Composable
+fun CommunityAdminAuditScreen() {
+    val items = remember { mutableStateListOf<CommunityAuditItem>() }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(Unit) {
+        val registration = FirebaseFirestore.getInstance()
+            .collection("Admin_Audit_Logs")
+            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(100)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    errorMessage = error.localizedMessage ?: "Audit log could not be loaded."
+                } else if (snapshot != null) {
+                    errorMessage = null
+                    items.clear()
+                    items.addAll(snapshot.documents.map { doc ->
+                        val timestampValue = doc.get("timestamp")
+                        val millis = when (timestampValue) {
+                            is Timestamp -> timestampValue.toDate().time
+                            is Number -> timestampValue.toLong()
+                            else -> 0L
+                        }
+                        CommunityAuditItem(
+                            id = doc.id,
+                            action = doc.getString("action") ?: "UNKNOWN",
+                            actor = doc.getString("performedBy") ?: "",
+                            target = doc.getString("targetId") ?: "",
+                            details = doc.get("details")?.toString() ?: "",
+                            timestamp = millis
+                        )
+                    })
+                }
+            }
+        onDispose { registration.remove() }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Moderation Audit", style = MaterialTheme.typography.titleLarge)
+            Text("Latest 100 immutable Admin actions", fontSize = 12.sp)
+        }
+        errorMessage?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        if (items.isEmpty() && errorMessage == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No moderation audit entries found.")
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(items, key = { it.id }) { item ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(item.action, style = MaterialTheme.typography.titleSmall)
+                            Text("Actor: ${item.actor}", fontSize = 11.sp)
+                            if (item.target.isNotBlank()) Text("Target: ${item.target}", fontSize = 11.sp)
+                            if (item.details.isNotBlank()) Text(item.details, fontSize = 11.sp)
+                            Text(
+                                if (item.timestamp > 0L) java.text.DateFormat.getDateTimeInstance().format(java.util.Date(item.timestamp)) else "Time unavailable",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
