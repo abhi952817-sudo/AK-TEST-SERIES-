@@ -6,7 +6,10 @@ function validateCommunityMcqPost(post) {
   }
   const question = typeof post.title === "string" ? post.title.trim() : "";
   const options = post.quizOptions;
-  if (!question) return { valid: false, reason: "QUESTION_REQUIRED" };
+  if (!question || question.length > 2000) return { valid: false, reason: "QUESTION_REQUIRED" };
+  if (!["STUDENT", "ADMIN"].includes(post.creatorRole)) {
+    return { valid: false, reason: "CREATOR_ROLE_INVALID" };
+  }
   if (!Array.isArray(options) || ![4, 5].includes(options.length)) {
     return { valid: false, reason: "OPTIONS_MUST_BE_FOUR_OR_FIVE" };
   }
