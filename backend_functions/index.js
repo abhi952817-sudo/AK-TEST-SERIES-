@@ -1038,7 +1038,7 @@ exports.submitCommunityMcqAttempt = functions.https.onCall(async (data, context)
       const keySnap = await transaction.get(keyRef);
       const attemptSnap = await transaction.get(attemptRef);
 
-      if (!postSnap.exists || postSnap.data().postType !== "MCQ" || postSnap.data().moderationState === "HIDDEN") {
+      if (!postSnap.exists || postSnap.data().postType !== "MCQ" || postSnap.data().moderationState !== "VISIBLE") {
         throw new functions.https.HttpsError("not-found", "Community MCQ is unavailable.");
       }
       const options = postSnap.data().mcqOptions;
