@@ -89,7 +89,6 @@ test("Student: CAN create own profile with standard fields", async () => {
       name: "Alice Sharma",
       email: "alice@test.com",
       targetExam: "NEET",
-      examId: "neet_ug",
       averageScore: 0.0,
     })
   );
@@ -674,7 +673,6 @@ test("Privacy: Student CAN read own profile, CANNOT read another student's Users
       email: "bob_private@example.com",
       phoneNumber: "+919876543210",
       targetExam: "NEET",
-      examId: "neet_ug",
     });
   });
 
@@ -695,7 +693,6 @@ test("Leaderboard: Students CAN read public leaderboard, CANNOT write directly w
       displayName: "Bob",
       score: 710,
       targetExam: "NEET",
-      examId: "neet_ug",
     });
   });
 
@@ -733,7 +730,6 @@ test("Super Admin: abhi952817@gmail.com with verified email has full admin privi
     ownerDb.collection("Tests_Data").doc("official_test_01").set({
       title: "All India NEET Mock Test 1",
       targetExam: "NEET",
-      examId: "neet_ug",
       status: "Published",
       isPublic: true,
       totalQuestions: 180,
@@ -983,7 +979,7 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
     bobDb.collection("Shared_Community_Tests").doc("comm_test_banned_1").set({
       title: "Banned Test",
       creatorId: BOB_UID,
-      targetExam: "NEET"
+      targetExam: "NEET",
       examId: "neet_ug",
     })
   );
