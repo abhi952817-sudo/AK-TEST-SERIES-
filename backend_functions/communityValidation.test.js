@@ -106,6 +106,16 @@ test("Shared question sanitizer removes every answer and explanation field from 
   assert.equal("explanationHi" in safe, false);
 });
 
+test("Shared question sanitizer promotes safe English text to the required public field", () => {
+  const safe = sanitizeSharedQuestionProjection({
+    id: "q2",
+    questionTextEn: "English question",
+    correctAnswer: "A"
+  }, "test-2");
+  assert.equal(safe.questionText, "English question");
+  assert.equal("correctAnswer" in safe, false);
+});
+
 test("Legacy shared-test migration separates secrets from the public question projection", () => {
   const { publicQuestions, privateKeys } = splitLegacySharedQuestions([
     {
