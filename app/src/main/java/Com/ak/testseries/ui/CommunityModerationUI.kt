@@ -445,18 +445,18 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
             targetType = "COMMUNITY_POST",
             targetId = postId,
             targetWrite = { batch ->
-                if (remove) {
-                    batch.delete(ref)
-                } else {
-                    batch.update(
-                        ref,
-                        mapOf(
-                            "moderationState" to if (restore) "VISIBLE" else "HIDDEN",
-                            "moderatedBy" to adminUid.orEmpty(),
-                            "moderatedAt" to FieldValue.serverTimestamp()
-                        )
+                batch.update(
+                    ref,
+                    mapOf(
+                        "moderationState" to when {
+                            restore -> "VISIBLE"
+                            remove -> "REMOVED"
+                            else -> "HIDDEN"
+                        },
+                        "moderatedBy" to adminUid.orEmpty(),
+                        "moderatedAt" to FieldValue.serverTimestamp()
                     )
-                }
+                )
             }
         )
     }
