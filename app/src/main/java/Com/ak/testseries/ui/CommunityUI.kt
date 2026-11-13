@@ -197,6 +197,9 @@ object CommunityShareManager {
         } else {
             "Check out this test: ${test.title} (${test.subject} - $qCount Questions, $durMins Mins)."
         }
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+        val registeredSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
+        val shareSubject = test.subject.takeIf { it in registeredSubjects } ?: "Full Syllabus"
 
         return CommunityPost(
             id = postId,
@@ -204,9 +207,9 @@ object CommunityShareManager {
             authorSubtitle = authorSubtitle,
             title = shareTitle,
             content = shareContent,
-            subject = test.subject,
+            subject = shareSubject,
             targetExam = targetExam,
-            examId = test.examId ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)?.examId,
+            examId = examConfig?.examId ?: test.examId,
             timeAgo = "Just now",
             timestamp = System.currentTimeMillis(),
             postType = "TEST_SHARE",
