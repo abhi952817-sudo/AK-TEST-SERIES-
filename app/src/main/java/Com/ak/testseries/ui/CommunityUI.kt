@@ -583,12 +583,14 @@ fun CommunityScreen(
                         val uid = currentUid
                         val authorUid = p.creatorId
                         if (!uid.isNullOrBlank() && !authorUid.isNullOrBlank() && uid != authorUid) {
-                            FirebaseFirestore.getInstance().collection("Users_Data").document(uid)
+                            val blockRef = FirebaseFirestore.getInstance().collection("Users_Data").document(uid)
                                 .collection("Blocked_Users").document(authorUid)
-                                .set(mapOf("blockedUid" to authorUid, "createdAt" to System.currentTimeMillis()))
-                                .addOnFailureListener { error ->
-                                    android.widget.Toast.makeText(context, error.localizedMessage ?: "Block action failed.", android.widget.Toast.LENGTH_LONG).show()
-                                }
+                            val action = if (blockedUserIds.contains(authorUid)) blockRef.delete() else {
+                                blockRef.set(mapOf("blockedUid" to authorUid, "createdAt" to System.currentTimeMillis()))
+                            }
+                            action.addOnFailureListener { error ->
+                                android.widget.Toast.makeText(context, error.localizedMessage ?: "Block action failed.", android.widget.Toast.LENGTH_LONG).show()
+                            }
                         }
                     },
                     onOpenTest = onOpenTest
