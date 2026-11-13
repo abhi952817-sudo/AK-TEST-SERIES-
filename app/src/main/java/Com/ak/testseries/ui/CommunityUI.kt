@@ -410,12 +410,17 @@ fun CommunityScreen(
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     // Fallback query if compound index is building or fails
-                    db.collection("Community_Posts")
+                    var fallbackQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
                         .whereEqualTo("targetExam", targetExam)
-                        .limit(20)
+                    if (!isAdmin) {
+                        fallbackQuery = fallbackQuery.whereEqualTo("moderationState", "VISIBLE")
+                    }
+                    fallbackQuery.limit(20)
                         .get()
                         .addOnSuccessListener { fallbackSnap ->
                             updatePostsList(fallbackSnap.documents)
+                            lastVisiblePostDocument = null
+                            canLoadMorePosts = false
                         }
                     return@addSnapshotListener
                 }
