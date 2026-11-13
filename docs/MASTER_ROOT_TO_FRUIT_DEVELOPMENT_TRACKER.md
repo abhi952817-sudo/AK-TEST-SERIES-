@@ -967,3 +967,13 @@ Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. 
 - No code or rules were changed in this audit. No Android build, Firebase Emulator, backend test suite, or device test was run. All findings above are static source inspection.
 
 **Audit status:** CONFIRMED STATIC FINDINGS; implementation NOT STARTED. Target branch remains `integration/root-to-fruit-master-2026-11-13`; main unchanged.
+
+
+### 23.6 Existing architecture document cross-check
+
+- `docs/community/COMMUNITY_DEVELOPMENT_PLAN.md` already states that private test confidentiality is mandatory, that Community should reference the original test by stable ID rather than create an unnecessary second complete question-bank copy, that sharing does not imply Admin verification, and that a complete private test must not be copied into a public collection.
+- That same plan records the existing broad `Shared_Community_Tests` read rule as a known answer-bearing-data risk.
+- The current `shareTestToCommunity()` implementation conflicts with those documented architecture rules by writing full `questions` and `questionsJson` (including correct answers/explanations) to `Shared_Community_Tests`.
+- Local private-file directories are explicitly excluded from Android backup/device-transfer XML rules (`private_tests` and `secure_ai_tests`), and local backup adapters scope test exports by authenticated UID. Keep these protections when implementing recipient-local copies.
+- Current Room database is schema version 20 and has explicit migrations through 19→20, but also uses `fallbackToDestructiveMigration()`. Any future recipient-grant/local-entitlement schema change must include a forward migration and schema/restore regression tests; do not rely on destructive fallback.
+- Repository-wide code searches for `recipientUid`, `testAccessGrant`, `invitedUsers`, `shareToken`, `testInvite`, and `testPermission` returned no matching implementation. This supports the finding that a recipient grant system was not found, but remains a static search result rather than proof about live Firestore data or external services.
