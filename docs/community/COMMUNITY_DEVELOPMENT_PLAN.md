@@ -92,7 +92,7 @@ Implementation branch: `feature/community-completion-2026-11-13`. The following 
 | C1 — Report and block | **Implemented** | `CommunityUI.kt`, `CommunityModerationUI.kt`, `firestore.rules`, `storage.rules`. Report post/user, optional private one-image evidence, owner block list, unblock dialog, blocked-author feed filtering. | Multi-account physical-device QA and live Storage permission check. |
 | C2 — Admin moderation | **Implemented** | Admin report inbox, live status, hide/restore/remove, suspend user, existing Admin unban, immutable audit events, read-only Audit tab. Moderation updates and audit writes use one Firestore batch. | Verify real Admin claims and run a full moderation scenario after Functions/Rules deployment. |
 | C3 — Single-question MCQ | **Implemented in code** | `CommunityMcqUI.kt`, `backend_functions/index.js`, `communityValidation.js`, `communityExamSubjects.json`, Firestore rules. Exactly 4/5 options, one correct answer, separate private answer key, callable creation, one server-recorded attempt per student, answer reveal after attempt. | Live Firebase callable integration after Functions deployment; real-device UX QA. |
-| C4 — Community UX | **Implemented with one search limitation** | My Posts tab, cursor-based 20-post pagination, hidden-post filtering, blocked-author filtering, owner delete, image-only post support, upload cleanup on Firestore failure, create error handling. | Search currently filters pages already loaded; global server-side full-text search remains deferred. Camera/gallery requires device QA. |
+| C4 — Community UX | **Implemented with one search limitation** | My Posts tab, cursor-based 20-post pagination, hidden-post filtering, blocked-author filtering, owner delete, image-only post support, upload cleanup on Firestore failure, create error handling, local image-size enforcement and parsed MCQ creator-role metadata. | Search currently filters pages already loaded; global server-side full-text search remains deferred. Camera/gallery requires device QA. |
 | C5 — Security and regression | **Emulator/backend PASS; Android CI pending** | Firestore/Storage Rules tests, MCQ secrecy/attempt tests, subject registry tests, shared-test answer-key separation, migration sanitizers, Android CI updated to JDK 21. | Current-head Android unit tests, APK build and artifact upload must finish successfully before merge. |
 
 ### Additional security work included in the completion branch
@@ -105,10 +105,10 @@ Implementation branch: `feature/community-completion-2026-11-13`. The following 
 
 ### Verified automated test evidence
 
-- Firestore + Storage emulator suite: **39 passed, 0 failed** on completion-branch CI run #43.
-- Backend callable/validation suite: **46 passed, 0 failed** on completion-branch CI run #43.
-- Latest subsequent Rules run #45 is also being checked against the final Admin-claim helper change.
-- Android CI run #457 is still running its Unit Tests step; do not call the Android build complete until the APK build and artifact upload steps also succeed.
+- Firestore + Storage emulator suite: **41 passed, 0 failed** on completion-branch CI run #99 (GitHub run `43354970874`).
+- Backend callable/validation suite: **53 passed, 0 failed** on completion-branch CI run #99 (GitHub run `43354970874`).
+- The latest Rules run (#99) passed on the final Firestore/Storage rules and backend validator files. The duplicate `bobDb` declaration that previously prevented the test file from loading was removed.
+- Android CI passed on earlier head `aca2a619` (run #533). The latest Kotlin changes include local file-size validation for Community/report images, Live Test verification metadata correction, and preservation of MCQ creator-role metadata in the Community model. Current PR #8 head `2a18591b` is under Android CI; Unit Tests, APK build and artifact upload must all pass before the PR is marked ready.
 
 ## 0.4 Deployment and legacy migration runbook
 
