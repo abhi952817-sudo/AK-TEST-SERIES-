@@ -467,6 +467,7 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
   });
 
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
   // Students cannot mutate shared counters directly.
   await assertFails(
