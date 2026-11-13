@@ -280,7 +280,10 @@ service cloud.firestore {
     }
 
     match /Community_Posts/{postId} {
-      allow read: if isAuthenticated();
+      // Hidden posts are visible only to the owner and moderators.
+      allow read: if isAuthenticated()
+                  && (isAdmin() || resource.data.get('isHidden', false) != true
+                      || resource.data.get('creatorId', '') == request.auth.uid);
 
       // A Community post is text and/or one image. PDF metadata is never accepted.
       // The Android client selects subjects only from UniversalExamRegistry; rules
@@ -294,7 +297,8 @@ service cloud.firestore {
                       'views', 'subject', 'targetExam', 'imageUrl', 'isBookmarked',
                       'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
-                      'classLevel', 'totalMarks', 'topic', 'userReaction'
+                      'classLevel', 'totalMarks', 'topic', 'userReaction', 'quizOptions',
+                      'isHidden'
                     ])
                     && request.resource.data.subject is string
                     && request.resource.data.subject.size() > 0
@@ -314,7 +318,30 @@ service cloud.firestore {
                     && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName'])
                     && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
                     && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
-                    && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false);
+                    && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false)
+                    && (!('isHidden' in request.resource.data) || request.resource.data.isHidden == false)
+                    && (
+                      (request.resource.data.postType == 'MCQ'
+                        && request.resource.data.quizOptions is list
+                        && request.resource.data.quizOptions.size() in [4, 5]
+                        && request.resource.data.title.size() > 0
+                        && request.resource.data.quizOptions[0] is string
+                        && request.resource.data.quizOptions[0].size() > 0
+                        && request.resource.data.quizOptions[1] is string
+                        && request.resource.data.quizOptions[1].size() > 0
+                        && request.resource.data.quizOptions[2] is string
+                        && request.resource.data.quizOptions[2].size() > 0
+                        && request.resource.data.quizOptions[3] is string
+                        && request.resource.data.quizOptions[3].size() > 0
+                        && (request.resource.data.quizOptions.size() == 4
+                            || (request.resource.data.quizOptions[4] is string
+                                && request.resource.data.quizOptions[4].size() > 0)))
+                      || (request.resource.data.postType != 'MCQ'
+                        && !request.resource.data.keys().hasAny(['quizOptions']))
+                    )
+                    && !request.resource.data.keys().hasAny([
+                      'correctOptionIndex', 'correctAnswer', 'answerKey', 'quizExplanation'
+                    ]);
 
       // Only the owner may edit the post body/subject/image. Replies are separate
       // documents so one student can never overwrite another student's reply list.
@@ -363,7 +390,7 @@ service cloud.firestore {
       }
     }
 
-    // Students can submit moderation reports; only Admins can read or change them.
+    // Students submit reports; only Admins may read or resolve them.
     match /Community_Reports/{reportId} {
       allow create: if isAuthenticated()
                     && !isUserBanned(request.auth.uid)
@@ -372,23 +399,63 @@ service cloud.firestore {
                     && request.resource.data.reason.size() > 0
                     && request.resource.data.reason.size() <= 1200
                     && request.resource.data.status == 'OPEN'
+                    && (request.resource.data.get('postId', '') is string)
+                    && (request.resource.data.get('reportedUserId', '') is string)
+                    && (request.resource.data.get('postId', '') != ''
+                        || request.resource.data.get('reportedUserId', '') != '')
+                    && (!('evidenceImagePath' in request.resource.data)
+                        || request.resource.data.evidenceImagePath == null
+                        || request.resource.data.evidenceImagePath
+                          == 'community_report_evidence/' + request.auth.uid + '/' + reportId)
                     && request.resource.data.keys().hasOnly([
                       'reporterId', 'postId', 'reportedUserId', 'reason',
                       'evidenceImagePath', 'status', 'createdAt'
                     ]);
-      allow read, update: if isAdmin();
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['status', 'resolvedBy', 'resolvedAt', 'resolutionNote']);
       allow delete: if false;
     }
 
-    // Per-user block list. A student can only manage their own block entries.
+    // A student can only manage their own block list and cannot block themselves.
     match /Users_Data/{userId}/Blocked_Users/{blockedUid} {
       allow read: if isAuthenticated() && request.auth.uid == userId;
       allow create: if isAuthenticated()
                     && !isUserBanned(request.auth.uid)
                     && request.auth.uid == userId
-                    && request.resource.data.blockedUid == blockedUid;
+                    && blockedUid != request.auth.uid
+                    && request.resource.data.blockedUid == blockedUid
+                    && request.resource.data.keys().hasOnly(['blockedUid', 'createdAt']);
       allow delete: if isAuthenticated() && request.auth.uid == userId;
       allow update: if false;
+    }
+
+    // Private MCQ answer keys. The creator can create once; clients cannot alter them.
+    match /Community_MCQ_AnswerKeys/{postId} {
+      allow read: if isAdmin()
+                  || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
+      allow create: if isAuthenticated()
+                    && !isUserBanned(request.auth.uid)
+                    && request.resource.data.creatorId == request.auth.uid
+                    && request.resource.data.correctOptionIndex is int
+                    && request.resource.data.correctOptionIndex >= 0
+                    && request.resource.data.correctOptionIndex <= 4
+                    && request.resource.data.explanation is string
+                    && request.resource.data.explanation.size() <= 2000
+                    && request.resource.data.keys().hasOnly([
+                      'creatorId', 'correctOptionIndex', 'explanation', 'createdAt'
+                    ])
+                    && exists(/databases/$(database)/documents/Community_Posts/$(postId))
+                    && get(/databases/$(database)/documents/Community_Posts/$(postId)).data.creatorId == request.auth.uid
+                    && get(/databases/$(database)/documents/Community_Posts/$(postId)).data.postType == 'MCQ';
+      allow update, delete: if false;
+    }
+
+    // Attempt records are server-written and private to the student who attempted.
+    match /Community_MCQ_Attempts/{postId}/Users/{userId} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+      allow create, update, delete: if false;
     }
 
     // =========================================================================
