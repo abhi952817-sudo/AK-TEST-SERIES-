@@ -466,12 +466,14 @@ fun CommunityScreen(
     }
 
     // Attach user bookmark and like status to posts
-    val postsWithUserStatus = posts.map { post ->
-        post.copy(
-            isBookmarked = bookmarkedPostIds.contains(post.id),
-            userReaction = if (likedPostIds.contains(post.id)) "UP" else null
-        )
-    }
+    val postsWithUserStatus = posts
+        .filter { post -> isAdmin || post.creatorId.isNullOrBlank() || !blockedUserIds.contains(post.creatorId) }
+        .map { post ->
+            post.copy(
+                isBookmarked = bookmarkedPostIds.contains(post.id),
+                userReaction = if (likedPostIds.contains(post.id)) "UP" else null
+            )
+        }
 
     when (currentRoute) {
         CommunityRoute.FEED -> {
