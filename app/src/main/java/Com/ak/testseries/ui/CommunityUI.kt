@@ -78,7 +78,12 @@ data class CommunityPost(
     val difficulty: String? = null,
     val classLevel: String? = null,
     val totalMarks: Double? = null,
-    val topic: String? = null
+    val topic: String? = null,
+    val quizOptions: List<String> = emptyList(),
+    // Transient values: never serialize the answer key or explanation into a public post.
+    val quizCorrectOptionIndex: Int? = null,
+    val quizExplanation: String? = null,
+    val isHidden: Boolean = false
 )
 
 data class CommunityComment(
@@ -109,23 +114,23 @@ fun commentToMap(comment: CommunityComment): Map<String, Any?> {
 }
 
 fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
-    return hashMapOf(
+    val data = hashMapOf<String, Any?>(
         "id" to post.id,
         "authorName" to post.authorName,
         "authorSubtitle" to post.authorSubtitle,
-        "isOfficial" to post.isOfficial,
-        "isMonitor" to post.isMonitor,
+        "isOfficial" to false,
+        "isMonitor" to false,
         "timeAgo" to post.timeAgo,
         "title" to post.title,
         "content" to post.content,
-        "isPinned" to post.isPinned,
-        "upvotes" to post.upvotes,
-        "comments" to post.comments,
-        "views" to post.views,
+        "isPinned" to false,
+        "upvotes" to 0,
+        "comments" to 0,
+        "views" to "0",
         "subject" to post.subject,
         "targetExam" to post.targetExam,
         "imageUrl" to post.imageUrl,
-        "isBookmarked" to post.isBookmarked,
+        "isBookmarked" to false,
         "timestamp" to post.timestamp,
         "postType" to post.postType,
         "testId" to post.testId,
@@ -138,9 +143,12 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "classLevel" to post.classLevel,
         "totalMarks" to post.totalMarks,
         "topic" to post.topic,
-        "userReaction" to post.userReaction,
-        // Replies live in Community_Posts/{postId}/Comments/{commentId}; never write a shared array.
+        "userReaction" to null,
+        "isHidden" to false
     )
+    if (post.postType == "MCQ") data["quizOptions"] = post.quizOptions
+    // quizCorrectOptionIndex and quizExplanation are written only to the private answer-key document.
+    return data
 }
 
 object CommunityShareManager {
@@ -318,6 +326,8 @@ fun CommunityScreen(
                     totalMarks = doc.getDouble("totalMarks") ?: doc.getLong("totalMarks")?.toDouble(),
                     topic = doc.getString("topic"),
                     userReaction = doc.getString("userReaction"),
+                    quizOptions = (doc.get("quizOptions") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                    isHidden = doc.getBoolean("isHidden") ?: false,
                     commentsList = parsedComments
                 )
             } catch (e: Exception) {
