@@ -35,6 +35,7 @@ fun CommunityAdminScreen(viewModel: NEETViewModel) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Settings & Users") })
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Manage Posts") })
             Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Reports") })
+            Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 }, text = { Text("Audit") })
         }
 
         when (selectedTab) {
@@ -44,7 +45,8 @@ fun CommunityAdminScreen(viewModel: NEETViewModel) {
                 targetExam = "NEET",
                 onOpenTest = { testId -> viewModel.handleDeepLinkTest(testId) }
             )
-            else -> CommunityAdminReportsScreen(viewModel)
+            2 -> CommunityAdminReportsScreen(viewModel)
+            else -> CommunityAdminAuditScreen(viewModel)
         }
     }
 }
