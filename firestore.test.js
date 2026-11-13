@@ -1209,9 +1209,9 @@ test("Community replies enforce parent visibility and per-author deletion", asyn
   await assertSucceeds(adminDb.collection("Community_Posts").doc("hidden_reply_parent")
     .collection("Comments").doc("hidden_reply").get());
 
-  await assertSucceeds(visibleComments.doc("alice_reply").delete());
   await assertFails(bobDb.collection("Community_Posts").doc("visible_reply_parent")
-    .collection("Comments").doc("bob_reply").delete());
+    .collection("Comments").doc("alice_reply").delete());
+  await assertSucceeds(visibleComments.doc("alice_reply").delete());
   await assertSucceeds(adminDb.collection("Community_Posts").doc("visible_reply_parent")
     .collection("Comments").doc("bob_reply").delete());
 });
