@@ -277,6 +277,10 @@ service cloud.firestore {
                     && request.resource.data.isOfficial == false
                     && request.resource.data.countsTowardRanking == false
                     && request.resource.data.status == 'Published'
+                    && request.resource.data.examId is string
+                    && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+                    && (request.resource.data.subject == 'Full Syllabus'
+                        || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
                     && request.resource.data.keys().hasOnly([
                       'testId', 'title', 'description', 'targetExam', 'subject',
                       'classLevel', 'chapter', 'topic', 'difficulty', 'questionCount',
@@ -297,6 +301,10 @@ service cloud.firestore {
         && request.resource.data.isOfficial == false
         && request.resource.data.countsTowardRanking == false
         && request.resource.data.status == 'Published'
+        && request.resource.data.examId is string
+        && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+        && (request.resource.data.subject == 'Full Syllabus'
+            || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
         && request.resource.data.keys().hasOnly([
           'testId', 'title', 'description', 'targetExam', 'subject',
           'classLevel', 'chapter', 'topic', 'difficulty', 'questionCount',
@@ -363,6 +371,11 @@ service cloud.firestore {
       }
     }
 
+    match /Community_Exam_Subjects/{examId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if false;
+    }
+
     match /Community_Posts/{postId} {
       allow read: if isAuthenticated()
                   && (isAdmin() || resource.data.moderationState == 'VISIBLE');
@@ -386,6 +399,10 @@ service cloud.firestore {
                     && request.resource.data.subject.size() > 0
                     && request.resource.data.subject != 'General'
                     && request.resource.data.moderationState == 'VISIBLE'
+                    && request.resource.data.examId is string
+                    && request.resource.data.examId.size() > 0
+                    && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+                    && request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects
                     && request.resource.data.targetExam is string
                     && request.resource.data.targetExam.size() > 0
                     // MCQ documents are created only by the trusted callable so the
