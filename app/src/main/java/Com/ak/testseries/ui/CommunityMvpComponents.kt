@@ -174,7 +174,7 @@ fun CommunityMcqAttemptCard(post: CommunityPost) {
                                     result = CommunityMcqResult(
                                         selectedOptionIndex = selected,
                                         correctOptionIndex = correct,
-                                        isCorrect = data["isCorrect"] as? Boolean ?: (selected == correct),
+                                        isCorrect = data?.get("isCorrect") as? Boolean ?: (selected == correct),
                                         explanation = data["explanation"] as? String ?: ""
                                     )
                                 } else {
