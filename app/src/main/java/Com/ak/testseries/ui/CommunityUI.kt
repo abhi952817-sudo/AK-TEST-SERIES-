@@ -64,6 +64,7 @@ data class CommunityPost(
     val subject: String = "",
     val targetExam: String = "NEET",
     val imageUrl: String? = null,
+    val imageStoragePath: String? = null,
     val userReaction: String? = null,
     val commentsList: List<CommunityComment> = emptyList(),
     val isBookmarked: Boolean = false,
@@ -131,6 +132,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "subject" to post.subject,
         "targetExam" to post.targetExam,
         "imageUrl" to post.imageUrl,
+        "imageStoragePath" to post.imageStoragePath,
         "isBookmarked" to false,
         "timestamp" to post.timestamp,
         "postType" to post.postType,
@@ -336,6 +338,7 @@ fun CommunityScreen(
                     subject = doc.getString("subject") ?: "",
                     targetExam = doc.getString("targetExam") ?: targetExam,
                     imageUrl = doc.getString("imageUrl"),
+                    imageStoragePath = doc.getString("imageStoragePath"),
                     isBookmarked = false,
                     timestamp = doc.getLong("timestamp") ?: 0L,
                     postType = doc.getString("postType") ?: "DISCUSSION",
@@ -1251,7 +1254,7 @@ fun CreatePostScreen(
         }
     }
 
-    fun publish(imageUrl: String?) {
+    fun publish(imageUrl: String?, imageStoragePath: String?) {
         val uid = creatorUid ?: return
         if (selectedSubject !in subjects || !hasPublishableBody || !validMcq) return
         val post = CommunityPost(
@@ -1264,6 +1267,7 @@ fun CreatePostScreen(
             subject = selectedSubject,
             targetExam = targetExam,
             imageUrl = imageUrl,
+            imageStoragePath = imageStoragePath,
             postType = selectedPostType,
             quizOptions = if (isMcq) cleanOptions else emptyList(),
             quizCorrectOptionIndex = if (isMcq) correctOptionIndex else null,
@@ -1294,7 +1298,7 @@ fun CreatePostScreen(
                                 val uid = creatorUid ?: return@Button
                                 val uri = selectedImageUri
                                 if (uri == null) {
-                                    publish(null)
+                                    publish(null, null)
                                 } else {
                                     val mimeType = context.contentResolver.getType(uri)
                                         ?: if (uri.scheme == "file") "image/jpeg" else ""
@@ -1306,15 +1310,15 @@ fun CreatePostScreen(
                                         uploadError = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
                                     } else {
                                         isUploading = true
-                                        val fileRef = FirebaseStorage.getInstance().reference
-                                            .child("community_images/$uid/${UUID.randomUUID()}")
+                                        val storagePath = "community_images/$uid/${UUID.randomUUID()}"
+                                        val fileRef = FirebaseStorage.getInstance().reference.child(storagePath)
                                         val metadata = StorageMetadata.Builder().setContentType(mimeType).build()
                                         fileRef.putFile(uri, metadata)
                                             .addOnSuccessListener {
                                                 fileRef.downloadUrl
                                                     .addOnSuccessListener { downloadUri ->
                                                         isUploading = false
-                                                        publish(downloadUri.toString())
+                                                        publish(downloadUri.toString(), storagePath)
                                                     }
                                                     .addOnFailureListener { error ->
                                                         isUploading = false
