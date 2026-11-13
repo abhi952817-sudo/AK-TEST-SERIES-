@@ -298,14 +298,14 @@ service cloud.firestore {
                       'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
                       'classLevel', 'totalMarks', 'topic', 'userReaction', 'quizOptions',
-                      'creatorRole', 'isHidden'
+                      'creatorRole', 'isHidden', 'imageStoragePath'
                     ])
                     && request.resource.data.subject is string
                     && request.resource.data.subject.size() > 0
                     && request.resource.data.subject != 'General'
                     && request.resource.data.targetExam is string
                     && request.resource.data.targetExam.size() > 0
-                    && request.resource.data.postType in ['DISCUSSION', 'DOUBT', 'MCQ', 'TEST_SHARE']
+                    && request.resource.data.postType == 'TEST_SHARE'
                     && request.resource.data.title is string
                     && request.resource.data.title.size() <= 2000
                     && request.resource.data.content is string
@@ -316,6 +316,10 @@ service cloud.firestore {
                     && (!('imageUrl' in request.resource.data)
                         || request.resource.data.imageUrl == null
                         || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
+                    && (!('imageStoragePath' in request.resource.data)
+                        || request.resource.data.imageStoragePath == null
+                        || (request.resource.data.imageStoragePath is string
+                            && request.resource.data.imageStoragePath.matches('community_images/' + request.auth.uid + '/[^/]+')))
                     && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName'])
                     && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
                     && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
@@ -358,25 +362,30 @@ service cloud.firestore {
                     || (isAuthenticated()
                         && !isUserBanned(request.auth.uid)
                         && resource.data.creatorId == request.auth.uid
-                        && request.resource.data.diff(resource.data).affectedKeys()
-                            .hasOnly(['title', 'content', 'subject', 'targetExam', 'imageUrl'])
-                        && request.resource.data.subject is string
-                        && request.resource.data.subject.size() > 0
-                        && request.resource.data.subject != 'General'
-                        && request.resource.data.title is string
-                        && request.resource.data.title.size() <= 2000
-                        && request.resource.data.content is string
-                        && request.resource.data.content.size() <= 5000
-                        && ((resource.data.get('postType', '') in ['MCQ', 'DOUBT']
-                                && request.resource.data.title.size() > 0)
-                            || request.resource.data.content.size() > 0
-                            || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
-                        && (!('imageUrl' in request.resource.data)
-                            || request.resource.data.imageUrl == null
-                            || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
-                        && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName']));
+                        && (
+                          (resource.data.get('postType', '') == 'TEST_SHARE'
+                            && request.resource.data.get('postType', '') == 'TEST_SHARE'
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                              'authorName', 'authorSubtitle', 'timeAgo', 'title', 'content',
+                              'upvotes', 'comments', 'views', 'subject', 'targetExam',
+                              'imageUrl', 'imageStoragePath', 'isBookmarked', 'timestamp',
+                              'testId', 'testTitle', 'questionCount', 'durationMinutes',
+                              'chapter', 'difficulty', 'classLevel', 'totalMarks', 'topic', 'userReaction'
+                            ])
+                            && request.resource.data.subject is string
+                            && request.resource.data.subject.size() > 0
+                            && request.resource.data.subject != 'General')
+                          || (resource.data.get('postType', '') in ['DISCUSSION', 'DOUBT', 'MCQ']
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content'])
+                            && request.resource.data.title is string
+                            && request.resource.data.title.size() <= 2000
+                            && request.resource.data.content is string
+                            && request.resource.data.content.size() <= 5000)
+                        ));
 
-      allow delete: if isAdmin() || (isAuthenticated() && !isUserBanned(request.auth.uid) && resource.data.creatorId == request.auth.uid);
+      allow delete: if isAdmin() || (isAuthenticated() && !isUserBanned(request.auth.uid)
+                      && resource.data.creatorId == request.auth.uid
+                      && resource.data.get('postType', '') == 'TEST_SHARE');
 
       match /Comments/{commentId} {
         allow read: if isAuthenticated();
@@ -446,23 +455,8 @@ service cloud.firestore {
     match /Community_MCQ_AnswerKeys/{postId} {
       allow read: if isAdmin()
                   || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
-      allow create: if isAuthenticated()
-                    && !isUserBanned(request.auth.uid)
-                    && request.resource.data.creatorId == request.auth.uid
-                    && request.resource.data.correctOptionIndex is int
-                    && request.resource.data.correctOptionIndex >= 0
-                    && request.resource.data.correctOptionIndex <= 4
-                    && request.resource.data.correctOptionIndex
-                      < getAfter(/databases/$(database)/documents/Community_Posts/$(postId)).data.quizOptions.size()
-                    && request.resource.data.explanation is string
-                    && request.resource.data.explanation.size() <= 2000
-                    && request.resource.data.keys().hasOnly([
-                      'creatorId', 'correctOptionIndex', 'explanation', 'createdAt'
-                    ])
-                    && existsAfter(/databases/$(database)/documents/Community_Posts/$(postId))
-                    && getAfter(/databases/$(database)/documents/Community_Posts/$(postId)).data.creatorId == request.auth.uid
-                    && getAfter(/databases/$(database)/documents/Community_Posts/$(postId)).data.postType == 'MCQ';
-      allow update, delete: if false;
+      // Only the trusted createCommunityPost callable may create answer keys.
+      allow create, update, delete: if false;
     }
 
     // Attempt records are server-written and private to the student who attempted.
