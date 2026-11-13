@@ -24,6 +24,7 @@ function validateCommunityMcqCreate(data) {
   if (!targetExam || targetExam.length > 100) {
     throw makeValidationError("invalid-argument", "A valid target exam is required.");
   }
+  const registeredExam = resolveCommunityExamSubject(targetExam, subject);
   if (!Array.isArray(options) || ![4, 5].includes(options.length)) {
     throw makeValidationError("invalid-argument", "An MCQ must contain exactly four or five options.");
   }
@@ -56,7 +57,7 @@ function validateCommunityMcqCreate(data) {
     }
     imageUrl = payload.imageUrl;
   }
-  return { title, question, subject, targetExam, options: cleanOptions, correctOptionIndex, requestId, imageUrl };
+  return { title, question, subject: registeredExam.subject, targetExam, examId: registeredExam.examId, options: cleanOptions, correctOptionIndex, requestId, imageUrl };
 }
 
 function validateCommunityMcqAttempt(data) {
@@ -72,6 +73,27 @@ function validateCommunityMcqAttempt(data) {
   return { postId, optionIndex };
 }
 
+
+const COMMUNITY_EXAM_SUBJECTS = require("./communityExamSubjects.json");
+
+function resolveCommunityExamSubject(targetExam, subject) {
+  const examName = typeof targetExam === "string" ? targetExam.trim().toLocaleLowerCase() : "";
+  const subjectName = typeof subject === "string" ? subject.trim().toLocaleLowerCase() : "";
+  if (!examName || !subjectName) {
+    throw makeValidationError("invalid-argument", "Registered exam and subject are required.");
+  }
+  const matches = COMMUNITY_EXAM_SUBJECTS.exams.filter(exam =>
+    [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === examName)
+  );
+  if (matches.length !== 1) {
+    throw makeValidationError("invalid-argument", "Exam is not present in the Community subject registry.");
+  }
+  const exam = matches[0];
+  if (!exam.subjects.some(registered => registered.toLocaleLowerCase() === subjectName)) {
+    throw makeValidationError("invalid-argument", "Subject is not registered for the selected exam.");
+  }
+  return { examId: exam.examId, examName: exam.examName, subject: exam.subjects.find(registered => registered.toLocaleLowerCase() === subjectName) };
+}
 
 const SAFE_SHARED_QUESTION_FIELDS = [
   "id", "testId", "questionText", "questionTextEn", "questionTextHi",
@@ -128,5 +150,6 @@ function splitLegacySharedQuestions(rawQuestions, testId) {
 module.exports = {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
+  resolveCommunityExamSubject,
   splitLegacySharedQuestions
 };
