@@ -1294,9 +1294,9 @@ exports.createCommunityPost = functions.https.onCall(async (data, context) => {
   if (!content && !imageStoragePath && postType === "DOUBT" && !title) {
     throw new functions.https.HttpsError("invalid-argument", "Add a question before publishing.");
   }
-  if (Object.prototype.hasOwnProperty.call(post, "pdfUrl") ||
-      Object.prototype.hasOwnProperty.call(post, "pdfFileName")) {
-    throw new functions.https.HttpsError("invalid-argument", "PDF attachments are not supported in Community.");
+  if (["pdfUrl", "pdfFileName", "imageUrls", "imageStoragePaths", "questions", "questionSet", "timerSeconds"]
+      .some(field => Object.prototype.hasOwnProperty.call(post, field))) {
+    throw new functions.https.HttpsError("invalid-argument", "PDFs, multiple images, multiple questions and timers are not supported in Community MVP.");
   }
 
   let verifiedImageUrl = null;
