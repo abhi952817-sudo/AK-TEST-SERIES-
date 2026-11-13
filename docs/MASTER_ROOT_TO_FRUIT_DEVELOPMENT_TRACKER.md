@@ -1085,3 +1085,10 @@ Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. 
 10. Run Android build/unit tests, Node backend tests, Firestore/Storage emulator rules tests, then a controlled test-device Firebase E2E. Until those are actually run, keep this audit static/unverified.
 
 **Audit status:** CONFIRMED STATIC FINDINGS; implementation NOT STARTED. Main branch unchanged.
+
+
+### 24.10 Additional progress-persistence check
+
+- `pauseTest()` serializes question index, remaining time, answers, marked/checked/visited sets and per-question time into SharedPreferences; `startTest()` restores that snapshot.
+- The inspected answer-selection path only updates in-memory StateFlows. The only call site found for `pauseTest()` in `MainActivity.kt` is the explicit pause-confirmation button; no answer-change debounce save or lifecycle/background autosave call was found in the inspected app entry point.
+- **UPLOAD-NEET-011 — MEDIUM/HIGH/RELIABILITY:** test progress is saved on explicit pause, but automatic crash/background/force-close persistence is not established. Add debounced local progress writes on answer/navigation/timer checkpoints and lifecycle stop, with account+test scoped keys, then test process death and account switching.
