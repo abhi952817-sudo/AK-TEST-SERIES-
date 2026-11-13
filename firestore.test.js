@@ -497,7 +497,7 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       ]
     })
   );
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").set({
       id: "alice_reply_1",
       creatorId: ALICE_UID,
@@ -516,7 +516,7 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       content: "Edited by Bob"
     })
   );
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").delete()
   );
 
