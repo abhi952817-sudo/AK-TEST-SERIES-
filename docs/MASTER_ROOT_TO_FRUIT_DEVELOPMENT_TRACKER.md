@@ -658,14 +658,14 @@ These two code commits were made only on `integration/root-to-fruit-master-2026-
 The target pair for the first implementation is:
 
 1. **Google Gemini** — reuse the existing Gemini prompt/validation work and the secret-backed Cloud Functions connector found on `feature/universal-gemini-ai-10-phase-2026-11-08`.
-2. **OpenAI** — add a second provider adapter behind the same provider-neutral contract. Repository search on the current baseline did not find an existing OpenAI connector or OpenAI API call site; do not claim one already exists.
+2. **Groq** — add the second provider adapter behind the same provider-neutral contract. The user explicitly selected Groq; do not implement OpenAI or add a third provider.
 
 These are two transport/provider adapters, not two separate AI systems. Both must call the same canonical prompt engine, task contracts, exam registry, question schema, validation pipeline, provenance policy, quota/metering layer, and persistence/approval flow.
 
 ### 16.2 Required shared interface
 
 - One `AIProvider` contract with provider/model selection and normalized response + usage metadata.
-- Exactly two supported provider adapters for this release: `GeminiProvider` and `OpenAIProvider`.
+- Exactly two supported provider adapters for this release: `GeminiProvider` and `GroqProvider`.
 - One server-side provider router; no provider API secrets in APK, client preferences, Firestore documents, logs, analytics, or crash reports.
 - Provider selection must be explicit/configurable; no silent provider or model substitution.
 - Both adapters must support the task modes required by NEET: PDF/text understanding (with actual PDF bytes where provider supports it), syllabus/exam metadata extraction, question generation, answer/explanation generation, question validation/repair, bilingual output, and doubt assistance where the task contract permits.
@@ -684,9 +684,9 @@ The Gemini feature branch contains:
 
 **Important compatibility blocker:** Current integration branch uses the existing v1 callable export style and Node 18 Functions package. The Gemini branch connector uses Functions v2 `onCall` and Secret Manager `defineSecret`. Do not copy files without checking deployed Functions generation compatibility, secret binding, exports, region, database ID, and test setup.
 
-### 16.4 OpenAI implementation gate
+### 16.4 Groq implementation gate
 
-No OpenAI source implementation was found by repository code search on the current baseline. Add it only as the second adapter under the same provider-neutral interface. Use a server-managed secret and OpenAI's supported API contract; never embed a key in Android. Tests must mock network calls and assert that secrets never enter URLs, client responses, logs, or persisted records.
+The user selected Groq as the second provider. Add it only as the second adapter under the same provider-neutral interface. Use a server-managed secret; never embed a key in Android. Verify current Groq model capabilities and free-tier limits from official documentation before configuring models or quotas. Do not claim native PDF support for models that only accept extracted text or supported image inputs. Tests must mock network calls and assert that secrets never enter client responses, logs, or persisted records.
 
 ### 16.5 NEET acceptance tests for both providers
 
@@ -705,13 +705,13 @@ For each provider independently:
 |---|---|
 | Existing Gemini server connector branch identified and source/test inspected | INVENTORY_DONE (compatibility/integration pending) |
 | Existing Gemini Android/student-key flow | PARTIAL (exact current call graph and secret storage verification pending) |
-| OpenAI connector | NOT_STARTED (no existing implementation found) |
+| Groq connector | NOT_STARTED (second provider selected; implementation pending) |
 | Provider-neutral shared interface/router | NOT_STARTED |
 | Both-provider task-mode integration across NEET app | NOT_STARTED |
 | Shared validation/quota/cost controls and provider contract tests | NOT_STARTED |
 | Real PDF and NEET end-to-end provider tests | NOT_STARTED |
 
-**Implementation order:** reconcile and selectively port the existing Gemini connector and prompt engine; define the shared provider contract; implement OpenAI adapter; connect all approved NEET task modes through the single router; add security/quota/metering/tests; then validate both providers independently. No API keys are available in this repository inspection, so live provider verification cannot be claimed until securely configured by the project owner.
+**Implementation order:** reconcile and selectively port the existing Gemini connector and prompt engine; define the shared provider contract; implement Groq adapter; connect all approved NEET task modes through the single router; add security/quota/metering/tests; then validate both providers independently. No API keys are available in this repository inspection, so live provider verification cannot be claimed until securely configured by the project owner.
 
 
 ---
@@ -825,3 +825,38 @@ Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. 
 3. Add Gemini and Groq adapters behind one provider-neutral router. Never accept provider secrets from Student/Android callable input. No silent paid fallback.
 4. Migrate each existing Android call site to the shared callable without changing student/admin screen control placement; remove client-side Gemini secrets only after every caller is migrated and verified.
 5. Add mocked provider, auth, secret isolation, usage/quota, model capability, fallback, and error-path tests before marking the connector verified.
+
+
+## 22. Student + Admin AI access and per-student quota — clarified requirement (2026-11-13)
+
+### User's clarified target
+
+- The AI feature must be available in both the Student panel and Admin panel.
+- Student use is an ordinary running feature: students do not receive provider-control buttons, provider-key controls, routing controls, or Admin configuration UI.
+- Admin gets its own control area using the existing Admin/API Management location and existing navigation. Admin can manage provider enablement, primary/default provider, backup/fallback provider, model allowlist, global kill switch, per-student daily generation/test quota, and usage/health visibility. Do not create a duplicate settings dashboard if the existing API Management screen can be reused.
+- Both panels use the same two provider adapters (Gemini and Groq), same router, prompt engine, question validation, PDF pipeline, quota/metering, and test persistence. The difference is authorized task access and Admin control privileges, not duplicated AI implementations.
+- Student-facing AI flows must use the configured provider policy transparently. If primary provider fails, Groq (or Gemini) may be used only when Admin has enabled that fallback policy; no silent paid/unknown fallback. Students cannot change this policy.
+
+### Existing code found on integration branch (static inspection)
+
+| Existing item | Evidence | Assessment |
+|---|---|---|
+| Global AI enable/disable | `NEETViewModel.kt` lines 723–724, 741–755, 811–834; Firestore `Config/admin_settings.globalAiEnabled` | Existing partial Admin control; confirm actual Admin UI placement and Firestore rules before relying on it. |
+| Daily free generation limit | `NEETViewModel.kt` lines 729–730, 757–805; Firestore `Config/admin_settings.dailyFreeTestLimit`; Admin-only setter checks `isAdmin` | Existing configurable global daily limit, but it is not yet proven to be a secure per-student quota. |
+| Student daily generation counter | `NEETViewModel.kt` lines 732–733, 1045–1067; `daily_generation_prefs` stores date/count locally | Local-device counter only; can be reset or bypassed and is not authoritative. Must be moved/enforced atomically on the server per authenticated UID. |
+| Student generation gate | `NEETViewModel.kt` lines 4675–4689 | UI/ViewModel checks local count and global AI flag. Client-side check alone is not security enforcement. |
+| Existing Admin API Management page | `docs/BRANCH_CODE_RECONCILIATION_AND_INTEGRATION_PLAN.md` section 4.2 records an existing API Management page in the Admin Sidebar on the Gemini feature branch | Reuse/port that page selectively only after refreshing the branch and checking its current source. Do not create a second page. Its presence in the integration branch has not yet been proven. |
+| Existing two-provider fallback | Current integration has multiple direct Gemini calls/key fallback; no Groq adapter/router verified | Not implemented as the requested Gemini+Groq shared provider policy. Existing two Gemini keys are not equivalent to two provider connectors. |
+| Per-student test assignment / entitlement | Current inspected excerpts show global quota and local generation count; no authoritative per-student assignment/entitlement contract has yet been confirmed | Search existing test-assignment, user-entitlement, ad-unlock, and quota collections/functions before adding schema. |
+
+### Required implementation approach
+
+1. Inspect current Admin Sidebar/API Management UI and the Gemini feature branch's page before creating or porting a screen.
+2. Trace current test generation count, ad unlock, any user subscription/entitlement, and test assignment logic end-to-end. Reuse the existing user/test identity and records if they already express the required policy.
+3. Implement one server-side atomic quota decision keyed by authenticated UID + date + task type/provider policy; Admin override or exemption must be claim/role checked server-side. Prevent client counter resets, duplicate requests, concurrent overrun, and ad-unlock replay.
+4. Keep per-student quota controls in the existing Admin control surface. Student UI shows only remaining availability/limit status where useful; no control affordances.
+5. Connect both Admin and Student approved workflows to the same callable/router. Admin-only generation/configuration/publishing operations remain permission-gated; student tasks cannot access private answer keys or unpublished tests.
+6. Implement explicit primary/backup provider policy and tests for primary success, fallback allowed, fallback disabled, both unavailable, quota exhaustion, kill switch, and secret isolation.
+7. Do not introduce a new test-assignment collection until the existing assignment/entitlement structures and call sites have been fully inspected.
+
+**Current status:** requirement clarified; existing global AI switch and daily limit are partial. Secure per-student quota, shared Gemini+Groq routing, Admin UI verification, and end-to-end Student/Admin wiring remain OPEN. This is static source inspection; no runtime tests were executed.
