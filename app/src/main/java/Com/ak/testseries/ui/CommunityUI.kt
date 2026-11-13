@@ -837,6 +837,7 @@ fun CommunityFeedScreen(
             // Feed
             val filteredPosts = posts.filter {
                 val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+    val context = androidx.compose.ui.platform.LocalContext.current
                 val isBlockedAuthor = !it.creatorId.isNullOrBlank() && blockedUserIds.contains(it.creatorId)
                 val matchesTab = when(currentTab) {
                     CommunityTab.FEED -> !isBlockedAuthor
@@ -1655,9 +1656,19 @@ fun PostDetailScreen(
                     comment = comment,
                     canDelete = isAdmin || comment.creatorId == currentUid,
                     onDelete = {
-                        FirebaseFirestore.getInstance()
-                            .collection("Community_Posts").document(post.id)
-                            .collection("Comments").document(comment.id).delete()
+                        com.google.firebase.functions.FirebaseFunctions.getInstance()
+                            .getHttpsCallable("deleteCommunityReply")
+                            .call(mapOf("postId" to post.id, "commentId" to comment.id))
+                            .addOnSuccessListener {
+                                comments = comments.filterNot { it.id == comment.id }
+                            }
+                            .addOnFailureListener { error ->
+                                android.widget.Toast.makeText(
+                                    context,
+                                    error.localizedMessage ?: "Reply could not be deleted.",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
                     }
                 )
             }
