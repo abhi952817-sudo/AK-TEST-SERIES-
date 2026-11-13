@@ -63,6 +63,7 @@ data class CommunityPost(
     val views: String = "0",
     val subject: String = "",
     val targetExam: String = "NEET",
+    val examId: String? = null,
     val imageUrl: String? = null,
     val userReaction: String? = null,
     val commentsList: List<CommunityComment> = emptyList(),
@@ -125,6 +126,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "views" to post.views,
         "subject" to post.subject,
         "targetExam" to post.targetExam,
+        "examId" to (post.examId ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(post.targetExam)?.examId.orEmpty()),
         "imageUrl" to post.imageUrl,
         "isBookmarked" to post.isBookmarked,
         "timestamp" to post.timestamp,
@@ -204,6 +206,7 @@ object CommunityShareManager {
             content = shareContent,
             subject = test.subject,
             targetExam = targetExam,
+            examId = test.examId ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)?.examId,
             timeAgo = "Just now",
             timestamp = System.currentTimeMillis(),
             postType = "TEST_SHARE",
@@ -328,6 +331,7 @@ fun CommunityScreen(
                     views = doc.getString("views") ?: "0",
                     subject = doc.getString("subject") ?: "",
                     targetExam = doc.getString("targetExam") ?: targetExam,
+                    examId = doc.getString("examId"),
                     imageUrl = doc.getString("imageUrl"),
                     isBookmarked = false,
                     timestamp = doc.getLong("timestamp") ?: 0L,
@@ -1142,6 +1146,9 @@ fun CreatePostScreen(
     val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val authorName = authUser?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
     val creatorUid = authUser?.uid
+    val examId = remember(targetExam) {
+        Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)?.examId
+    }
     val subjects = remember(targetExam) {
         Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
     }
@@ -1171,7 +1178,7 @@ fun CreatePostScreen(
     fun publish(imageUrl: String?) {
         val uid = creatorUid ?: return
         val cleanContent = content.trim()
-        if (selectedSubject !in subjects) return
+        if (examId.isNullOrBlank() || selectedSubject !in subjects) return
         if (selectedPostType == "MCQ" && cleanContent.isBlank()) return
         if (selectedPostType != "MCQ" && cleanContent.isBlank() && imageUrl.isNullOrBlank()) return
         if (selectedPostType == "MCQ") {
@@ -1217,6 +1224,7 @@ fun CreatePostScreen(
                 content = cleanContent,
                 subject = selectedSubject,
                 targetExam = targetExam,
+                examId = examId,
                 imageUrl = imageUrl,
                 postType = selectedPostType,
                 timestamp = System.currentTimeMillis()
