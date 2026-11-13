@@ -18,6 +18,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
@@ -56,8 +62,6 @@ data class CommunityPost(
     val subject: String = "",
     val targetExam: String = "NEET",
     val imageUrl: String? = null,
-    val pdfUrl: String? = null,
-    val pdfFileName: String? = null,
     val userReaction: String? = null,
     val commentsList: List<CommunityComment> = emptyList(),
     val isBookmarked: Boolean = false,
@@ -84,6 +88,7 @@ data class CommunityComment(
     val isCorrectAnswer: Boolean = false,
     val userReaction: String? = null,
     val replies: List<CommunityComment> = emptyList(),
+    val creatorId: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -96,6 +101,7 @@ fun commentToMap(comment: CommunityComment): Map<String, Any?> {
         "upvotes" to comment.upvotes,
         "isCorrectAnswer" to comment.isCorrectAnswer,
         "userReaction" to comment.userReaction,
+        "creatorId" to comment.creatorId,
         "timestamp" to comment.timestamp
     )
 }
@@ -117,8 +123,6 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "subject" to post.subject,
         "targetExam" to post.targetExam,
         "imageUrl" to post.imageUrl,
-        "pdfUrl" to post.pdfUrl,
-        "pdfFileName" to post.pdfFileName,
         "isBookmarked" to post.isBookmarked,
         "timestamp" to post.timestamp,
         "postType" to post.postType,
@@ -298,8 +302,6 @@ fun CommunityScreen(
                     subject = doc.getString("subject") ?: "",
                     targetExam = doc.getString("targetExam") ?: targetExam,
                     imageUrl = doc.getString("imageUrl"),
-                    pdfUrl = doc.getString("pdfUrl"),
-                    pdfFileName = doc.getString("pdfFileName"),
                     isBookmarked = false,
                     timestamp = doc.getLong("timestamp") ?: 0L,
                     postType = doc.getString("postType") ?: "DISCUSSION",
@@ -391,26 +393,21 @@ fun CommunityScreen(
             if (isLiked) {
                 likedPostIds.remove(post.id)
                 likeDoc.delete()
-                db.collection("Community_Posts").document(post.id)
-                    .update("upvotes", com.google.firebase.firestore.FieldValue.increment(-1))
             } else {
                 likedPostIds.add(post.id)
                 likeDoc.set(mapOf("postId" to post.id, "timestamp" to System.currentTimeMillis()))
-                db.collection("Community_Posts").document(post.id)
-                    .update("upvotes", com.google.firebase.firestore.FieldValue.increment(1))
             }
         }
     }
 
     val addCommentToPost: (CommunityPost, CommunityComment) -> Unit = { targetPost, newComment ->
-        val db = FirebaseFirestore.getInstance()
-        val updatedList = (targetPost.commentsList + newComment).distinctBy { it.id }
-        db.collection("Community_Posts").document(targetPost.id).update(
-            mapOf(
-                "comments" to updatedList.size,
-                "commentsList" to updatedList.map { commentToMap(it) }
-            )
-        )
+        val uid = currentUid
+        if (!uid.isNullOrBlank() && newComment.content.isNotBlank()) {
+            FirebaseFirestore.getInstance()
+                .collection("Community_Posts").document(targetPost.id)
+                .collection("Comments").document(newComment.id)
+                .set(commentToMap(newComment.copy(creatorId = uid)))
+        }
     }
 
     val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
@@ -775,8 +772,16 @@ fun PostCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
+            post.imageUrl?.takeIf { it.isNotBlank() }?.let { imageUrl ->
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Community post image",
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).clip(RoundedCornerShape(12.dp))
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             // Content
-            Text(post.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            if (post.title.isNotBlank()) Text(post.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = post.content,
