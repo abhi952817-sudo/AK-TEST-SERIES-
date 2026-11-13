@@ -235,6 +235,18 @@ private data class CommunityReportRow(
     val reference: DocumentReference
 )
 
+private fun mapCommunityReport(doc: com.google.firebase.firestore.DocumentSnapshot) = CommunityReportRow(
+    id = doc.id,
+    reporterId = doc.getString("reporterId").orEmpty(),
+    postId = doc.getString("postId"),
+    reportedUserId = doc.getString("reportedUserId"),
+    reason = doc.getString("reason").orEmpty(),
+    evidenceImagePath = doc.getString("evidenceImagePath"),
+    status = doc.getString("status") ?: "OPEN",
+    createdAt = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+    reference = doc.reference
+)
+
 @Composable
 fun CommunityBlockedUsersDialog(
     blockedUserIds: List<String>,
@@ -286,19 +298,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
                     loading = false
                 } else if (snapshot != null) {
                     reports.clear()
-                    reports.addAll(snapshot.documents.map { doc ->
-                        CommunityReportRow(
-                            id = doc.id,
-                            reporterId = doc.getString("reporterId").orEmpty(),
-                            postId = doc.getString("postId"),
-                            reportedUserId = doc.getString("reportedUserId"),
-                            reason = doc.getString("reason").orEmpty(),
-                            evidenceImagePath = doc.getString("evidenceImagePath"),
-                            status = doc.getString("status") ?: "OPEN",
-                            createdAt = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
-                            reference = doc.reference
-                        )
-                    }.sortedByDescending { it.createdAt })
+                    reports.addAll(snapshot.documents.map(::mapCommunityReport).sortedByDescending { it.createdAt })
                     loading = false
                     error = null
                 }
@@ -306,31 +306,43 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
         onDispose { registration.remove() }
     }
 
-    fun audit(action: String, report: CommunityReportRow, targetType: String, targetId: String, reason: String = report.reason) {
+    fun commitModerationAction(
+        report: CommunityReportRow,
+        reportStatus: String,
+        action: String,
+        targetType: String,
+        targetId: String,
+        targetWrite: (com.google.firebase.firestore.WriteBatch) -> Unit = {}
+    ) {
         val actor = adminUid ?: return
-        db.collection("Community_Moderation_Audit").add(
+        if (!viewModel.isAdmin) return
+        val batch = db.batch()
+        targetWrite(batch)
+        batch.update(
+            report.reference,
+            mapOf(
+                "status" to reportStatus,
+                "resolvedBy" to actor,
+                "resolvedAt" to FieldValue.serverTimestamp()
+            )
+        )
+        batch.set(
+            db.collection("Community_Moderation_Audit").document(),
             mapOf(
                 "actorUid" to actor,
                 "action" to action,
                 "targetType" to targetType,
                 "targetId" to targetId,
                 "reportId" to report.id,
-                "reason" to reason.take(1200),
+                "reason" to report.reason.take(1200),
                 "createdAt" to FieldValue.serverTimestamp()
             )
         )
+        batch.commit().addOnFailureListener { error = it.localizedMessage ?: "Moderation action and audit could not be saved." }
     }
 
     fun updateReport(report: CommunityReportRow, status: String, action: String) {
-        val actor = adminUid ?: return
-        report.reference.update(
-            mapOf(
-                "status" to status,
-                "resolvedBy" to actor,
-                "resolvedAt" to FieldValue.serverTimestamp()
-            )
-        ).addOnSuccessListener { audit(action, report, "REPORT", report.id) }
-            .addOnFailureListener { error = it.localizedMessage ?: "Report status update failed." }
+        commitModerationAction(report, status, action, "REPORT", report.id)
     }
 
     fun moderatePost(report: CommunityReportRow, remove: Boolean, restore: Boolean = false) {
@@ -341,32 +353,51 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
             restore -> "RESTORE_POST"
             else -> "HIDE_POST"
         }
-        val operation = if (remove) ref.delete() else ref.update(
-            mapOf(
-                "moderationState" to if (restore) "VISIBLE" else "HIDDEN",
-                "moderatedBy" to adminUid.orEmpty(),
-                "moderatedAt" to FieldValue.serverTimestamp()
-            )
-        )
-        operation.addOnSuccessListener {
-            audit(action, report, "COMMUNITY_POST", postId)
-            updateReport(report, "RESOLVED", action)
-        }.addOnFailureListener { error = it.localizedMessage ?: "Post moderation failed." }
+        commitModerationAction(report, "RESOLVED", action, "COMMUNITY_POST", postId) { batch ->
+            if (remove) {
+                batch.delete(ref)
+            } else {
+                batch.update(
+                    ref,
+                    mapOf(
+                        "moderationState" to if (restore) "VISIBLE" else "HIDDEN",
+                        "moderatedBy" to adminUid.orEmpty(),
+                        "moderatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }
+        }
     }
 
     fun suspendReportedUser(report: CommunityReportRow) {
         val uid = report.reportedUserId ?: return
-        if (!viewModel.isAdmin) return
-        db.collection("Users_Data").document(uid).update(
-            mapOf(
-                "isBanned" to true,
-                "communitySuspendedAt" to FieldValue.serverTimestamp(),
-                "communitySuspendedBy" to adminUid.orEmpty()
+        val userRef = db.collection("Users_Data").document(uid)
+        commitModerationAction(report, "RESOLVED", "SUSPEND_USER", "USER", uid) { batch ->
+            batch.update(
+                userRef,
+                mapOf(
+                    "isBanned" to true,
+                    "communitySuspendedAt" to FieldValue.serverTimestamp(),
+                    "communitySuspendedBy" to adminUid.orEmpty()
+                )
             )
-        ).addOnSuccessListener {
-            audit("SUSPEND_USER", report, "USER", uid)
-            updateReport(report, "RESOLVED", "SUSPEND_USER")
-        }.addOnFailureListener { error = it.localizedMessage ?: "User suspension failed." }
+        }
+        viewModel.fetchAdminUsers()
+    }
+
+    fun refreshReports() {
+        loading = true
+        db.collection("Community_Reports").limit(100).get()
+            .addOnSuccessListener { snapshot ->
+                reports.clear()
+                reports.addAll(snapshot.documents.map(::mapCommunityReport).sortedByDescending { it.createdAt })
+                loading = false
+                error = null
+            }
+            .addOnFailureListener {
+                loading = false
+                error = it.localizedMessage ?: "Reports could not be refreshed."
+            }
     }
 
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
@@ -375,7 +406,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
                 Text("Community report inbox", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("${reports.count { it.status == "OPEN" }} open reports", style = MaterialTheme.typography.bodySmall)
             }
-            androidx.compose.material3.IconButton(onClick = { loading = true; db.collection("Community_Reports").limit(100).get().addOnFailureListener { error = it.localizedMessage; loading = false } }) {
+            androidx.compose.material3.IconButton(onClick = { refreshReports() }) {
                 androidx.compose.material3.Icon(Icons.Default.Refresh, contentDescription = "Refresh")
             }
         }
