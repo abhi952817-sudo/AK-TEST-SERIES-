@@ -1455,7 +1455,13 @@ exports.syncCommunityExamSubjects = functions.https.onCall(async (data, context)
   if (!Array.isArray(exams) || exams.length === 0) {
     throw new functions.https.HttpsError("failed-precondition", "Backend Community exam registry is empty.");
   }
+  const existingSnapshot = await db.collection("Community_Exam_Subjects").get();
+  const expectedIds = new Set(exams.map(exam => exam.examId));
+  const staleDocs = existingSnapshot.docs.filter(doc => !expectedIds.has(doc.id));
   if (!dryRun) {
+    if (exams.length + staleDocs.length + 1 > 500) {
+      throw new functions.https.HttpsError("failed-precondition", "Registry sync exceeds Firestore's atomic batch limit; review stale registry documents first.");
+    }
     const batch = db.batch();
     for (const exam of exams) {
       batch.set(db.collection("Community_Exam_Subjects").doc(exam.examId), {
@@ -1468,12 +1474,13 @@ exports.syncCommunityExamSubjects = functions.https.onCall(async (data, context)
         syncedAt: admin.firestore.FieldValue.serverTimestamp()
       });
     }
+    staleDocs.forEach(doc => batch.delete(doc.ref));
     batch.set(db.collection("Community_Moderation_Audit").doc(), {
       actorUid: context.auth.uid,
       action: "SYNC_COMMUNITY_EXAM_SUBJECT_REGISTRY",
       targetType: "COMMUNITY_EXAM_SUBJECTS",
       targetId: communityExamSubjects.registryVersion,
-      reason: "Synchronized canonical exam and subject names from the backend registry projection.",
+      reason: `Synchronized canonical exam and subject names; removed ${staleDocs.length} stale exam mappings.`,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     await batch.commit();
@@ -1483,7 +1490,9 @@ exports.syncCommunityExamSubjects = functions.https.onCall(async (data, context)
     dryRun,
     registryVersion: communityExamSubjects.registryVersion,
     examCount: exams.length,
-    subjectCount: exams.reduce((total, exam) => total + exam.subjects.length, 0)
+    subjectCount: exams.reduce((total, exam) => total + exam.subjects.length, 0),
+    staleExamCount: staleDocs.length,
+    staleExamIds: staleDocs.map(doc => doc.id)
   };
 });
 
