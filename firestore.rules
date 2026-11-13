@@ -280,7 +280,9 @@ service cloud.firestore {
     }
 
     match /Community_Posts/{postId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated()
+                  && (isAdmin() || !('moderationState' in resource.data)
+                      || resource.data.moderationState != 'HIDDEN');
 
       // A Community post is text and/or one image. PDF metadata is never accepted.
       // The Android client selects subjects only from UniversalExamRegistry; rules
@@ -294,14 +296,16 @@ service cloud.firestore {
                       'views', 'subject', 'targetExam', 'imageUrl', 'isBookmarked',
                       'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
-                      'classLevel', 'totalMarks', 'topic', 'userReaction'
+                      'classLevel', 'totalMarks', 'topic', 'userReaction', 'mcqOptions'
                     ])
                     && request.resource.data.subject is string
                     && request.resource.data.subject.size() > 0
                     && request.resource.data.subject != 'General'
                     && request.resource.data.targetExam is string
                     && request.resource.data.targetExam.size() > 0
-                    && request.resource.data.postType in ['DISCUSSION', 'DOUBT', 'MCQ', 'TEST_SHARE']
+                    // MCQ documents are created only by the trusted callable so the
+                    // correct option can never be accepted from a student client.
+                    && request.resource.data.postType in ['DISCUSSION', 'DOUBT', 'TEST_SHARE']
                     && request.resource.data.title is string
                     && request.resource.data.title.size() <= 120
                     && request.resource.data.content is string
@@ -314,7 +318,9 @@ service cloud.firestore {
                     && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName'])
                     && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
                     && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
-                    && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false);
+                    && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false)
+                    && (!('mcqOptions' in request.resource.data)
+                        || (request.resource.data.mcqOptions is list && request.resource.data.mcqOptions.size() == 0));
 
       // Only the owner may edit the post body/subject/image. Replies are separate
       // documents so one student can never overwrite another student's reply list.
@@ -375,9 +381,46 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly([
                       'reporterId', 'postId', 'reportedUserId', 'reason',
                       'evidenceImagePath', 'status', 'createdAt'
-                    ]);
-      allow read, update: if isAdmin();
+                    ])
+                    && request.resource.data.keys().hasAny(['postId', 'reportedUserId'])
+                    && (!('postId' in request.resource.data)
+                        || (request.resource.data.postId is string && request.resource.data.postId.size() > 0))
+                    && (!('reportedUserId' in request.resource.data)
+                        || (request.resource.data.reportedUserId is string && request.resource.data.reportedUserId.size() > 0))
+                    && (!('evidenceImagePath' in request.resource.data)
+                        || (request.resource.data.evidenceImagePath is string
+                            && request.resource.data.evidenceImagePath.matches('community_report_evidence/' + request.auth.uid + '/[^/]+')));
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['status', 'resolvedBy', 'resolvedAt', 'resolutionNote'])
+                    && request.resource.data.status in ['OPEN', 'RESOLVED', 'DISMISSED'];
       allow delete: if false;
+    }
+
+    match /Community_Moderation_Audit/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+                    && request.resource.data.actorUid == request.auth.uid
+                    && request.resource.data.action is string
+                    && request.resource.data.targetType is string
+                    && request.resource.data.targetId is string
+                    && request.resource.data.reason is string
+                    && request.resource.data.keys().hasOnly([
+                      'actorUid', 'action', 'targetType', 'targetId', 'reportId',
+                      'reason', 'createdAt'
+                    ]);
+      allow update, delete: if false;
+    }
+
+    match /Community_MCQ_AnswerKeys/{postId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /Community_MCQ_Attempts/{postId}/Users/{userId} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+      allow create, update, delete: if false;
     }
 
     // Per-user block list. A student can only manage their own block entries.
@@ -386,7 +429,8 @@ service cloud.firestore {
       allow create: if isAuthenticated()
                     && !isUserBanned(request.auth.uid)
                     && request.auth.uid == userId
-                    && request.resource.data.blockedUid == blockedUid;
+                    && request.resource.data.blockedUid == blockedUid
+                    && request.resource.data.keys().hasOnly(['blockedUid', 'createdAt']);
       allow delete: if isAuthenticated() && request.auth.uid == userId;
       allow update: if false;
     }
