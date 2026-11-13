@@ -77,6 +77,34 @@ Read-only inspection of the current Community code on this branch confirms the f
 6. Add report/block flows and the minimal Admin report inbox.
 7. Run Firestore emulator tests, Android unit tests and debug APK build. If any command cannot be run in the available environment, record it as NOT RUN rather than PASS.
 
+## 0.2 Implementation progress (2026-11-13)
+
+Work is being implemented on this feature branch only. This progress table supersedes any assumption that a planned item is complete merely because it appears in the scope above.
+
+| Work item | Current state | Evidence / remaining work |
+|---|---|---|
+| Read-only baseline audit | **Completed** | Community UI, Admin UI, Firestore rules, Storage rules, registry, and existing Firestore tests inspected. |
+| Mandatory registry subject | **Implemented in branch; CI pending** | Community composer and feed now use `getRegisteredSubjectsForExamName`, which returns no generic fallback. Firestore rejects blank and `General` subjects. |
+| Community PDF prohibition | **Implemented in branch; CI pending** | PDF fields removed from the Community Kotlin model, parser and new writes; Firestore rejects `pdfUrl` / `pdfFileName`. Other Admin/test PDF workflows remain intact. |
+| One-image post | **Gallery flow implemented; camera deferred** | One selected JPEG/PNG/WebP image, maximum 5 MB, preview/remove, Storage upload and post image rendering. Upload failure blocks publishing. Camera capture remains a follow-up. |
+| Safe replies | **Implemented in branch; CI pending** | Replies now use `Community_Posts/{postId}/Comments/{commentId}`; reply creator is recorded and only its author/Admin can delete. Shared parent-array writes and client counter mutation removed. |
+| Community Storage paths | **Rules implemented; emulator validation pending** | `community_images/{uid}/{fileName}` is owner-write, authenticated-read, image-only, max 5 MB. Private report-evidence path is Admin/reporter-read and image-only. |
+| Report/block Firestore security | **Rules scaffolding implemented; UI pending** | Private `Community_Reports` records and owner-managed `Blocked_Users` records have rules and tests authored. Report form, optional private evidence upload, block controls and Admin report inbox are not yet implemented. |
+| Single-question MCQ | **Not implemented** | One question, 4/5 options and secure answer reveal remain pending. Do not treat this PR as delivering quiz creation/attempt scoring. |
+| Automated validation | **In progress / pending** | Android CI run is in progress. Firestore emulator rules tests were updated but have not yet been independently run in this environment. Do not merge until CI passes and rules tests are run or a precise blocker is recorded. |
+
+### Implementation commits
+
+- Registry-only Community subject lookup and subject-gated composer.
+- Community PDF model/write removal and Firestore rejection.
+- Dedicated image Storage paths.
+- Per-reply documents and ownership enforcement.
+- Firestore security regression test updates.
+
+### Merge gate
+
+This branch is not ready to merge while Android CI is running or Firestore/Storage rules are unvalidated. The pull request is draft. Merge only after reviewing the final diff, passing Android unit tests/build, validating Firestore/Storage rules, and confirming no unrelated Main changes are included.
+
 ## 1. Purpose and working rules
 
 This document is the implementation guide for anyone assigned to develop the Community module. Read it before changing code.
