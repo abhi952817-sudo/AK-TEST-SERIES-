@@ -990,6 +990,17 @@ exports.deleteCommunityPost = functions.https.onCall(async (data, context) => {
       commentsSnapshot.docs.slice(offset, offset + 400).forEach(comment => batch.delete(comment.ref));
       await batch.commit();
     }
+
+    // Remove private MCQ answer keys and per-user attempts before deleting the
+    // parent post. Keeping the post until cleanup completes makes retries safe.
+    const attemptsSnapshot = await db.collection("Community_MCQ_Attempts")
+      .doc(payload.postId).collection("Users").get();
+    for (let offset = 0; offset < attemptsSnapshot.docs.length; offset += 400) {
+      const batch = db.batch();
+      attemptsSnapshot.docs.slice(offset, offset + 400).forEach(attempt => batch.delete(attempt.ref));
+      await batch.commit();
+    }
+    await db.collection("Community_MCQ_AnswerKeys").doc(payload.postId).delete();
     await postRef.delete();
 
     if (removal.imagePath && removal.imagePath.startsWith("community_images/") &&
