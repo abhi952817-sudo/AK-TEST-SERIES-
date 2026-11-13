@@ -382,6 +382,7 @@ test("Student: CAN create community post with own creatorId", async () => {
       content: "How to master Rotational Motion?",
       subject: "Physics",
       targetExam: "JEE Main",
+      postType: "DISCUSSION",
       upvotes: 0,
       comments: 0,
     })
@@ -397,6 +398,7 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       content: "Exam Cancelled",
       subject: "Biology",
       targetExam: "NEET UG",
+      postType: "DISCUSSION",
       isPinned: true, // Malicious spoof
     })
   );
@@ -408,6 +410,7 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       content: "Free VIP for everyone",
       subject: "Biology",
       targetExam: "NEET UG",
+      postType: "DISCUSSION",
       isOfficial: true, // Malicious spoof
     })
   );
@@ -421,6 +424,7 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       content: "Need help with Organic Chemistry",
       subject: "Chemistry",
       targetExam: "NEET UG",
+      postType: "DISCUSSION",
       upvotes: 5,
       views: 20,
       comments: 2,
@@ -506,7 +510,8 @@ test("Community posts reject General subject and PDF attachment fields", async (
     authorName: "Alice",
     title: "A question",
     content: "Question text",
-    targetExam: "NEET UG"
+    targetExam: "NEET UG",
+    postType: "DISCUSSION"
   };
   await assertFails(
     aliceDb.collection("Community_Posts").doc("general_subject_post").set({
@@ -831,6 +836,7 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
       content: "Active student post",
       subject: "Biology",
       targetExam: "NEET UG",
+      postType: "DISCUSSION",
       creatorId: ALICE_UID,
       timestamp: Date.now()
     })
@@ -865,6 +871,7 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
       content: "Spam",
       subject: "Biology",
       targetExam: "NEET UG",
+      postType: "DISCUSSION",
       creatorId: BOB_UID,
       timestamp: Date.now()
     })
@@ -903,6 +910,7 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
       content: "Back from suspension",
       subject: "Biology",
       targetExam: "NEET UG",
+      postType: "DISCUSSION",
       creatorId: BOB_UID
     })
   );
@@ -919,6 +927,7 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
       content: "Back from suspension",
       subject: "Biology",
       targetExam: "NEET UG",
+      postType: "DISCUSSION",
       creatorId: BOB_UID
     })
   );
