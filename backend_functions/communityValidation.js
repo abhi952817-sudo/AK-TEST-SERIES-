@@ -72,4 +72,61 @@ function validateCommunityMcqAttempt(data) {
   return { postId, optionIndex };
 }
 
-module.exports = { validateCommunityMcqCreate, validateCommunityMcqAttempt };
+
+const SAFE_SHARED_QUESTION_FIELDS = [
+  "id", "testId", "questionText", "questionTextEn", "questionTextHi",
+  "optionA", "optionB", "optionC", "optionD", "optionE",
+  "optionAEn", "optionBEn", "optionCEn", "optionDEn", "optionEEn",
+  "optionAHi", "optionBHi", "optionCHi", "optionDHi", "optionEHi",
+  "options", "questionType", "positiveMarks", "negativeMarks",
+  "section", "sectionId", "sectionName", "subject", "chapter",
+  "topic", "difficulty", "imageUrl", "needsImage"
+];
+
+function splitLegacySharedQuestions(rawQuestions, testId) {
+  if (!Array.isArray(rawQuestions) || rawQuestions.length === 0 || rawQuestions.length > 200) {
+    throw makeValidationError("failed-precondition", "Legacy Community test has no valid question list or exceeds the migration limit.");
+  }
+  const publicQuestions = [];
+  const privateKeys = [];
+  const seenIds = new Set();
+  for (let index = 0; index < rawQuestions.length; index += 1) {
+    const question = rawQuestions[index];
+    if (!question || typeof question !== "object" || Array.isArray(question)) {
+      throw makeValidationError("failed-precondition", "Legacy Community test contains a malformed question.");
+    }
+    const id = typeof question.id === "string" && question.id.trim()
+      ? question.id.trim()
+      : `${testId}_q${index}`;
+    const questionText = typeof question.questionText === "string"
+      ? question.questionText.trim()
+      : (typeof question.questionTextEn === "string" ? question.questionTextEn.trim() : "");
+    const correctAnswer = typeof question.correctAnswer === "string"
+      ? question.correctAnswer.trim()
+      : (typeof question.answer === "string" ? question.answer.trim() : "");
+    if (!questionText || !correctAnswer || seenIds.has(id)) {
+      throw makeValidationError("failed-precondition", "Legacy Community test contains a missing question, answer key or duplicate question ID.");
+    }
+    seenIds.add(id);
+    const safe = {};
+    for (const field of SAFE_SHARED_QUESTION_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(question, field)) safe[field] = question[field];
+    }
+    safe.id = id;
+    safe.testId = testId;
+    publicQuestions.push(safe);
+    privateKeys.push({
+      id,
+      correctAnswer,
+      explanation: typeof question.explanation === "string" ? question.explanation : "",
+      explanationHi: typeof question.explanationHi === "string" ? question.explanationHi : ""
+    });
+  }
+  return { publicQuestions, privateKeys };
+}
+
+module.exports = {
+  validateCommunityMcqCreate,
+  validateCommunityMcqAttempt,
+  splitLegacySharedQuestions
+};
