@@ -1188,7 +1188,7 @@ fun PostDetailScreen(
     onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> }
 ) {
     var commentText by remember { mutableStateOf("") }
-    var comments by remember(post.id) { mutableStateOf(emptyList<CommunityComment>()) }
+    var comments by remember(post.id) { mutableStateOf(post.commentsList.distinctBy { it.id }) }
     val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
 
     DisposableEffect(post.id) {
@@ -1198,7 +1198,7 @@ fun PostDetailScreen(
             .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error == null && snapshot != null) {
-                    comments = snapshot.documents.mapNotNull { doc ->
+                    val storedReplies = snapshot.documents.mapNotNull { doc ->
                         val text = doc.getString("content") ?: return@mapNotNull null
                         CommunityComment(
                             id = doc.id,
@@ -1209,6 +1209,8 @@ fun PostDetailScreen(
                             timestamp = doc.getLong("timestamp") ?: 0L
                         )
                     }
+                    comments = (post.commentsList + storedReplies).distinctBy { it.id }
+                        .sortedBy { it.timestamp }
                 }
             }
         onDispose { registration.remove() }
