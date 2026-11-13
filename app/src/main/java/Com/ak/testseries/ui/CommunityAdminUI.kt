@@ -29,7 +29,18 @@ import androidx.compose.foundation.BorderStroke
 @Composable
 fun CommunityAdminScreen(viewModel: NEETViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
-    
+
+    LaunchedEffect(viewModel.isAdmin) {
+        if (viewModel.isAdmin) {
+            com.google.firebase.functions.FirebaseFunctions.getInstance()
+                .getHttpsCallable("backfillCommunityVisibility")
+                .call(emptyMap<String, Any>())
+                .addOnFailureListener { error ->
+                    android.util.Log.e("CommunityAdmin", "Visibility backfill failed", error)
+                }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTab) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Settings & Users") })
