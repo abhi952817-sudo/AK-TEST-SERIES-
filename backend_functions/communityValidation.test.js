@@ -134,6 +134,7 @@ test("Manual Community replies require bounded text and an idempotency key", () 
 });
 
 test("Community reaction requires a valid post ID", () => {
-  assert.deepEqual(validateCommunityReaction({ postId: "post-1" }), { postId: "post-1" });
-  assert.throws(() => validateCommunityReaction({ postId: "" }), { code: "invalid-argument" });
+  assert.deepEqual(validateCommunityReaction({ postId: "post-1", liked: true }), { postId: "post-1", liked: true });
+  assert.throws(() => validateCommunityReaction({ postId: "", liked: true }), { code: "invalid-argument" });
+  assert.throws(() => validateCommunityReaction({ postId: "post-1", liked: "true" }), { code: "invalid-argument" });
 });
