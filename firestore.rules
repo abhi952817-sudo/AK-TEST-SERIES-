@@ -306,6 +306,10 @@ service cloud.firestore {
                     && request.resource.data.targetExam is string
                     && request.resource.data.targetExam.size() > 0
                     && request.resource.data.postType == 'TEST_SHARE'
+                    && request.resource.data.testId is string
+                    && request.resource.data.testId.size() > 0
+                    && exists(/databases/$(database)/documents/Shared_Community_Tests/$(request.resource.data.testId))
+                    && get(/databases/$(database)/documents/Shared_Community_Tests/$(request.resource.data.testId)).data.creatorId == request.auth.uid
                     && request.resource.data.title is string
                     && request.resource.data.title.size() <= 2000
                     && request.resource.data.content is string
@@ -365,6 +369,9 @@ service cloud.firestore {
                         && (
                           (resource.data.get('postType', '') == 'TEST_SHARE'
                             && request.resource.data.get('postType', '') == 'TEST_SHARE'
+                            && request.resource.data.testId == resource.data.testId
+                            && exists(/databases/$(database)/documents/Shared_Community_Tests/$(resource.data.testId))
+                            && get(/databases/$(database)/documents/Shared_Community_Tests/$(resource.data.testId)).data.creatorId == request.auth.uid
                             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                               'authorName', 'authorSubtitle', 'timeAgo', 'title', 'content',
                               'upvotes', 'comments', 'views', 'subject', 'targetExam',
