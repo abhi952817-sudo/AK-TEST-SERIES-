@@ -374,6 +374,11 @@ test("F-016: Student CANNOT read private_keys subcollection or TestAnswerKeys di
 
 test("Student: normal Community posts require the trusted callable; legacy test sharing remains owner-scoped", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await testEnv.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().collection("Shared_Community_Tests").doc("alice_test_1").set({
+      creatorId: ALICE_UID, title: "Owner test", targetExam: "JEE Main"
+    });
+  });
   await assertFails(
     aliceDb.collection("Community_Posts").doc("alice_post_1").set({
       creatorId: ALICE_UID,
@@ -842,7 +847,12 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
     })
   );
 
-  // Active student can create community post
+  // Seed an owner-owned shared test, then active student can create its share card.
+  await testEnv.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().collection("Shared_Community_Tests").doc("test_active_1").set({
+      creatorId: ALICE_UID, title: "Active owner test", targetExam: "NEET UG"
+    });
+  });
   await assertSucceeds(
     aliceDb.collection("Community_Posts").doc("post_active_1").set({
       title: "Active Post",
@@ -916,6 +926,11 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
   // Bob is initially banned
+  await testEnv.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().collection("Shared_Community_Tests").doc("test_reinstated_1").set({
+      creatorId: BOB_UID, title: "Bob's owner test", targetExam: "NEET UG"
+    });
+  });
   await adminDb.collection("Users_Data").doc(BOB_UID).set({
     uid: BOB_UID,
     name: "Bob",
