@@ -1166,6 +1166,31 @@ fun PostDetailScreen(
     onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> }
 ) {
     var commentText by remember { mutableStateOf("") }
+    var comments by remember(post.id) { mutableStateOf(emptyList<CommunityComment>()) }
+    val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+
+    DisposableEffect(post.id) {
+        val registration = FirebaseFirestore.getInstance()
+            .collection("Community_Posts").document(post.id)
+            .collection("Comments")
+            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    comments = snapshot.documents.mapNotNull { doc ->
+                        val text = doc.getString("content") ?: return@mapNotNull null
+                        CommunityComment(
+                            id = doc.id,
+                            authorName = doc.getString("authorName") ?: "Student",
+                            timeAgo = doc.getString("timeAgo") ?: "",
+                            content = text,
+                            creatorId = doc.getString("creatorId"),
+                            timestamp = doc.getLong("timestamp") ?: 0L
+                        )
+                    }
+                }
+            }
+        onDispose { registration.remove() }
+    }
 
     Scaffold(
         topBar = {
@@ -1177,9 +1202,7 @@ fun PostDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        onToggleBookmark(post)
-                    }) {
+                    IconButton(onClick = { onToggleBookmark(post) }) {
                         Icon(
                             if (post.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                             contentDescription = "Bookmark",
@@ -1195,33 +1218,35 @@ fun PostDetailScreen(
                 shadowElevation = 8.dp,
                 color = MaterialTheme.colorScheme.surface
             ) {
-                Row(
-                    modifier = Modifier.padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = commentText,
                         onValueChange = { commentText = it },
-                        placeholder = { Text("Write a comment...") },
+                        placeholder = { Text("Write a reply...") },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(24.dp)
+                        shape = RoundedCornerShape(24.dp),
+                        enabled = currentUid != null
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(
                         onClick = {
-                            if (commentText.isNotBlank()) {
-                                val currentAuth = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-                                val commenterName = currentAuth?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
-                                val newComment = CommunityComment(
-                                    authorName = commenterName,
-                                    timeAgo = "Just now",
-                                    content = commentText,
-                                    timestamp = System.currentTimeMillis()
+                            val uid = currentUid
+                            if (!uid.isNullOrBlank() && commentText.isNotBlank()) {
+                                val auth = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                                onAddComment(
+                                    post,
+                                    CommunityComment(
+                                        authorName = auth?.displayName?.takeIf { it.isNotBlank() } ?: "Student",
+                                        timeAgo = "Just now",
+                                        content = commentText.trim(),
+                                        creatorId = uid,
+                                        timestamp = System.currentTimeMillis()
+                                    )
                                 )
-                                onAddComment(post, newComment)
                                 commentText = ""
                             }
                         },
+                        enabled = currentUid != null && commentText.isNotBlank(),
                         modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
                     ) {
                         Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.onPrimary)
@@ -1230,7 +1255,6 @@ fun PostDetailScreen(
             }
         }
     ) { padding ->
-        val safeComments = post.commentsList.distinctBy { it.id }
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item {
                 PostCard(
@@ -1244,23 +1268,17 @@ fun PostDetailScreen(
                     onToggleLike = onToggleLike
                 )
                 Divider(modifier = Modifier.padding(vertical = 16.dp))
-                Text("Comments (${safeComments.size})", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
+                Text("Replies (${comments.size})", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
                 Spacer(modifier = Modifier.height(8.dp))
             }
-            
-            items(safeComments, key = { it.id }) { comment ->
+            items(comments, key = { it.id }) { comment ->
                 CommentCard(
                     comment = comment,
-                    isAdmin = isAdmin,
+                    canDelete = isAdmin || comment.creatorId == currentUid,
                     onDelete = {
-                        val newComments = post.commentsList.filter { it.id != comment.id }
-                        val db = FirebaseFirestore.getInstance()
-                        db.collection("Community_Posts").document(post.id).update(
-                            mapOf(
-                                "comments" to newComments.size,
-                                "commentsList" to newComments.map { commentToMap(it) }
-                            )
-                        )
+                        FirebaseFirestore.getInstance()
+                            .collection("Community_Posts").document(post.id)
+                            .collection("Comments").document(comment.id).delete()
                     }
                 )
             }
@@ -1271,7 +1289,7 @@ fun PostDetailScreen(
 @Composable
 fun CommentCard(
     comment: CommunityComment,
-    isAdmin: Boolean = false,
+    canDelete: Boolean = false,
     onDelete: () -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -1293,7 +1311,7 @@ fun CommentCard(
                     Text(comment.timeAgo, fontSize = 11.sp, color = Color.Gray)
                 }
             }
-            if (isAdmin) {
+            if (canDelete) {
                 IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                 }
