@@ -1298,6 +1298,7 @@ exports.createCommunityPost = functions.https.onCall(async (data, context) => {
         imageStoragePath.includes("..") ||
         imageStoragePath.length > 512 ||
         imageUrl.length > 2048 ||
+        !imageUrl.startsWith("https://firebasestorage.googleapis.com/") ||
         !imageUrl.includes(encodeURIComponent(imageStoragePath))) {
       throw new functions.https.HttpsError("invalid-argument", "Community image reference is invalid.");
     }
@@ -1343,9 +1344,8 @@ exports.createCommunityPost = functions.https.onCall(async (data, context) => {
     userReaction: null,
   };
 
-  const batch = db.batch();
   const postRef = db.collection("Community_Posts").doc(postId);
-  batch.create(postRef, publicPost);
+  let answerKeyPayload = null;
 
   if (postType === "MCQ") {
     const quizOptions = post.quizOptions;
@@ -1366,19 +1366,22 @@ exports.createCommunityPost = functions.https.onCall(async (data, context) => {
     }
     publicPost.quizOptions = validation.options;
     publicPost.creatorRole = creatorRole;
-    // Rebuild the batch after the public payload has its validated, public options.
-    const answerRef = db.collection("Community_MCQ_AnswerKeys").doc(postId);
-    batch.set(postRef, publicPost);
-    batch.create(answerRef, {
+    answerKeyPayload = {
       creatorId: uid,
       correctOptionIndex,
       explanation,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
   } else if (post.quizOptions !== undefined ||
-             data.quizCorrectOptionIndex !== undefined ||
-             data.quizExplanation !== undefined) {
+             data.quizCorrectOptionIndex != null ||
+             data.quizExplanation != null) {
     throw new functions.https.HttpsError("invalid-argument", "Quiz fields are allowed only on an MCQ post.");
+  }
+
+  const batch = db.batch();
+  batch.create(postRef, publicPost);
+  if (answerKeyPayload) {
+    batch.create(db.collection("Community_MCQ_AnswerKeys").doc(postId), answerKeyPayload);
   }
 
   try {
