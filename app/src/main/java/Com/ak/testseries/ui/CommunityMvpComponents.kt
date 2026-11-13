@@ -124,7 +124,7 @@ fun CommunityMcqAttemptCard(post: CommunityPost) {
                         result = CommunityMcqResult(
                             selectedOptionIndex = selected,
                             correctOptionIndex = correct,
-                            isCorrect = data["isCorrect"] as? Boolean ?: (selected == correct),
+                            isCorrect = data?.get("isCorrect") as? Boolean ?: (selected == correct),
                             explanation = data["explanation"] as? String ?: ""
                         )
                     }
@@ -333,10 +333,15 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
                                         Button(onClick = { moderate(report, "HIDE_POST") }, enabled = busyReportId != report.id, modifier = Modifier.weight(1f)) { Text("Hide post") }
                                         OutlinedButton(onClick = { moderate(report, "REMOVE_POST") }, enabled = busyReportId != report.id, modifier = Modifier.weight(1f)) { Text("Remove post") }
                                     }
-                                    TextButton(onClick = { moderate(report, "RESTORE_POST") }, enabled = busyReportId != report.id, modifier = Modifier.fillMaxWidth()) {
-                                        Icon(Icons.Default.Refresh, contentDescription = null)
-                                        Text("Restore post")
-                                    }
+                                }
+                            } else if (!report.postId.isNullOrBlank()) {
+                                TextButton(
+                                    onClick = { moderate(report, "RESTORE_POST") },
+                                    enabled = busyReportId != report.id,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null)
+                                    Text("Restore post")
                                 }
                             }
                         }
