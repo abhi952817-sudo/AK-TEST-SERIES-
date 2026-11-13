@@ -708,3 +708,74 @@ For each provider independently:
 | Real PDF and NEET end-to-end provider tests | NOT_STARTED |
 
 **Implementation order:** reconcile and selectively port the existing Gemini connector and prompt engine; define the shared provider contract; implement OpenAI adapter; connect all approved NEET task modes through the single router; add security/quota/metering/tests; then validate both providers independently. No API keys are available in this repository inspection, so live provider verification cannot be claimed until securely configured by the project owner.
+
+
+---
+
+## 17. Execution Update — 2026-11-13 (Community CI Failure Investigation)
+
+### 17.1 Community branch reconciliation refresh
+
+- Community completion branch now compares to this integration baseline as **69 commits ahead / 6 behind**, merge base `1e236d099522d63ec89ab0d11287b48315efc48c`.
+- Its current diff includes Community UI, moderation, single-question MCQ UI, backend callables/validation, Firestore and Storage rules/tests, indexes, and CI workflow changes.
+- It remains a diverged branch. No wholesale merge is safe or authorized.
+
+### 17.2 Actual CI failures found
+
+**Community Firebase Rules CI run 38**
+- Run: `43345891563`
+- Commit: `423259356d15b90383ed51bd946be0b5747423cf`
+- Result: FAILED before executing the Firestore suite because `firestore.test.js:915` contained invalid JavaScript string escaping (`SyntaxError: Invalid or unexpected token`).
+- Storage tests did execute: 4 passed, 1 failed only because the Firestore test module failed to parse.
+- Current target branch later changed this test to use `JSON.stringify(...)`, so the exact syntax failure appears corrected in later source. A newer target-branch CI run was still in progress during this review.
+
+**Android CI run 449**
+- Run: `43345891614`
+- Commit: `423259356d15b90383ed51bd946be0b5747423cf`
+- Result: FAILED at Kotlin compilation in `CommunityModerationUI.kt:439`.
+- Compiler evidence:
+  - lambda type mismatch: inferred `Function1<..., Unit>` but `Function0<Unit>` expected;
+  - cannot infer lambda parameter;
+  - unresolved references `delete` and `update`.
+- Root cause: `commitModerationAction(..., targetWrite, onSuccess)` has `onSuccess` as its last parameter. Kotlin trailing-lambda syntax binds the lambda to `onSuccess`, not `targetWrite`. The target branch still had this call in the latest source read.
+
+### 17.3 Isolated repair submitted
+
+To avoid writing into the other active AI's Community branch while it is changing, created isolated branch:
+`fix/community-ci-recovery-2026-11-13`
+
+Changes:
+1. `CommunityModerationUI.kt`: changed the moderation call to explicit named arguments and `targetWrite = { batch -> ... }`, so the callback is bound to the correct parameter.
+   - Commit: `797b06c8b6669dc7b314f05976b532ff895f19b2`
+2. `.github/workflows/community-rules.yml`: added `backend_functions/communityExamSubjects.json` to the push path filters so changes to the canonical subject registry trigger the rules CI.
+   - Commit: `a04bf665e73fd12e9d0cde95465c843a5579e1b7`
+
+Opened PR **#7** against `feature/community-completion-2026-11-13`:
+https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/7
+
+PR status at creation: OPEN, not merged. It is intentionally not merged automatically. The target branch had newer CI runs in progress, so verify PR checks and resolve any new conflicts before merge.
+
+### 17.4 Additional Community audit observations
+
+- Current Community UI has per-user block-list loading and hides blocked authors from the feed tab; Firestore rules isolate block-list ownership.
+- Reports are private to Admin in Firestore; Storage report-evidence path restricts reads to reporter/Admin.
+- Shared Community tests have a safe-field projection helper and separate private answer-key documents; migration is Admin-only, paginated, dry-run by default, and requires explicit confirmation for writes.
+- Community Doubt and replies are intended to remain manual; no AI path should be added there.
+- Admin report inbox uses `.limit(100)` and client-side sorting. This is acceptable only as an initial MVP bound; add stable pagination/order and explicit handling for more than 100 reports before broad release.
+- The Community moderation screen source inspected here has a suspend action; a complete unban/restore-user flow was not found in that screen. Verify whether existing Admin user management supplies the required unban path before calling moderation complete.
+- The Firestore Rules test suite includes subject, PDF rejection, separate reply ownership, report privacy, and block ownership tests. Actual latest green CI evidence is still required.
+
+### 17.5 Verification boundary
+
+- PR #7 code has been written to its isolated fix branch, but its checks have not yet been confirmed green.
+- The latest target-branch Community Rules CI and Android CI were still in progress at the time of this tracker update.
+- No production deployment, Firestore data migration, merge to main, or destructive action was performed.
+- Community work remains `IN_PROGRESS`, not `VERIFIED`.
+
+---
+
+## 18. AI Provider Clarification Required
+
+The earlier proposed OpenAI API adapter is **not approved as the second provider** after the user's correction. Do not implement OpenAI or buy/use a paid API by assumption.
+
+Keep the existing Gemini work as the provider already identified in the repository. The user wants the second connector to use a currently available free-plan AI provider, but its exact name/model has not yet been clearly identified. Ask the user to confirm the provider name before implementing the second adapter. Regardless of provider, both adapters must use one shared provider-neutral prompt/validation/router contract; no duplicate AI business logic.
