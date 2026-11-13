@@ -912,7 +912,7 @@ test("Legacy inline Community tests remain unreadable until answer keys are sepa
       targetExam: "NEET UG",
       examId: "neet_ug",
       questions: [{ id: "q1", correctAnswer: "A", explanation: "Secret" }],
-      questionsJson: "[{\\"id\\":\\"q1\\",\\"correctAnswer\\":\\"A\\"}]"
+      questionsJson: JSON.stringify([{ id: "q1", correctAnswer: "A" }])
     });
   });
   await assertFails(aliceDb.collection("Shared_Community_Tests").doc("legacy_inline_test").get());
