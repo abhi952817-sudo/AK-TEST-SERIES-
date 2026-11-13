@@ -1066,7 +1066,7 @@ exports.moderateCommunityReport = functions.https.onCall(async (data, context) =
     } else {
       await db.recursiveDelete(postRef);
       await db.collection("Community_MCQ_AnswerKeys").doc(postId).delete().catch(() => {});
-      await db.collection("Community_MCQ_Attempts").doc(postId).delete().catch(() => {});
+      await db.recursiveDelete(db.collection("Community_MCQ_Attempts").doc(postId));
     }
   }
 
