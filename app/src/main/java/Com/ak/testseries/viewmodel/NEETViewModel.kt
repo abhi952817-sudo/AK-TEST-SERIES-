@@ -2423,6 +2423,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val testSource = test.institute.takeIf { it.isNotBlank() } ?: "Private Upload"
+                val communityExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+                if (communityExamConfig == null) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(getApplication(), "This exam is not registered for Community sharing.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+                val communityRegisteredSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
+                val communityShareSubject = test.subject.takeIf { it in communityRegisteredSubjects } ?: "Full Syllabus"
 
                 val authorName = _userProfile.value.name.takeIf { it.isNotBlank() }
                     ?: currentUser.displayName?.takeIf { it.isNotBlank() }
@@ -2439,14 +2448,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "isOfficial" to false,
                     "countsTowardRanking" to false,
                     "status" to "Published",
-                    "examId" to (test.examId ?: targetExam),
+                    "examId" to communityExamConfig.examId,
                     "stageId" to (test.stageId ?: ""),
                     "paperId" to (test.paperId ?: ""),
                     "scoringVersion" to (test.scoringVersion ?: 1),
                     "title" to test.title,
                     "description" to test.description,
                     "targetExam" to targetExam,
-                    "subject" to test.subject,
+                    "subject" to communityShareSubject,
                     "classLevel" to test.classLevel,
                     "chapter" to test.chapter,
                     "topic" to test.topic,
