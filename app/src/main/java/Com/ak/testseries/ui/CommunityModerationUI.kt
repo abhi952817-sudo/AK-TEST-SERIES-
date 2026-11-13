@@ -274,6 +274,86 @@ fun CommunityBlockedUsersDialog(
     )
 }
 
+
+private data class CommunityAuditRow(
+    val id: String,
+    val actorUid: String,
+    val action: String,
+    val targetType: String,
+    val targetId: String,
+    val reason: String,
+    val createdAt: Long
+)
+
+@Composable
+fun CommunityAdminAuditScreen(viewModel: NEETViewModel) {
+    val rows = remember { mutableStateListOf<CommunityAuditRow>() }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(viewModel.isAdmin) {
+        if (!viewModel.isAdmin) {
+            loading = false
+            error = "Admin access is required."
+            return@DisposableEffect onDispose {}
+        }
+        val registration = FirebaseFirestore.getInstance()
+            .collection("Community_Moderation_Audit")
+            .limit(100)
+            .addSnapshotListener { snapshot, listenerError ->
+                if (listenerError != null) {
+                    error = listenerError.localizedMessage ?: "Moderation audit could not be loaded."
+                    loading = false
+                } else if (snapshot != null) {
+                    rows.clear()
+                    rows.addAll(snapshot.documents.map { doc ->
+                        CommunityAuditRow(
+                            id = doc.id,
+                            actorUid = doc.getString("actorUid").orEmpty(),
+                            action = doc.getString("action").orEmpty(),
+                            targetType = doc.getString("targetType").orEmpty(),
+                            targetId = doc.getString("targetId").orEmpty(),
+                            reason = doc.getString("reason").orEmpty(),
+                            createdAt = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L
+                        )
+                    }.sortedByDescending { it.createdAt })
+                    loading = false
+                    error = null
+                }
+            }
+        onDispose { registration.remove() }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+        Text("Community moderation audit", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Read-only record of Admin moderation actions.", style = MaterialTheme.typography.bodySmall)
+        when {
+            loading -> CircularProgressIndicator()
+            error != null -> Text(error!!, color = MaterialTheme.colorScheme.error)
+            rows.isEmpty() -> Text("No moderation actions have been recorded.", modifier = Modifier.padding(20.dp))
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(rows, key = { it.id }) { row ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(row.action, fontWeight = FontWeight.Bold)
+                            Text("${row.targetType}: ${row.targetId}")
+                            Text("Admin: ${row.actorUid}", style = MaterialTheme.typography.bodySmall)
+                            if (row.reason.isNotBlank()) Text(row.reason, style = MaterialTheme.typography.bodySmall)
+                            if (row.createdAt > 0L) {
+                                Text(
+                                    java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault())
+                                        .format(java.util.Date(row.createdAt)),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
     val db = remember { FirebaseFirestore.getInstance() }
