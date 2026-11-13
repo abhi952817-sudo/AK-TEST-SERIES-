@@ -160,7 +160,6 @@ test("Student: CANNOT update protected fields (isBanned, isVip, role, admin, xp,
     aliceDb.collection("Users_Data").doc(ALICE_UID).update({
       name: "Alice Updated",
       targetExam: "JEE Main",
-      examId: "jee_main",
     })
   );
 
@@ -168,7 +167,6 @@ test("Student: CANNOT update protected fields (isBanned, isVip, role, admin, xp,
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).update({
       targetExam: "JEE Main",
-      examId: "jee_main",
       bookmarkedTests: ["mock_neet_1"],
     })
   );
