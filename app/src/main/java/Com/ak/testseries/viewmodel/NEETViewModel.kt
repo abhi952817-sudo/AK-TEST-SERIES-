@@ -1686,7 +1686,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     isOfficial = true,
                     isVerifiedCommunity = true,
                     classLevel = classLevel,
-                    targetExam = targetExam,
+                    targetExam = canonicalCommunityTargetExam,
                     chapter = chapter,
                     timestamp = System.currentTimeMillis(),
                     imageUrl = null,
@@ -2511,7 +2511,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 shareBatch.commit().await()
 
-                val authorSubtitle = "$targetExam Aspirant"
+                val authorSubtitle = "$canonicalCommunityTargetExam Aspirant"
 
                 // Deterministic Document ID ensures same creator + same test can NEVER create duplicate documents
                 val deterministicPostId = "TEST_SHARE_${currentUid}_${test.id}"
