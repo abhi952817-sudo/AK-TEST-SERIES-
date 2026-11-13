@@ -25,6 +25,10 @@
 10. **Truthful verification.** Distinguish static code review, unit tests, emulator tests, device tests, live API tests, and production verification. Never report one as another.
 11. **Release gates are mandatory.** A phase is not complete until its acceptance criteria and dependencies pass.
 12. **No production deployment, destructive data migration, secret rotation, branch deletion, or force-push without explicit approval.**
+13. **Single implementation, existing entry points.** A capability shared by Student and Admin must be implemented once in the existing shared service/component and reused from both existing flows. Do not copy-paste parallel implementations or create a second control dashboard.
+14. **Keep controls at their source.** Admin-only configuration, backup/restore, provider settings, and publishing controls stay in the existing Admin/settings location where that function already belongs. Student screens expose only the student action/view; do not add duplicate Admin control buttons to Student UI. Use existing role checks and navigation rather than inventing a new control layer.
+15. **Prefer the smallest working integration.** Extend existing models, repositories, callable functions, and UI screens in their current patterns. Add a new abstraction only when the existing architecture cannot safely support the requirement; document why before adding it.
+
 
 ### Status vocabulary
 
@@ -779,3 +783,15 @@ PR status at creation: OPEN, not merged. It is intentionally not merged automati
 The earlier proposed OpenAI API adapter is **not approved as the second provider** after the user's correction. Do not implement OpenAI or buy/use a paid API by assumption.
 
 Keep the existing Gemini work as the provider already identified in the repository. The user wants the second connector to use a currently available free-plan AI provider, but its exact name/model has not yet been clearly identified. Ask the user to confirm the provider name before implementing the second adapter. Regardless of provider, both adapters must use one shared provider-neutral prompt/validation/router contract; no duplicate AI business logic.
+
+
+## 19. User-directed integration constraint (2026-11-13)
+
+The user clarified that Student and Admin should share the same underlying capability wherever the work is the same. Implement the capability once and connect it to both existing flows; only authorization and role-specific actions should differ. Do not create a larger parallel system, duplicate controls, or new control buttons on Student screens. Admin controls (including backup/configuration and YouTube-related administration where already present) must remain at their existing source location. The target is a straightforward, runnable integration that reuses existing code and keeps the current control placement.
+
+## 20. Latest verified work
+
+- Community CI recovery PR #7 was merged into feature/community-completion-2026-11-13 only (not main): merge commit d5212079bede5724defc702e4adaf3e3867b7995.
+- PR head 944b5f79808d467eac3cec7e524786a291d84b70 had both Android CI and Community Firebase Rules CI completed successfully before merge.
+- Integration branch remains the canonical work branch. Community merge is not yet ported into integration; inspect and selectively reconcile it before any cross-branch integration.
+- Current next implementation batch: inventory all Gemini direct-call sites and keys on the integration branch, then adapt the existing Admin-only Gemini connector pattern to the integration branch's Functions v1 callable exports and named Firestore database. Add Groq through the same provider contract; do not add another prompt engine or duplicate Student/Admin UI controls.
