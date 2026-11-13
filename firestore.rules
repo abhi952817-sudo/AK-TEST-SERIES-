@@ -471,7 +471,10 @@ service cloud.firestore {
                       || (isAuthenticated()
                           && !isUserBanned(request.auth.uid)
                           && resource.data.creatorId == request.auth.uid
-                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content']));
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content'])
+                          && request.resource.data.content is string
+                          && request.resource.data.content.size() > 0
+                          && request.resource.data.content.size() <= 2000);
         allow delete: if isAdmin()
                       || (isAuthenticated()
                           && !isUserBanned(request.auth.uid)
