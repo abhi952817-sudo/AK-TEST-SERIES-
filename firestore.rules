@@ -298,7 +298,7 @@ service cloud.firestore {
                       'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
                       'classLevel', 'totalMarks', 'topic', 'userReaction', 'quizOptions',
-                      'isHidden'
+                      'creatorRole', 'isHidden'
                     ])
                     && request.resource.data.subject is string
                     && request.resource.data.subject.size() > 0
@@ -307,10 +307,11 @@ service cloud.firestore {
                     && request.resource.data.targetExam.size() > 0
                     && request.resource.data.postType in ['DISCUSSION', 'DOUBT', 'MCQ', 'TEST_SHARE']
                     && request.resource.data.title is string
-                    && request.resource.data.title.size() <= 120
+                    && request.resource.data.title.size() <= 2000
                     && request.resource.data.content is string
                     && request.resource.data.content.size() <= 5000
-                    && (request.resource.data.content.size() > 0
+                    && ((request.resource.data.postType in ['MCQ', 'DOUBT'] && request.resource.data.title.size() > 0)
+                        || request.resource.data.content.size() > 0
                         || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
                     && (!('imageUrl' in request.resource.data)
                         || request.resource.data.imageUrl == null
@@ -325,19 +326,27 @@ service cloud.firestore {
                         && request.resource.data.quizOptions is list
                         && request.resource.data.quizOptions.size() in [4, 5]
                         && request.resource.data.title.size() > 0
+                        && request.resource.data.creatorRole in ['STUDENT', 'ADMIN']
+                        && ((isAdmin() && request.resource.data.creatorRole == 'ADMIN')
+                            || (!isAdmin() && request.resource.data.creatorRole == 'STUDENT'))
                         && request.resource.data.quizOptions[0] is string
                         && request.resource.data.quizOptions[0].size() > 0
+                        && request.resource.data.quizOptions[0].size() <= 500
                         && request.resource.data.quizOptions[1] is string
                         && request.resource.data.quizOptions[1].size() > 0
+                        && request.resource.data.quizOptions[1].size() <= 500
                         && request.resource.data.quizOptions[2] is string
                         && request.resource.data.quizOptions[2].size() > 0
+                        && request.resource.data.quizOptions[2].size() <= 500
                         && request.resource.data.quizOptions[3] is string
                         && request.resource.data.quizOptions[3].size() > 0
+                        && request.resource.data.quizOptions[3].size() <= 500
                         && (request.resource.data.quizOptions.size() == 4
                             || (request.resource.data.quizOptions[4] is string
-                                && request.resource.data.quizOptions[4].size() > 0)))
+                                && request.resource.data.quizOptions[4].size() > 0
+                                && request.resource.data.quizOptions[4].size() <= 500)))
                       || (request.resource.data.postType != 'MCQ'
-                        && !request.resource.data.keys().hasAny(['quizOptions']))
+                        && !request.resource.data.keys().hasAny(['quizOptions', 'creatorRole']))
                     )
                     && !request.resource.data.keys().hasAny([
                       'correctOptionIndex', 'correctAnswer', 'answerKey', 'quizExplanation'
@@ -355,7 +364,7 @@ service cloud.firestore {
                         && request.resource.data.subject.size() > 0
                         && request.resource.data.subject != 'General'
                         && request.resource.data.title is string
-                        && request.resource.data.title.size() <= 120
+                        && request.resource.data.title.size() <= 2000
                         && request.resource.data.content is string
                         && request.resource.data.content.size() <= 5000
                         && (request.resource.data.content.size() > 0
