@@ -250,6 +250,7 @@ fun CommunityScreen(
 
     val currentAuthUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val currentUid = currentAuthUser?.uid
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Isolate bookmarks and likes per user under Users_Data/{userId}
     DisposableEffect(currentUid) {
@@ -469,27 +470,67 @@ fun CommunityScreen(
 
     val toggleLikePost: (CommunityPost) -> Unit = { post ->
         val uid = currentUid
-        if (!uid.isNullOrBlank()) {
-            val db = FirebaseFirestore.getInstance()
-            val likeDoc = db.collection("Users_Data").document(uid).collection("Liked_Posts").document(post.id)
-            val isLiked = likedPostIds.contains(post.id)
-            if (isLiked) {
-                likedPostIds.remove(post.id)
-                likeDoc.delete()
-            } else {
-                likedPostIds.add(post.id)
-                likeDoc.set(mapOf("postId" to post.id, "timestamp" to System.currentTimeMillis()))
-            }
+        if (uid.isNullOrBlank()) {
+            android.widget.Toast.makeText(context, "Sign in to react.", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            val desiredLiked = !likedPostIds.contains(post.id)
+            com.google.firebase.functions.FirebaseFunctions.getInstance()
+                .getHttpsCallable("setCommunityReaction")
+                .call(mapOf("postId" to post.id, "liked" to desiredLiked))
+                .addOnSuccessListener { response ->
+                    @Suppress("UNCHECKED_CAST")
+                    val result = response.data as? Map<String, Any?>
+                    val liked = result?.get("liked") as? Boolean ?: desiredLiked
+                    val upvotes = (result?.get("upvotes") as? Number)?.toInt()
+                    if (liked && !likedPostIds.contains(post.id)) likedPostIds.add(post.id)
+                    if (!liked) likedPostIds.remove(post.id)
+                    if (upvotes != null) {
+                        val index = posts.indexOfFirst { it.id == post.id }
+                        if (index >= 0) posts[index] = posts[index].copy(
+                            upvotes = upvotes,
+                            userReaction = if (liked) "UP" else null
+                        )
+                    }
+                }
+                .addOnFailureListener { error ->
+                    android.widget.Toast.makeText(
+                        context,
+                        error.localizedMessage ?: "Reaction could not be saved.",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
         }
     }
 
     val addCommentToPost: (CommunityPost, CommunityComment) -> Unit = { targetPost, newComment ->
-        val uid = currentUid
-        if (!uid.isNullOrBlank() && newComment.content.isNotBlank()) {
-            FirebaseFirestore.getInstance()
-                .collection("Community_Posts").document(targetPost.id)
-                .collection("Comments").document(newComment.id)
-                .set(commentToMap(newComment.copy(creatorId = uid)))
+        if (currentUid.isNullOrBlank()) {
+            android.widget.Toast.makeText(context, "Sign in to reply.", android.widget.Toast.LENGTH_SHORT).show()
+        } else if (newComment.content.isNotBlank()) {
+            com.google.firebase.functions.FirebaseFunctions.getInstance()
+                .getHttpsCallable("createCommunityReply")
+                .call(
+                    mapOf(
+                        "postId" to targetPost.id,
+                        "content" to newComment.content.trim(),
+                        "requestId" to newComment.id
+                    )
+                )
+                .addOnSuccessListener { response ->
+                    @Suppress("UNCHECKED_CAST")
+                    val result = response.data as? Map<String, Any?>
+                    val count = (result?.get("commentsCount") as? Number)?.toInt()
+                    if (count != null) {
+                        val index = posts.indexOfFirst { it.id == targetPost.id }
+                        if (index >= 0) posts[index] = posts[index].copy(comments = count)
+                    }
+                }
+                .addOnFailureListener { error ->
+                    android.widget.Toast.makeText(
+                        context,
+                        error.localizedMessage ?: "Reply could not be saved.",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
         }
     }
 
