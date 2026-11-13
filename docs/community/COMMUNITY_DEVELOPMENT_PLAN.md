@@ -6,6 +6,52 @@
 > **Scope:** Community feature only. This document is a work plan, not authorization to merge or modify Main.  
 > **Last reviewed:** 2026-11-13
 
+## 0. First-priority MVP scope (decision recorded 2026-11-13)
+
+This section is the current product decision and takes precedence over any broader or older feature ideas elsewhere in this planning document. Build the smallest secure, usable Community first. Do not expand scope until this MVP is implemented and tested.
+
+### MVP user experience
+
+1. A student must select a valid subject before publishing. Subject choices must come from the selected exam's canonical registry mapping. Do not offer a generic fallback subject or allow an unclassified post.
+2. A post may contain text only, one image only, or text plus one image. Maximum one image per post. Camera capture and gallery selection are allowed.
+3. Community uploads must never accept PDF files, now or in future Community post/report flows. Remove PDF attachment controls from Community UI and stop writing Community `pdfUrl` / `pdfFileName` fields. Existing official/admin test-PDF workflows outside Community are out of scope and must not be broken.
+4. A Doubt is one question per post. It supports text and optionally one image. Other students can send manual text replies. No AI, AI fallback, AI summary, AI suggestion, or AI-generated answer in any Doubt path.
+5. An MCQ/quiz post contains exactly one question, not a multi-question quiz set. The question can contain text and optionally one image. It has either four or five options, selected by the creator, and one correct option for the MVP. Timer is not required and remains deferred.
+6. Subject selection is categorization only. Do not require manual Admin approval or claim academic verification for every student post or MCQ. Publish immediately after authenticated user, subject, content, image and policy validation succeeds.
+7. The author can delete their own post immediately. Users can report posts/users and block users. A report may include text and at most one image as private evidence visible only to authorized moderators.
+8. Basic Telegram-like interaction means a chronological feed, post detail, text replies, and basic reactions where already supported. Do not build real-time chat, voice/video, typing indicators, or group messaging in the MVP.
+9. Admin MVP controls: view reports, hide/remove reported content, suspend/unban users, and review moderation actions. Normal posts are not placed in a manual pre-publication approval queue.
+10. Preserve Admin-created and Student-created quiz ownership metadata in the data contract, but the first implementation milestone only needs the single-question MCQ post flow. Full separate quiz libraries, quiz collections, leaderboards and advanced quiz management are later work.
+
+### MVP feature order
+
+- **P0-A: Read-only audit and security baseline.** Inspect current Community UI, models, upload paths, Firestore rules, report/block implementation, admin controls, call sites and tests. Record exact files and risks before edits.
+- **P0-B: Subject-gated text/image post.** Mandatory registry-backed subject; text and/or exactly one image; camera/gallery; no PDF; immediate publish without per-post Admin approval.
+- **P0-C: Feed and manual replies.** Feed, post detail, text replies, stable pagination if needed, ownership checks and immediate author deletion.
+- **P0-D: Single-question MCQ.** One question per post, optional one image, exactly four or five options, one correct option, answer reveal only after a student's attempt. No timer or multi-question sets.
+- **P0-E: Report/block and Admin moderation.** Report post/user with optional private single-image evidence; block user; Admin report inbox, hide/remove, suspend/unban and audit log.
+- **P0-F: Security and regression.** Server-authoritative authorization, storage validation, no PDF upload route, no answer-key leakage, no fake content, and tests for all MVP permissions and flows.
+
+### Explicitly deferred
+
+PDF attachments in Community (permanently disallowed); multi-question quizzes; quiz library/collections; timers; multi-select MCQs; AI Doubt features; voice/video/live chat; advanced leaderboard/rewards; elaborate animations; advanced analytics; broad notification automation; and any feature not required for P0-A through P0-F.
+
+### MVP acceptance checklist
+
+- [ ] Subject is mandatory and validated against the selected exam's actual registry mapping.
+- [ ] A student can publish text only, one image only, or text plus one image.
+- [ ] The Community UI, model write path and Storage rules reject PDF uploads; no new Community PDF URL is written.
+- [ ] A Doubt contains one question and supports manual text replies only.
+- [ ] An MCQ post contains one question and four or five options, with one correct option.
+- [ ] Student posts publish without manual pre-approval after server-side validation.
+- [ ] The author can delete their own post; another student cannot delete it.
+- [ ] Reports can include one private image; ordinary students cannot read report evidence.
+- [ ] Blocked/suspended users cannot bypass restrictions through direct Firestore or Storage calls.
+- [ ] Admin can review reports, hide/remove content, suspend/unban users and produce an audit record.
+- [ ] No AI service is called from Doubt or reply flows.
+- [ ] No fake/demo posts, users, answers, reactions or quiz data are introduced.
+- [ ] Relevant Firestore/Storage tests and Android build/tests run successfully; exact results are recorded.
+
 ## 1. Purpose and working rules
 
 This document is the implementation guide for anyone assigned to develop the Community module. Read it before changing code.
