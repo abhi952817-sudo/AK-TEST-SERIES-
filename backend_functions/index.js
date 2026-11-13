@@ -1147,3 +1147,72 @@ exports.deleteCommunityPost = functions.https.onCall(async (data, context) => {
   }
   return { success: true, alreadyDeleted: false };
 });
+
+
+/**
+ * One-time compatibility migration for legacy Community posts.
+ * Student feed queries can then safely require isHidden == false, while old
+ * posts remain visible after being explicitly backfilled.
+ */
+exports.backfillCommunityVisibility = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Admin authentication is required.");
+  }
+  const isCallerAdmin = Boolean(
+    context.auth.token && (
+      context.auth.token.admin === true ||
+      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+    )
+  );
+  if (!isCallerAdmin) {
+    throw new functions.https.HttpsError("permission-denied", "Only Admin can migrate Community visibility.");
+  }
+
+  const markerRef = db.collection("Config").doc("community_visibility_backfill_v1");
+  const marker = await markerRef.get();
+  if (marker.exists && marker.data().completed === true) {
+    return { success: true, alreadyCompleted: true, updatedCount: 0 };
+  }
+
+  let cursor = null;
+  let updatedCount = 0;
+  while (true) {
+    let query = db.collection("Community_Posts")
+      .orderBy(admin.firestore.FieldPath.documentId())
+      .limit(400);
+    if (cursor) query = query.startAfter(cursor);
+    const snapshot = await query.get();
+    if (snapshot.empty) break;
+
+    const batch = db.batch();
+    let batchCount = 0;
+    snapshot.docs.forEach(doc => {
+      if (typeof doc.data().isHidden !== "boolean") {
+        batch.update(doc.ref, { isHidden: false });
+        batchCount += 1;
+      }
+    });
+    if (batchCount > 0) {
+      await batch.commit();
+      updatedCount += batchCount;
+    }
+    cursor = snapshot.docs[snapshot.docs.length - 1];
+    if (snapshot.size < 400) break;
+  }
+
+  await markerRef.set({
+    completed: true,
+    updatedCount,
+    completedBy: context.auth.uid,
+    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await db.collection("Admin_Audit_Logs").add({
+    action: "COMMUNITY_VISIBILITY_BACKFILL",
+    performedBy: context.auth.uid,
+    targetId: "Community_Posts",
+    details: { updatedCount },
+    clientTimestamp: Date.now(),
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { success: true, alreadyCompleted: false, updatedCount };
+});
