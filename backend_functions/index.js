@@ -1083,6 +1083,9 @@ exports.submitCommunityMcqAttempt = functions.https.onCall(async (data, context)
     return { success: true, ...result };
   } catch (error) {
     if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
     console.error("submitCommunityMcqAttempt failed", error);
     throw new functions.https.HttpsError("internal", "MCQ attempt could not be recorded.");
   }
