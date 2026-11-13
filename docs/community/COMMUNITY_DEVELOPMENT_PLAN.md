@@ -88,10 +88,10 @@ Work is being implemented on this feature branch only. This progress table super
 | Community PDF prohibition | **Implemented in branch; CI pending** | PDF fields removed from the Community Kotlin model, parser and new writes; Firestore rejects `pdfUrl` / `pdfFileName`. Other Admin/test PDF workflows remain intact. |
 | One-image post | **Camera/gallery flow implemented; device validation pending** | One selected JPEG/PNG/WebP image, maximum 5 MB, preview/remove, Storage upload and post image rendering. Upload failure blocks publishing. Camera uses Android preview capture and saves a temporary JPEG before upload. |
 | Safe replies | **Implemented in branch; CI pending** | Replies now use `Community_Posts/{postId}/Comments/{commentId}`; reply creator is recorded and only its author/Admin can delete. Shared parent-array writes and client counter mutation removed. |
-| Community Storage paths | **Rules implemented; emulator validation pending** | `community_images/{uid}/{fileName}` is owner-write, authenticated-read, image-only, max 5 MB. Private report-evidence path is Admin/reporter-read and image-only. |
+| Community Storage paths | **Rules + emulator tests implemented; CI pending** | `community_images/{uid}/{fileName}` is owner-write, authenticated-read, image-only, max 5 MB. Private report-evidence path is Admin/reporter-read and image-only. `storage.test.js` and a dedicated Community Rules CI workflow now exercise owner-path, PDF/MIME rejection and private-evidence access. |
 | Report/block Firestore security | **Rules scaffolding implemented; UI pending** | Private `Community_Reports` records and owner-managed `Blocked_Users` records have rules and tests authored. Report form, optional private evidence upload, block controls and Admin report inbox are not yet implemented. |
 | Single-question MCQ | **Not implemented** | One question, 4/5 options and secure answer reveal remain pending. Do not treat this PR as delivering quiz creation/attempt scoring. |
-| Automated validation | **In progress / pending** | Android CI run is in progress. Firestore emulator rules tests were updated but have not yet been independently run in this environment. Do not merge until CI passes and rules tests are run or a precise blocker is recorded. |
+| Automated validation | **In progress / pending** | Android CI and dedicated Firestore/Storage emulator CI are triggered by PR updates. Do not merge until both workflows pass; emulator tests must cover the current rules commit. |
 
 ### Implementation commits
 
