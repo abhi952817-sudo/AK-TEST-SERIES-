@@ -236,6 +236,33 @@ private data class CommunityReportRow(
 )
 
 @Composable
+fun CommunityBlockedUsersDialog(
+    blockedUserIds: List<String>,
+    onUnblock: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Blocked accounts") },
+        text = {
+            if (blockedUserIds.isEmpty()) {
+                Text("You have not blocked any accounts.")
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(blockedUserIds, key = { it }) { blockedUid ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text("User ${blockedUid.take(12)}", modifier = Modifier.weight(1f))
+                            TextButton(onClick = { onUnblock(blockedUid) }) { Text("Unblock") }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
+}
+
+@Composable
 fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
     val db = remember { FirebaseFirestore.getInstance() }
     val adminUid = FirebaseAuth.getInstance().currentUser?.uid
@@ -329,9 +356,17 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
 
     fun suspendReportedUser(report: CommunityReportRow) {
         val uid = report.reportedUserId ?: return
-        viewModel.toggleUserBan(uid, true)
-        audit("SUSPEND_USER", report, "USER", uid)
-        updateReport(report, "RESOLVED", "SUSPEND_USER")
+        if (!viewModel.isAdmin) return
+        db.collection("Users_Data").document(uid).update(
+            mapOf(
+                "isBanned" to true,
+                "communitySuspendedAt" to FieldValue.serverTimestamp(),
+                "communitySuspendedBy" to adminUid.orEmpty()
+            )
+        ).addOnSuccessListener {
+            audit("SUSPEND_USER", report, "USER", uid)
+            updateReport(report, "RESOLVED", "SUSPEND_USER")
+        }.addOnFailureListener { error = it.localizedMessage ?: "User suspension failed." }
     }
 
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
