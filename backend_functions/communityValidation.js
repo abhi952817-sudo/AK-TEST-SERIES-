@@ -4,7 +4,7 @@ function makeValidationError(code, message) {
   return error;
 }
 
-function validateCommunityMcqCreate(data) {
+function validateCommunityMcqCreate(data, expectedUid) {
   const payload = data || {};
   const title = typeof payload.title === "string" ? payload.title.trim() : "";
   const question = typeof payload.question === "string" ? payload.question.trim() : "";
@@ -44,20 +44,41 @@ function validateCommunityMcqCreate(data) {
     throw makeValidationError("invalid-argument", "A stable requestId is required for duplicate protection.");
   }
   let imageUrl = null;
+  let imagePath = null;
   if (payload.imageUrl != null && payload.imageUrl !== "") {
     if (typeof payload.imageUrl !== "string" || payload.imageUrl.length > 2048) {
       throw makeValidationError("invalid-argument", "Invalid MCQ image URL.");
+    }
+    if (typeof expectedUid !== "string" || !expectedUid.trim()) {
+      throw makeValidationError("invalid-argument", "MCQ image ownership could not be verified.");
+    }
+    imagePath = typeof payload.imagePath === "string" ? payload.imagePath.trim() : "";
+    const expectedPrefix = `community_images/${expectedUid}/`;
+    if (!imagePath.startsWith(expectedPrefix) || imagePath.split("/").length !== 3 || imagePath.includes("..")) {
+      throw makeValidationError("invalid-argument", "MCQ image must be uploaded to the creator's Community image folder.");
     }
     let parsed;
     try { parsed = new URL(payload.imageUrl); } catch (_) {
       throw makeValidationError("invalid-argument", "Invalid MCQ image URL.");
     }
-    if (parsed.protocol !== "https:" || !["firebasestorage.googleapis.com", "storage.googleapis.com"].includes(parsed.hostname)) {
+    if (parsed.protocol !== "https:" || parsed.hostname !== "firebasestorage.googleapis.com") {
       throw makeValidationError("invalid-argument", "MCQ images must use the approved Firebase Storage host.");
     }
+    let decodedObjectPath = "";
+    try {
+      const encodedObjectPath = parsed.pathname.split("/o/")[1] || "";
+      decodedObjectPath = decodeURIComponent(encodedObjectPath);
+    } catch (_) {
+      throw makeValidationError("invalid-argument", "MCQ image URL path is malformed.");
+    }
+    if (decodedObjectPath !== imagePath) {
+      throw makeValidationError("invalid-argument", "MCQ image URL does not match its owned storage path.");
+    }
     imageUrl = payload.imageUrl;
+  } else if (payload.imagePath != null && payload.imagePath !== "") {
+    throw makeValidationError("invalid-argument", "An image path cannot be supplied without an image URL.");
   }
-  return { title, question, subject: registeredExam.subject, targetExam: registeredExam.examName, examId: registeredExam.examId, options: cleanOptions, correctOptionIndex, requestId, imageUrl };
+  return { title, question, subject: registeredExam.subject, targetExam: registeredExam.examName, examId: registeredExam.examId, options: cleanOptions, correctOptionIndex, requestId, imageUrl, imagePath };
 }
 
 function validateCommunityMcqAttempt(data) {
