@@ -239,9 +239,28 @@ fun CommunityScreen(
     val posts = remember { mutableStateListOf<CommunityPost>() }
     val bookmarkedPostIds = remember { mutableStateListOf<String>() }
     val likedPostIds = remember { mutableStateListOf<String>() }
+    val blockedUserIds = remember { mutableStateListOf<String>() }
+    var reportTarget by remember { mutableStateOf<CommunityReportTarget?>(null) }
 
     val currentAuthUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val currentUid = currentAuthUser?.uid
+
+    DisposableEffect(currentUid) {
+        if (currentUid.isNullOrBlank()) {
+            blockedUserIds.clear()
+            return@DisposableEffect onDispose {}
+        }
+        val blockListener = FirebaseFirestore.getInstance()
+            .collection("Users_Data").document(currentUid)
+            .collection("Blocked_Users")
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    blockedUserIds.clear()
+                    blockedUserIds.addAll(snapshot.documents.map { it.id })
+                }
+            }
+        onDispose { blockListener.remove() }
+    }
 
     // Isolate bookmarks and likes per user under Users_Data/{userId}
     DisposableEffect(currentUid) {
@@ -424,7 +443,24 @@ fun CommunityScreen(
 
     val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
         val db = FirebaseFirestore.getInstance()
-        db.collection("Community_Posts").document(newPost.id).set(communityPostToMap(newPost))
+        val postRef = db.collection("Community_Posts").document(newPost.id)
+        val batch = db.batch()
+        batch.set(postRef, communityPostToMap(newPost))
+        if (newPost.postType == "MCQ") {
+            val answerIndex = newPost.quizCorrectOptionIndex
+            if (answerIndex != null && answerIndex in newPost.quizOptions.indices) {
+                val answerRef = db.collection("Community_MCQ_AnswerKeys").document(newPost.id)
+                batch.set(answerRef, mapOf(
+                    "creatorId" to newPost.creatorId,
+                    "correctOptionIndex" to answerIndex,
+                    "explanation" to (newPost.quizExplanation ?: ""),
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                ))
+            } else {
+                return@let
+            }
+        }
+        batch.commit()
     }
 
     val updatePostInFirebase: (CommunityPost) -> Unit = { updatedPost ->
@@ -446,7 +482,9 @@ fun CommunityScreen(
     }
 
     // Attach user bookmark and like status to posts
-    val postsWithUserStatus = posts.map { post ->
+    val postsWithUserStatus = posts.filter { post ->
+        (isAdmin || !post.isHidden) && (isAdmin || post.creatorId !in blockedUserIds)
+    }.map { post ->
         post.copy(
             isBookmarked = bookmarkedPostIds.contains(post.id),
             userReaction = if (likedPostIds.contains(post.id)) "UP" else null
@@ -503,12 +541,90 @@ fun CommunityScreen(
                         deletePostInFirebase(p)
                         currentRoute = CommunityRoute.FEED
                     },
+                    onReportPost = { p ->
+                        reportTarget = CommunityReportTarget(postId = p.id, reportedUserId = p.creatorId)
+                    },
+                    onBlockAuthor = { p ->
+                        val uid = currentUid
+                        val authorUid = p.creatorId
+                        if (!uid.isNullOrBlank() && !authorUid.isNullOrBlank() && uid != authorUid) {
+                            FirebaseFirestore.getInstance().collection("Users_Data").document(uid)
+                                .collection("Blocked_Users").document(authorUid)
+                                .set(mapOf("blockedUid" to authorUid, "createdAt" to System.currentTimeMillis()))
+                        }
+                    },
                     onOpenTest = onOpenTest
                 )
             } else {
                 currentRoute = CommunityRoute.FEED
             }
         }
+    }
+
+    reportTarget?.let { target ->
+        CommunityReportDialog(
+            target = target,
+            onDismiss = { reportTarget = null },
+            onSubmit = { reason, evidenceUri ->
+                val uid = currentUid
+                if (uid.isNullOrBlank()) {
+                    reportTarget = null
+                } else {
+                    val db = FirebaseFirestore.getInstance()
+                    val reportRef = db.collection("Community_Reports").document()
+                    val reportId = reportRef.id
+                    fun saveReport(evidencePath: String?) {
+                        val payload = hashMapOf<String, Any?>(
+                            "reporterId" to uid,
+                            "reason" to reason,
+                            "status" to "OPEN",
+                            "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                        )
+                        target.postId?.let { payload["postId"] = it }
+                        target.reportedUserId?.let { payload["reportedUserId"] = it }
+                        evidencePath?.let { payload["evidenceImagePath"] = it }
+                        reportRef.set(payload)
+                            .addOnSuccessListener {
+                                reportTarget = null
+                                android.widget.Toast.makeText(
+                                    androidx.compose.ui.platform.LocalContext.current,
+                                    "Report submitted",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            .addOnFailureListener {
+                                android.widget.Toast.makeText(
+                                    androidx.compose.ui.platform.LocalContext.current,
+                                    it.localizedMessage ?: "Report could not be submitted",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+                    }
+                    if (evidenceUri == null) {
+                        saveReport(null)
+                    } else {
+                        val mime = androidx.compose.ui.platform.LocalContext.current.contentResolver.getType(evidenceUri) ?: ""
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val size = try {
+                            context.contentResolver.openAssetFileDescriptor(evidenceUri, "r")?.use { it.length }
+                        } catch (_: Exception) { null }
+                        if (mime !in setOf("image/jpeg", "image/png", "image/webp") ||
+                            (size != null && size >= 5L * 1024L * 1024L)) {
+                            android.widget.Toast.makeText(context, "Only JPEG, PNG or WebP evidence up to 5 MB is allowed", android.widget.Toast.LENGTH_LONG).show()
+                        } else {
+                            val path = "community_report_evidence/$uid/$reportId"
+                            val fileRef = com.google.firebase.storage.FirebaseStorage.getInstance().reference.child(path)
+                            val metadata = com.google.firebase.storage.StorageMetadata.Builder().setContentType(mime).build()
+                            fileRef.putFile(evidenceUri, metadata)
+                                .addOnSuccessListener { saveReport(path) }
+                                .addOnFailureListener { error ->
+                                    android.widget.Toast.makeText(context, error.localizedMessage ?: "Evidence upload failed", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                        }
+                    }
+                }
+            }
+        )
     }
 }
 
