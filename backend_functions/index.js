@@ -1174,6 +1174,7 @@ exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, 
         countsTowardRanking: false,
         status: "Published",
         examId: canonicalExam.examId,
+        targetExam: canonicalExam.examName,
         subject: canonicalSubject,
         migratedAt: admin.firestore.FieldValue.serverTimestamp()
       });
@@ -1267,7 +1268,7 @@ exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (dat
       const batch = db.batch();
       batch.update(doc.ref, {
         moderationState: visibility,
-        ...(canonicalExam ? { examId: canonicalExam.examId } : {}),
+        ...(canonicalExam ? { examId: canonicalExam.examId, targetExam: canonicalExam.examName } : {}),
         moderationMigrationReason: canonicalExam ? admin.firestore.FieldValue.delete() : "UNKNOWN_EXAM_REGISTRY_MAPPING"
       });
       batch.set(db.collection("Community_Moderation_Audit").doc(), {
