@@ -21,6 +21,7 @@ const {
   splitLegacySharedQuestions
 } = require("./communityValidation");
 const crypto = require("crypto");
+const communityExamSubjects = require("./communityExamSubjects.json");
 
 exports.normalizeExamKey = normalizeExamKey;
 
@@ -983,6 +984,7 @@ exports.createCommunityMcq = functions.https.onCall(async (data, context) => {
     content: payload.question,
     subject: payload.subject,
     targetExam: payload.targetExam,
+    examId: payload.examId,
     imageUrl: payload.imageUrl,
     postType: "MCQ",
     mcqOptions: payload.options,
@@ -1258,5 +1260,57 @@ exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (dat
     skippedCount,
     results,
     nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1].id : null
+  };
+});
+
+
+/**
+ * Admin-only registry sync. It writes the canonical Kotlin exam registry
+ * projection used by Firestore Rules to validate student Community subjects.
+ * Dry-run is default; a write requires explicit confirmation.
+ */
+exports.syncCommunityExamSubjects = functions.https.onCall(async (data, context) => {
+  try {
+    validateSetAdminRoleAuth(context);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+  const dryRun = !data || data.dryRun !== false;
+  if (!dryRun && data.confirm !== "SYNC_COMMUNITY_EXAM_SUBJECTS") {
+    throw new functions.https.HttpsError("failed-precondition", "Explicit registry sync confirmation is required.");
+  }
+  const exams = communityExamSubjects.exams;
+  if (!Array.isArray(exams) || exams.length === 0) {
+    throw new functions.https.HttpsError("failed-precondition", "Backend Community exam registry is empty.");
+  }
+  if (!dryRun) {
+    const batch = db.batch();
+    for (const exam of exams) {
+      batch.set(db.collection("Community_Exam_Subjects").doc(exam.examId), {
+        examId: exam.examId,
+        examName: exam.examName,
+        shortName: exam.shortName,
+        aliases: [exam.examId, exam.examName, exam.shortName],
+        subjects: exam.subjects,
+        registryVersion: communityExamSubjects.registryVersion,
+        syncedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    batch.set(db.collection("Community_Moderation_Audit").doc(), {
+      actorUid: context.auth.uid,
+      action: "SYNC_COMMUNITY_EXAM_SUBJECT_REGISTRY",
+      targetType: "COMMUNITY_EXAM_SUBJECTS",
+      targetId: communityExamSubjects.registryVersion,
+      reason: "Synchronized canonical exam and subject names from the backend registry projection.",
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+  }
+  return {
+    success: true,
+    dryRun,
+    registryVersion: communityExamSubjects.registryVersion,
+    examCount: exams.length,
+    subjectCount: exams.reduce((total, exam) => total + exam.subjects.length, 0)
   };
 });
