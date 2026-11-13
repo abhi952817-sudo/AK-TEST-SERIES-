@@ -25,6 +25,7 @@ on:
       - "backend_functions/index.js"
       - "backend_functions/communityValidation.js"
       - "backend_functions/communityValidation.test.js"
+      - "backend_functions/communityExamSubjects.json"
       - "backend_functions/callableValidation.test.js"
       - "firebase.json"
       - ".github/workflows/community-rules.yml"
