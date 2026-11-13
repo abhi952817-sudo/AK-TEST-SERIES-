@@ -826,6 +826,9 @@ fun PostCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3
             )
+            if (post.postType == "MCQ") {
+                CommunityMcqAttemptCard(post)
+            }
 
             // If TEST_SHARE, show Test Details and Action
             if (post.postType == "TEST_SHARE") {
