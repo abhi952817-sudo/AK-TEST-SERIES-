@@ -339,6 +339,7 @@ fun CommunityScreen(
                     isBookmarked = false,
                     timestamp = doc.getLong("timestamp") ?: 0L,
                     postType = doc.getString("postType") ?: "DISCUSSION",
+                    creatorRole = doc.getString("creatorRole") ?: "STUDENT",
                     testId = doc.getString("testId"),
                     creatorId = doc.getString("creatorId"),
                     testTitle = doc.getString("testTitle"),
@@ -560,6 +561,7 @@ fun CommunityScreen(
                 PostDetailScreen(
                     post = post,
                     isAdmin = isAdmin,
+                    isAuthorBlocked = post.creatorId in blockedUserIds,
                     onBack = { currentRoute = CommunityRoute.FEED },
                     onUpdatePost = { updatedPost ->
                         updatePostInFirebase(updatedPost)
@@ -1417,6 +1419,7 @@ fun CreatePostScreen(
 fun PostDetailScreen(
     post: CommunityPost,
     isAdmin: Boolean = false,
+    isAuthorBlocked: Boolean = false,
     onBack: () -> Unit,
     onUpdatePost: (CommunityPost) -> Unit,
     onDeletePost: (CommunityPost) -> Unit = {},
@@ -1490,7 +1493,7 @@ fun PostDetailScreen(
                             )
                             if (currentUid != null && currentUid != post.creatorId) {
                                 DropdownMenuItem(
-                                    text = { Text("Block author") },
+                                    text = { Text(if (isAuthorBlocked) "Unblock author" else "Block author") },
                                     onClick = { showActionsMenu = false; onBlockAuthor(post) }
                                 )
                             }
