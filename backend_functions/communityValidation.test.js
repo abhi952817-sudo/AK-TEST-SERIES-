@@ -4,6 +4,7 @@ const {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
   validateCommunityReplyCreate,
+  validateCommunityPostDelete,
   validateCommunityReplyDelete,
   validateCommunityReaction,
   splitLegacySharedQuestions,
@@ -149,6 +150,13 @@ test("Manual Community replies require bounded text and an idempotency key", () 
     { postId: "post-1", content: "Reply", requestId: "" },
     { postId: "post-1", content: "x".repeat(2001), requestId: "r1" }
   ]) assert.throws(() => validateCommunityReplyCreate(payload), { code: "invalid-argument" });
+});
+
+test("Community post deletion requires a valid post ID", () => {
+  assert.deepEqual(validateCommunityPostDelete({ postId: "post-1" }), { postId: "post-1" });
+  for (const payload of [{ postId: "" }, {}]) {
+    assert.throws(() => validateCommunityPostDelete(payload), { code: "invalid-argument" });
+  }
 });
 
 test("Community reply deletion requires both post and comment IDs", () => {
