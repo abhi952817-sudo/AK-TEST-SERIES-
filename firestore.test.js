@@ -383,6 +383,7 @@ test("Student: CAN create community post with own creatorId", async () => {
       subject: "Physics",
       targetExam: "JEE Main",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       upvotes: 0,
       comments: 0,
     })
@@ -399,6 +400,7 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       subject: "Biology",
       targetExam: "NEET UG",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       isPinned: true, // Malicious spoof
     })
   );
@@ -411,6 +413,7 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       subject: "Biology",
       targetExam: "NEET UG",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       isOfficial: true, // Malicious spoof
     })
   );
@@ -425,6 +428,7 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       subject: "Chemistry",
       targetExam: "NEET UG",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       upvotes: 5,
       views: 20,
       comments: 2,
@@ -512,6 +516,7 @@ test("Community posts reject General subject and PDF attachment fields", async (
     content: "Question text",
     targetExam: "NEET UG",
     postType: "DISCUSSION"
+    moderationState: "VISIBLE",
   };
   await assertFails(
     aliceDb.collection("Community_Posts").doc("general_subject_post").set({
@@ -889,6 +894,7 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
       subject: "Biology",
       targetExam: "NEET UG",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       creatorId: ALICE_UID,
       timestamp: Date.now()
     })
@@ -924,6 +930,7 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
       subject: "Biology",
       targetExam: "NEET UG",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       creatorId: BOB_UID,
       timestamp: Date.now()
     })
@@ -963,6 +970,7 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
       subject: "Biology",
       targetExam: "NEET UG",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       creatorId: BOB_UID
     })
   );
@@ -980,6 +988,7 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
       subject: "Biology",
       targetExam: "NEET UG",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       creatorId: BOB_UID
     })
   );
@@ -1000,6 +1009,7 @@ test("Community students cannot create MCQs directly or read the private answer 
     subject: "Biology",
     targetExam: "NEET UG",
     postType: "MCQ",
+    moderationState: "VISIBLE",
     mcqOptions: ["A", "B", "C", "D"],
     timestamp: Date.now()
   }));
