@@ -1160,11 +1160,26 @@ fun CreatePostScreen(
     var correctOptionIndex by remember { mutableStateOf(0) }
     var creatingMcq by remember { mutableStateOf(false) }
     var mcqRequestId by remember { mutableStateOf(UUID.randomUUID().toString()) }
+    var pendingUploadedImageUrl by remember { mutableStateOf<String?>(null) }
+    var pendingUploadedImagePath by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(title, content, selectedSubject, selectedPostType, optionTexts, optionCount, correctOptionIndex, selectedImageUri) {
+        mcqRequestId = UUID.randomUUID().toString()
+    }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val authorName = authUser?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
     val creatorUid = authUser?.uid
+
+    fun clearPendingImage(deleteRemote: Boolean) {
+        val path = pendingUploadedImagePath
+        if (deleteRemote && !path.isNullOrBlank()) {
+            FirebaseStorage.getInstance().reference.child(path).delete()
+        }
+        pendingUploadedImagePath = null
+        pendingUploadedImageUrl = null
+    }
     val examId = remember(targetExam) {
         Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)?.examId
     }
@@ -1174,6 +1189,7 @@ fun CreatePostScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
+        clearPendingImage(deleteRemote = true)
         selectedImageUri = uri
         uploadError = null
     }
@@ -1181,6 +1197,7 @@ fun CreatePostScreen(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
+            clearPendingImage(deleteRemote = true)
             try {
                 val imageFile = java.io.File(context.cacheDir, "community_capture_${UUID.randomUUID()}.jpg")
                 FileOutputStream(imageFile).use { output ->
@@ -1198,6 +1215,7 @@ fun CreatePostScreen(
         val uid = creatorUid ?: return
         val cleanContent = content.trim()
         if (examId.isNullOrBlank() || selectedSubject !in subjects) {
+            clearPendingImage(deleteRemote = true)
             imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
             return
         }
@@ -1214,6 +1232,7 @@ fun CreatePostScreen(
             if (options.any { it.isBlank() } || options.distinctBy { it.lowercase() }.size != optionCount ||
                 correctOptionIndex !in options.indices
             ) {
+                clearPendingImage(deleteRemote = true)
                 imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
                 uploadError = "Enter $optionCount different options and select one correct option."
                 return
@@ -1235,7 +1254,7 @@ fun CreatePostScreen(
                 .call(payload)
                 .addOnSuccessListener {
                     creatingMcq = false
-                    mcqRequestId = UUID.randomUUID().toString()
+                    clearPendingImage(deleteRemote = false)
                     onMcqCreated()
                 }
                 .addOnFailureListener { error ->
@@ -1260,8 +1279,11 @@ fun CreatePostScreen(
             )
         ) { error ->
             if (error != null) {
+                clearPendingImage(deleteRemote = true)
                 imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
                 uploadError = error.localizedMessage ?: "Post could not be published."
+            } else {
+                clearPendingImage(deleteRemote = false)
             }
         }
     }
@@ -1284,7 +1306,9 @@ fun CreatePostScreen(
                                 (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() })
                             ) {
                                 val uri = selectedImageUri
-                                if (uri == null) {
+                                if (!pendingUploadedImageUrl.isNullOrBlank()) {
+                                    publish(pendingUploadedImageUrl, pendingUploadedImagePath)
+                                } else if (uri == null) {
                                     publish(null)
                                 } else {
                                     val mimeType = context.contentResolver.getType(uri) ?: if (uri.scheme == "file") "image/jpeg" else ""
@@ -1303,6 +1327,8 @@ fun CreatePostScreen(
                                                 fileRef.downloadUrl
                                                     .addOnSuccessListener { downloadUri ->
                                                         isUploading = false
+                                                        pendingUploadedImageUrl = downloadUri.toString()
+                                                        pendingUploadedImagePath = imagePath
                                                         publish(downloadUri.toString(), imagePath)
                                                     }
                                                     .addOnFailureListener { error ->
