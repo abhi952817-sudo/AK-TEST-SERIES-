@@ -795,3 +795,33 @@ The user clarified that Student and Admin should share the same underlying capab
 - PR head 944b5f79808d467eac3cec7e524786a291d84b70 had both Android CI and Community Firebase Rules CI completed successfully before merge.
 - Integration branch remains the canonical work branch. Community merge is not yet ported into integration; inspect and selectively reconcile it before any cross-branch integration.
 - Current next implementation batch: inventory all Gemini direct-call sites and keys on the integration branch, then adapt the existing Admin-only Gemini connector pattern to the integration branch's Functions v1 callable exports and named Firestore database. Add Groq through the same provider contract; do not add another prompt engine or duplicate Student/Admin UI controls.
+
+
+## 21. AI connector migration inventory — static source review (2026-11-13)
+
+Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. This is static GitHub source review only; no Android build, Node tests, emulator, or live provider request was run.
+
+### Confirmed direct Gemini client locations
+
+| File | Confirmed locations | Current behavior / migration note |
+|---|---:|---|
+| `app/src/main/java/Com/ak/testseries/exam/UniversalPdfPipeline.kt` | lines 56, 144, 185, 232, 482–490 | Accepts optional API key, falls back to `BuildConfig.GEMINI_API_KEY`, and calls Gemini HTTP directly for main generation and targeted regeneration. |
+| `app/src/main/java/Com/ak/testseries/utils/GeminiPdfExtractor.kt` | lines 20–23, 33, 81 | Separate PDF extraction client accepts an API key and calls Gemini directly. |
+| `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt` | lines 1646–1650, 2601, 2946, 3067, 4838, 5213, 5349–5368, 5374–5454, 5515–5519 | Multiple question/text generation call paths; local secondary-key preferences and BuildConfig primary key are present. `GeminiPdfExtractor` is invoked from this ViewModel. |
+
+`NEETViewModel.kt` also contains a YouTube API key use at line 6450; this is a separate YouTube integration and must not be changed as part of the Gemini connector migration. Preserve its current Admin/source-of-control placement and existing behavior unless a separate YouTube audit identifies a defect.
+
+### Backend compatibility constraints confirmed
+
+- Integration `backend_functions/index.js` uses `firebase-functions` v1 callable exports (`functions.https.onCall`) and initializes Admin once, then selects the named Firestore database `FIRESTORE_DATABASE_ID` (default `ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612`).
+- `backend_functions/package.json` uses Node 18, `firebase-functions` `^5.0.0`, and `firebase-admin` `^12.0.0`.
+- The existing Gemini branch connector uses Functions v2 `onCall` and `defineSecret`; it cannot be copied into the current `index.js` blindly. Any port must preserve the named database, existing callable exports, region/configuration, auth policy, and deploy discovery.
+- The integration branch already has `UniversalAIContext.kt` and `UniversalPdfPipeline.kt` uses it. Reuse this prompt policy; do not add a second Prompt Engine.
+
+### Next implementation gates
+
+1. Finish call-site/key inventory, including all `NEETViewModel` helper call paths, Gradle BuildConfig source, and all callers of `GeminiPdfExtractor`.
+2. Define one server callable contract compatible with the current Functions setup and named database; Admin controls stay in the existing Admin settings location.
+3. Add Gemini and Groq adapters behind one provider-neutral router. Never accept provider secrets from Student/Android callable input. No silent paid fallback.
+4. Migrate each existing Android call site to the shared callable without changing student/admin screen control placement; remove client-side Gemini secrets only after every caller is migrated and verified.
+5. Add mocked provider, auth, secret isolation, usage/quota, model capability, fallback, and error-path tests before marking the connector verified.
