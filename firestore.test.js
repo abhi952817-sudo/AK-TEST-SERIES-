@@ -380,6 +380,9 @@ test("Student: CAN create community post with own creatorId", async () => {
       authorName: "Alice",
       title: "Best revision strategy for Physics?",
       content: "How to master Rotational Motion?",
+      subject: "Physics",
+      targetExam: "JEE Main",
+      postType: "DISCUSSION",
       upvotes: 0,
       comments: 0,
     })
@@ -393,6 +396,9 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       creatorId: ALICE_UID,
       title: "Important Notice",
       content: "Exam Cancelled",
+      subject: "Biology",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
       isPinned: true, // Malicious spoof
     })
   );
@@ -402,17 +408,23 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       creatorId: ALICE_UID,
       title: "Official Announcement",
       content: "Free VIP for everyone",
+      subject: "Biology",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
       isOfficial: true, // Malicious spoof
     })
   );
 });
 
-test("Student: CAN upvote/comment on another's post, but CANNOT edit title/content or delete it", async () => {
+test("Student: CANNOT mutate another post or shared counters, but CAN create and delete their own reply", async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await ctx.firestore().collection("Community_Posts").doc("bob_post").set({
       creatorId: BOB_UID,
       title: "Bob's Question",
       content: "Need help with Organic Chemistry",
+      subject: "Chemistry",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
       upvotes: 5,
       views: 20,
       comments: 2,
@@ -421,8 +433,8 @@ test("Student: CAN upvote/comment on another's post, but CANNOT edit title/conte
 
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
 
-  // Alice upvotes Bob's post -> SUCCEEDS
-  await assertSucceeds(
+  // Students cannot mutate shared counters directly.
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").update({
       upvotes: 6,
     })
@@ -440,14 +452,37 @@ test("Student: CAN upvote/comment on another's post, but CANNOT edit title/conte
     aliceDb.collection("Community_Posts").doc("bob_post").delete()
   );
 
-  // Alice adds a comment to Bob's post -> SUCCEEDS
-  await assertSucceeds(
+  // Replies are independent documents. Alice cannot replace the parent's
+  // comments array/counter, but can create her own reply.
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").update({
       comments: 3,
       commentsList: [
         { id: "c1", authorName: "Alice", content: "Great question!", timestamp: Date.now() }
       ]
     })
+  );
+  await assertSucceeds(
+    aliceDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").set({
+      id: "alice_reply_1",
+      creatorId: ALICE_UID,
+      authorName: "Alice",
+      timeAgo: "Just now",
+      content: "Great question!",
+      upvotes: 0,
+      isCorrectAnswer: false,
+      userReaction: null,
+      timestamp: Date.now()
+    })
+  );
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  await assertFails(
+    bobDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").update({
+      content: "Edited by Bob"
+    })
+  );
+  await assertSucceeds(
+    aliceDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").delete()
   );
 
   // Alice persists liked post under own profile -> SUCCEEDS
@@ -464,6 +499,64 @@ test("Student: CAN upvote/comment on another's post, but CANNOT edit title/conte
       postId: "bob_post",
       timestamp: Date.now()
     })
+  );
+});
+
+
+test("Community posts reject General subject and PDF attachment fields", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const base = {
+    creatorId: ALICE_UID,
+    authorName: "Alice",
+    title: "A question",
+    content: "Question text",
+    targetExam: "NEET UG",
+    postType: "DISCUSSION"
+  };
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("general_subject_post").set({
+      ...base, subject: "General"
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("pdf_attachment_post").set({
+      ...base, subject: "Biology", pdfUrl: "https://example.invalid/test.pdf"
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("multiple_images_post").set({
+      ...base, subject: "Biology", imageUrls: ["https://example.invalid/1.jpg", "https://example.invalid/2.jpg"]
+    })
+  );
+});
+
+test("Community reports are private to Admin and block lists are owner-managed", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+
+  await assertSucceeds(
+    aliceDb.collection("Community_Reports").doc("report_1").set({
+      reporterId: ALICE_UID,
+      postId: "post_1",
+      reportedUserId: BOB_UID,
+      reason: "Abusive content",
+      status: "OPEN",
+      createdAt: Date.now()
+    })
+  );
+  await assertFails(aliceDb.collection("Community_Reports").doc("report_1").get());
+  await assertFails(bobDb.collection("Community_Reports").doc("report_1").get());
+  await assertSucceeds(adminDb.collection("Community_Reports").doc("report_1").get());
+
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).set({
+      blockedUid: BOB_UID,
+      createdAt: Date.now()
+    })
+  );
+  await assertFails(
+    bobDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).delete()
   );
 });
 
@@ -740,8 +833,12 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
   await assertSucceeds(
     aliceDb.collection("Community_Posts").doc("post_active_1").set({
       title: "Active Post",
+      content: "Active student post",
+      subject: "Biology",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
       creatorId: ALICE_UID,
-      createdAt: new Date().toISOString()
+      timestamp: Date.now()
     })
   );
 });
@@ -771,8 +868,12 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
   await assertFails(
     bobDb.collection("Community_Posts").doc("post_banned_1").set({
       title: "Spam Post",
+      content: "Spam",
+      subject: "Biology",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
       creatorId: BOB_UID,
-      createdAt: new Date().toISOString()
+      timestamp: Date.now()
     })
   );
 
@@ -806,6 +907,10 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
   await assertFails(
     bobDb.collection("Community_Posts").doc("post_bob_reinstated").set({
       title: "Hello Again",
+      content: "Back from suspension",
+      subject: "Biology",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
       creatorId: BOB_UID
     })
   );
@@ -819,6 +924,10 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
   await assertSucceeds(
     bobDb.collection("Community_Posts").doc("post_bob_reinstated").set({
       title: "Hello Again",
+      content: "Back from suspension",
+      subject: "Biology",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
       creatorId: BOB_UID
     })
   );

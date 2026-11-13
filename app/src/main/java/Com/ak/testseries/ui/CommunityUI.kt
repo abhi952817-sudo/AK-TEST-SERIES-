@@ -18,6 +18,14 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import android.net.Uri
+import android.graphics.Bitmap
+import java.io.FileOutputStream
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
@@ -56,8 +64,6 @@ data class CommunityPost(
     val subject: String = "",
     val targetExam: String = "NEET",
     val imageUrl: String? = null,
-    val pdfUrl: String? = null,
-    val pdfFileName: String? = null,
     val userReaction: String? = null,
     val commentsList: List<CommunityComment> = emptyList(),
     val isBookmarked: Boolean = false,
@@ -84,6 +90,7 @@ data class CommunityComment(
     val isCorrectAnswer: Boolean = false,
     val userReaction: String? = null,
     val replies: List<CommunityComment> = emptyList(),
+    val creatorId: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -96,6 +103,7 @@ fun commentToMap(comment: CommunityComment): Map<String, Any?> {
         "upvotes" to comment.upvotes,
         "isCorrectAnswer" to comment.isCorrectAnswer,
         "userReaction" to comment.userReaction,
+        "creatorId" to comment.creatorId,
         "timestamp" to comment.timestamp
     )
 }
@@ -117,8 +125,6 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "subject" to post.subject,
         "targetExam" to post.targetExam,
         "imageUrl" to post.imageUrl,
-        "pdfUrl" to post.pdfUrl,
-        "pdfFileName" to post.pdfFileName,
         "isBookmarked" to post.isBookmarked,
         "timestamp" to post.timestamp,
         "postType" to post.postType,
@@ -133,7 +139,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "totalMarks" to post.totalMarks,
         "topic" to post.topic,
         "userReaction" to post.userReaction,
-        "commentsList" to post.commentsList.map { commentToMap(it) }
+        // Replies live in Community_Posts/{postId}/Comments/{commentId}; never write a shared array.
     )
 }
 
@@ -298,8 +304,6 @@ fun CommunityScreen(
                     subject = doc.getString("subject") ?: "",
                     targetExam = doc.getString("targetExam") ?: targetExam,
                     imageUrl = doc.getString("imageUrl"),
-                    pdfUrl = doc.getString("pdfUrl"),
-                    pdfFileName = doc.getString("pdfFileName"),
                     isBookmarked = false,
                     timestamp = doc.getLong("timestamp") ?: 0L,
                     postType = doc.getString("postType") ?: "DISCUSSION",
@@ -391,26 +395,21 @@ fun CommunityScreen(
             if (isLiked) {
                 likedPostIds.remove(post.id)
                 likeDoc.delete()
-                db.collection("Community_Posts").document(post.id)
-                    .update("upvotes", com.google.firebase.firestore.FieldValue.increment(-1))
             } else {
                 likedPostIds.add(post.id)
                 likeDoc.set(mapOf("postId" to post.id, "timestamp" to System.currentTimeMillis()))
-                db.collection("Community_Posts").document(post.id)
-                    .update("upvotes", com.google.firebase.firestore.FieldValue.increment(1))
             }
         }
     }
 
     val addCommentToPost: (CommunityPost, CommunityComment) -> Unit = { targetPost, newComment ->
-        val db = FirebaseFirestore.getInstance()
-        val updatedList = (targetPost.commentsList + newComment).distinctBy { it.id }
-        db.collection("Community_Posts").document(targetPost.id).update(
-            mapOf(
-                "comments" to updatedList.size,
-                "commentsList" to updatedList.map { commentToMap(it) }
-            )
-        )
+        val uid = currentUid
+        if (!uid.isNullOrBlank() && newComment.content.isNotBlank()) {
+            FirebaseFirestore.getInstance()
+                .collection("Community_Posts").document(targetPost.id)
+                .collection("Comments").document(newComment.id)
+                .set(commentToMap(newComment.copy(creatorId = uid)))
+        }
     }
 
     val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
@@ -639,7 +638,7 @@ fun CommunityFeedScreen(
             // Subject Filter
             if (currentTab == CommunityTab.FEED) {
                 val subjects = remember(targetExam) {
-                    listOf("All") + Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(targetExam) + listOf("General")
+                    listOf("All") + Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
                 }
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 8.dp),
@@ -775,8 +774,16 @@ fun PostCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
+            post.imageUrl?.takeIf { it.isNotBlank() }?.let { imageUrl ->
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Community post image",
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).clip(RoundedCornerShape(12.dp))
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             // Content
-            Text(post.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            if (post.title.isNotBlank()) Text(post.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = post.content,
@@ -941,13 +948,12 @@ fun PostCard(
                         tint = if (post.userReaction == "UP") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("${post.upvotes}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = "Comments", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("${post.comments}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Replies", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 
                 Icon(
@@ -959,14 +965,13 @@ fun PostCard(
                     tint = if (post.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
-                if (isAdmin) {
+                val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                if (isAdmin || currentUid == post.creatorId) {
                     Spacer(modifier = Modifier.width(16.dp))
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete Post",
-                        modifier = Modifier.size(20.dp).clickable {
-                            onDeletePost(post)
-                        },
+                        modifier = Modifier.size(20.dp).clickable { onDeletePost(post) },
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -984,15 +989,59 @@ fun CreatePostScreen(
 ) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
-    var selectedSubject by remember { mutableStateOf("General") }
+    var selectedSubject by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
     val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-    val isUserSignedIn = authUser != null
     val authorName = authUser?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
     val creatorUid = authUser?.uid
-    
     val subjects = remember(targetExam) {
-        Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(targetExam) + listOf("General")
+        Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
+    }
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        selectedImageUri = uri
+        uploadError = null
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            try {
+                val imageFile = java.io.File(context.cacheDir, "community_capture_${UUID.randomUUID()}.jpg")
+                FileOutputStream(imageFile).use { output ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 88, output)
+                }
+                selectedImageUri = Uri.fromFile(imageFile)
+                uploadError = null
+            } catch (error: Exception) {
+                uploadError = error.localizedMessage ?: "Camera image could not be saved."
+            }
+        }
+    }
+
+    fun publish(imageUrl: String?) {
+        val uid = creatorUid ?: return
+        val cleanContent = content.trim()
+        if (selectedSubject !in subjects || (cleanContent.isBlank() && imageUrl.isNullOrBlank())) return
+        onPostCreated(
+            CommunityPost(
+                authorName = authorName,
+                authorSubtitle = "$targetExam Aspirant",
+                creatorId = uid,
+                title = title.trim().ifBlank { cleanContent.take(80) },
+                content = cleanContent,
+                subject = selectedSubject,
+                targetExam = targetExam,
+                imageUrl = imageUrl,
+                postType = "DISCUSSION",
+                timestamp = System.currentTimeMillis()
+            )
+        )
     }
 
     Scaffold(
@@ -1007,68 +1056,120 @@ fun CreatePostScreen(
                 actions = {
                     Button(
                         onClick = {
-                            if (title.isNotBlank() && content.isNotBlank() && creatorUid != null) {
-                                onPostCreated(
-                                    CommunityPost(
-                                        authorName = authorName,
-                                        authorSubtitle = "$targetExam Aspirant",
-                                        creatorId = creatorUid,
-                                        isOfficial = false,
-                                        isMonitor = false,
-                                        isPinned = false,
-                                        title = title,
-                                        content = content,
-                                        subject = selectedSubject,
-                                        targetExam = targetExam,
-                                        timeAgo = "Just now",
-                                        timestamp = System.currentTimeMillis()
-                                    )
-                                )
+                            val uid = creatorUid
+                            if (uid != null && selectedSubject in subjects && !isUploading &&
+                                (content.isNotBlank() || selectedImageUri != null)
+                            ) {
+                                val uri = selectedImageUri
+                                if (uri == null) {
+                                    publish(null)
+                                } else {
+                                    val mimeType = context.contentResolver.getType(uri) ?: if (uri.scheme == "file") "image/jpeg" else ""
+                                    val size = try {
+                                        context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+                                    } catch (_: Exception) { null }
+                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || (size != null && size >= 5L * 1024L * 1024L)) {
+                                        uploadError = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
+                                    } else {
+                                        isUploading = true
+                                        val fileRef = FirebaseStorage.getInstance().reference
+                                            .child("community_images/$uid/${UUID.randomUUID()}")
+                                        val metadata = StorageMetadata.Builder().setContentType(mimeType).build()
+                                        fileRef.putFile(uri, metadata)
+                                            .addOnSuccessListener {
+                                                fileRef.downloadUrl
+                                                    .addOnSuccessListener { downloadUri ->
+                                                        isUploading = false
+                                                        publish(downloadUri.toString())
+                                                    }
+                                                    .addOnFailureListener { error ->
+                                                        isUploading = false
+                                                        uploadError = error.localizedMessage ?: "Image URL could not be loaded."
+                                                    }
+                                            }
+                                            .addOnFailureListener { error ->
+                                                isUploading = false
+                                                uploadError = error.localizedMessage ?: "Image upload failed. Please retry."
+                                            }
+                                    }
+                                }
                             }
                         },
-                        enabled = title.isNotBlank() && content.isNotBlank() && isUserSignedIn
+                        enabled = creatorUid != null && selectedSubject in subjects &&
+                            (content.isNotBlank() || selectedImageUri != null) && !isUploading
                     ) {
-                        Text("Post")
+                        Text(if (isUploading) "Uploading…" else "Post")
                     }
                 }
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            if (!isUserSignedIn) {
-                Text(
-                    text = "Please sign in to share a post with the community.",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (creatorUid == null) {
+                Text("Please sign in to post.", color = MaterialTheme.colorScheme.error)
+            }
+            Text("Subject (required)", fontWeight = FontWeight.Bold)
+            if (subjects.isEmpty()) {
+                Text("No registered subjects are available for this exam. Posting is disabled.", color = MaterialTheme.colorScheme.error)
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(subjects.size) { index ->
+                        val subject = subjects[index]
+                        FilterChip(
+                            selected = selectedSubject == subject,
+                            onClick = { selectedSubject = subject },
+                            label = { Text(subject) }
+                        )
+                    }
+                }
             }
             OutlinedTextField(
                 value = title,
-                onValueChange = { title = it },
-                label = { Text("Title") },
-                modifier = Modifier.fillMaxWidth()
+                onValueChange = { title = it.take(120) },
+                label = { Text("Title (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
-            Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = content,
-                onValueChange = { content = it },
-                label = { Text("Content") },
+                onValueChange = { content = it.take(5000) },
+                label = { Text("Write your post") },
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                minLines = 5
+                minLines = 4
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Subject", fontWeight = FontWeight.Bold)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                items(subjects.size) { index ->
-                    val subject = subjects[index]
-                    FilterChip(
-                        selected = selectedSubject == subject,
-                        onClick = { selectedSubject = subject },
-                        label = { Text(subject) }
-                    )
+            selectedImageUri?.let { uri ->
+                AsyncImage(
+                    model = uri,
+                    contentDescription = "Selected image preview",
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).clip(RoundedCornerShape(12.dp))
+                )
+                TextButton(onClick = { selectedImageUri = null }) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Text("Remove image")
                 }
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(
+                    onClick = { cameraLauncher.launch(null) },
+                    enabled = selectedImageUri == null && !isUploading
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Camera")
+                }
+                OutlinedButton(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    enabled = selectedImageUri == null && !isUploading
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Gallery")
+                }
+            }
+            uploadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
 }
@@ -1087,6 +1188,33 @@ fun PostDetailScreen(
     onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> }
 ) {
     var commentText by remember { mutableStateOf("") }
+    var comments by remember(post.id) { mutableStateOf(post.commentsList.distinctBy { it.id }) }
+    val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+
+    DisposableEffect(post.id) {
+        val registration = FirebaseFirestore.getInstance()
+            .collection("Community_Posts").document(post.id)
+            .collection("Comments")
+            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    val storedReplies = snapshot.documents.mapNotNull { doc ->
+                        val text = doc.getString("content") ?: return@mapNotNull null
+                        CommunityComment(
+                            id = doc.id,
+                            authorName = doc.getString("authorName") ?: "Student",
+                            timeAgo = doc.getString("timeAgo") ?: "",
+                            content = text,
+                            creatorId = doc.getString("creatorId"),
+                            timestamp = doc.getLong("timestamp") ?: 0L
+                        )
+                    }
+                    comments = (post.commentsList + storedReplies).distinctBy { it.id }
+                        .sortedBy { it.timestamp }
+                }
+            }
+        onDispose { registration.remove() }
+    }
 
     Scaffold(
         topBar = {
@@ -1098,9 +1226,7 @@ fun PostDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        onToggleBookmark(post)
-                    }) {
+                    IconButton(onClick = { onToggleBookmark(post) }) {
                         Icon(
                             if (post.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                             contentDescription = "Bookmark",
@@ -1116,33 +1242,35 @@ fun PostDetailScreen(
                 shadowElevation = 8.dp,
                 color = MaterialTheme.colorScheme.surface
             ) {
-                Row(
-                    modifier = Modifier.padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = commentText,
                         onValueChange = { commentText = it },
-                        placeholder = { Text("Write a comment...") },
+                        placeholder = { Text("Write a reply...") },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(24.dp)
+                        shape = RoundedCornerShape(24.dp),
+                        enabled = currentUid != null
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(
                         onClick = {
-                            if (commentText.isNotBlank()) {
-                                val currentAuth = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-                                val commenterName = currentAuth?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
-                                val newComment = CommunityComment(
-                                    authorName = commenterName,
-                                    timeAgo = "Just now",
-                                    content = commentText,
-                                    timestamp = System.currentTimeMillis()
+                            val uid = currentUid
+                            if (!uid.isNullOrBlank() && commentText.isNotBlank()) {
+                                val auth = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                                onAddComment(
+                                    post,
+                                    CommunityComment(
+                                        authorName = auth?.displayName?.takeIf { it.isNotBlank() } ?: "Student",
+                                        timeAgo = "Just now",
+                                        content = commentText.trim(),
+                                        creatorId = uid,
+                                        timestamp = System.currentTimeMillis()
+                                    )
                                 )
-                                onAddComment(post, newComment)
                                 commentText = ""
                             }
                         },
+                        enabled = currentUid != null && commentText.isNotBlank(),
                         modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
                     ) {
                         Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.onPrimary)
@@ -1151,7 +1279,6 @@ fun PostDetailScreen(
             }
         }
     ) { padding ->
-        val safeComments = post.commentsList.distinctBy { it.id }
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item {
                 PostCard(
@@ -1165,23 +1292,17 @@ fun PostDetailScreen(
                     onToggleLike = onToggleLike
                 )
                 Divider(modifier = Modifier.padding(vertical = 16.dp))
-                Text("Comments (${safeComments.size})", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
+                Text("Replies (${comments.size})", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
                 Spacer(modifier = Modifier.height(8.dp))
             }
-            
-            items(safeComments, key = { it.id }) { comment ->
+            items(comments, key = { it.id }) { comment ->
                 CommentCard(
                     comment = comment,
-                    isAdmin = isAdmin,
+                    canDelete = isAdmin || comment.creatorId == currentUid,
                     onDelete = {
-                        val newComments = post.commentsList.filter { it.id != comment.id }
-                        val db = FirebaseFirestore.getInstance()
-                        db.collection("Community_Posts").document(post.id).update(
-                            mapOf(
-                                "comments" to newComments.size,
-                                "commentsList" to newComments.map { commentToMap(it) }
-                            )
-                        )
+                        FirebaseFirestore.getInstance()
+                            .collection("Community_Posts").document(post.id)
+                            .collection("Comments").document(comment.id).delete()
                     }
                 )
             }
@@ -1192,7 +1313,7 @@ fun PostDetailScreen(
 @Composable
 fun CommentCard(
     comment: CommunityComment,
-    isAdmin: Boolean = false,
+    canDelete: Boolean = false,
     onDelete: () -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -1214,7 +1335,7 @@ fun CommentCard(
                     Text(comment.timeAgo, fontSize = 11.sp, color = Color.Gray)
                 }
             }
-            if (isAdmin) {
+            if (canDelete) {
                 IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                 }

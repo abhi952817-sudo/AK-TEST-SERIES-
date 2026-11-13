@@ -1204,6 +1204,21 @@ object UniversalExamRegistry {
         return listOf("Physics", "Chemistry", "Biology", "Mathematics")
     }
 
+    /**
+     * Community subject validation must fail closed. Unlike the legacy
+     * exam-generation helper above, this method never invents generic subjects
+     * for unknown exams or incomplete registry entries.
+     */
+    fun getRegisteredSubjectsForExamName(examName: String): List<String> {
+        if (examName.isBlank()) return emptyList()
+        val config = findExamByNameOrShortName(examName) ?: return emptyList()
+        return config.stages.flatMap { stage ->
+            stage.papers.flatMap { paper ->
+                paper.subjects.map { it.subjectName.trim() }
+            }
+        }.filter { it.isNotBlank() }.distinct()
+    }
+
     fun getDefaultQuestionsCountForExam(examName: String): Int {
         val config = findExamByNameOrShortName(examName)
         if (config != null) {

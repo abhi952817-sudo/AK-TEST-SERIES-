@@ -281,31 +281,114 @@ service cloud.firestore {
 
     match /Community_Posts/{postId} {
       allow read: if isAuthenticated();
-      
-      // Author can create posts, but cannot self-assign pinned or official badges, and cannot be banned
+
+      // A Community post is text and/or one image. PDF metadata is never accepted.
+      // The Android client selects subjects only from UniversalExamRegistry; rules
+      // independently reject blank/General subjects and malformed content.
       allow create: if isAuthenticated()
                     && !isUserBanned(request.auth.uid)
                     && request.resource.data.creatorId == request.auth.uid
+                    && request.resource.data.keys().hasOnly([
+                      'id', 'authorName', 'authorSubtitle', 'isOfficial', 'isMonitor',
+                      'timeAgo', 'title', 'content', 'isPinned', 'upvotes', 'comments',
+                      'views', 'subject', 'targetExam', 'imageUrl', 'isBookmarked',
+                      'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
+                      'questionCount', 'durationMinutes', 'chapter', 'difficulty',
+                      'classLevel', 'totalMarks', 'topic', 'userReaction'
+                    ])
+                    && request.resource.data.subject is string
+                    && request.resource.data.subject.size() > 0
+                    && request.resource.data.subject != 'General'
+                    && request.resource.data.targetExam is string
+                    && request.resource.data.targetExam.size() > 0
+                    && request.resource.data.postType in ['DISCUSSION', 'DOUBT', 'MCQ', 'TEST_SHARE']
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() <= 120
+                    && request.resource.data.content is string
+                    && request.resource.data.content.size() <= 5000
+                    && (request.resource.data.content.size() > 0
+                        || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
+                    && (!('imageUrl' in request.resource.data)
+                        || request.resource.data.imageUrl == null
+                        || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
+                    && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName'])
                     && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
                     && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
                     && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false);
 
-      // Authors can edit their content without altering badges or creatorId;
-      // Other non-banned students can only interact via bounded upvotes (+/-1), views, comments, or personal bookmark;
-      // Admins have full moderation rights
+      // Only the owner may edit the post body/subject/image. Replies are separate
+      // documents so one student can never overwrite another student's reply list.
       allow update: if isAdmin()
                     || (isAuthenticated()
                         && !isUserBanned(request.auth.uid)
-                        && resource.data.creatorId == request.auth.uid 
-                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isPinned', 'isOfficial', 'isMonitor', 'creatorId']))
-                    || (isAuthenticated()
-                        && !isUserBanned(request.auth.uid)
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'views', 'comments', 'commentsList', 'isBookmarked'])
-                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['upvotes'])
-                            || request.resource.data.upvotes == resource.data.upvotes + 1
-                            || request.resource.data.upvotes == resource.data.upvotes - 1));
+                        && resource.data.creatorId == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['title', 'content', 'subject', 'targetExam', 'imageUrl'])
+                        && request.resource.data.subject is string
+                        && request.resource.data.subject.size() > 0
+                        && request.resource.data.subject != 'General'
+                        && request.resource.data.title is string
+                        && request.resource.data.title.size() <= 120
+                        && request.resource.data.content is string
+                        && request.resource.data.content.size() <= 5000
+                        && (request.resource.data.content.size() > 0
+                            || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
+                        && (!('imageUrl' in request.resource.data)
+                            || request.resource.data.imageUrl == null
+                            || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
+                        && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName']));
 
       allow delete: if isAdmin() || (isAuthenticated() && !isUserBanned(request.auth.uid) && resource.data.creatorId == request.auth.uid);
+
+      match /Comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated()
+                      && !isUserBanned(request.auth.uid)
+                      && request.resource.data.creatorId == request.auth.uid
+                      && request.resource.data.content is string
+                      && request.resource.data.content.size() > 0
+                      && request.resource.data.content.size() <= 2000
+                      && request.resource.data.keys().hasOnly([
+                        'id', 'authorName', 'timeAgo', 'content', 'upvotes',
+                        'isCorrectAnswer', 'userReaction', 'creatorId', 'timestamp'
+                      ]);
+        allow update: if isAdmin()
+                      || (isAuthenticated()
+                          && !isUserBanned(request.auth.uid)
+                          && resource.data.creatorId == request.auth.uid
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content']));
+        allow delete: if isAdmin()
+                      || (isAuthenticated() && !isUserBanned(request.auth.uid)
+                          && resource.data.creatorId == request.auth.uid);
+      }
+    }
+
+    // Students can submit moderation reports; only Admins can read or change them.
+    match /Community_Reports/{reportId} {
+      allow create: if isAuthenticated()
+                    && !isUserBanned(request.auth.uid)
+                    && request.resource.data.reporterId == request.auth.uid
+                    && request.resource.data.reason is string
+                    && request.resource.data.reason.size() > 0
+                    && request.resource.data.reason.size() <= 1200
+                    && request.resource.data.status == 'OPEN'
+                    && request.resource.data.keys().hasOnly([
+                      'reporterId', 'postId', 'reportedUserId', 'reason',
+                      'evidenceImagePath', 'status', 'createdAt'
+                    ]);
+      allow read, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Per-user block list. A student can only manage their own block entries.
+    match /Users_Data/{userId}/Blocked_Users/{blockedUid} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated()
+                    && !isUserBanned(request.auth.uid)
+                    && request.auth.uid == userId
+                    && request.resource.data.blockedUid == blockedUid;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if false;
     }
 
     // =========================================================================
