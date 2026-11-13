@@ -393,7 +393,7 @@ service cloud.firestore {
                       'id', 'authorName', 'authorSubtitle', 'isOfficial', 'isMonitor',
                       'timeAgo', 'title', 'content', 'isPinned', 'upvotes', 'comments',
                       'views', 'subject', 'targetExam', 'examId', 'imageUrl', 'isBookmarked',
-                      'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
+                      'timestamp', 'postType', 'testId', 'creatorId', 'testTitle', 'imagePath',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
                       'classLevel', 'totalMarks', 'topic', 'userReaction', 'mcqOptions',
                       'moderationState'
@@ -424,6 +424,11 @@ service cloud.firestore {
                     && (!('imageUrl' in request.resource.data)
                         || request.resource.data.imageUrl == null
                         || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
+                    && ((!('imageUrl' in request.resource.data) || request.resource.data.imageUrl == null)
+                        == (!('imagePath' in request.resource.data) || request.resource.data.imagePath == null))
+                    && (!('imagePath' in request.resource.data) || request.resource.data.imagePath == null
+                        || (request.resource.data.imagePath is string
+                            && request.resource.data.imagePath.matches('community_images/' + request.auth.uid + '/[^/]+')))
                     && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName'])
                     && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
                     && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
@@ -438,7 +443,7 @@ service cloud.firestore {
                         && !isUserBanned(request.auth.uid)
                         && resource.data.creatorId == request.auth.uid
                         && request.resource.data.diff(resource.data).affectedKeys()
-                            .hasOnly(['title', 'content', 'subject', 'targetExam', 'imageUrl'])
+                            .hasOnly(['title', 'content', 'subject', 'targetExam'])
                         && request.resource.data.subject is string
                         && request.resource.data.subject.size() > 0
                         && request.resource.data.subject != 'General'
