@@ -551,3 +551,56 @@ Update this section whenever work is completed. Do not mark a phase complete bas
 This tracker is the single source of truth for progress, but it does not imply that the application is already implemented. The full project is too broad to safely deliver as one unreviewed bulk commit. The plan is comprehensive and executed as a sequence of small, testable, reversible batches so that the complete result can be integrated without losing existing work.
 
 **Do not remove a checklist item just because it is difficult.** If a requirement is not needed, mark it `NOT_APPLICABLE` with a reason. If it is blocked, record the blocker and owner. If a feature is deferred beyond the first NEET release, mark it explicitly as post-launch rather than silently dropping it.
+
+
+---
+
+## 14. Execution Update — 2026-11-13 (Repository Reconciliation Pass 1)
+
+**User authorization:** Proceed with development according to this tracker until the agreed system is complete. Work must be dependency-ordered, reuse existing implementations, and avoid overlapping/duplicate systems. This is not permission to claim unrun tests as passed or to deploy to production.
+
+### 14.1 Refreshed branch comparison against current main
+
+Comparison base: `main` (HEAD `1e236d099522d63ec89ab0d11287b48315efc48c`). GitHub compare API returned:
+
+| Branch | Status vs main | Ahead | Behind | Changed files in compare response | Decision |
+|---|---:|---:|---:|---:|---|
+| audit/all-exam-scoring-ranking-2026-11-13 | diverged | 42 | 11 | 10 | Inspect and selectively port policy/golden tests |
+| feature/community-completion-2026-11-13 | ahead | 41 | 0 | 16 | **Correction:** not identical to main; inspect community UI/backend/rules/tests |
+| feature/community-development-plan-2026-11-13 | diverged | 33 | 3 | 9 | Reconcile against community-completion branch to avoid duplicate work |
+| feature/ranking-engine-v2-2026-11-06 | diverged | 105 | 106 | 14 | Selectively inspect ranking engine and CI |
+| feature/ranking-universal-integration-v1 | diverged | 477 | 106 | 44 | High overlap with scoring/AI/PDF; no wholesale merge |
+| feature/universal-exam-scoring-v1-2026-11-06 | diverged | 147 | 106 | 22 | Inspect scoring and Room migration separately |
+| feature/universal-gemini-ai-10-phase-2026-11-08 | diverged | 325 | 106 | 56 | Inspect connector/prompt/PDF changes; CI failures must be resolved |
+| feature/universal-pdf-prompt-contract-v1 | diverged | 143 | 99 | 46 | Inspect contract and removed files carefully |
+| fix/phase1-real-questions-only | diverged | 196 | 106 | 53 | Inspect PDF extraction and fail-closed behavior |
+| restore-files/removed-env-gitignore-2026-10-19 | diverged | 2 | 141 | 1 | Documentation-only delta reported; verify actual tracked safety files |
+| usi | diverged | 4 | 141 | 3 | Documentation/config delta reported; inspect CBT scope |
+
+**Important correction to Section 2:** the earlier note that `feature/community-completion-2026-11-13` was identical to main was stale/incorrect for this baseline. Current compare reports 41 commits ahead and 16 changed files. Do not mark this branch as no-op.
+
+### 14.2 Initial source verification observations
+
+| Item | Evidence observed | Current conclusion |
+|---|---|---|
+| Server submission answer-key leak (F-016) | In main `backend_functions/index.js`, `solutionKeys` is loaded in the submission path; a separate `getTestAttemptSolutions` callable exists later and checks authentication, attempt ownership, completion, and review/live-window permissions before returning solutions. | **Not confirmed as a submission response leak.** Continue checking the exact submit return and add/verify tests; do not apply a blind removal that breaks authorized review. |
+| Strict numerical comparison (F-004) | Main `backend_functions/examScoring.js` uses `parseFloat` in `areOptionsEquivalent`; divergent scoring branches contain an `isFiniteNumericAnswer` helper using a strict numeric regex and `Number.isFinite`. | **Confirmed candidate defect in main.** Port only the minimal helper/logic and regression tests after reviewing compatibility. |
+| Community shared answer privacy | Community-completion branch adds `backend_functions/communityValidation.js` with a public-safe field allowlist and separately extracted private keys. | Promising implementation; inspect all write paths and Firestore rules/tests before porting. |
+| AI connector | Gemini branch adds `backend_functions/aiConnector.js` with server-side secret-backed callable verification/generation functions. | Connector exists on that branch; verify provider coverage, auth, quotas, retry, metering, and active Android call sites before treating it as universal. |
+| PDF prompt contract | PDF branch adds `UniversalPdfPromptContract.kt` with exam-neutral, fail-closed, private-draft rules. | Useful candidate; reconcile with existing prompt registry and actual pipeline call sites. |
+| Generated answer validation | Real-questions branch adds `GeneratedQuestionAnswerValidator.kt` with strict numeric/option validation. | Candidate component; compare against existing validators before adding another implementation. |
+
+### 14.3 Current blockers / next evidence to collect
+
+- [ ] Inspect complete return payload and callable boundaries for `submitTestAttemptServerSide` and `getTestAttemptSolutions`; add regression coverage for both.
+- [ ] Compare the strict numeric helper and tests in scoring branches; port one canonical implementation only.
+- [ ] Read full community-completion diff and reconcile it with community-development-plan branch.
+- [ ] Inspect all Gemini connector functions and their caller paths; establish whether a single canonical connector can be adopted without breaking existing key flows.
+- [ ] Inspect PDF pipeline call graph and prompt contract usage; identify duplicates/removals and Room migration impact.
+- [ ] Inspect every `generateMockAiTest` call site and failure path before changing fallback behavior.
+- [ ] Refresh current CI runs and obtain actionable failure logs for each candidate branch.
+- [ ] Update the Phase 0 inventory only after each document/source group has been reviewed.
+
+### 14.4 Verification honesty
+
+The above observations are static GitHub source/compare inspections. No local checkout, Android build, Node test suite, Firebase emulator, physical-device run, or live provider test was executed in this pass. All code changes remain subject to those test gates.
