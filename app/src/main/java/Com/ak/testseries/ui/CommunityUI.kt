@@ -492,8 +492,19 @@ fun CommunityScreen(
     }
 
     fun deletePostInFirebase(post: CommunityPost) {
-        val db = FirebaseFirestore.getInstance()
-        db.collection("Community_Posts").document(post.id).delete()
+        com.google.firebase.functions.FirebaseFunctions.getInstance()
+            .getHttpsCallable("deleteCommunityPost")
+            .call(mapOf("postId" to post.id))
+            .addOnSuccessListener {
+                posts.removeAll { it.id == post.id }
+            }
+            .addOnFailureListener { error ->
+                android.widget.Toast.makeText(
+                    context,
+                    error.localizedMessage ?: "Post could not be deleted.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
     }
 
     // Attach user bookmark and like status to posts
@@ -572,6 +583,9 @@ fun CommunityScreen(
                             FirebaseFirestore.getInstance().collection("Users_Data").document(uid)
                                 .collection("Blocked_Users").document(authorUid)
                                 .set(mapOf("blockedUid" to authorUid, "createdAt" to System.currentTimeMillis()))
+                                .addOnFailureListener { error ->
+                                    android.widget.Toast.makeText(context, error.localizedMessage ?: "Block action failed.", android.widget.Toast.LENGTH_LONG).show()
+                                }
                         }
                     },
                     onOpenTest = onOpenTest
