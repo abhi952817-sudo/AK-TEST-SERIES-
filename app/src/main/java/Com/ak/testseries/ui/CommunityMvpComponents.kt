@@ -40,6 +40,7 @@ fun CommunityReportDialog(
 ) {
     var reason by remember { mutableStateOf("") }
     var evidenceUri by remember { mutableStateOf<Uri?>(null) }
+    var submitting by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) {
         evidenceUri = it
     }
@@ -86,8 +87,11 @@ fun CommunityReportDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSubmit(reason.trim(), evidenceUri) }, enabled = reason.trim().isNotEmpty()) {
-                Text("Submit report")
+            Button(
+                onClick = { submitting = true; onSubmit(reason.trim(), evidenceUri) },
+                enabled = reason.trim().isNotEmpty() && !submitting
+            ) {
+                Text(if (submitting) "Submitting..." else "Submit report")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
