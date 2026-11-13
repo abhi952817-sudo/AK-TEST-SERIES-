@@ -419,7 +419,23 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val db = firestoreDb
-                db.collection("Users_Data").document(userId).update("isBanned", isBanned).await()
+                val actorUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                    ?: throw IllegalStateException("Admin session is unavailable.")
+                val batch = db.batch()
+                batch.update(db.collection("Users_Data").document(userId), "isBanned", isBanned)
+                batch.set(
+                    db.collection("Community_Moderation_Audit").document(),
+                    mapOf(
+                        "actorUid" to actorUid,
+                        "action" to if (isBanned) "SUSPEND_USER" else "UNBAN_USER",
+                        "targetType" to "USER",
+                        "targetId" to userId,
+                        "reason" to if (isBanned) "Admin suspended the account from the Community users panel."
+                            else "Admin restored the account from the Community users panel.",
+                        "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    )
+                )
+                batch.commit().await()
                 _adminUsers.value = _adminUsers.value.map {
                     if (it.id == userId) it.copy(isBanned = isBanned) else it
                 }
