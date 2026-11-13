@@ -40,3 +40,9 @@ test("Community reports require a post or user target", () => {
   assert.equal(validateCommunityReportTarget({ reportedUserId: "user-1" }), true);
   assert.equal(validateCommunityReportTarget({}), false);
 });
+
+test("Community MCQ rejects untrusted or missing creator role metadata", () => {
+  assert.equal(validateCommunityMcqPost({
+    postType: "MCQ", creatorRole: "UNKNOWN", title: "Question?", quizOptions: ["A", "B", "C", "D"],
+  }).reason, "CREATOR_ROLE_INVALID");
+});
