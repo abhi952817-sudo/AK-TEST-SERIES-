@@ -18,6 +18,8 @@ const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelp
 const {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
+  validateCommunityReplyCreate,
+  validateCommunityReaction,
   splitLegacySharedQuestions
 } = require("./communityValidation");
 const crypto = require("crypto");
@@ -1346,4 +1348,144 @@ exports.syncCommunityExamSubjects = functions.https.onCall(async (data, context)
     examCount: exams.length,
     subjectCount: exams.reduce((total, exam) => total + exam.subjects.length, 0)
   };
+});
+
+
+/**
+ * Creates one manual text reply and increments the post counter atomically.
+ * Replies are never sent to an AI service.
+ */
+exports.createCommunityReply = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to reply.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityReplyCreate(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  const commentId = crypto.createHash("sha256").update(uid + ":" + payload.requestId).digest("hex").slice(0, 40);
+  const commentRef = postRef.collection("Comments").doc(commentId);
+
+  try {
+    const result = await db.runTransaction(async transaction => {
+      const userSnap = await transaction.get(userRef);
+      assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+      const postSnap = await transaction.get(postRef);
+      const existingComment = await transaction.get(commentRef);
+      if (!postSnap.exists || postSnap.data().moderationState !== "VISIBLE") {
+        throw new functions.https.HttpsError("not-found", "Community post is unavailable.");
+      }
+      const postData = postSnap.data();
+      const authorUid = typeof postData.creatorId === "string" ? postData.creatorId : "";
+      if (authorUid && authorUid !== uid) {
+        const [callerBlockedAuthor, authorBlockedCaller] = await Promise.all([
+          transaction.get(userRef.collection("Blocked_Users").doc(authorUid)),
+          transaction.get(db.collection("Users_Data").doc(authorUid).collection("Blocked_Users").doc(uid))
+        ]);
+        if (callerBlockedAuthor.exists || authorBlockedCaller.exists) {
+          throw new functions.https.HttpsError("permission-denied", "Reply is unavailable because one account has blocked the other.");
+        }
+      }
+      const commentsCount = Number.isFinite(postData.comments) ? Math.max(0, postData.comments) : 0;
+      if (existingComment.exists) {
+        return { commentId, commentsCount, duplicate: true };
+      }
+      const authorName = String(userSnap.data().name || userSnap.data().displayName || context.auth.token.name || "Student").slice(0, 80);
+      transaction.create(commentRef, {
+        id: commentId,
+        authorName,
+        timeAgo: "Just now",
+        content: payload.content,
+        upvotes: 0,
+        isCorrectAnswer: false,
+        userReaction: null,
+        creatorId: uid,
+        timestamp: Date.now()
+      });
+      transaction.update(postRef, { comments: commentsCount + 1 });
+      return { commentId, commentsCount: commentsCount + 1, duplicate: false };
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("createCommunityReply failed", error);
+    throw new functions.https.HttpsError("internal", "Reply could not be saved.");
+  }
+});
+
+/**
+ * Idempotent like/unlike operation. The client sends the desired final state,
+ * not a toggle, so a retry cannot accidentally reverse a successful reaction.
+ */
+exports.setCommunityReaction = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to react.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityReaction(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+  const desiredLiked = data.liked;
+  if (typeof desiredLiked !== "boolean") {
+    throw new functions.https.HttpsError("invalid-argument", "liked must be a boolean desired state.");
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  const likeRef = userRef.collection("Liked_Posts").doc(payload.postId);
+
+  try {
+    const result = await db.runTransaction(async transaction => {
+      const userSnap = await transaction.get(userRef);
+      assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+      const postSnap = await transaction.get(postRef);
+      const likeSnap = await transaction.get(likeRef);
+      if (!postSnap.exists || postSnap.data().moderationState !== "VISIBLE") {
+        throw new functions.https.HttpsError("not-found", "Community post is unavailable.");
+      }
+      const postData = postSnap.data();
+      const authorUid = typeof postData.creatorId === "string" ? postData.creatorId : "";
+      if (authorUid && authorUid !== uid) {
+        const [callerBlockedAuthor, authorBlockedCaller] = await Promise.all([
+          transaction.get(userRef.collection("Blocked_Users").doc(authorUid)),
+          transaction.get(db.collection("Users_Data").doc(authorUid).collection("Blocked_Users").doc(uid))
+        ]);
+        if (callerBlockedAuthor.exists || authorBlockedCaller.exists) {
+          throw new functions.https.HttpsError("permission-denied", "Reaction is unavailable because one account has blocked the other.");
+        }
+      }
+      const currentCount = Number.isFinite(postData.upvotes) ? Math.max(0, postData.upvotes) : 0;
+      if (desiredLiked && !likeSnap.exists) {
+        transaction.create(likeRef, { postId: payload.postId, timestamp: Date.now() });
+        transaction.update(postRef, { upvotes: currentCount + 1 });
+        return { liked: true, upvotes: currentCount + 1, duplicate: false };
+      }
+      if (!desiredLiked && likeSnap.exists) {
+        transaction.delete(likeRef);
+        transaction.update(postRef, { upvotes: Math.max(0, currentCount - 1) });
+        return { liked: false, upvotes: Math.max(0, currentCount - 1), duplicate: false };
+      }
+      return { liked: desiredLiked, upvotes: currentCount, duplicate: true };
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("setCommunityReaction failed", error);
+    throw new functions.https.HttpsError("internal", "Reaction could not be saved.");
+  }
 });
