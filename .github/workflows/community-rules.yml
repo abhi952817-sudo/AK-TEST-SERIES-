@@ -11,6 +11,8 @@ on:
       - "backend_functions/index.js"
       - "backend_functions/communityMvp.js"
       - "backend_functions/communityMvp.test.js"
+      - "backend_functions/communitySubjectRegistry.js"
+      - "backend_functions/communitySubjectRegistry.test.js"
       - "firebase.json"
       - ".github/workflows/community-rules.yml"
   push:
@@ -44,10 +46,10 @@ jobs:
         run: npm install --no-save firebase-tools firebase @firebase/rules-unit-testing
 
       - name: Check Community Cloud Functions syntax
-        run: node --check backend_functions/index.js && node --check backend_functions/communityMvp.js
+        run: node --check backend_functions/index.js && node --check backend_functions/communityMvp.js && node --check backend_functions/communitySubjectRegistry.js
 
       - name: Run Firestore and Storage emulator tests
         env:
           FIRESTORE_EMULATOR_HOST: 127.0.0.1:8085
           FIREBASE_STORAGE_EMULATOR_HOST: 127.0.0.1:9199
-        run: npx firebase emulators:exec --only firestore,storage --project demo-no-project "node --test firestore.test.js storage.test.js backend_functions/communityMvp.test.js"
+        run: npx firebase emulators:exec --only firestore,storage --project demo-no-project "node --test firestore.test.js storage.test.js backend_functions/communityMvp.test.js backend_functions/communitySubjectRegistry.test.js"
