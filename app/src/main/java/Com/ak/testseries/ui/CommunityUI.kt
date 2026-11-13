@@ -509,7 +509,7 @@ fun CommunityScreen(
 
     // Attach user bookmark and like status to posts
     val postsWithUserStatus = posts.filter { post ->
-        (isAdmin || !post.isHidden) && (isAdmin || post.creatorId !in blockedUserIds)
+        (isAdmin || !post.isHidden) && (isAdmin || post.creatorId.isNullOrBlank() || post.creatorId !in blockedUserIds)
     }.map { post ->
         post.copy(
             isBookmarked = bookmarkedPostIds.contains(post.id),
@@ -566,7 +566,7 @@ fun CommunityScreen(
                 PostDetailScreen(
                     post = post,
                     isAdmin = isAdmin,
-                    isAuthorBlocked = post.creatorId in blockedUserIds,
+                    isAuthorBlocked = post.creatorId?.let { blockedUserIds.contains(it) } == true,
                     onBack = { currentRoute = CommunityRoute.FEED },
                     onUpdatePost = { updatedPost ->
                         updatePostInFirebase(updatedPost)
