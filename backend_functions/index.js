@@ -1363,6 +1363,12 @@ exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (dat
   let readyCount = 0;
   let skippedCount = 0;
 
+  const legacyAttachmentFields = [
+    "pdfUrl", "pdfFileName", "pdfStoragePath", "pdfPath", "pdfSize",
+    "imageUrls", "imagePaths", "attachments"
+  ];
+  let removedLegacyAttachmentFieldCount = 0;
+
   for (const doc of snapshot.docs) {
     const state = doc.get("moderationState");
     const postData = doc.data();
@@ -1371,42 +1377,65 @@ exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (dat
       [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === targetExam)
     );
     const canonicalExam = examMatches.length === 1 ? examMatches[0] : null;
+    const cleanup = {};
+    const removedFields = [];
+    for (const field of legacyAttachmentFields) {
+      if (Object.prototype.hasOwnProperty.call(postData, field)) {
+        cleanup[field] = admin.firestore.FieldValue.delete();
+        removedFields.push(field);
+      }
+    }
+    removedLegacyAttachmentFieldCount += removedFields.length;
+
+    const needsExamNormalization = Boolean(canonicalExam) &&
+      (postData.targetExam !== canonicalExam.examName || postData.examId !== canonicalExam.examId);
 
     if (typeof state === "string" && state.length > 0) {
-      if (canonicalExam && (postData.targetExam !== canonicalExam.examName || postData.examId !== canonicalExam.examId)) {
-        if (!dryRun) {
-          const batch = db.batch();
-          batch.update(doc.ref, {
-            targetExam: canonicalExam.examName,
-            examId: canonicalExam.examId
-          });
-          batch.set(db.collection("Community_Moderation_Audit").doc(), {
-            actorUid: context.auth.uid,
-            action: "NORMALIZE_POST_EXAM_ALIAS",
-            targetType: "COMMUNITY_POST",
-            targetId: doc.id,
-            reason: "Normalized the legacy Community post to its canonical exam registry name while preserving moderation state.",
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          });
-          await batch.commit();
-        }
-        readyCount += 1;
-        results.push({ postId: doc.id, status: dryRun ? "WOULD_NORMALIZE_EXAM_ALIAS" : "NORMALIZED_EXAM_ALIAS", moderationState: state });
-      } else {
+      if (!needsExamNormalization && removedFields.length === 0) {
         results.push({ postId: doc.id, status: state === "VISIBLE" ? "ALREADY_VISIBLE" : "PRESERVED_" + state });
         skippedCount += 1;
+        continue;
       }
+      if (!dryRun) {
+        const batch = db.batch();
+        const updates = { ...cleanup };
+        if (needsExamNormalization) {
+          updates.targetExam = canonicalExam.examName;
+          updates.examId = canonicalExam.examId;
+        }
+        batch.update(doc.ref, updates);
+        batch.set(db.collection("Community_Moderation_Audit").doc(), {
+          actorUid: context.auth.uid,
+          action: removedFields.length > 0 ? "REMOVE_LEGACY_COMMUNITY_ATTACHMENTS" : "NORMALIZE_POST_EXAM_ALIAS",
+          targetType: "COMMUNITY_POST",
+          targetId: doc.id,
+          reason: removedFields.length > 0
+            ? "Removed legacy PDF/multi-image attachment metadata while preserving the post's moderation state."
+            : "Normalized the legacy Community post to its canonical exam registry name while preserving moderation state.",
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+      }
+      readyCount += 1;
+      results.push({
+        postId: doc.id,
+        status: dryRun ? "WOULD_CLEAN_OR_NORMALIZE" : "CLEANED_OR_NORMALIZED",
+        moderationState: state,
+        removedFields
+      });
       continue;
     }
+
     const visibility = canonicalExam ? "VISIBLE" : "HIDDEN";
     const reason = canonicalExam
-      ? "Set legacy post visibility to VISIBLE and attached its canonical exam ID."
-      : "Hidden legacy post because its exam could not be resolved against the canonical registry.";
+      ? "Set legacy post visibility to VISIBLE, attached its canonical exam ID and removed legacy attachment metadata."
+      : "Hidden legacy post because its exam could not be resolved against the canonical registry; removed legacy attachment metadata.";
 
     if (!dryRun) {
       const batch = db.batch();
       batch.update(doc.ref, {
         moderationState: visibility,
+        ...cleanup,
         ...(canonicalExam ? { examId: canonicalExam.examId, targetExam: canonicalExam.examName } : {}),
         moderationMigrationReason: canonicalExam ? admin.firestore.FieldValue.delete() : "UNKNOWN_EXAM_REGISTRY_MAPPING"
       });
@@ -1421,7 +1450,11 @@ exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (dat
       await batch.commit();
     }
     readyCount += 1;
-    results.push({ postId: doc.id, status: dryRun ? "WOULD_SET_" + visibility : "SET_" + visibility });
+    results.push({
+      postId: doc.id,
+      status: dryRun ? "WOULD_SET_" + visibility : "SET_" + visibility,
+      removedFields
+    });
   }
 
   return {
@@ -1430,6 +1463,7 @@ exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (dat
     scannedCount: snapshot.size,
     readyOrUpdatedCount: readyCount,
     skippedCount,
+    removedLegacyAttachmentFieldCount,
     results,
     nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1].id : null
   };
