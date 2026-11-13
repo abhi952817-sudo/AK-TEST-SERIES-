@@ -668,6 +668,12 @@ fun CommunityFeedScreen(
                     onClick = { currentTab = CommunityTab.BOOKMARKS },
                     modifier = Modifier.weight(1f)
                 )
+                CommunityTabItem(
+                    title = "My Posts",
+                    isSelected = currentTab == CommunityTab.MY_POSTS,
+                    onClick = { currentTab = CommunityTab.MY_POSTS },
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             // Subject Filter
@@ -697,10 +703,11 @@ fun CommunityFeedScreen(
 
             // Feed
             val filteredPosts = posts.filter {
+                val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
                 val matchesTab = when(currentTab) {
                     CommunityTab.FEED -> true
                     CommunityTab.BOOKMARKS -> it.isBookmarked
-                    else -> true
+                    CommunityTab.MY_POSTS -> !currentUid.isNullOrBlank() && it.creatorId == currentUid
                 }
                 val matchesSubject = if (currentTab == CommunityTab.FEED && selectedSubject != "All") {
                     it.subject == selectedSubject
@@ -1037,6 +1044,7 @@ fun CreatePostScreen(
     var optionTexts by remember { mutableStateOf(listOf("", "", "", "", "")) }
     var correctOptionIndex by remember { mutableStateOf(0) }
     var creatingMcq by remember { mutableStateOf(false) }
+    var mcqRequestId by remember { mutableStateOf(UUID.randomUUID().toString()) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
@@ -1071,7 +1079,9 @@ fun CreatePostScreen(
     fun publish(imageUrl: String?) {
         val uid = creatorUid ?: return
         val cleanContent = content.trim()
-        if (selectedSubject !in subjects || cleanContent.isBlank()) return
+        if (selectedSubject !in subjects) return
+        if (selectedPostType == "MCQ" && cleanContent.isBlank()) return
+        if (selectedPostType != "MCQ" && cleanContent.isBlank() && imageUrl.isNullOrBlank()) return
         if (selectedPostType == "MCQ") {
             val options = optionTexts.take(optionCount).map { it.trim() }
             if (options.any { it.isBlank() } || options.distinctBy { it.lowercase() }.size != optionCount ||
@@ -1088,6 +1098,7 @@ fun CreatePostScreen(
                 "targetExam" to targetExam,
                 "options" to options,
                 "correctOptionIndex" to correctOptionIndex,
+                "requestId" to mcqRequestId,
                 "authorName" to authorName
             )
             if (!imageUrl.isNullOrBlank()) payload["imageUrl"] = imageUrl
@@ -1096,6 +1107,7 @@ fun CreatePostScreen(
                 .call(payload)
                 .addOnSuccessListener {
                     creatingMcq = false
+                    mcqRequestId = UUID.randomUUID().toString()
                     onMcqCreated()
                 }
                 .addOnFailureListener { error ->
@@ -1134,7 +1146,7 @@ fun CreatePostScreen(
                         onClick = {
                             val uid = creatorUid
                             if (uid != null && selectedSubject in subjects && !isUploading && !creatingMcq &&
-                                content.isNotBlank() &&
+                                (if (selectedPostType == "MCQ") content.isNotBlank() else content.isNotBlank() || selectedImageUri != null) &&
                                 (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() })
                             ) {
                                 val uri = selectedImageUri
@@ -1173,7 +1185,7 @@ fun CreatePostScreen(
                             }
                         },
                         enabled = creatorUid != null && selectedSubject in subjects &&
-                            content.isNotBlank() &&
+                            (if (selectedPostType == "MCQ") content.isNotBlank() else content.isNotBlank() || selectedImageUri != null) &&
                             (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() }) &&
                             !isUploading && !creatingMcq
                     ) {
