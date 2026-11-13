@@ -582,6 +582,13 @@ test("Community reports are private to Admin and block lists are owner-managed",
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
 
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Community_Posts").doc("post_1").set({
+      creatorId: BOB_UID,
+      moderationState: "VISIBLE"
+    });
+  });
+
   await assertSucceeds(
     aliceDb.collection("Community_Reports").doc("report_1").set({
       reporterId: ALICE_UID,
@@ -613,6 +620,12 @@ test("Community reports are private to Admin and block lists are owner-managed",
   );
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).get()
+  );
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(ALICE_UID).set({
+      blockedUid: ALICE_UID,
+      createdAt: Date.now()
+    })
   );
   await assertFails(
     bobDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).get()
@@ -1150,4 +1163,61 @@ test("Community moderation audit is Admin-created, Admin-readable and immutable"
   await assertSucceeds(event.get());
   await assertFails(event.update({ reason: "tampered" }));
   await assertFails(event.delete());
+});
+
+
+test("Community replies enforce parent visibility and per-author deletion", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await db.collection("Community_Posts").doc("visible_reply_parent").set({
+      creatorId: BOB_UID, moderationState: "VISIBLE"
+    });
+    await db.collection("Community_Posts").doc("hidden_reply_parent").set({
+      creatorId: BOB_UID, moderationState: "HIDDEN"
+    });
+    await db.collection("Community_Posts").doc("visible_reply_parent")
+      .collection("Comments").doc("alice_reply").set({ creatorId: ALICE_UID, content: "Alice reply" });
+    await db.collection("Community_Posts").doc("visible_reply_parent")
+      .collection("Comments").doc("bob_reply").set({ creatorId: BOB_UID, content: "Bob reply" });
+    await db.collection("Community_Posts").doc("hidden_reply_parent")
+      .collection("Comments").doc("hidden_reply").set({ creatorId: BOB_UID, content: "Hidden reply" });
+  });
+
+  const visibleComments = aliceDb.collection("Community_Posts").doc("visible_reply_parent").collection("Comments");
+  const hiddenComment = aliceDb.collection("Community_Posts").doc("hidden_reply_parent").collection("Comments").doc("hidden_reply");
+  await assertSucceeds(visibleComments.doc("alice_reply").get());
+  await assertFails(hiddenComment.get());
+  await assertSucceeds(adminDb.collection("Community_Posts").doc("hidden_reply_parent")
+    .collection("Comments").doc("hidden_reply").get());
+
+  await assertSucceeds(visibleComments.doc("alice_reply").delete());
+  await assertFails(bobDb.collection("Community_Posts").doc("visible_reply_parent")
+    .collection("Comments").doc("bob_reply").delete());
+  await assertSucceeds(adminDb.collection("Community_Posts").doc("visible_reply_parent")
+    .collection("Comments").doc("bob_reply").delete());
+});
+
+test("Community doubt posts require question text even when an image is attached", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const invalidDoubt = {
+    creatorId: ALICE_UID,
+    title: "Doubt",
+    content: "",
+    imageUrl: "https://example.invalid/doubt.jpg",
+    subject: "Botany",
+    targetExam: "NEET UG",
+    examId: "neet_ug",
+    postType: "DOUBT",
+    moderationState: "VISIBLE",
+    timestamp: Date.now()
+  };
+  await assertFails(aliceDb.collection("Community_Posts").doc("empty_doubt").set(invalidDoubt));
+  await assertSucceeds(aliceDb.collection("Community_Posts").doc("valid_doubt").set({
+    ...invalidDoubt,
+    content: "Why does this process occur?"
+  }));
 });
