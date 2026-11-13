@@ -57,7 +57,7 @@ function validateCommunityMcqCreate(data) {
     }
     imageUrl = payload.imageUrl;
   }
-  return { title, question, subject: registeredExam.subject, targetExam, examId: registeredExam.examId, options: cleanOptions, correctOptionIndex, requestId, imageUrl };
+  return { title, question, subject: registeredExam.subject, targetExam: registeredExam.examName, examId: registeredExam.examId, options: cleanOptions, correctOptionIndex, requestId, imageUrl };
 }
 
 function validateCommunityMcqAttempt(data) {
