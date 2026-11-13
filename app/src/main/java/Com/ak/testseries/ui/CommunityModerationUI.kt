@@ -662,7 +662,7 @@ fun CommunityAdminMigrationScreen(viewModel: NEETViewModel) {
         sharedPreviewCursor = sharedCursor
         runMigration(
             "migrateLegacyCommunitySharedTests", true, 5, sharedCursor, null,
-            "migratedOrReadyCount", { sharedLoading = it }, { sharedResult = it }
+            "migratedOrReadyCount", { sharedLoading = it }, { sharedResult = it; if (it.scannedCount == 0) sharedCompleted = true }
         )
     }
 
@@ -683,7 +683,7 @@ fun CommunityAdminMigrationScreen(viewModel: NEETViewModel) {
         postPreviewCursor = postCursor
         runMigration(
             "migrateLegacyCommunityPostVisibility", true, 50, postCursor, null,
-            "readyOrUpdatedCount", { postLoading = it }, { postResult = it }
+            "readyOrUpdatedCount", { postLoading = it }, { postResult = it; if (it.scannedCount == 0) postCompleted = true }
         )
     }
 
