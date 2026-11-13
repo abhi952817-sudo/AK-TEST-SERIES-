@@ -952,6 +952,13 @@ test("Shared_Community_Tests: safe question projection is public but answer keys
       explanation: "This would expose the key."
     })
   );
+  await assertFails(
+    sharedRef.collection("questions").doc("q3").set({
+      ...safeQuestion,
+      id: "q3",
+      explanationHi: "यह उत्तर का कारण है।"
+    })
+  );
 
   const privateKeyRef = sharedRef.collection("private_keys").doc("answerKey");
   await assertSucceeds(privateKeyRef.set({
