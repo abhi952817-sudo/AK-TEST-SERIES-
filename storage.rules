@@ -56,6 +56,29 @@ service firebase.storage {
                     && request.resource.contentType == 'application/pdf';
     }
 
+    // Community attachments: exactly one image is referenced by each post.
+    // Students can create only inside their own UID folder; no overwrite.
+    match /community_images/{uid}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+                    && request.auth.uid == uid
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow update: if false;
+      allow delete: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // Report evidence is private to the reporting user and Admin moderators.
+    match /community_report_evidence/{uid}/{reportId} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+      allow create: if isAuthenticated()
+                    && request.auth.uid == uid
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow update: if false;
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == uid);
+    }
+
     // Default deny for unclassified paths
     match /{allPaths=**} {
       allow read, write: if isAdmin();
