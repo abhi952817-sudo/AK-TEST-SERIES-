@@ -1251,17 +1251,39 @@ exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (dat
 
   for (const doc of snapshot.docs) {
     const state = doc.get("moderationState");
-    if (typeof state === "string" && state.length > 0) {
-      results.push({ postId: doc.id, status: state === "VISIBLE" ? "ALREADY_VISIBLE" : "PRESERVED_" + state });
-      skippedCount += 1;
-      continue;
-    }
     const postData = doc.data();
     const targetExam = String(postData.targetExam || "").trim().toLocaleLowerCase();
     const examMatches = communityExamSubjects.exams.filter(exam =>
       [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === targetExam)
     );
     const canonicalExam = examMatches.length === 1 ? examMatches[0] : null;
+
+    if (typeof state === "string" && state.length > 0) {
+      if (canonicalExam && (postData.targetExam !== canonicalExam.examName || postData.examId !== canonicalExam.examId)) {
+        if (!dryRun) {
+          const batch = db.batch();
+          batch.update(doc.ref, {
+            targetExam: canonicalExam.examName,
+            examId: canonicalExam.examId
+          });
+          batch.set(db.collection("Community_Moderation_Audit").doc(), {
+            actorUid: context.auth.uid,
+            action: "NORMALIZE_POST_EXAM_ALIAS",
+            targetType: "COMMUNITY_POST",
+            targetId: doc.id,
+            reason: "Normalized the legacy Community post to its canonical exam registry name while preserving moderation state.",
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          await batch.commit();
+        }
+        readyCount += 1;
+        results.push({ postId: doc.id, status: dryRun ? "WOULD_NORMALIZE_EXAM_ALIAS" : "NORMALIZED_EXAM_ALIAS", moderationState: state });
+      } else {
+        results.push({ postId: doc.id, status: state === "VISIBLE" ? "ALREADY_VISIBLE" : "PRESERVED_" + state });
+        skippedCount += 1;
+      }
+      continue;
+    }
     const visibility = canonicalExam ? "VISIBLE" : "HIDDEN";
     const reason = canonicalExam
       ? "Set legacy post visibility to VISIBLE and attached its canonical exam ID."
