@@ -460,24 +460,15 @@ service cloud.firestore {
 
       match /Comments/{commentId} {
         allow read: if isAuthenticated();
-        allow create: if isAuthenticated()
-                      && !isUserBanned(request.auth.uid)
-                      && request.resource.data.creatorId == request.auth.uid
-                      && request.resource.data.content is string
-                      && request.resource.data.content.size() > 0
-                      && request.resource.data.content.size() <= 2000
-                      && request.resource.data.keys().hasOnly([
-                        'id', 'authorName', 'timeAgo', 'content', 'upvotes',
-                        'isCorrectAnswer', 'userReaction', 'creatorId', 'timestamp'
-                      ]);
+        // Student replies are created through the trusted callable so the
+        // parent comment counter and reply document commit atomically.
+        allow create: if isAdmin();
         allow update: if isAdmin()
                       || (isAuthenticated()
                           && !isUserBanned(request.auth.uid)
                           && resource.data.creatorId == request.auth.uid
                           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content']));
-        allow delete: if isAdmin()
-                      || (isAuthenticated() && !isUserBanned(request.auth.uid)
-                          && resource.data.creatorId == request.auth.uid);
+        allow delete: if isAdmin();
       }
     }
 
