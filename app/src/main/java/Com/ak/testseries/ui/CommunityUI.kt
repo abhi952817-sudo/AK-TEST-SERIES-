@@ -297,7 +297,7 @@ fun CommunityScreen(
         }
     }
 
-    DisposableEffect(targetExam) {
+    DisposableEffect(targetExam, isAdmin) {
         val db = FirebaseFirestore.getInstance()
 
         fun parseDocument(doc: com.google.firebase.firestore.DocumentSnapshot): CommunityPost? {
@@ -378,26 +378,27 @@ fun CommunityScreen(
             posts.addAll(deduplicated.distinctBy { it.id })
         }
 
-        val listenerRegistration = db.collection("Community_Posts")
+        var feedQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
             .whereEqualTo("targetExam", targetExam)
+        if (!isAdmin) {
+            feedQuery = feedQuery.whereEqualTo("isHidden", false)
+        }
+        val listenerRegistration = feedQuery
             .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(20)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    // Fallback query if compound index is building or fails
-                    db.collection("Community_Posts")
+                    // Keep the visibility boundary in the fallback query as well.
+                    var fallbackQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
                         .whereEqualTo("targetExam", targetExam)
-                        .limit(20)
-                        .get()
+                    if (!isAdmin) fallbackQuery = fallbackQuery.whereEqualTo("isHidden", false)
+                    fallbackQuery.limit(20).get()
                         .addOnSuccessListener { fallbackSnap ->
                             updatePostsList(fallbackSnap.documents)
                         }
                     return@addSnapshotListener
                 }
-                
-                if (snapshot != null) {
-                    updatePostsList(snapshot.documents)
-                }
+                if (snapshot != null) updatePostsList(snapshot.documents)
             }
             
         onDispose {
