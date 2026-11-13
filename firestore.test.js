@@ -486,6 +486,11 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
   await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").delete()
   );
+  // Even the owner uses the trusted deletion callable so replies and image storage are cleaned up.
+  await assertFails(
+    bobDb.collection("Community_Posts").doc("bob_post").delete()
+  );
+
 
   // Replies are independent documents. Alice cannot replace the parent's
   // comments array/counter, but can create her own reply.
