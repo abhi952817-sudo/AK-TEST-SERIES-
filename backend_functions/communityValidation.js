@@ -186,6 +186,15 @@ function validateCommunityReplyCreate(data) {
   return { postId, content, requestId };
 }
 
+function validateCommunityPostDelete(data) {
+  const payload = data || {};
+  const postId = typeof payload.postId === "string" ? payload.postId.trim() : "";
+  if (!postId || postId.length > 150) {
+    throw makeValidationError("invalid-argument", "A valid postId is required.");
+  }
+  return { postId };
+}
+
 function validateCommunityReplyDelete(data) {
   const payload = data || {};
   const postId = typeof payload.postId === "string" ? payload.postId.trim() : "";
@@ -213,6 +222,7 @@ function validateCommunityReaction(data) {
 
 module.exports = {
   validateCommunityReplyCreate,
+  validateCommunityPostDelete,
   validateCommunityReplyDelete,
   validateCommunityReaction,
   validateCommunityMcqCreate,
