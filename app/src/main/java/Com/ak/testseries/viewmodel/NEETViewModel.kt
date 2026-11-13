@@ -2398,9 +2398,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     if (q.has("questionTextHi") && q.getString("questionTextHi").isNotBlank()) {
                         qMap["questionTextHi"] = q.getString("questionTextHi")
                     }
-                    if (q.has("explanationHi") && q.getString("explanationHi").isNotBlank()) {
-                        qMap["explanationHi"] = q.getString("explanationHi")
-                    }
                     if (q.has("optionAHi") && q.getString("optionAHi").isNotBlank()) {
                         qMap["optionAHi"] = q.getString("optionAHi")
                     }
