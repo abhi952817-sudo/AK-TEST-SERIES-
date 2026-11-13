@@ -976,6 +976,13 @@ exports.createCommunityMcq = functions.https.onCall(async (data, context) => {
     return { success: true, postId, duplicate: true };
   }
 
+  let creatorRole = "STUDENT";
+  try {
+    validateSetAdminRoleAuth(context);
+    creatorRole = "ADMIN";
+  } catch (_) {
+    creatorRole = "STUDENT";
+  }
   const authorName = String(userSnap.data().name || userSnap.data().displayName || context.auth.token.name || "Student").slice(0, 80);
   const now = Date.now();
   const batch = db.batch();
@@ -993,6 +1000,7 @@ exports.createCommunityMcq = functions.https.onCall(async (data, context) => {
     postType: "MCQ",
     mcqOptions: payload.options,
     creatorId: uid,
+    creatorRole,
     isOfficial: false,
     isMonitor: false,
     isPinned: false,
@@ -1045,7 +1053,21 @@ exports.submitCommunityMcqAttempt = functions.https.onCall(async (data, context)
       if (!postSnap.exists || postSnap.data().postType !== "MCQ" || postSnap.data().moderationState !== "VISIBLE") {
         throw new functions.https.HttpsError("not-found", "Community MCQ is unavailable.");
       }
-      const options = postSnap.data().mcqOptions;
+      const postData = postSnap.data();
+      const authorUid = typeof postData.creatorId === "string" ? postData.creatorId : "";
+      if (authorUid === uid) {
+        throw new functions.https.HttpsError("permission-denied", "You cannot attempt your own Community MCQ.");
+      }
+      if (authorUid) {
+        const [callerBlockedAuthor, authorBlockedCaller] = await Promise.all([
+          transaction.get(userRef.collection("Blocked_Users").doc(authorUid)),
+          transaction.get(db.collection("Users_Data").doc(authorUid).collection("Blocked_Users").doc(uid))
+        ]);
+        if (callerBlockedAuthor.exists || authorBlockedCaller.exists) {
+          throw new functions.https.HttpsError("permission-denied", "MCQ attempt is unavailable because one account has blocked the other.");
+        }
+      }
+      const options = postData.mcqOptions;
       if (!Array.isArray(options) || ![4, 5].includes(options.length) ||
           payload.optionIndex < 0 || payload.optionIndex >= options.length) {
         throw new functions.https.HttpsError("invalid-argument", "Selected option is outside the MCQ option range.");
