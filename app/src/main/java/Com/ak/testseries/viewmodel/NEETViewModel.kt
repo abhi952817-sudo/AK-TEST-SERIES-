@@ -1684,7 +1684,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     testType = "Live",
                     questionsCount = effectiveQCount,
                     isOfficial = true,
-                    isVerifiedCommunity = true,
+                    isVerifiedCommunity = false,
                     classLevel = classLevel,
                     targetExam = targetExam,
                     chapter = chapter,
