@@ -502,9 +502,10 @@ fun CommunityScreen(
         }
     }
 
-    val addCommentToPost: (CommunityPost, CommunityComment) -> Unit = { targetPost, newComment ->
+    val addCommentToPost: (CommunityPost, CommunityComment, (Boolean) -> Unit) -> Unit = { targetPost, newComment, onComplete ->
         if (currentUid.isNullOrBlank()) {
             android.widget.Toast.makeText(context, "Sign in to reply.", android.widget.Toast.LENGTH_SHORT).show()
+            onComplete(false)
         } else if (newComment.content.isNotBlank()) {
             com.google.firebase.functions.FirebaseFunctions.getInstance()
                 .getHttpsCallable("createCommunityReply")
@@ -523,6 +524,7 @@ fun CommunityScreen(
                         val index = posts.indexOfFirst { it.id == targetPost.id }
                         if (index >= 0) posts[index] = posts[index].copy(comments = count)
                     }
+                    onComplete(true)
                 }
                 .addOnFailureListener { error ->
                     android.widget.Toast.makeText(
@@ -530,7 +532,10 @@ fun CommunityScreen(
                         error.localizedMessage ?: "Reply could not be saved.",
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
+                    onComplete(false)
                 }
+        } else {
+            onComplete(false)
         }
     }
 
@@ -1505,11 +1510,13 @@ fun PostDetailScreen(
     onOpenTest: (String) -> Unit = {},
     onToggleBookmark: (CommunityPost) -> Unit = {},
     onToggleLike: (CommunityPost) -> Unit = {},
-    onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> },
+    onAddComment: (CommunityPost, CommunityComment, (Boolean) -> Unit) -> Unit = { _, _, done -> done(false) },
     onToggleBlockUser: (String) -> Unit = {},
     isAuthorBlocked: Boolean = false
 ) {
     var commentText by remember { mutableStateOf("") }
+    var pendingReplyId by remember(post.id) { mutableStateOf(UUID.randomUUID().toString()) }
+    var isSubmittingReply by remember(post.id) { mutableStateOf(false) }
     var showReportDialog by remember(post.id) { mutableStateOf(false) }
     var comments by remember(post.id) { mutableStateOf(post.commentsList.distinctBy { it.id }) }
     val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
@@ -1590,22 +1597,29 @@ fun PostDetailScreen(
                     IconButton(
                         onClick = {
                             val uid = currentUid
-                            if (!uid.isNullOrBlank() && commentText.isNotBlank()) {
+                            if (!uid.isNullOrBlank() && commentText.isNotBlank() && !isSubmittingReply) {
                                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                                isSubmittingReply = true
                                 onAddComment(
                                     post,
                                     CommunityComment(
+                                        id = pendingReplyId,
                                         authorName = auth?.displayName?.takeIf { it.isNotBlank() } ?: "Student",
                                         timeAgo = "Just now",
                                         content = commentText.trim(),
                                         creatorId = uid,
                                         timestamp = System.currentTimeMillis()
                                     )
-                                )
-                                commentText = ""
+                                ) { success ->
+                                    isSubmittingReply = false
+                                    if (success) {
+                                        commentText = ""
+                                        pendingReplyId = UUID.randomUUID().toString()
+                                    }
+                                }
                             }
                         },
-                        enabled = currentUid != null && commentText.isNotBlank(),
+                        enabled = currentUid != null && commentText.isNotBlank() && !isSubmittingReply,
                         modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
                     ) {
                         Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.onPrimary)
