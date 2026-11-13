@@ -1,0 +1,47 @@
+name: Community Firebase Rules CI
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "firestore.rules"
+      - "storage.rules"
+      - "firestore.test.js"
+      - "storage.test.js"
+      - "firebase.json"
+      - ".github/workflows/community-rules.yml"
+  push:
+    branches: [ "feature/community-development-plan-2026-11-13" ]
+    paths:
+      - "firestore.rules"
+      - "storage.rules"
+      - "firestore.test.js"
+      - "storage.test.js"
+      - "firebase.json"
+      - ".github/workflows/community-rules.yml"
+
+jobs:
+  rules-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Java for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install Firebase rules test dependencies
+        run: npm install --no-save firebase-tools firebase @firebase/rules-unit-testing
+
+      - name: Run Firestore and Storage emulator tests
+        env:
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8085
+          FIREBASE_STORAGE_EMULATOR_HOST: 127.0.0.1:9199
+        run: npx firebase emulators:exec --only firestore,storage --project demo-no-project "node --test firestore.test.js storage.test.js"
