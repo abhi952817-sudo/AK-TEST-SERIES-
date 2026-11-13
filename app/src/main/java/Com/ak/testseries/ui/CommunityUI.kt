@@ -285,6 +285,11 @@ fun CommunityScreen(
     }
 
     DisposableEffect(targetExam) {
+        posts.clear()
+        lastVisiblePostDocument = null
+        canLoadMorePosts = true
+        isLoadingMorePosts = false
+        loadMoreError = null
         val db = FirebaseFirestore.getInstance()
 
         fun parseDocument(doc: com.google.firebase.firestore.DocumentSnapshot): CommunityPost? {
