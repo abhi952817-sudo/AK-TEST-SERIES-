@@ -946,13 +946,12 @@ fun PostCard(
                         tint = if (post.userReaction == "UP") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("${post.upvotes}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = "Comments", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("${post.comments}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Replies", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 
                 Icon(
@@ -1051,7 +1050,7 @@ fun CreatePostScreen(
                                     val size = try {
                                         context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
                                     } catch (_: Exception) { null }
-                                    if (mimeType?.startsWith("image/") != true || (size != null && size > 5L * 1024L * 1024L)) {
+                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || (size != null && size >= 5L * 1024L * 1024L)) {}
                                         uploadError = "Only images up to 5 MB are allowed."
                                     } else {
                                         isUploading = true
