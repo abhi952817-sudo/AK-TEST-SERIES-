@@ -1126,15 +1126,21 @@ fun PostCard(
 @Composable
 fun CreatePostScreen(
     targetExam: String,
+    isAdmin: Boolean = false,
     onBack: () -> Unit,
-    onPostCreated: (CommunityPost) -> Unit
+    onPostCreated: (CommunityPost, (Boolean) -> Unit) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var selectedSubject by remember { mutableStateOf("") }
+    var selectedPostType by remember { mutableStateOf("DISCUSSION") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isUploading by remember { mutableStateOf(false) }
+    var isPublishing by remember { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf<String?>(null) }
+    var correctOptionIndex by remember { mutableStateOf(0) }
+    var explanation by remember { mutableStateOf("") }
+    val optionValues = remember { mutableStateListOf("", "", "", "") }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
@@ -1143,6 +1149,23 @@ fun CreatePostScreen(
     val subjects = remember(targetExam) {
         Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
     }
+    val isMcq = selectedPostType == "MCQ"
+    val isDoubt = selectedPostType == "DOUBT"
+    val cleanOptions = optionValues.map { it.trim() }
+    val validMcq = !isMcq || (
+        title.trim().isNotEmpty() &&
+        cleanOptions.size in 4..5 &&
+        cleanOptions.all { it.isNotEmpty() && it.length <= 500 } &&
+        cleanOptions.map { it.lowercase() }.distinct().size == cleanOptions.size &&
+        correctOptionIndex in cleanOptions.indices
+    )
+    val hasPublishableBody = when (selectedPostType) {
+        "MCQ", "DOUBT" -> title.trim().isNotEmpty()
+        else -> content.trim().isNotEmpty() || selectedImageUri != null
+    }
+    val canPublish = creatorUid != null && selectedSubject in subjects &&
+        hasPublishableBody && validMcq && !isUploading && !isPublishing
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -1168,28 +1191,35 @@ fun CreatePostScreen(
 
     fun publish(imageUrl: String?) {
         val uid = creatorUid ?: return
-        val cleanContent = content.trim()
-        if (selectedSubject !in subjects || (cleanContent.isBlank() && imageUrl.isNullOrBlank())) return
-        onPostCreated(
-            CommunityPost(
-                authorName = authorName,
-                authorSubtitle = "$targetExam Aspirant",
-                creatorId = uid,
-                title = title.trim().ifBlank { cleanContent.take(80) },
-                content = cleanContent,
-                subject = selectedSubject,
-                targetExam = targetExam,
-                imageUrl = imageUrl,
-                postType = "DISCUSSION",
-                timestamp = System.currentTimeMillis()
-            )
+        if (selectedSubject !in subjects || !hasPublishableBody || !validMcq) return
+        val post = CommunityPost(
+            authorName = authorName,
+            authorSubtitle = "$targetExam Aspirant",
+            creatorId = uid,
+            creatorRole = if (isAdmin) "ADMIN" else "STUDENT",
+            title = title.trim().ifBlank { content.trim().take(80) },
+            content = content.trim(),
+            subject = selectedSubject,
+            targetExam = targetExam,
+            imageUrl = imageUrl,
+            postType = selectedPostType,
+            quizOptions = if (isMcq) cleanOptions else emptyList(),
+            quizCorrectOptionIndex = if (isMcq) correctOptionIndex else null,
+            quizExplanation = if (isMcq) explanation.trim() else null,
+            timestamp = System.currentTimeMillis()
         )
+        isPublishing = true
+        onPostCreated(post) { success ->
+            isPublishing = false
+            if (success) onBack()
+            else uploadError = "Post could not be published. Please check your connection and try again."
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create Post") },
+                title = { Text(if (isMcq) "Create MCQ" else if (isDoubt) "Ask a Doubt" else "Create Post") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -1198,19 +1228,19 @@ fun CreatePostScreen(
                 actions = {
                     Button(
                         onClick = {
-                            val uid = creatorUid
-                            if (uid != null && selectedSubject in subjects && !isUploading &&
-                                (content.isNotBlank() || selectedImageUri != null)
-                            ) {
+                            if (canPublish) {
+                                val uid = creatorUid ?: return@Button
                                 val uri = selectedImageUri
                                 if (uri == null) {
                                     publish(null)
                                 } else {
-                                    val mimeType = context.contentResolver.getType(uri) ?: if (uri.scheme == "file") "image/jpeg" else ""
+                                    val mimeType = context.contentResolver.getType(uri)
+                                        ?: if (uri.scheme == "file") "image/jpeg" else ""
                                     val size = try {
                                         context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
                                     } catch (_: Exception) { null }
-                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || (size != null && size >= 5L * 1024L * 1024L)) {
+                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") ||
+                                        (size != null && size >= 5L * 1024L * 1024L)) {
                                         uploadError = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
                                     } else {
                                         isUploading = true
@@ -1237,21 +1267,37 @@ fun CreatePostScreen(
                                 }
                             }
                         },
-                        enabled = creatorUid != null && selectedSubject in subjects &&
-                            (content.isNotBlank() || selectedImageUri != null) && !isUploading
+                        enabled = canPublish
                     ) {
-                        Text(if (isUploading) "Uploading…" else "Post")
+                        Text(when {
+                            isUploading -> "Uploading…"
+                            isPublishing -> "Publishing…"
+                            else -> "Post"
+                        })
                     }
                 }
             )
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (creatorUid == null) {
                 Text("Please sign in to post.", color = MaterialTheme.colorScheme.error)
+            }
+            Text("Post type", fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("DISCUSSION" to "Discussion", "DOUBT" to "Doubt", "MCQ" to "MCQ").forEach { (type, label) ->
+                    FilterChip(
+                        selected = selectedPostType == type,
+                        onClick = {
+                            selectedPostType = type
+                            uploadError = null
+                        },
+                        label = { Text(label) }
+                    )
+                }
             }
             Text("Subject (required)", fontWeight = FontWeight.Bold)
             if (subjects.isEmpty()) {
@@ -1270,18 +1316,55 @@ fun CreatePostScreen(
             }
             OutlinedTextField(
                 value = title,
-                onValueChange = { title = it.take(120) },
-                label = { Text("Title (optional)") },
+                onValueChange = { title = it.take(if (isMcq || isDoubt) 2000 else 120) },
+                label = { Text(if (isMcq) "Question (required)" else if (isDoubt) "Doubt question (required)" else "Title (optional)") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                minLines = if (isMcq || isDoubt) 2 else 1
             )
             OutlinedTextField(
                 value = content,
                 onValueChange = { content = it.take(5000) },
-                label = { Text("Write your post") },
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                minLines = 4
+                label = { Text(if (isMcq) "Extra context (optional)" else if (isDoubt) "Details (optional)" else "Write your post") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
             )
+            if (isMcq) {
+                Text("Options (choose 4 or 5)", fontWeight = FontWeight.Bold)
+                optionValues.forEachIndexed { index, option ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        OutlinedTextField(
+                            value = option,
+                            onValueChange = { optionValues[index] = it.take(500) },
+                            label = { Text("Option " + ('A' + index)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = correctOptionIndex == index,
+                                onClick = { correctOptionIndex = index }
+                            )
+                            Text("Mark as correct answer", fontSize = 12.sp)
+                        }
+                    }
+                }
+                if (optionValues.size == 4) {
+                    TextButton(onClick = { optionValues.add("") }) { Text("Add fifth option") }
+                } else {
+                    TextButton(onClick = {
+                        optionValues.removeAt(optionValues.lastIndex)
+                        if (correctOptionIndex >= optionValues.size) correctOptionIndex = 0
+                    }) { Text("Remove fifth option") }
+                }
+                OutlinedTextField(
+                    value = explanation,
+                    onValueChange = { explanation = it.take(2000) },
+                    label = { Text("Explanation (optional, shown after attempt)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2
+                )
+                Text("The correct answer is stored privately and revealed only after a student's first attempt.", fontSize = 11.sp)
+            }
             selectedImageUri?.let { uri ->
                 AsyncImage(
                     model = uri,
@@ -1294,18 +1377,12 @@ fun CreatePostScreen(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(
-                    onClick = { cameraLauncher.launch(null) },
-                    enabled = selectedImageUri == null && !isUploading
-                ) {
+                OutlinedButton(onClick = { cameraLauncher.launch(null) }, enabled = selectedImageUri == null && !isUploading) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null)
                     Spacer(Modifier.width(4.dp))
                     Text("Camera")
                 }
-                OutlinedButton(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    enabled = selectedImageUri == null && !isUploading
-                ) {
+                OutlinedButton(onClick = { imagePickerLauncher.launch("image/*") }, enabled = selectedImageUri == null && !isUploading) {
                     Icon(Icons.Default.Image, contentDescription = null)
                     Spacer(Modifier.width(4.dp))
                     Text("Gallery")
