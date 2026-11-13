@@ -64,6 +64,7 @@ data class CommunityPost(
     val subject: String = "",
     val targetExam: String = "NEET",
     val examId: String? = null,
+    val moderationState: String = "VISIBLE",
     val imageUrl: String? = null,
     val userReaction: String? = null,
     val commentsList: List<CommunityComment> = emptyList(),
@@ -143,7 +144,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "topic" to post.topic,
         "userReaction" to post.userReaction,
         "mcqOptions" to post.mcqOptions,
-        "moderationState" to "VISIBLE",
+        "moderationState" to post.moderationState,
         // Replies live in Community_Posts/{postId}/Comments/{commentId}; never write a shared array.
     )
 }
@@ -335,6 +336,7 @@ fun CommunityScreen(
                     subject = doc.getString("subject") ?: "",
                     targetExam = doc.getString("targetExam") ?: targetExam,
                     examId = doc.getString("examId"),
+                    moderationState = doc.getString("moderationState") ?: "VISIBLE",
                     imageUrl = doc.getString("imageUrl"),
                     isBookmarked = false,
                     timestamp = doc.getLong("timestamp") ?: 0L,
@@ -891,6 +893,15 @@ fun PostCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (isAdmin && post.moderationState == "HIDDEN") {
+                Text(
+                    "HIDDEN • ADMIN REVIEW REQUIRED",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+            }
             // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
