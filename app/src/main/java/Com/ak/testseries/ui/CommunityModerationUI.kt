@@ -436,20 +436,27 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
             restore -> "RESTORE_POST"
             else -> "HIDE_POST"
         }
-        commitModerationAction(report, "RESOLVED", action, "COMMUNITY_POST", postId) { batch ->
-            if (remove) {
-                batch.delete(ref)
-            } else {
-                batch.update(
-                    ref,
-                    mapOf(
-                        "moderationState" to if (restore) "VISIBLE" else "HIDDEN",
-                        "moderatedBy" to adminUid.orEmpty(),
-                        "moderatedAt" to FieldValue.serverTimestamp()
+        commitModerationAction(
+            report = report,
+            reportStatus = "RESOLVED",
+            action = action,
+            targetType = "COMMUNITY_POST",
+            targetId = postId,
+            targetWrite = { batch ->
+                if (remove) {
+                    batch.delete(ref)
+                } else {
+                    batch.update(
+                        ref,
+                        mapOf(
+                            "moderationState" to if (restore) "VISIBLE" else "HIDDEN",
+                            "moderatedBy" to adminUid.orEmpty(),
+                            "moderatedAt" to FieldValue.serverTimestamp()
+                        )
                     )
-                )
+                }
             }
-        }
+        )
     }
 
     fun suspendReportedUser(report: CommunityReportRow) {
