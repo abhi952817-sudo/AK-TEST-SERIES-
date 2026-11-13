@@ -242,7 +242,8 @@ fun CommunityAdminSettingsScreen(viewModel: NEETViewModel) {
             AdminSectionCard(
                 title = "Community subject registry",
                 subtitle = "Synchronize the canonical exam and subject names before enabling student posts.",
-                icon = Icons.Rounded.MenuBook
+                icon = Icons.Rounded.MenuBook,
+                tint = deepPurple
             ) {
                 Button(
                     onClick = { showRegistrySyncConfirm = true },
