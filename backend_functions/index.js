@@ -1437,10 +1437,7 @@ exports.setCommunityReaction = functions.https.onCall(async (data, context) => {
   } catch (error) {
     throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
   }
-  const desiredLiked = data.liked;
-  if (typeof desiredLiked !== "boolean") {
-    throw new functions.https.HttpsError("invalid-argument", "liked must be a boolean desired state.");
-  }
+  const desiredLiked = payload.liked;
 
   const userRef = db.collection("Users_Data").doc(uid);
   const postRef = db.collection("Community_Posts").doc(payload.postId);
