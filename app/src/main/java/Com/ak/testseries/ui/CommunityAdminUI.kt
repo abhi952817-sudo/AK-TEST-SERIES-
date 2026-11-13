@@ -29,22 +29,22 @@ import androidx.compose.foundation.BorderStroke
 @Composable
 fun CommunityAdminScreen(viewModel: NEETViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
-    
+
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTab) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Settings & Users") })
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Manage Posts") })
+            Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Reports") })
         }
-        
-        if (selectedTab == 0) {
-            CommunityAdminSettingsScreen(viewModel)
-        } else {
-            // Show the actual Community Feed in Admin mode
-            Com.ak.testseries.ui.CommunityScreen(
+
+        when (selectedTab) {
+            0 -> CommunityAdminSettingsScreen(viewModel)
+            1 -> CommunityScreen(
                 isAdmin = true,
                 targetExam = "NEET",
                 onOpenTest = { testId -> viewModel.handleDeepLinkTest(testId) }
             )
+            else -> CommunityAdminReportsScreen(viewModel)
         }
     }
 }
