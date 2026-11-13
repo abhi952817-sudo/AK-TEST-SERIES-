@@ -1,0 +1,403 @@
+package Com.ak.testseries.ui
+
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
+import coil.compose.AsyncImage
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
+import Com.ak.testseries.viewmodel.NEETViewModel
+import java.io.File
+import java.io.FileOutputStream
+import java.util.UUID
+
+@Composable
+fun CommunityReportDialog(
+    post: CommunityPost,
+    onDismiss: () -> Unit,
+    onSubmitted: () -> Unit
+) {
+    val context = LocalContext.current
+    val uid = FirebaseAuth.getInstance().currentUser?.uid
+    var target by remember(post.id) { mutableStateOf("POST") }
+    var reason by remember(post.id) { mutableStateOf("") }
+    var imageUri by remember(post.id) { mutableStateOf<Uri?>(null) }
+    var isUploading by remember(post.id) { mutableStateOf(false) }
+    var errorText by remember(post.id) { mutableStateOf<String?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        imageUri = uri
+        errorText = null
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) {
+            try {
+                val file = File(context.cacheDir, "community_report_${UUID.randomUUID()}.jpg")
+                FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+                imageUri = Uri.fromFile(file)
+                errorText = null
+            } catch (error: Exception) {
+                errorText = error.localizedMessage ?: "Camera image could not be saved."
+            }
+        }
+    }
+
+    fun saveReport(evidencePath: String?) {
+        val reporterId = uid ?: run {
+            isUploading = false
+            errorText = "Please sign in before reporting."
+            return
+        }
+        val reportId = UUID.randomUUID().toString()
+        val payload = hashMapOf<String, Any>(
+            "reporterId" to reporterId,
+            "reason" to reason.trim(),
+            "status" to "OPEN",
+            "createdAt" to FieldValue.serverTimestamp()
+        )
+        if (target == "POST") payload["postId"] = post.id
+        if (target == "USER" && !post.creatorId.isNullOrBlank()) payload["reportedUserId"] = post.creatorId!!
+        if (!evidencePath.isNullOrBlank()) payload["evidenceImagePath"] = evidencePath
+
+        FirebaseFirestore.getInstance().collection("Community_Reports").document(reportId)
+            .set(payload)
+            .addOnSuccessListener {
+                isUploading = false
+                onSubmitted()
+            }
+            .addOnFailureListener { error ->
+                isUploading = false
+                errorText = error.localizedMessage ?: "Report could not be submitted."
+            }
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!isUploading) onDismiss() },
+        title = { Text("Report Community content") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("What are you reporting?")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = target == "POST", onClick = { target = "POST" })
+                    Text("This post")
+                    Spacer(Modifier.size(12.dp))
+                    RadioButton(
+                        selected = target == "USER",
+                        onClick = { target = "USER" },
+                        enabled = !post.creatorId.isNullOrBlank()
+                    )
+                    Text("Author")
+                }
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it.take(1200) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Reason (required)") },
+                    minLines = 3,
+                    maxLines = 5
+                )
+                Text("Optional evidence image. One image, maximum 5 MB.")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { cameraLauncher.launch(null) }, enabled = !isUploading && imageUri == null) {
+                        androidx.compose.material3.Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Text("Camera")
+                    }
+                    OutlinedButton(onClick = { galleryLauncher.launch("image/*") }, enabled = !isUploading && imageUri == null) {
+                        androidx.compose.material3.Icon(Icons.Default.Image, contentDescription = null)
+                        Text("Gallery")
+                    }
+                }
+                imageUri?.let { uri ->
+                    AsyncImage(model = uri, contentDescription = "Private report evidence", modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(10.dp)))
+                    TextButton(onClick = { imageUri = null }, enabled = !isUploading) { Text("Remove image") }
+                }
+                errorText?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (isUploading) Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                    Text("Submitting report…")
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = uid != null && reason.isNotBlank() && !isUploading &&
+                    (target != "USER" || !post.creatorId.isNullOrBlank()),
+                onClick = {
+                    val uri = imageUri
+                    if (uri == null) {
+                        isUploading = true
+                        saveReport(null)
+                    } else {
+                        val mime = context.contentResolver.getType(uri)
+                            ?: if (uri.scheme == "file") "image/jpeg" else ""
+                        val size = try {
+                            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                        } catch (_: Exception) { -1L }
+                        if (mime !in setOf("image/jpeg", "image/png", "image/webp") || size <= 0L || size > 5L * 1024L * 1024L) {
+                            errorText = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
+                        } else {
+                            val reporterId = uid ?: return@Button
+                            val reportId = UUID.randomUUID().toString()
+                            val objectPath = "community_report_evidence/$reporterId/$reportId"
+                            isUploading = true
+                            val storageRef = FirebaseStorage.getInstance().reference.child(objectPath)
+                            val metadata = StorageMetadata.Builder().setContentType(mime).build()
+                            storageRef.putFile(uri, metadata)
+                                .addOnSuccessListener {
+                                    val payload = hashMapOf<String, Any>(
+                                        "reporterId" to reporterId,
+                                        "reason" to reason.trim(),
+                                        "status" to "OPEN",
+                                        "createdAt" to FieldValue.serverTimestamp(),
+                                        "evidenceImagePath" to objectPath
+                                    )
+                                    if (target == "POST") payload["postId"] = post.id
+                                    if (target == "USER" && !post.creatorId.isNullOrBlank()) payload["reportedUserId"] = post.creatorId!!
+                                    FirebaseFirestore.getInstance().collection("Community_Reports").document(reportId)
+                                        .set(payload)
+                                        .addOnSuccessListener { isUploading = false; onSubmitted() }
+                                        .addOnFailureListener { error ->
+                                            storageRef.delete()
+                                            isUploading = false
+                                            errorText = error.localizedMessage ?: "Report could not be submitted."
+                                        }
+                                }
+                                .addOnFailureListener { error ->
+                                    isUploading = false
+                                    errorText = error.localizedMessage ?: "Evidence upload failed."
+                                }
+                        }
+                    }
+                }
+            ) { Text("Submit report") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isUploading) { Text("Cancel") }
+        }
+    )
+}
+
+private data class CommunityReportRow(
+    val id: String,
+    val reporterId: String,
+    val postId: String?,
+    val reportedUserId: String?,
+    val reason: String,
+    val evidenceImagePath: String?,
+    val status: String,
+    val createdAt: Long,
+    val reference: DocumentReference
+)
+
+@Composable
+fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
+    val db = remember { FirebaseFirestore.getInstance() }
+    val adminUid = FirebaseAuth.getInstance().currentUser?.uid
+    val reports = remember { mutableStateListOf<CommunityReportRow>() }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var evidenceUrl by remember { mutableStateOf<String?>(null) }
+    var selectedEvidencePath by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(viewModel.isAdmin) {
+        if (!viewModel.isAdmin) {
+            loading = false
+            error = "Admin access is required."
+            return@DisposableEffect onDispose {}
+        }
+        val registration = db.collection("Community_Reports")
+            .limit(100)
+            .addSnapshotListener { snapshot, listenerError ->
+                if (listenerError != null) {
+                    error = listenerError.localizedMessage ?: "Reports could not be loaded."
+                    loading = false
+                } else if (snapshot != null) {
+                    reports.clear()
+                    reports.addAll(snapshot.documents.map { doc ->
+                        CommunityReportRow(
+                            id = doc.id,
+                            reporterId = doc.getString("reporterId").orEmpty(),
+                            postId = doc.getString("postId"),
+                            reportedUserId = doc.getString("reportedUserId"),
+                            reason = doc.getString("reason").orEmpty(),
+                            evidenceImagePath = doc.getString("evidenceImagePath"),
+                            status = doc.getString("status") ?: "OPEN",
+                            createdAt = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+                            reference = doc.reference
+                        )
+                    }.sortedByDescending { it.createdAt })
+                    loading = false
+                    error = null
+                }
+            }
+        onDispose { registration.remove() }
+    }
+
+    fun audit(action: String, report: CommunityReportRow, targetType: String, targetId: String, reason: String = report.reason) {
+        val actor = adminUid ?: return
+        db.collection("Community_Moderation_Audit").add(
+            mapOf(
+                "actorUid" to actor,
+                "action" to action,
+                "targetType" to targetType,
+                "targetId" to targetId,
+                "reportId" to report.id,
+                "reason" to reason.take(1200),
+                "createdAt" to FieldValue.serverTimestamp()
+            )
+        )
+    }
+
+    fun updateReport(report: CommunityReportRow, status: String, action: String) {
+        val actor = adminUid ?: return
+        report.reference.update(
+            mapOf(
+                "status" to status,
+                "resolvedBy" to actor,
+                "resolvedAt" to FieldValue.serverTimestamp()
+            )
+        ).addOnSuccessListener { audit(action, report, "REPORT", report.id) }
+            .addOnFailureListener { error = it.localizedMessage ?: "Report status update failed." }
+    }
+
+    fun moderatePost(report: CommunityReportRow, remove: Boolean, restore: Boolean = false) {
+        val postId = report.postId ?: return
+        val ref = db.collection("Community_Posts").document(postId)
+        val action = when {
+            remove -> "REMOVE_POST"
+            restore -> "RESTORE_POST"
+            else -> "HIDE_POST"
+        }
+        val operation = if (remove) ref.delete() else ref.update(
+            mapOf(
+                "moderationState" to if (restore) "VISIBLE" else "HIDDEN",
+                "moderatedBy" to adminUid.orEmpty(),
+                "moderatedAt" to FieldValue.serverTimestamp()
+            )
+        )
+        operation.addOnSuccessListener {
+            audit(action, report, "COMMUNITY_POST", postId)
+            updateReport(report, "RESOLVED", action)
+        }.addOnFailureListener { error = it.localizedMessage ?: "Post moderation failed." }
+    }
+
+    fun suspendReportedUser(report: CommunityReportRow) {
+        val uid = report.reportedUserId ?: return
+        viewModel.toggleUserBan(uid, true)
+        audit("SUSPEND_USER", report, "USER", uid)
+        updateReport(report, "RESOLVED", "SUSPEND_USER")
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Text("Community report inbox", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("${reports.count { it.status == "OPEN" }} open reports", style = MaterialTheme.typography.bodySmall)
+            }
+            androidx.compose.material3.IconButton(onClick = { loading = true; db.collection("Community_Reports").limit(100).get().addOnFailureListener { error = it.localizedMessage; loading = false } }) {
+                androidx.compose.material3.Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+            }
+        }
+        when {
+            loading -> CircularProgressIndicator()
+            error != null -> Text(error!!, color = MaterialTheme.colorScheme.error)
+            reports.isEmpty() -> Text("No reports have been submitted.", modifier = Modifier.padding(20.dp))
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(reports, key = { it.id }) { report ->
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("Report ${report.id.take(8)}", fontWeight = FontWeight.Bold)
+                                FilterChip(selected = report.status == "OPEN", onClick = {}, label = { Text(report.status) })
+                            }
+                            Text(report.reason)
+                            Text("Reporter: ${report.reporterId}", style = MaterialTheme.typography.bodySmall)
+                            report.postId?.let { Text("Post: $it", style = MaterialTheme.typography.bodySmall) }
+                            report.reportedUserId?.let { Text("Reported user: $it", style = MaterialTheme.typography.bodySmall) }
+                            report.evidenceImagePath?.let { path ->
+                                TextButton(onClick = {
+                                    selectedEvidencePath = path
+                                    FirebaseStorage.getInstance().reference.child(path).downloadUrl
+                                        .addOnSuccessListener { evidenceUrl = it.toString() }
+                                        .addOnFailureListener { error = it.localizedMessage ?: "Evidence could not be opened." }
+                                }) { Text("View private evidence") }
+                            }
+                            if (report.status == "OPEN") {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (report.postId != null) {
+                                        OutlinedButton(onClick = { moderatePost(report, remove = false) }) { Text("Hide post") }
+                                        OutlinedButton(onClick = { moderatePost(report, remove = true) }) { Text("Remove") }
+                                    }
+                                    if (report.reportedUserId != null) {
+                                        OutlinedButton(onClick = { suspendReportedUser(report) }) { Text("Suspend user") }
+                                    }
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = { updateReport(report, "RESOLVED", "RESOLVE_REPORT") }) { Text("Resolve") }
+                                    TextButton(onClick = { updateReport(report, "DISMISSED", "DISMISS_REPORT") }) { Text("Dismiss") }
+                                }
+                            } else if (report.postId != null && report.status == "RESOLVED") {
+                                TextButton(onClick = { moderatePost(report, remove = false, restore = true) }) { Text("Restore post") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (evidenceUrl != null) {
+        AlertDialog(
+            onDismissRequest = { evidenceUrl = null; selectedEvidencePath = null },
+            title = { Text("Private report evidence") },
+            text = { AsyncImage(model = evidenceUrl, contentDescription = "Private evidence", modifier = Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(10.dp))) },
+            confirmButton = { TextButton(onClick = { evidenceUrl = null; selectedEvidencePath = null }) { Text("Close") } }
+        )
+    }
+}
