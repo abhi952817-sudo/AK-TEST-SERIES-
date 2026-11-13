@@ -1189,7 +1189,7 @@ fun CreatePostScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        clearPendingImage(deleteRemote = true)
+        clearPendingImage(deleteRemote = false)
         selectedImageUri = uri
         uploadError = null
     }
@@ -1197,7 +1197,7 @@ fun CreatePostScreen(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            clearPendingImage(deleteRemote = true)
+            clearPendingImage(deleteRemote = false)
             try {
                 val imageFile = java.io.File(context.cacheDir, "community_capture_${UUID.randomUUID()}.jpg")
                 FileOutputStream(imageFile).use { output ->
