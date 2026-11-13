@@ -108,7 +108,7 @@ Implementation branch: `feature/community-completion-2026-11-13`; Draft PR: [#8]
 - Firestore + Storage emulator suite: **41 passed, 0 failed** on completion-branch CI run #99 (GitHub run `43354970874`).
 - Backend callable/validation suite: **53 passed, 0 failed** on completion-branch CI run #99 (GitHub run `43354970874`).
 - The latest Rules run (#99) passed on the final Firestore/Storage rules and backend validator files. The duplicate `bobDb` declaration that previously prevented the test file from loading was removed.
-- Android CI passed on earlier head `aca2a619` (run #533). The latest Kotlin changes include local file-size validation for Community/report images, Live Test verification metadata correction, and preservation of MCQ creator-role metadata in the Community model. Current PR #8 head `1aba2f80` is under Android CI; Unit Tests have passed, while the APK build and artifact upload are still pending. Do not mark the PR ready until both complete successfully.
+- Android CI passed on earlier head `aca2a619` (run #533). The latest Kotlin changes include local file-size validation for Community/report images, Live Test verification metadata correction, and preservation of MCQ creator-role metadata in the Community model. Android CI passed on code commit `1aba2f80` (run #542): Unit Tests, Gradle Build and `app-debug` artifact upload all succeeded. Current PR head `9dcded7b` only updates this status document; its final-head Android rerun is still in progress. Do not mark the PR ready until that rerun also completes successfully.
 
 ## 0.4 Deployment and legacy migration runbook
 
