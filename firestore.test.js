@@ -37,6 +37,21 @@ after(async () => {
 beforeEach(async () => {
   if (testEnv) {
     await testEnv.clearFirestore();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection("Community_Exam_Subjects").doc("neet_ug").set({
+        examId: "neet_ug",
+        examName: "NEET UG",
+        shortName: "NEET",
+        subjects: ["Physics", "Chemistry", "Botany", "Zoology"]
+      });
+      await db.collection("Community_Exam_Subjects").doc("jee_main").set({
+        examId: "jee_main",
+        examName: "JEE Main",
+        shortName: "JEE",
+        subjects: ["Physics", "Chemistry", "Mathematics"]
+      });
+    });
   }
 });
 
@@ -74,6 +89,7 @@ test("Student: CAN create own profile with standard fields", async () => {
       name: "Alice Sharma",
       email: "alice@test.com",
       targetExam: "NEET",
+      examId: "neet_ug",
       averageScore: 0.0,
     })
   );
@@ -134,6 +150,7 @@ test("Student: CANNOT update protected fields (isBanned, isVip, role, admin, xp,
     aliceDb.collection("Users_Data").doc(ALICE_UID).update({
       name: "Alice Updated",
       targetExam: "JEE Main",
+      examId: "jee_main",
     })
   );
 
@@ -141,6 +158,7 @@ test("Student: CANNOT update protected fields (isBanned, isVip, role, admin, xp,
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).update({
       targetExam: "JEE Main",
+      examId: "jee_main",
       bookmarkedTests: ["mock_neet_1"],
     })
   );
@@ -382,6 +400,7 @@ test("Student: CAN create community post with own creatorId", async () => {
       content: "How to master Rotational Motion?",
       subject: "Physics",
       targetExam: "JEE Main",
+      examId: "jee_main",
       postType: "DISCUSSION",
       moderationState: "VISIBLE",
       upvotes: 0,
@@ -397,8 +416,9 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       creatorId: ALICE_UID,
       title: "Important Notice",
       content: "Exam Cancelled",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
       moderationState: "VISIBLE",
       isPinned: true, // Malicious spoof
@@ -410,8 +430,9 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       creatorId: ALICE_UID,
       title: "Official Announcement",
       content: "Free VIP for everyone",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
       moderationState: "VISIBLE",
       isOfficial: true, // Malicious spoof
@@ -427,6 +448,7 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       content: "Need help with Organic Chemistry",
       subject: "Chemistry",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
       moderationState: "VISIBLE",
       upvotes: 5,
@@ -515,6 +537,7 @@ test("Community posts reject General subject and PDF attachment fields", async (
     title: "A question",
     content: "Question text",
     targetExam: "NEET UG",
+    examId: "neet_ug",
     postType: "DISCUSSION",
     moderationState: "VISIBLE",
   };
@@ -525,12 +548,12 @@ test("Community posts reject General subject and PDF attachment fields", async (
   );
   await assertFails(
     aliceDb.collection("Community_Posts").doc("pdf_attachment_post").set({
-      ...base, subject: "Biology", pdfUrl: "https://example.invalid/test.pdf"
+      ...base, subject: "Botany", pdfUrl: "https://example.invalid/test.pdf"
     })
   );
   await assertFails(
     aliceDb.collection("Community_Posts").doc("multiple_images_post").set({
-      ...base, subject: "Biology", imageUrls: ["https://example.invalid/1.jpg", "https://example.invalid/2.jpg"]
+      ...base, subject: "Botany", imageUrls: ["https://example.invalid/1.jpg", "https://example.invalid/2.jpg"]
     })
   );
 });
@@ -651,6 +674,7 @@ test("Privacy: Student CAN read own profile, CANNOT read another student's Users
       email: "bob_private@example.com",
       phoneNumber: "+919876543210",
       targetExam: "NEET",
+      examId: "neet_ug",
     });
   });
 
@@ -671,6 +695,7 @@ test("Leaderboard: Students CAN read public leaderboard, CANNOT write directly w
       displayName: "Bob",
       score: 710,
       targetExam: "NEET",
+      examId: "neet_ug",
     });
   });
 
@@ -708,6 +733,7 @@ test("Super Admin: abhi952817@gmail.com with verified email has full admin privi
     ownerDb.collection("Tests_Data").doc("official_test_01").set({
       title: "All India NEET Mock Test 1",
       targetExam: "NEET",
+      examId: "neet_ug",
       status: "Published",
       isPublic: true,
       totalQuestions: 180,
@@ -806,7 +832,8 @@ test("Shared_Community_Tests: safe question projection is public but answer keys
     title: "Shared Community Test",
     creatorId: ALICE_UID,
     targetExam: "NEET UG",
-    subject: "Biology",
+    examId: "neet_ug",
+    subject: "Botany",
     questionCount: 1,
     questionsCount: 1,
     durationMinutes: 180,
@@ -866,6 +893,7 @@ test("Legacy inline Community tests remain unreadable until answer keys are sepa
     await ctx.firestore().collection("Shared_Community_Tests").doc("legacy_inline_test").set({
       creatorId: BOB_UID,
       targetExam: "NEET UG",
+      examId: "neet_ug",
       questions: [{ id: "q1", correctAnswer: "A", explanation: "Secret" }],
       questionsJson: "[{\\"id\\":\\"q1\\",\\"correctAnswer\\":\\"A\\"}]"
     });
@@ -903,8 +931,9 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
     aliceDb.collection("Community_Posts").doc("post_active_1").set({
       title: "Active Post",
       content: "Active student post",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
       moderationState: "VISIBLE",
       creatorId: ALICE_UID,
@@ -939,8 +968,9 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
     bobDb.collection("Community_Posts").doc("post_banned_1").set({
       title: "Spam Post",
       content: "Spam",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
       moderationState: "VISIBLE",
       creatorId: BOB_UID,
@@ -954,6 +984,7 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
       title: "Banned Test",
       creatorId: BOB_UID,
       targetExam: "NEET"
+      examId: "neet_ug",
     })
   );
 
@@ -979,8 +1010,9 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
     bobDb.collection("Community_Posts").doc("post_bob_reinstated").set({
       title: "Hello Again",
       content: "Back from suspension",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
       moderationState: "VISIBLE",
       creatorId: BOB_UID
@@ -997,8 +1029,9 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
     bobDb.collection("Community_Posts").doc("post_bob_reinstated").set({
       title: "Hello Again",
       content: "Back from suspension",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
       moderationState: "VISIBLE",
       creatorId: BOB_UID
@@ -1018,8 +1051,9 @@ test("Community students cannot create MCQs directly or read the private answer 
     authorName: "Alice",
     title: "Question",
     content: "Which is correct?",
-    subject: "Biology",
+    subject: "Botany",
     targetExam: "NEET UG",
+    examId: "neet_ug",
     postType: "MCQ",
     moderationState: "VISIBLE",
     mcqOptions: ["A", "B", "C", "D"],
@@ -1064,8 +1098,9 @@ test("Community hidden posts are readable by Admin only", async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await ctx.firestore().collection("Community_Posts").doc("hidden_post").set({
       creatorId: BOB_UID,
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       title: "Hidden",
       content: "Moderated content",
       postType: "DISCUSSION",
