@@ -8,6 +8,7 @@ const {
   validateCommunityReplyDelete,
   validateCommunityReaction,
   splitLegacySharedQuestions,
+  sanitizeSharedQuestionProjection,
   resolveCommunityExamSubject,
 } = require("./communityValidation");
 
@@ -85,6 +86,25 @@ test("MCQ attempt requires a post ID and an integer option index", () => {
   ]) assert.throws(() => validateCommunityMcqAttempt(payload), { code: "invalid-argument" });
 });
 
+
+test("Shared question sanitizer removes every answer and explanation field from public projections", () => {
+  const safe = sanitizeSharedQuestionProjection({
+    id: "q1",
+    testId: "test-1",
+    questionText: "Question",
+    optionA: "A",
+    correctAnswer: "B",
+    answer: "B",
+    explanation: "Secret explanation",
+    explanationHi: "गुप्त व्याख्या"
+  }, "test-1");
+  assert.equal(safe.id, "q1");
+  assert.equal(safe.testId, "test-1");
+  assert.equal("correctAnswer" in safe, false);
+  assert.equal("answer" in safe, false);
+  assert.equal("explanation" in safe, false);
+  assert.equal("explanationHi" in safe, false);
+});
 
 test("Legacy shared-test migration separates secrets from the public question projection", () => {
   const { publicQuestions, privateKeys } = splitLegacySharedQuestions([
