@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -572,6 +573,259 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
             title = { Text("Private report evidence") },
             text = { AsyncImage(model = evidenceUrl, contentDescription = "Private evidence", modifier = Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(10.dp))) },
             confirmButton = { TextButton(onClick = { evidenceUrl = null; selectedEvidencePath = null }) { Text("Close") } }
+        )
+    }
+}
+
+
+private data class CommunityMigrationPanelResult(
+    val dryRun: Boolean,
+    val scannedCount: Int,
+    val readyCount: Int,
+    val skippedCount: Int,
+    val nextCursor: String?,
+    val statusLines: List<String>,
+    val removedAttachmentFieldCount: Int = 0
+)
+
+@Composable
+fun CommunityAdminMigrationScreen(viewModel: NEETViewModel) {
+    var sharedResult by remember { mutableStateOf<CommunityMigrationPanelResult?>(null) }
+    var postResult by remember { mutableStateOf<CommunityMigrationPanelResult?>(null) }
+    var sharedCursor by remember { mutableStateOf<String?>(null) }
+    var postCursor by remember { mutableStateOf<String?>(null) }
+    var sharedPreviewCursor by remember { mutableStateOf<String?>(null) }
+    var postPreviewCursor by remember { mutableStateOf<String?>(null) }
+    var sharedLoading by remember { mutableStateOf(false) }
+    var postLoading by remember { mutableStateOf(false) }
+    var showSharedConfirm by remember { mutableStateOf(false) }
+    var showPostConfirm by remember { mutableStateOf(false) }
+    var sharedCompleted by remember { mutableStateOf(false) }
+    var postCompleted by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun parseResult(data: Any?, readyKey: String): CommunityMigrationPanelResult {
+        val payload = data as? Map<*, *> ?: emptyMap<Any, Any>()
+        val rows = (payload["results"] as? List<*>)?.mapNotNull { item ->
+            val row = item as? Map<*, *> ?: return@mapNotNull null
+            val id = row["testId"] ?: row["postId"] ?: "Record"
+            val status = row["status"] ?: "UNKNOWN"
+            "$id: $status"
+        } ?: emptyList()
+        return CommunityMigrationPanelResult(
+            dryRun = payload["dryRun"] as? Boolean ?: false,
+            scannedCount = (payload["scannedCount"] as? Number)?.toInt() ?: 0,
+            readyCount = (payload[readyKey] as? Number)?.toInt() ?: 0,
+            skippedCount = (payload["skippedCount"] as? Number)?.toInt() ?: 0,
+            nextCursor = payload["nextCursor"] as? String,
+            statusLines = rows,
+            removedAttachmentFieldCount = (payload["removedLegacyAttachmentFieldCount"] as? Number)?.toInt() ?: 0
+        )
+    }
+
+    fun runMigration(
+        functionName: String,
+        dryRun: Boolean,
+        pageSize: Int,
+        cursor: String?,
+        confirmation: String?,
+        readyKey: String,
+        onLoading: (Boolean) -> Unit,
+        onResult: (CommunityMigrationPanelResult) -> Unit
+    ) {
+        if (!viewModel.isAdmin) {
+            error = "Admin access is required."
+            return
+        }
+        onLoading(true)
+        error = null
+        val args = hashMapOf<String, Any>(
+            "dryRun" to dryRun,
+            "pageSize" to pageSize
+        )
+        cursor?.let { args["startAfter"] = it }
+        if (!dryRun && confirmation != null) args["confirm"] = confirmation
+        com.google.firebase.functions.FirebaseFunctions.getInstance()
+            .getHttpsCallable(functionName)
+            .call(args)
+            .addOnSuccessListener { result ->
+                onResult(parseResult(result.data, readyKey))
+                onLoading(false)
+            }
+            .addOnFailureListener { failure ->
+                error = failure.localizedMessage ?: "Migration request failed."
+                onLoading(false)
+            }
+    }
+
+    fun previewShared() {
+        sharedPreviewCursor = sharedCursor
+        runMigration(
+            "migrateLegacyCommunitySharedTests", true, 5, sharedCursor, null,
+            "migratedOrReadyCount", { sharedLoading = it }, { sharedResult = it }
+        )
+    }
+
+    fun applyShared() {
+        runMigration(
+            "migrateLegacyCommunitySharedTests", false, 5, sharedPreviewCursor,
+            "MIGRATE_SHARED_COMMUNITY_TESTS", "migratedOrReadyCount",
+            { sharedLoading = it },
+            {
+                sharedResult = it
+                sharedCursor = it.nextCursor
+                sharedCompleted = it.scannedCount == 0 || it.nextCursor == null
+            }
+        )
+    }
+
+    fun previewPosts() {
+        postPreviewCursor = postCursor
+        runMigration(
+            "migrateLegacyCommunityPostVisibility", true, 50, postCursor, null,
+            "readyOrUpdatedCount", { postLoading = it }, { postResult = it }
+        )
+    }
+
+    fun applyPosts() {
+        runMigration(
+            "migrateLegacyCommunityPostVisibility", false, 50, postPreviewCursor,
+            "MIGRATE_COMMUNITY_POST_VISIBILITY", "readyOrUpdatedCount",
+            { postLoading = it },
+            {
+                postResult = it
+                postCursor = it.nextCursor
+                postCompleted = it.scannedCount == 0 || it.nextCursor == null
+            }
+        )
+    }
+
+    if (!viewModel.isAdmin) {
+        Text("Admin access is required.", modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.error)
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("Community data migrations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                "First run the exam registry sync from Settings. Each migration is paged. Preview a page, review its results, then explicitly apply that same page. Nothing runs automatically.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (error != null) {
+            item { Text(error.orEmpty(), color = MaterialTheme.colorScheme.error) }
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("1. Shared test answer-key safety", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Moves legacy answers and explanations into private answer-key documents, sanitizes already-shared public questions, normalizes exam names, and quarantines tests whose private answer key cannot be verified.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    when {
+                        sharedLoading -> CircularProgressIndicator()
+                        sharedCompleted -> Text("All shared-test pages in this migration run are complete.")
+                        sharedResult != null -> {
+                            val result = sharedResult!!
+                            Text(
+                                "Mode: ${if (result.dryRun) "Preview only" else "Applied"} • Scanned: ${result.scannedCount} • Ready/updated: ${result.readyCount} • Skipped/quarantined: ${result.skippedCount}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            result.statusLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                            if (result.dryRun && result.scannedCount > 0) {
+                                Button(onClick = { showSharedConfirm = true }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Apply reviewed page")
+                                }
+                            } else if (!result.dryRun && result.nextCursor != null) {
+                                OutlinedButton(onClick = { previewShared() }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Preview next page")
+                                }
+                            }
+                        }
+                    }
+                    if (!sharedLoading && sharedResult == null) {
+                        Button(onClick = { previewShared() }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Preview shared-test migration")
+                        }
+                    }
+                    if (sharedResult != null && !sharedLoading && !sharedCompleted &&
+                        !sharedResult!!.dryRun && sharedResult!!.nextCursor == null) {
+                        Text("No more shared-test records remain.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("2. Community post compatibility", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Normalizes legacy exam aliases, sets visibility only for registry-mapped posts, preserves HIDDEN/REMOVED moderation states, and removes old PDF/multi-image attachment metadata.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    when {
+                        postLoading -> CircularProgressIndicator()
+                        postCompleted -> Text("All Community-post pages in this migration run are complete.")
+                        postResult != null -> {
+                            val result = postResult!!
+                            Text(
+                                "Mode: ${if (result.dryRun) "Preview only" else "Applied"} • Scanned: ${result.scannedCount} • Ready/updated: ${result.readyCount} • Skipped: ${result.skippedCount}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            if (result.removedAttachmentFieldCount > 0) {
+                                Text("Legacy attachment fields to remove: ${result.removedAttachmentFieldCount}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            result.statusLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                            if (result.dryRun && result.scannedCount > 0) {
+                                Button(onClick = { showPostConfirm = true }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Apply reviewed page")
+                                }
+                            } else if (!result.dryRun && result.nextCursor != null) {
+                                OutlinedButton(onClick = { previewPosts() }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Preview next page")
+                                }
+                            }
+                        }
+                    }
+                    if (!postLoading && postResult == null) {
+                        Button(onClick = { previewPosts() }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Preview Community-post migration")
+                        }
+                    }
+                    if (postResult != null && !postLoading && !postCompleted &&
+                        !postResult!!.dryRun && postResult!!.nextCursor == null) {
+                        Text("No more Community-post records remain.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSharedConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSharedConfirm = false },
+            title = { Text("Apply shared-test migration?") },
+            text = { Text("Only the previewed page will be changed. Unsafe tests may be quarantined so students cannot read their question data until the private answer key is repaired.") },
+            confirmButton = {
+                TextButton(onClick = { showSharedConfirm = false; applyShared() }) { Text("Apply page") }
+            },
+            dismissButton = { TextButton(onClick = { showSharedConfirm = false }) { Text("Cancel") } }
+        )
+    }
+    if (showPostConfirm) {
+        AlertDialog(
+            onDismissRequest = { showPostConfirm = false },
+            title = { Text("Apply Community-post migration?") },
+            text = { Text("Only the previewed page will be changed. Unknown exam mappings will be hidden, legacy attachment metadata will be removed, and existing HIDDEN/REMOVED states will be preserved.") },
+            confirmButton = {
+                TextButton(onClick = { showPostConfirm = false; applyPosts() }) { Text("Apply page") }
+            },
+            dismissButton = { TextButton(onClick = { showPostConfirm = false }) { Text("Cancel") } }
         )
     }
 }
