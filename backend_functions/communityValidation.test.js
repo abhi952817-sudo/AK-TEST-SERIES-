@@ -27,6 +27,12 @@ test("MCQ creation accepts exactly four options and one correct index", () => {
   assert.equal(result.examId, "neet_ug");
 });
 
+test("MCQ creation stores the canonical exam name when an alias is selected", () => {
+  const result = validateCommunityMcqCreate({ ...validCreate, targetExam: "NEET" });
+  assert.equal(result.targetExam, "NEET UG");
+  assert.equal(result.examId, "neet_ug");
+});
+
 test("MCQ creation accepts exactly five options", () => {
   const result = validateCommunityMcqCreate({
     ...validCreate,
