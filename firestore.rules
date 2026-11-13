@@ -475,10 +475,8 @@ service cloud.firestore {
                           && request.resource.data.content is string
                           && request.resource.data.content.size() > 0
                           && request.resource.data.content.size() <= 2000);
-        allow delete: if isAdmin()
-                      || (isAuthenticated()
-                          && !isUserBanned(request.auth.uid)
-                          && resource.data.creatorId == request.auth.uid);
+        // The callable deletes the reply and decrements the parent counter atomically.
+        allow delete: if isAdmin();
       }
     }
 
