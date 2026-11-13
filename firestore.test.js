@@ -515,7 +515,7 @@ test("Community posts reject General subject and PDF attachment fields", async (
     title: "A question",
     content: "Question text",
     targetExam: "NEET UG",
-    postType: "DISCUSSION"
+    postType: "DISCUSSION",
     moderationState: "VISIBLE",
   };
   await assertFails(
