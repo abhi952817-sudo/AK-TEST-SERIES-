@@ -516,7 +516,6 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       timestamp: Date.now()
     })
   );
-  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   await assertFails(
     bobDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").update({
       content: "Edited by Bob"
