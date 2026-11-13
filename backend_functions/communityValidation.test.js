@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
+  splitLegacySharedQuestions,
 } = require("./communityValidation");
 
 const validCreate = {
@@ -59,4 +60,41 @@ test("MCQ attempt requires a post ID and an integer option index", () => {
     { postId: "post-1", optionIndex: 0.5 },
     { postId: "post-1", optionIndex: 5 },
   ]) assert.throws(() => validateCommunityMcqAttempt(payload), { code: "invalid-argument" });
+});
+
+
+test("Legacy shared-test migration separates secrets from the public question projection", () => {
+  const { publicQuestions, privateKeys } = splitLegacySharedQuestions([
+    {
+      id: "q1",
+      questionText: "Question?",
+      optionA: "A",
+      optionB: "B",
+      correctAnswer: "B",
+      explanation: "Private explanation",
+      explanationHi: "निजी व्याख्या",
+      subject: "Biology",
+      unknownPrivateField: "must not leak"
+    }
+  ], "legacy-test");
+
+  assert.equal(publicQuestions.length, 1);
+  assert.equal(publicQuestions[0].questionText, "Question?");
+  assert.equal(publicQuestions[0].testId, "legacy-test");
+  assert.equal(Object.hasOwn(publicQuestions[0], "correctAnswer"), false);
+  assert.equal(Object.hasOwn(publicQuestions[0], "explanation"), false);
+  assert.equal(Object.hasOwn(publicQuestions[0], "unknownPrivateField"), false);
+  assert.equal(privateKeys[0].correctAnswer, "B");
+  assert.equal(privateKeys[0].explanation, "Private explanation");
+});
+
+test("Legacy shared-test migration fails closed for missing answers, duplicate IDs and oversized tests", () => {
+  assert.throws(() => splitLegacySharedQuestions([{ id: "q1", questionText: "No answer" }], "test"), { code: "failed-precondition" });
+  assert.throws(() => splitLegacySharedQuestions([
+    { id: "q1", questionText: "Q1", correctAnswer: "A" },
+    { id: "q1", questionText: "Q2", correctAnswer: "B" }
+  ], "test"), { code: "failed-precondition" });
+  assert.throws(() => splitLegacySharedQuestions(Array.from({ length: 201 }, (_, i) => ({
+    id: `q${i}`, questionText: "Q", correctAnswer: "A"
+  })), "test"), { code: "failed-precondition" });
 });
