@@ -261,22 +261,95 @@ service cloud.firestore {
     // Update/Delete: Creator or Verified Admin (creatorId and uploaderId cannot be forged or altered)
     // =========================================================================
     match /Shared_Community_Tests/{testId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && !isUserBanned(request.auth.uid) && (
-        request.resource.data.get('creatorId', '') == request.auth.uid
-        || request.resource.data.get('uploaderId', '') == request.auth.uid
+      // Old inline shared documents may contain correct answers/explanations.
+      // They remain Admin-only until the explicit answer-key separation migration runs.
+      allow read: if isAuthenticated() && (
+        isAdmin()
+        || (resource.data.answerKeySeparated == true
+            && resource.data.sharingState == 'COMMUNITY_SHARED')
       );
+      allow create: if isAuthenticated()
+                    && !isUserBanned(request.auth.uid)
+                    && request.resource.data.creatorId == request.auth.uid
+                    && request.resource.data.answerKeySeparated == true
+                    && request.resource.data.sharingState == 'COMMUNITY_SHARED'
+                    && request.resource.data.isPublic == true
+                    && request.resource.data.isOfficial == false
+                    && request.resource.data.countsTowardRanking == false
+                    && request.resource.data.status == 'Published'
+                    && request.resource.data.keys().hasOnly([
+                      'testId', 'title', 'description', 'targetExam', 'subject',
+                      'classLevel', 'chapter', 'topic', 'difficulty', 'questionCount',
+                      'questionsCount', 'durationMinutes', 'totalMarks', 'source',
+                      'creatorId', 'creatorDisplayName', 'creatorName', 'sharedAt',
+                      'version', 'sharingState', 'answerKeySeparated', 'isPublic',
+                      'isOfficial', 'countsTowardRanking', 'status', 'examId',
+                      'stageId', 'paperId', 'scoringVersion'
+                    ]);
       allow update: if isAdmin() || (
         isAuthenticated()
         && !isUserBanned(request.auth.uid)
-        && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'uploaderId'])
+        && resource.data.creatorId == request.auth.uid
+        && request.resource.data.creatorId == resource.data.creatorId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'description', 'targetExam', 'subject', 'classLevel',
+          'chapter', 'topic', 'difficulty', 'questionCount', 'questionsCount',
+          'durationMinutes', 'totalMarks', 'source', 'sharedAt', 'version'
+        ])
       );
       allow delete: if isAdmin() || (
-        isAuthenticated()
-        && !isUserBanned(request.auth.uid)
-        && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
+        isAuthenticated() && !isUserBanned(request.auth.uid)
+        && resource.data.creatorId == request.auth.uid
       );
+
+      match /questions/{questionId} {
+        function safeParent() {
+          return get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.answerKeySeparated == true
+            && get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.sharingState == 'COMMUNITY_SHARED';
+        }
+        function safeQuestionFields(data) {
+          return data.keys().hasOnly([
+            'id', 'testId', 'questionText', 'optionA', 'optionB', 'optionC',
+            'optionD', 'optionE', 'options', 'questionType', 'positiveMarks',
+            'negativeMarks', 'section', 'sectionName', 'subject', 'chapter',
+            'topic', 'difficulty', 'imageUrl', 'questionTextHi', 'optionAHi',
+            'optionBHi', 'optionCHi', 'optionDHi', 'optionEHi'
+          ])
+          && data.questionText is string
+          && data.questionText.size() > 0
+          && data.questionText.size() <= 5000
+          && data.id == questionId
+          && data.testId == testId;
+        }
+        allow read: if isAuthenticated() && safeParent();
+        allow create: if isAuthenticated()
+                      && !isUserBanned(request.auth.uid)
+                      && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid
+                      && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.answerKeySeparated == true
+                      && safeQuestionFields(request.resource.data);
+        allow update: if isAuthenticated()
+                      && !isUserBanned(request.auth.uid)
+                      && get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid
+                      && safeQuestionFields(request.resource.data);
+        allow delete: if isAdmin()
+                      || (isAuthenticated()
+                          && get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid);
+      }
+
+      match /private_keys/{keyId} {
+        allow read: if isAdmin();
+        allow create, update: if isAuthenticated()
+                              && !isUserBanned(request.auth.uid)
+                              && keyId == 'answerKey'
+                              && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid
+                              && request.resource.data.keys().hasOnly(['testId', 'questions', 'updatedAt'])
+                              && request.resource.data.testId == testId
+                              && request.resource.data.questions is list;
+        allow delete: if isAdmin()
+                      || (isAuthenticated()
+                          && !isUserBanned(request.auth.uid)
+                          && get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid);
+      }
     }
 
     match /Community_Posts/{postId} {
