@@ -418,6 +418,7 @@ service cloud.firestore {
                     && request.resource.data.title.size() <= 120
                     && request.resource.data.content is string
                     && request.resource.data.content.size() <= 5000
+                    && (request.resource.data.postType != 'DOUBT' || request.resource.data.content.size() > 0)
                     && (request.resource.data.content.size() > 0
                         || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
                     && (!('imageUrl' in request.resource.data)
@@ -449,6 +450,7 @@ service cloud.firestore {
                         && request.resource.data.title.size() <= 120
                         && request.resource.data.content is string
                         && request.resource.data.content.size() <= 5000
+                        && (resource.data.postType != 'DOUBT' || request.resource.data.content.size() > 0)
                         && (request.resource.data.content.size() > 0
                             || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
                         && (!('imageUrl' in request.resource.data)
@@ -459,7 +461,9 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isAuthenticated() && !isUserBanned(request.auth.uid) && resource.data.creatorId == request.auth.uid);
 
       match /Comments/{commentId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated()
+                      && (isAdmin()
+                          || get(/databases/$(database)/documents/Community_Posts/$(postId)).data.get('moderationState', '') == 'VISIBLE');
         // Student replies are created through the trusted callable so the
         // parent comment counter and reply document commit atomically.
         allow create: if isAdmin();
@@ -468,7 +472,10 @@ service cloud.firestore {
                           && !isUserBanned(request.auth.uid)
                           && resource.data.creatorId == request.auth.uid
                           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content']));
-        allow delete: if isAdmin();
+        allow delete: if isAdmin()
+                      || (isAuthenticated()
+                          && !isUserBanned(request.auth.uid)
+                          && resource.data.creatorId == request.auth.uid);
       }
     }
 
@@ -486,10 +493,20 @@ service cloud.firestore {
                       'evidenceImagePath', 'status', 'createdAt'
                     ])
                     && request.resource.data.keys().hasAny(['postId', 'reportedUserId'])
-                    && (!('postId' in request.resource.data)
-                        || (request.resource.data.postId is string && request.resource.data.postId.size() > 0))
-                    && (!('reportedUserId' in request.resource.data)
-                        || (request.resource.data.reportedUserId is string && request.resource.data.reportedUserId.size() > 0))
+                    && ((('postId' in request.resource.data)
+                          && request.resource.data.postId is string
+                          && request.resource.data.postId.size() > 0
+                          && exists(/databases/$(database)/documents/Community_Posts/$(request.resource.data.postId))
+                          && (!('reportedUserId' in request.resource.data)
+                              || (request.resource.data.reportedUserId is string
+                                  && request.resource.data.reportedUserId != request.auth.uid
+                                  && request.resource.data.reportedUserId == get(/databases/$(database)/documents/Community_Posts/$(request.resource.data.postId)).data.creatorId)))
+                        || (!('postId' in request.resource.data)
+                            && 'reportedUserId' in request.resource.data
+                            && request.resource.data.reportedUserId is string
+                            && request.resource.data.reportedUserId.size() > 0
+                            && request.resource.data.reportedUserId != request.auth.uid
+                            && exists(/databases/$(database)/documents/Users_Data/$(request.resource.data.reportedUserId))))
                     && (!('evidenceImagePath' in request.resource.data)
                         || (request.resource.data.evidenceImagePath is string
                             && request.resource.data.evidenceImagePath.matches('community_report_evidence/' + request.auth.uid + '/[^/]+')));
@@ -532,6 +549,7 @@ service cloud.firestore {
       allow create: if isAuthenticated()
                     && !isUserBanned(request.auth.uid)
                     && request.auth.uid == userId
+                    && blockedUid != request.auth.uid
                     && request.resource.data.blockedUid == blockedUid
                     && request.resource.data.keys().hasOnly(['blockedUid', 'createdAt']);
       allow delete: if isAuthenticated() && request.auth.uid == userId;
