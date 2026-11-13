@@ -177,9 +177,15 @@ fun CommunityReportDialog(
                     } else {
                         val mime = context.contentResolver.getType(uri)
                             ?: if (uri.scheme == "file") "image/jpeg" else ""
-                        val size = try {
-                            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
-                        } catch (_: Exception) { -1L }
+                        val size = if (uri.scheme == "file") {
+                            File(uri.path.orEmpty()).length()
+                        } else {
+                            try {
+                                context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                            } catch (_: Exception) {
+                                -1L
+                            }
+                        }
                         if (mime !in setOf("image/jpeg", "image/png", "image/webp") || size <= 0L || size > 5L * 1024L * 1024L) {
                             errorText = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
                         } else {
