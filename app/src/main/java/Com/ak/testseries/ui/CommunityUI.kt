@@ -82,7 +82,8 @@ data class CommunityPost(
     val classLevel: String? = null,
     val totalMarks: Double? = null,
     val topic: String? = null,
-    val mcqOptions: List<String> = emptyList()
+    val mcqOptions: List<String> = emptyList(),
+    val creatorRole: String = "STUDENT"
 )
 
 data class CommunityComment(
@@ -360,7 +361,8 @@ fun CommunityScreen(
                     topic = doc.getString("topic"),
                     userReaction = doc.getString("userReaction"),
                     commentsList = parsedComments,
-                    mcqOptions = (doc.get("mcqOptions") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    mcqOptions = (doc.get("mcqOptions") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                    creatorRole = doc.getString("creatorRole") ?: "STUDENT"
                 )
             } catch (e: Exception) {
                 null
