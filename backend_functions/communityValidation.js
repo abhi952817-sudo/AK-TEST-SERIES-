@@ -126,6 +126,22 @@ const SAFE_SHARED_QUESTION_FIELDS = [
   "topic", "difficulty", "imageUrl", "needsImage"
 ];
 
+function sanitizeSharedQuestionProjection(question, testId, index = 0) {
+  if (!question || typeof question !== "object" || Array.isArray(question)) {
+    throw makeValidationError("failed-precondition", "Shared Community question is malformed.");
+  }
+  const id = typeof question.id === "string" && question.id.trim()
+    ? question.id.trim()
+    : `${testId}_q${index}`;
+  const safe = {};
+  for (const field of SAFE_SHARED_QUESTION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(question, field)) safe[field] = question[field];
+  }
+  safe.id = id;
+  safe.testId = testId;
+  return safe;
+}
+
 function splitLegacySharedQuestions(rawQuestions, testId) {
   if (!Array.isArray(rawQuestions) || rawQuestions.length === 0 || rawQuestions.length > 200) {
     throw makeValidationError("failed-precondition", "Legacy Community test has no valid question list or exceeds the migration limit.");
@@ -228,5 +244,6 @@ module.exports = {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
   resolveCommunityExamSubject,
-  splitLegacySharedQuestions
+  splitLegacySharedQuestions,
+  sanitizeSharedQuestionProjection
 };
