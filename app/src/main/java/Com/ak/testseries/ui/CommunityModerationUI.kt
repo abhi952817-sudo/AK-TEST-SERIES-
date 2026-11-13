@@ -231,6 +231,7 @@ private data class CommunityReportRow(
     val reason: String,
     val evidenceImagePath: String?,
     val status: String,
+    val resolutionNote: String,
     val createdAt: Long,
     val reference: DocumentReference
 )
@@ -243,6 +244,7 @@ private fun mapCommunityReport(doc: com.google.firebase.firestore.DocumentSnapsh
     reason = doc.getString("reason").orEmpty(),
     evidenceImagePath = doc.getString("evidenceImagePath"),
     status = doc.getString("status") ?: "OPEN",
+    resolutionNote = doc.getString("resolutionNote").orEmpty(),
     createdAt = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
     reference = doc.reference
 )
@@ -394,6 +396,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
         action: String,
         targetType: String,
         targetId: String,
+        resolutionNote: String = "",
         targetWrite: (com.google.firebase.firestore.WriteBatch) -> Unit = {},
         onSuccess: () -> Unit = {}
     ) {
@@ -406,7 +409,8 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
             mapOf(
                 "status" to reportStatus,
                 "resolvedBy" to actor,
-                "resolvedAt" to FieldValue.serverTimestamp()
+                "resolvedAt" to FieldValue.serverTimestamp(),
+                "resolutionNote" to resolutionNote
             )
         )
         batch.set(
@@ -444,6 +448,11 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
             action = action,
             targetType = "COMMUNITY_POST",
             targetId = postId,
+            resolutionNote = when {
+                restore -> "RESTORED"
+                remove -> "REMOVED"
+                else -> "HIDDEN"
+            },
             targetWrite = { batch ->
                 batch.update(
                     ref,
@@ -466,6 +475,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
         val userRef = db.collection("Users_Data").document(uid)
         commitModerationAction(
             report, "RESOLVED", "SUSPEND_USER", "USER", uid,
+            resolutionNote = "USER_SUSPENDED",
             targetWrite = { batch ->
                 batch.update(
                     userRef,
@@ -536,7 +546,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     if (report.postId != null) {
                                         OutlinedButton(onClick = { moderatePost(report, remove = false) }) { Text("Hide post") }
-                                        OutlinedButton(onClick = { moderatePost(report, remove = true) }) { Text("Remove") }
+                                        OutlinedButton(onClick = { moderatePost(report, remove = true) }) { Text("Remove from feed") }
                                     }
                                     if (report.reportedUserId != null) {
                                         OutlinedButton(onClick = { suspendReportedUser(report) }) { Text("Suspend user") }
@@ -546,7 +556,7 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
                                     Button(onClick = { updateReport(report, "RESOLVED", "RESOLVE_REPORT") }) { Text("Resolve") }
                                     TextButton(onClick = { updateReport(report, "DISMISSED", "DISMISS_REPORT") }) { Text("Dismiss") }
                                 }
-                            } else if (report.postId != null && report.status == "RESOLVED") {
+                            } else if (report.postId != null && report.status == "RESOLVED" && report.resolutionNote in setOf("HIDDEN", "REMOVED")) {
                                 TextButton(onClick = { moderatePost(report, remove = false, restore = true) }) { Text("Restore post") }
                             }
                         }
