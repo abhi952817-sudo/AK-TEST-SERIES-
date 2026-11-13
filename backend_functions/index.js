@@ -15,7 +15,11 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
-const { validateCommunityMcqCreate, validateCommunityMcqAttempt } = require("./communityValidation");
+const {
+  validateCommunityMcqCreate,
+  validateCommunityMcqAttempt,
+  splitLegacySharedQuestions
+} = require("./communityValidation");
 const crypto = require("crypto");
 
 exports.normalizeExamKey = normalizeExamKey;
@@ -1080,4 +1084,115 @@ exports.submitCommunityMcqAttempt = functions.https.onCall(async (data, context)
     console.error("submitCommunityMcqAttempt failed", error);
     throw new functions.https.HttpsError("internal", "MCQ attempt could not be recorded.");
   }
+});
+
+
+/**
+ * Admin-only, paged migration for legacy Community shared tests that stored
+ * correct answers/explanations inside broadly readable question documents.
+ * Dry-run is the default. A write run requires an explicit confirmation token.
+ */
+exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, context) => {
+  try {
+    validateSetAdminRoleAuth(context);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+
+  const dryRun = !data || data.dryRun !== false;
+  if (!dryRun && data.confirm !== "MIGRATE_SHARED_COMMUNITY_TESTS") {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "A write migration requires confirm=MIGRATE_SHARED_COMMUNITY_TESTS after backup and dry-run review."
+    );
+  }
+  const pageSize = Math.max(1, Math.min(Number.isInteger(data?.pageSize) ? data.pageSize : 5, 10));
+  const cursor = typeof data?.startAfter === "string" ? data.startAfter.trim() : "";
+  let query = db.collection("Shared_Community_Tests")
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(pageSize);
+  if (cursor) query = query.startAfter(cursor);
+
+  const snapshot = await query.get();
+  const results = [];
+  let migratedCount = 0;
+  let skippedCount = 0;
+
+  for (const doc of snapshot.docs) {
+    const existing = doc.data();
+    if (existing.answerKeySeparated === true && existing.sharingState === "COMMUNITY_SHARED") {
+      results.push({ testId: doc.id, status: "ALREADY_SAFE" });
+      skippedCount += 1;
+      continue;
+    }
+
+    let rawQuestions = Array.isArray(existing.questions) ? existing.questions : null;
+    if (!rawQuestions && typeof existing.questionsJson === "string" && existing.questionsJson.trim()) {
+      try {
+        rawQuestions = JSON.parse(existing.questionsJson);
+      } catch (_) {
+        rawQuestions = null;
+      }
+    }
+
+    let separated;
+    try {
+      separated = splitLegacySharedQuestions(rawQuestions, doc.id);
+    } catch (error) {
+      results.push({ testId: doc.id, status: "SKIPPED_UNSAFE", reason: error.message });
+      skippedCount += 1;
+      continue;
+    }
+
+    if (!dryRun) {
+      const batch = db.batch();
+      batch.update(doc.ref, {
+        questions: admin.firestore.FieldValue.delete(),
+        questionsJson: admin.firestore.FieldValue.delete(),
+        answerKeySeparated: true,
+        sharingState: "COMMUNITY_SHARED",
+        isPublic: true,
+        isOfficial: false,
+        countsTowardRanking: false,
+        status: "Published",
+        migratedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      for (const question of separated.publicQuestions) {
+        batch.set(doc.ref.collection("questions").doc(question.id), question);
+      }
+      batch.set(doc.ref.collection("private_keys").doc("answerKey"), {
+        testId: doc.id,
+        questions: separated.privateKeys,
+        migratedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      batch.set(db.collection("Community_Moderation_Audit").doc(), {
+        actorUid: context.auth.uid,
+        action: "MIGRATE_SHARED_TEST_ANSWER_KEYS",
+        targetType: "SHARED_COMMUNITY_TEST",
+        targetId: doc.id,
+        reason: "Separated legacy answer keys from public Community question documents.",
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+      migratedCount += 1;
+    } else {
+      migratedCount += 1;
+    }
+
+    results.push({
+      testId: doc.id,
+      status: dryRun ? "WOULD_MIGRATE" : "MIGRATED",
+      questionCount: separated.publicQuestions.length
+    });
+  }
+
+  return {
+    success: true,
+    dryRun,
+    scannedCount: snapshot.size,
+    migratedOrReadyCount: migratedCount,
+    skippedCount,
+    results,
+    nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1].id : null
+  };
 });
