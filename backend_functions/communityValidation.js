@@ -167,13 +167,7 @@ function splitLegacySharedQuestions(rawQuestions, testId) {
       throw makeValidationError("failed-precondition", "Legacy Community test contains a missing question, answer key or duplicate question ID.");
     }
     seenIds.add(id);
-    const safe = {};
-    for (const field of SAFE_SHARED_QUESTION_FIELDS) {
-      if (Object.prototype.hasOwnProperty.call(question, field)) safe[field] = question[field];
-    }
-    safe.id = id;
-    safe.testId = testId;
-    publicQuestions.push(safe);
+    publicQuestions.push(sanitizeSharedQuestionProjection({ ...question, id }, testId, index));
     privateKeys.push({
       id,
       correctAnswer,
