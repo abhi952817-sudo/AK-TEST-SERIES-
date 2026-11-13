@@ -338,7 +338,7 @@ fun CommunityScreen(
                     comments = (doc.getLong("comments")?.toInt() ?: parsedComments.size),
                     views = doc.getString("views") ?: "0",
                     subject = doc.getString("subject") ?: "",
-                    canonicalTargetExam = doc.getString("canonicalTargetExam") ?: canonicalTargetExam,
+                    targetExam = doc.getString("targetExam") ?: canonicalTargetExam,
                     examId = doc.getString("examId"),
                     moderationState = doc.getString("moderationState") ?: "VISIBLE",
                     imageUrl = doc.getString("imageUrl"),
@@ -393,7 +393,7 @@ fun CommunityScreen(
                 isLoadingMorePosts = true
                 loadMoreError = null
                 var nextPageQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
-                    .whereEqualTo("canonicalTargetExam", canonicalTargetExam)
+                    .whereEqualTo("targetExam", canonicalTargetExam)
                 if (!isAdmin) {
                     nextPageQuery = nextPageQuery.whereEqualTo("moderationState", "VISIBLE")
                 }
@@ -418,7 +418,7 @@ fun CommunityScreen(
         }
 
         var feedQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
-            .whereEqualTo("canonicalTargetExam", canonicalTargetExam)
+            .whereEqualTo("targetExam", canonicalTargetExam)
         if (!isAdmin) {
             feedQuery = feedQuery.whereEqualTo("moderationState", "VISIBLE")
         }
@@ -429,7 +429,7 @@ fun CommunityScreen(
                 if (error != null) {
                     // Fallback query if compound index is building or fails
                     var fallbackQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
-                        .whereEqualTo("canonicalTargetExam", canonicalTargetExam)
+                        .whereEqualTo("targetExam", canonicalTargetExam)
                     if (!isAdmin) {
                         fallbackQuery = fallbackQuery.whereEqualTo("moderationState", "VISIBLE")
                     }
@@ -609,7 +609,7 @@ fun CommunityScreen(
         CommunityRoute.FEED -> {
             CommunityFeedScreen(
                 isAdmin = isAdmin,
-                canonicalTargetExam = canonicalTargetExam,
+                targetExam = canonicalTargetExam,
                 posts = postsWithUserStatus,
                 onNavigateToCreate = { currentRoute = CommunityRoute.CREATE_POST },
                 onNavigateToDetail = { post ->
@@ -636,7 +636,7 @@ fun CommunityScreen(
         }
         CommunityRoute.CREATE_POST -> {
             CreatePostScreen(
-                canonicalTargetExam = canonicalTargetExam,
+                targetExam = canonicalTargetExam,
                 onBack = { currentRoute = CommunityRoute.FEED },
                 onPostCreated = { newPost, onComplete ->
                     createPostInFirebase(newPost) { error ->
