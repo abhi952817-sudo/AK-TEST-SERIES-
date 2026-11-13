@@ -171,7 +171,10 @@ function validateCommunityReaction(data) {
   if (!postId || postId.length > 150) {
     throw makeValidationError("invalid-argument", "A valid postId is required.");
   }
-  return { postId };
+  if (typeof payload.liked !== "boolean") {
+    throw makeValidationError("invalid-argument", "liked must be a boolean desired state.");
+  }
+  return { postId, liked: payload.liked };
 }
 
 module.exports = {
