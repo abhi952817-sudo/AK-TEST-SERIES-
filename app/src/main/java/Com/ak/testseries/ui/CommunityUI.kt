@@ -532,6 +532,7 @@ fun CommunityScreen(
         CommunityRoute.CREATE_POST -> {
             CreatePostScreen(
                 targetExam = targetExam,
+                isAdmin = isAdmin,
                 onBack = { currentRoute = CommunityRoute.FEED },
                 onPostCreated = { newPost, onComplete ->
                     createPostInFirebase(newPost) { success ->
@@ -560,6 +561,9 @@ fun CommunityScreen(
                     },
                     onReportPost = { p ->
                         reportTarget = CommunityReportTarget(postId = p.id, reportedUserId = p.creatorId)
+                    },
+                    onReportUser = { p ->
+                        reportTarget = CommunityReportTarget(reportedUserId = p.creatorId)
                     },
                     onBlockAuthor = { p ->
                         val uid = currentUid
@@ -1404,9 +1408,13 @@ fun PostDetailScreen(
     onOpenTest: (String) -> Unit = {},
     onToggleBookmark: (CommunityPost) -> Unit = {},
     onToggleLike: (CommunityPost) -> Unit = {},
-    onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> }
+    onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> },
+    onReportPost: (CommunityPost) -> Unit = {},
+    onReportUser: (CommunityPost) -> Unit = {},
+    onBlockAuthor: (CommunityPost) -> Unit = {}
 ) {
     var commentText by remember { mutableStateOf("") }
+    var showActionsMenu by remember { mutableStateOf(false) }
     var comments by remember(post.id) { mutableStateOf(post.commentsList.distinctBy { it.id }) }
     val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
 
@@ -1451,6 +1459,27 @@ fun PostDetailScreen(
                             contentDescription = "Bookmark",
                             tint = if (post.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
+                    }
+                    Box {
+                        IconButton(onClick = { showActionsMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Community actions")
+                        }
+                        DropdownMenu(expanded = showActionsMenu, onDismissRequest = { showActionsMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Report post") },
+                                onClick = { showActionsMenu = false; onReportPost(post) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Report author") },
+                                onClick = { showActionsMenu = false; onReportUser(post) }
+                            )
+                            if (currentUid != null && currentUid != post.creatorId) {
+                                DropdownMenuItem(
+                                    text = { Text("Block author") },
+                                    onClick = { showActionsMenu = false; onBlockAuthor(post) }
+                                )
+                            }
+                        }
                     }
                 }
             )
@@ -1510,6 +1539,10 @@ fun PostDetailScreen(
                     onToggleBookmark = onToggleBookmark,
                     onToggleLike = onToggleLike
                 )
+                if (post.postType == "MCQ") {
+                    CommunityMcqAttemptCard(post)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
                 Divider(modifier = Modifier.padding(vertical = 16.dp))
                 Text("Replies (${comments.size})", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
                 Spacer(modifier = Modifier.height(8.dp))
