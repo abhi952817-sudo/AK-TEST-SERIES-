@@ -1080,7 +1080,7 @@ exports.createCommunityMcq = functions.https.onCall(async (data, context) => {
   batch.create(postRef, {
     id: postId,
     authorName,
-    authorSubtitle: payload.targetExam + " Aspirant",
+    authorSubtitle: creatorRole === "ADMIN" ? "Community Admin" : payload.targetExam + " Aspirant",
     title: payload.title,
     content: payload.question,
     subject: payload.subject,
