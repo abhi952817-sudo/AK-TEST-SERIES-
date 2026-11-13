@@ -137,6 +137,9 @@ function sanitizeSharedQuestionProjection(question, testId, index = 0) {
   for (const field of SAFE_SHARED_QUESTION_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(question, field)) safe[field] = question[field];
   }
+  if ((!safe.questionText || !String(safe.questionText).trim()) && typeof safe.questionTextEn === "string") {
+    safe.questionText = safe.questionTextEn.trim();
+  }
   safe.id = id;
   safe.testId = testId;
   return safe;
