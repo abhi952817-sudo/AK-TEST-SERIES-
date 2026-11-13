@@ -440,6 +440,10 @@ service cloud.firestore {
                         && request.resource.data.subject is string
                         && request.resource.data.subject.size() > 0
                         && request.resource.data.subject != 'General'
+                        && request.resource.data.examId is string
+                        && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+                        && request.resource.data.targetExam in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.aliases
+                        && request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects
                         && request.resource.data.title is string
                         && request.resource.data.title.size() <= 120
                         && request.resource.data.content is string
