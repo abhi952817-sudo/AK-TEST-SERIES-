@@ -553,11 +553,25 @@ fun CommunityScreen(
             val ref = FirebaseFirestore.getInstance().collection("Users_Data").document(uid)
                 .collection("Blocked_Users").document(blockedUid)
             if (blockedUserIds.contains(blockedUid)) {
-                blockedUserIds.remove(blockedUid)
                 ref.delete()
+                    .addOnSuccessListener { blockedUserIds.remove(blockedUid) }
+                    .addOnFailureListener { error ->
+                        android.widget.Toast.makeText(
+                            context,
+                            error.localizedMessage ?: "User could not be unblocked.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
             } else {
-                blockedUserIds.add(blockedUid)
                 ref.set(mapOf("blockedUid" to blockedUid, "createdAt" to System.currentTimeMillis()))
+                    .addOnSuccessListener { blockedUserIds.add(blockedUid) }
+                    .addOnFailureListener { error ->
+                        android.widget.Toast.makeText(
+                            context,
+                            error.localizedMessage ?: "User could not be blocked.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
             }
         }
     }
@@ -837,7 +851,6 @@ fun CommunityFeedScreen(
             // Feed
             val filteredPosts = posts.filter {
                 val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
-    val context = androidx.compose.ui.platform.LocalContext.current
                 val isBlockedAuthor = !it.creatorId.isNullOrBlank() && blockedUserIds.contains(it.creatorId)
                 val matchesTab = when(currentTab) {
                     CommunityTab.FEED -> !isBlockedAuthor
@@ -1527,6 +1540,7 @@ fun PostDetailScreen(
     var showReportDialog by remember(post.id) { mutableStateOf(false) }
     var comments by remember(post.id) { mutableStateOf(post.commentsList.distinctBy { it.id }) }
     val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     DisposableEffect(post.id) {
         val registration = FirebaseFirestore.getInstance()
