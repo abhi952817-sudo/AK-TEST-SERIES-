@@ -22,7 +22,8 @@ const {
   validateCommunityPostDelete,
   validateCommunityReplyDelete,
   validateCommunityReaction,
-  splitLegacySharedQuestions
+  splitLegacySharedQuestions,
+  sanitizeSharedQuestionProjection
 } = require("./communityValidation");
 const crypto = require("crypto");
 const communityExamSubjects = require("./communityExamSubjects.json");
@@ -1243,8 +1244,152 @@ exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, 
   for (const doc of snapshot.docs) {
     const existing = doc.data();
     if (existing.answerKeySeparated === true && existing.sharingState === "COMMUNITY_SHARED") {
-      results.push({ testId: doc.id, status: "ALREADY_SAFE" });
-      skippedCount += 1;
+      const questionSnapshot = await doc.ref.collection("questions").get();
+      const privateKeyRef = doc.ref.collection("private_keys").doc("answerKey");
+      const privateKeySnap = await privateKeyRef.get();
+      const inlineQuestions = Array.isArray(existing.questions)
+        ? existing.questions
+        : (typeof existing.questionsJson === "string" && existing.questionsJson.trim()
+            ? (() => { try { return JSON.parse(existing.questionsJson); } catch (_) { return null; } })()
+            : null);
+      const rawPublicQuestions = questionSnapshot.docs.map(questionDoc => ({
+        ...questionDoc.data(),
+        id: questionDoc.id
+      }));
+      let safeQuestions = rawPublicQuestions.map((question, index) =>
+        sanitizeSharedQuestionProjection(question, doc.id, index)
+      );
+      let questionWrites = questionSnapshot.docs.map((questionDoc, index) => ({
+        ref: questionDoc.ref,
+        data: safeQuestions[index]
+      }));
+      let privateKeys = privateKeySnap.exists && Array.isArray(privateKeySnap.data().questions)
+        ? privateKeySnap.data().questions
+        : null;
+
+      if (safeQuestions.length === 0 && Array.isArray(inlineQuestions)) {
+        try {
+          const separatedInline = splitLegacySharedQuestions(inlineQuestions, doc.id);
+          safeQuestions = separatedInline.publicQuestions;
+          privateKeys = privateKeys || separatedInline.privateKeys;
+          questionWrites = safeQuestions.map(question => ({
+            ref: doc.ref.collection("questions").doc(question.id),
+            data: question
+          }));
+        } catch (_) {
+          // The test is quarantined below if no complete private key can be reconstructed.
+        }
+      }
+
+      const keysComplete = Array.isArray(privateKeys) && safeQuestions.length > 0 &&
+        safeQuestions.every(question => privateKeys.some(key =>
+          key && key.id === question.id &&
+          typeof key.correctAnswer === "string" && key.correctAnswer.trim().length > 0
+        ));
+
+      if (!keysComplete && (Array.isArray(inlineQuestions) || rawPublicQuestions.length > 0)) {
+        try {
+          const rawSource = Array.isArray(inlineQuestions) ? inlineQuestions : rawPublicQuestions;
+          const rebuilt = splitLegacySharedQuestions(rawSource, doc.id);
+          privateKeys = rebuilt.privateKeys;
+          if (questionWrites.length === 0) {
+            safeQuestions = rebuilt.publicQuestions;
+            questionWrites = safeQuestions.map(question => ({
+              ref: doc.ref.collection("questions").doc(question.id),
+              data: question
+            }));
+          }
+        } catch (_) {
+          // Keep the existing private key only if it was complete; otherwise quarantine below.
+        }
+      }
+
+      const completeAfterRepair = Array.isArray(privateKeys) && safeQuestions.length > 0 &&
+        safeQuestions.every(question => privateKeys.some(key =>
+          key && key.id === question.id &&
+          typeof key.correctAnswer === "string" && key.correctAnswer.trim().length > 0
+        ));
+      const examKey = String(existing.targetExam || existing.examId || "").trim().toLocaleLowerCase();
+      const safeExamMatches = communityExamSubjects.exams.filter(exam =>
+        [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === examKey)
+      );
+      const safeCanonicalExam = safeExamMatches.length === 1 ? safeExamMatches[0] : null;
+
+      if (!completeAfterRepair || !safeCanonicalExam) {
+        if (!dryRun) {
+          const quarantineBatch = db.batch();
+          quarantineBatch.update(doc.ref, {
+            sharingState: "MIGRATION_REQUIRED",
+            isPublic: false
+          });
+          quarantineBatch.set(db.collection("Community_Moderation_Audit").doc(), {
+            actorUid: context.auth.uid,
+            action: "QUARANTINE_UNSAFE_SHARED_TEST",
+            targetType: "SHARED_COMMUNITY_TEST",
+            targetId: doc.id,
+            reason: !completeAfterRepair
+              ? "Quarantined shared test because a complete private answer key could not be verified."
+              : "Quarantined shared test because its exam could not be resolved against the canonical registry.",
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          await quarantineBatch.commit();
+        }
+        results.push({ testId: doc.id, status: dryRun ? "WOULD_QUARANTINE_UNSAFE_SHARED_TEST" : "QUARANTINED_UNSAFE_SHARED_TEST" });
+        skippedCount += 1;
+        continue;
+      }
+
+      const canonicalSubject = safeCanonicalExam.subjects.find(subject =>
+        subject.toLocaleLowerCase() === String(existing.subject || "").trim().toLocaleLowerCase()
+      ) || "Full Syllabus";
+      const hasUnsafePublicFields = questionSnapshot.docs.some((questionDoc, index) =>
+        JSON.stringify(questionDoc.data()) !== JSON.stringify(safeQuestions[index])
+      );
+      const needsParentCleanup = Object.prototype.hasOwnProperty.call(existing, "questions") ||
+        Object.prototype.hasOwnProperty.call(existing, "questionsJson");
+      const needsNormalization = existing.targetExam !== safeCanonicalExam.examName ||
+        existing.examId !== safeCanonicalExam.examId || existing.subject !== canonicalSubject;
+      const needsRepair = hasUnsafePublicFields || needsParentCleanup || needsNormalization ||
+        (questionSnapshot.empty && questionWrites.length > 0);
+
+      if (!needsRepair) {
+        results.push({ testId: doc.id, status: "ALREADY_SAFE" });
+        skippedCount += 1;
+        continue;
+      }
+
+      if (!dryRun) {
+        const batch = db.batch();
+        batch.update(doc.ref, {
+          questions: admin.firestore.FieldValue.delete(),
+          questionsJson: admin.firestore.FieldValue.delete(),
+          targetExam: safeCanonicalExam.examName,
+          examId: safeCanonicalExam.examId,
+          subject: canonicalSubject
+        });
+        questionWrites.forEach(question => batch.set(question.ref, question.data));
+        batch.set(privateKeyRef, {
+          testId: doc.id,
+          questions: privateKeys,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        batch.set(db.collection("Community_Moderation_Audit").doc(), {
+          actorUid: context.auth.uid,
+          action: "SANITIZE_SHARED_TEST_ANSWER_KEY_PROJECTION",
+          targetType: "SHARED_COMMUNITY_TEST",
+          targetId: doc.id,
+          reason: "Removed answer/explanation fields from public questions and verified the private answer key.",
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+      }
+      migratedCount += 1;
+      results.push({
+        testId: doc.id,
+        status: dryRun ? "WOULD_SANITIZE_SAFE_PROJECTION" : "SANITIZED_SAFE_PROJECTION",
+        questionCount: safeQuestions.length,
+        removedPublicAnswerFields: hasUnsafePublicFields
+      });
       continue;
     }
 
