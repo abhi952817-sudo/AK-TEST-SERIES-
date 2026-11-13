@@ -3592,6 +3592,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val optB = (map["optionB"] as? String)?.trim() ?: (rawOpts?.getOrNull(1) as? String)?.trim() ?: ""
                 val optC = (map["optionC"] as? String)?.trim() ?: (rawOpts?.getOrNull(2) as? String)?.trim() ?: ""
                 val optD = (map["optionD"] as? String)?.trim() ?: (rawOpts?.getOrNull(3) as? String)?.trim() ?: ""
+                val optE = (map["optionE"] as? String)?.trim() ?: (rawOpts?.getOrNull(4) as? String)?.trim()
 
                 val qType = (map["questionType"] as? String)?.trim() ?: "MCQ"
                 val correctAns = ""
@@ -3628,6 +3629,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionB = optB,
                         optionC = optC,
                         optionD = optD,
+                        optionE = optE,
                         correctAnswer = correctAns,
                         explanation = "",
                         subject = (map["subject"] as? String)?.trim() ?: subject,
@@ -3639,6 +3641,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionBHi = (map["optionBHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         optionCHi = (map["optionCHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         optionDHi = (map["optionDHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                        optionEHi = (map["optionEHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         explanationHi = null,
                         questionType = qType,
                         section = (map["section"] as? String)?.trim() ?: "SECTION_A",
@@ -3651,89 +3654,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         // Safe Community shares require the dedicated public questions subcollection.
         // Legacy inline arrays/JSON are intentionally rejected because they may contain answer keys.
         if (qList.isEmpty()) return null
-        /* Legacy parser intentionally disabled after answer-key separation.
-        if (qList.isEmpty()) {
-            val questionsJson = doc.getString("questionsJson")?.trim() ?: ""
-            if (questionsJson.isBlank()) return null
-            try {
-                val jsonArray = org.json.JSONArray(questionsJson)
-                if (jsonArray.length() == 0) return null
-                for (i in 0 until jsonArray.length()) {
-                    val qObj = jsonArray.getJSONObject(i)
-                    val qId = qObj.optString("id", "${testId}_q$i").ifBlank { "${testId}_q$i" }
-                    val qText = qObj.optString("questionText", qObj.optString("questionTextEn", "")).trim()
-                    if (qText.isBlank()) return null
-
-                    val optA = qObj.optString("optionA", qObj.optString("optionAEn", "")).trim()
-                    val optB = qObj.optString("optionB", qObj.optString("optionBEn", "")).trim()
-                    val optC = qObj.optString("optionC", qObj.optString("optionCEn", "")).trim()
-                    val optD = qObj.optString("optionD", qObj.optString("optionDEn", "")).trim()
-                    val optE = qObj.optString("optionE", qObj.optString("optionEEn", "")).trim().takeIf { it.isNotBlank() }
-
-                    val qType = qObj.optString("questionType", "MCQ")
-                    val correctAns = qObj.optString("correctAnswer", "").trim()
-                    if (correctAns.isBlank()) return null
-
-                    val isNumerical = qType.contains("NUMERICAL", ignoreCase = true) || qType.contains("NAT", ignoreCase = true)
-                    if (!isNumerical && (optA.isBlank() || optB.isBlank())) {
-                        return null
-                    }
-
-                    val posMarks = qObj.optDouble("positiveMarks", 4.0)
-                    if (posMarks <= 0.0) return null
-                    val negMarks = qObj.optDouble("negativeMarks", 1.0)
-                    if (negMarks < 0.0) return null
-
-                    val imgUrl = qObj.optString("imageUrl", "").trim()
-                    if (imgUrl.isNotEmpty()) {
-                        if (imgUrl.startsWith("/") || imgUrl.startsWith("file:", ignoreCase = true) ||
-                            imgUrl.contains("/cache/") || imgUrl.contains("/extracted_cropped_images/")) {
-                            return null
-                        }
-                        if (!imgUrl.startsWith("http://", ignoreCase = true) && !imgUrl.startsWith("https://", ignoreCase = true)) {
-                            return null
-                        }
-                    }
-
-                    qList.add(
-                        QuestionEntity(
-                            id = qId,
-                            testId = testId, // downloaded question.testId = testId
-                            questionText = qText,
-                            optionA = optA,
-                            optionB = optB,
-                            optionC = optC,
-                            optionD = optD,
-                            optionE = optE,
-                            correctAnswer = correctAns,
-                            explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")).trim(),
-                            subject = qObj.optString("subject", subject).trim(),
-                            chapter = qObj.optString("chapter", chapter).trim(),
-                            topic = qObj.optString("topic", topic).trim(),
-                            difficulty = qObj.optString("difficulty", difficulty).trim(),
-                            questionTextHi = qObj.optString("questionTextHi").trim().takeIf { it.isNotBlank() },
-                            optionAHi = qObj.optString("optionAHi").trim().takeIf { it.isNotBlank() },
-                            optionBHi = qObj.optString("optionBHi").trim().takeIf { it.isNotBlank() },
-                            optionCHi = qObj.optString("optionCHi").trim().takeIf { it.isNotBlank() },
-                            optionDHi = qObj.optString("optionDHi").trim().takeIf { it.isNotBlank() },
-                            optionEHi = qObj.optString("optionEHi").trim().takeIf { it.isNotBlank() },
-                            explanationHi = qObj.optString("explanationHi").trim().takeIf { it.isNotBlank() },
-                            questionType = qType,
-                            section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
-                            imageUrl = imgUrl.takeIf { it.isNotBlank() }
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                return null
-            }
-        }
-        */
 
         if (expectedQCount > 0 && qList.size < expectedQCount) return null
 
-        val finalQuestionsJson = doc.getString("questionsJson")?.takeIf { it.isNotBlank() }
-            ?: serializeQuestionsToJson(qList)
+        val finalQuestionsJson = serializeQuestionsToJson(qList)
 
         val testEntity = Com.ak.testseries.data.TestEntity(
             id = testId,
