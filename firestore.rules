@@ -291,10 +291,20 @@ service cloud.firestore {
         && !isUserBanned(request.auth.uid)
         && resource.data.creatorId == request.auth.uid
         && request.resource.data.creatorId == resource.data.creatorId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'title', 'description', 'targetExam', 'subject', 'classLevel',
-          'chapter', 'topic', 'difficulty', 'questionCount', 'questionsCount',
-          'durationMinutes', 'totalMarks', 'source', 'sharedAt', 'version'
+        && request.resource.data.answerKeySeparated == true
+        && request.resource.data.sharingState == 'COMMUNITY_SHARED'
+        && request.resource.data.isPublic == true
+        && request.resource.data.isOfficial == false
+        && request.resource.data.countsTowardRanking == false
+        && request.resource.data.status == 'Published'
+        && request.resource.data.keys().hasOnly([
+          'testId', 'title', 'description', 'targetExam', 'subject',
+          'classLevel', 'chapter', 'topic', 'difficulty', 'questionCount',
+          'questionsCount', 'durationMinutes', 'totalMarks', 'source',
+          'creatorId', 'creatorDisplayName', 'creatorName', 'sharedAt',
+          'version', 'sharingState', 'answerKeySeparated', 'isPublic',
+          'isOfficial', 'countsTowardRanking', 'status', 'examId',
+          'stageId', 'paperId', 'scoringVersion'
         ])
       );
       allow delete: if isAdmin() || (
@@ -329,7 +339,8 @@ service cloud.firestore {
                       && safeQuestionFields(request.resource.data);
         allow update: if isAuthenticated()
                       && !isUserBanned(request.auth.uid)
-                      && get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid
+                      && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid
+                      && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.answerKeySeparated == true
                       && safeQuestionFields(request.resource.data);
         allow delete: if isAdmin()
                       || (isAuthenticated()
