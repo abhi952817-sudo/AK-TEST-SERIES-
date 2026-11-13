@@ -2,7 +2,7 @@ name: Community Firebase Rules CI
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "feature/community-completion-2026-11-13" ]
     paths:
       - "firestore.rules"
       - "storage.rules"
@@ -25,6 +25,7 @@ on:
       - "backend_functions/index.js"
       - "backend_functions/communityValidation.js"
       - "backend_functions/communityValidation.test.js"
+      - "backend_functions/communityExamSubjects.json"
       - "backend_functions/callableValidation.test.js"
       - "firebase.json"
       - ".github/workflows/community-rules.yml"
