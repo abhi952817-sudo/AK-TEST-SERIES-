@@ -66,6 +66,7 @@ data class CommunityPost(
     val examId: String? = null,
     val moderationState: String = "VISIBLE",
     val imageUrl: String? = null,
+    val imagePath: String? = null,
     val userReaction: String? = null,
     val commentsList: List<CommunityComment> = emptyList(),
     val isBookmarked: Boolean = false,
@@ -129,6 +130,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "targetExam" to post.targetExam,
         "examId" to (post.examId ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(post.targetExam)?.examId.orEmpty()),
         "imageUrl" to post.imageUrl,
+        "imagePath" to post.imagePath,
         "isBookmarked" to post.isBookmarked,
         "timestamp" to post.timestamp,
         "postType" to post.postType,
@@ -342,6 +344,7 @@ fun CommunityScreen(
                     examId = doc.getString("examId"),
                     moderationState = doc.getString("moderationState") ?: "VISIBLE",
                     imageUrl = doc.getString("imageUrl"),
+                    imagePath = doc.getString("imagePath"),
                     isBookmarked = false,
                     timestamp = doc.getLong("timestamp") ?: 0L,
                     postType = doc.getString("postType") ?: "DISCUSSION",
@@ -595,6 +598,21 @@ fun CommunityScreen(
     fun deletePostInFirebase(post: CommunityPost) {
         val db = FirebaseFirestore.getInstance()
         db.collection("Community_Posts").document(post.id).delete()
+            .addOnSuccessListener {
+                post.imagePath?.takeIf { it.startsWith("community_images/") }?.let { path ->
+                    FirebaseStorage.getInstance().reference.child(path).delete()
+                        .addOnFailureListener { error ->
+                            android.util.Log.w("Community", "Post image cleanup failed: ${error.message}")
+                        }
+                }
+            }
+            .addOnFailureListener { error ->
+                android.widget.Toast.makeText(
+                    context,
+                    error.localizedMessage ?: "Post could not be deleted.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
     }
 
     // Attach user bookmark and like status to posts
@@ -1318,6 +1336,7 @@ fun CreatePostScreen(
                 "authorName" to authorName
             )
             if (!imageUrl.isNullOrBlank()) payload["imageUrl"] = imageUrl
+            if (!pendingUploadedImagePath.isNullOrBlank()) payload["imagePath"] = pendingUploadedImagePath!!
             com.google.firebase.functions.FirebaseFunctions.getInstance()
                 .getHttpsCallable("createCommunityMcq")
                 .call(payload)
@@ -1343,6 +1362,7 @@ fun CreatePostScreen(
                 targetExam = targetExam,
                 examId = examId,
                 imageUrl = imageUrl,
+                imagePath = imagePath,
                 postType = selectedPostType,
                 timestamp = System.currentTimeMillis()
             )
