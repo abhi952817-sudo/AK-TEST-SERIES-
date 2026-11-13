@@ -778,30 +778,82 @@ test("Private Test Ownership: ownerId and uploaderId are supported, missing owne
   await assertFails(aliceDb.collection("Tests_Data").doc("orphan_private_test").get());
 });
 
-test("Shared_Community_Tests: Creator can update, but cannot alter creatorId or uploaderId", async () => {
+test("Shared_Community_Tests: safe question projection is public but answer keys remain private", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const sharedRef = aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test");
 
-  // Alice creates community test
-  await assertSucceeds(
-    aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").set({
-      title: "Shared Community Test",
-      creatorId: ALICE_UID,
-      targetExam: "NEET"
+  await assertSucceeds(sharedRef.set({
+    testId: "alice_comm_test",
+    title: "Shared Community Test",
+    creatorId: ALICE_UID,
+    targetExam: "NEET UG",
+    subject: "Biology",
+    questionCount: 1,
+    questionsCount: 1,
+    durationMinutes: 180,
+    isPublic: true,
+    isOfficial: false,
+    countsTowardRanking: false,
+    status: "Published",
+    sharingState: "COMMUNITY_SHARED",
+    answerKeySeparated: true
+  }));
+
+  const safeQuestion = {
+    id: "q1",
+    testId: "alice_comm_test",
+    questionText: "Which organelle produces ATP?",
+    optionA: "Nucleus",
+    optionB: "Mitochondrion",
+    optionC: "Ribosome",
+    optionD: "Golgi body",
+    options: ["Nucleus", "Mitochondrion", "Ribosome", "Golgi body"],
+    questionType: "MCQ",
+    positiveMarks: 4,
+    negativeMarks: 1,
+    section: "SECTION_A"
+  };
+  await assertSucceeds(sharedRef.collection("questions").doc("q1").set(safeQuestion));
+  await assertSucceeds(bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").get());
+  await assertSucceeds(bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").collection("questions").doc("q1").get());
+
+  await assertFails(
+    sharedRef.collection("questions").doc("q2").set({
+      ...safeQuestion,
+      id: "q2",
+      correctAnswer: "B",
+      explanation: "This would expose the key."
     })
   );
 
-  // Bob cannot delete or alter Alice's community test
-  await assertFails(
-    bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").delete()
-  );
+  const privateKeyRef = sharedRef.collection("private_keys").doc("answerKey");
+  await assertSucceeds(privateKeyRef.set({
+    testId: "alice_comm_test",
+    questions: [{ id: "q1", correctAnswer: "B", explanation: "ATP is produced by mitochondria." }],
+    updatedAt: Date.now()
+  }));
+  await assertFails(aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").collection("private_keys").doc("answerKey").get());
+  await assertFails(bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").collection("private_keys").doc("answerKey").get());
+  await assertSucceeds(adminDb.collection("Shared_Community_Tests").doc("alice_comm_test").collection("private_keys").doc("answerKey").get());
 
-  // Alice cannot reassign creatorId to Bob
-  await assertFails(
-    aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").update({
-      creatorId: BOB_UID
-    })
-  );
+  await assertFails(bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").delete());
+  await assertFails(sharedRef.update({ creatorId: BOB_UID }));
+  await assertSucceeds(sharedRef.update({ title: "Updated safe title" }));
+});
+
+test("Legacy inline Community tests remain unreadable until answer keys are separated", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Shared_Community_Tests").doc("legacy_inline_test").set({
+      creatorId: BOB_UID,
+      targetExam: "NEET UG",
+      questions: [{ id: "q1", correctAnswer: "A", explanation: "Secret" }],
+      questionsJson: "[{\\"id\\":\\"q1\\",\\"correctAnswer\\":\\"A\\"}]"
+    });
+  });
+  await assertFails(aliceDb.collection("Shared_Community_Tests").doc("legacy_inline_test").get());
 });
 
 // =========================================================================
