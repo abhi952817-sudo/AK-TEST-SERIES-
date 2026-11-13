@@ -1300,7 +1300,20 @@ exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, 
         }
       }
 
-      const completeAfterRepair = Array.isArray(privateKeys) && safeQuestions.length > 0 &&
+      const safeQuestionIds = new Set(safeQuestions.map(question => question.id));
+      const safeQuestionContentValid = safeQuestions.length > 0 &&
+        safeQuestions.every(question =>
+          typeof question.questionText === "string" && question.questionText.trim().length > 0
+        );
+      const privateKeyIds = Array.isArray(privateKeys)
+        ? new Set(privateKeys.map(key => key && key.id).filter(Boolean))
+        : new Set();
+      const privateKeysUnique = Array.isArray(privateKeys) && privateKeyIds.size === privateKeys.length;
+      const completeAfterRepair = Array.isArray(privateKeys) &&
+        safeQuestions.length > 0 &&
+        safeQuestionIds.size === safeQuestions.length &&
+        safeQuestionContentValid &&
+        privateKeysUnique &&
         safeQuestions.every(question => privateKeys.some(key =>
           key && key.id === question.id &&
           typeof key.correctAnswer === "string" && key.correctAnswer.trim().length > 0
