@@ -1,9 +1,9 @@
 # AK Test Series Community Development Plan
 
-> **Document status:** Planning baseline  
-> **Plan branch:** `feature/community-development-plan-2026-11-13`  
-> **Base branch:** `main`  
-> **Scope:** Community feature only. This document is a work plan, not authorization to merge or modify Main.  
+> **Document status:** Active implementation plan  
+> **Implementation branch:** `feature/community-mvp-completion-2026-11-13`  
+> **Base branch:** `main` after PR #6 foundation merge  
+> **Scope:** Remaining Community MVP only. Production Firebase deployment is not authorized by this plan.  
 > **Last reviewed:** 2026-11-13
 
 ## 0. First-priority MVP scope (decision recorded 2026-11-13)
@@ -77,34 +77,26 @@ Read-only inspection of the current Community code on this branch confirms the f
 6. Add report/block flows and the minimal Admin report inbox.
 7. Run Firestore emulator tests, Android unit tests and debug APK build. If any command cannot be run in the available environment, record it as NOT RUN rather than PASS.
 
-## 0.2 Implementation progress (2026-11-13)
+## 0.2 Foundation status merged to Main (2026-11-13)
 
-Work is being implemented on this feature branch only. This progress table supersedes any assumption that a planned item is complete merely because it appears in the scope above.
+The four foundation changes were completed in PR #6 and squash-merged to Main at commit `1e236d099522d63ec89ab0d11287b48315efc48c`. They are the starting baseline for the current completion branch.
 
-| Work item | Current state | Evidence / remaining work |
+| Foundation | Main status | Evidence |
 |---|---|---|
-| Read-only baseline audit | **Completed** | Community UI, Admin UI, Firestore rules, Storage rules, registry, and existing Firestore tests inspected. |
-| Mandatory registry subject | **Implemented in branch; CI pending** | Community composer and feed now use `getRegisteredSubjectsForExamName`, which returns no generic fallback. Firestore rejects blank and `General` subjects. |
-| Community PDF prohibition | **Implemented in branch; CI pending** | PDF fields removed from the Community Kotlin model, parser and new writes; Firestore rejects `pdfUrl` / `pdfFileName`. Other Admin/test PDF workflows remain intact. |
-| One-image post | **Camera/gallery flow implemented; device validation pending** | One selected JPEG/PNG/WebP image, maximum 5 MB, preview/remove, Storage upload and post image rendering. Upload failure blocks publishing. Camera uses Android preview capture and saves a temporary JPEG before upload. |
-| Safe replies | **Implemented in branch; CI pending** | Replies now use `Community_Posts/{postId}/Comments/{commentId}`; reply creator is recorded and only its author/Admin can delete. Shared parent-array writes and client counter mutation removed. |
-| Community Storage paths | **Rules + emulator tests implemented; CI pending** | `community_images/{uid}/{fileName}` is owner-write, authenticated-read, image-only, max 5 MB. Private report-evidence path is Admin/reporter-read and image-only. `storage.test.js` and a dedicated Community Rules CI workflow now exercise owner-path, PDF/MIME rejection and private-evidence access. |
-| Report/block Firestore security | **Rules scaffolding implemented; UI pending** | Private `Community_Reports` records and owner-managed `Blocked_Users` records have rules and tests authored. Report form, optional private evidence upload, block controls and Admin report inbox are not yet implemented. |
-| Single-question MCQ | **Not implemented** | One question, 4/5 options and secure answer reveal remain pending. Do not treat this PR as delivering quiz creation/attempt scoring. |
-| Automated validation | **Rules PASS; Android unit tests PASS; APK build pending** | Latest Firestore/Storage emulator run on the current rules/test head: **32 passed, 0 failed**. Android CI now uses JDK 21; latest Android run has completed the Unit Tests step successfully and is running `assembleDebug`. JDK 21 resolves the known Robolectric SDK 36 / `DefaultSdkProvider.java:170` failure previously seen on Main with JDK 17. Merge only after the current-head Android build and both current-head workflows finish successfully. |
+| Registry-only subject picker baseline | **Merged** | Composer uses `getRegisteredSubjectsForExamName`; generic/General fallback is not offered. The completion branch adds server-authoritative subject validation. |
+| Community PDF prohibition | **Merged** | Community model/write path excludes PDF fields and Firestore rejects PDF metadata. Other test-PDF workflows are not changed. |
+| One-image Community upload baseline | **Merged** | Camera/gallery, one image, preview/remove, JPEG/PNG/WebP, max 5 MB, dedicated Storage path. Completion branch adds server-side Storage object verification and cleanup. |
+| Per-reply ownership | **Merged** | Replies use `Community_Posts/{postId}/Comments/{commentId}`; creator ownership is enforced. |
+| Firestore/Storage foundation tests | **Merged** | Dedicated Community Rules CI and Storage tests are in Main. |
 
-### Implementation commits
+Do not repeat these changes unless regression testing proves a defect. The current branch extends the baseline with secure callable creation, private MCQ answer keys/attempts, report/block UI, Admin moderation and audit, and hidden-content migration.
 
-- Registry-only Community subject lookup and subject-gated composer.
-- Community PDF model/write removal and Firestore rejection.
-- Dedicated image Storage paths.
-- Per-reply documents and ownership enforcement.
-- Firestore security regression test updates.
+### Current branch validation state
 
-### Merge gate
-
-This branch is not ready to merge while Android CI is running or Firestore/Storage rules are unvalidated. The pull request is draft. Merge only after reviewing the final diff, passing Android unit tests/build, validating Firestore/Storage rules, and confirming no unrelated Main changes are included.
-
+- The branch is isolated from Main. No production Firebase deployment or data migration has been run.
+- All new Cloud Functions in this branch require deployment before the Android UI can call them in a live Firebase project.
+- CI status must be read from the exact latest branch head before merge. Emulator tests do not prove production Functions are deployed.
+- The pre-existing `Shared_Community_Tests` document still contains answer-bearing question payloads and is a separately tracked confidentiality risk. This completion branch does not claim to have redesigned the shared-test attempt/grading architecture.
 
 ## 0.3 Remaining MVP completion plan (2026-11-13)
 
@@ -121,8 +113,8 @@ The first-priority foundations have been merged to Main in PR #6. This branch st
 
 | Package | Files / systems | Required implementation | Completion evidence |
 |---|---|---|---|
-| P0-D1 MCQ contract | `CommunityUI.kt`, `firestore.rules`, `firestore.test.js` | Public post stores exactly one question and 4 or 5 non-empty options. Student/Admin creator metadata is explicit. No correct option or explanation in public post fields. | Rules tests reject 3/6 options, empty option, public answer-key fields and invalid creator metadata. |
-| P0-D2 private answer key | `CommunityUI.kt`, `firestore.rules`, `backend_functions/index.js`, new pure helper/tests | Store correct option index and explanation in `Community_MCQ_AnswerKeys/{postId}`, readable only by its creator/Admin. Client creates post and key in one batch. Cloud Function grades attempts with Admin SDK. | Another student cannot read key or write attempts; owner cannot overwrite key; callable returns answer only after first valid attempt. |
+| P0-D1 MCQ + subject contract | `CommunityUI.kt`, `firestore.rules`, `backend_functions/communitySubjectRegistry.js`, `backend_functions/communitySubjectRegistry.test.js` | Trusted callable validates subject against a versioned 23-exam mirror of `UniversalExamRegistry.kt`; public MCQ stores one question, 4/5 options and server-derived Student/Admin creator metadata. No answer or explanation in public post. Direct client creation of normal posts is denied; legacy test-share writes remain owner-bound. | Registry mirror sync test; server helper tests; rules deny direct normal-post/MCQ writes and public answer-key fields. |
+| P0-D2 private answer key | `CommunityUI.kt`, `firestore.rules`, `backend_functions/index.js`, `backend_functions/communityMvp.js` | A trusted `createCommunityPost` callable validates the payload and atomically writes the public MCQ plus a private `Community_MCQ_AnswerKeys/{postId}` document. Client key writes are denied. | Another student cannot read key or write attempts; owner cannot overwrite key; callable returns answer only after first valid attempt. |
 | P0-D3 attempt/reveal | `CommunityUI.kt`, backend callable, rules and tests | One attempt per authenticated active student per MCQ post. Server validates post type, options and answer key, writes immutable result, supports idempotent retry, and returns correct option/explanation only after attempt. | Unit tests for correct/incorrect answer, duplicate retry, invalid index, missing key, banned user, and attempt privacy. |
 | P0-E1 report flow | `CommunityUI.kt`, `firestore.rules`, `storage.rules`, `storage.test.js` | Report post/user with reason and optional one private JPEG/PNG/WebP evidence image (max 5 MB). Validate target and owner. No PDF path. | Reporter can create; student cannot read report/evidence; Admin can read evidence; suspended users cannot submit. |
 | P0-E2 block flow | `CommunityUI.kt`, `firestore.rules`, `firestore.test.js` | Block/unblock author from post actions. Exclude blocked authors' posts from ordinary student feed. Prevent self-block and duplicate/self-forged ownership. | Block owner can add/remove own entry; another user cannot; feed filter hides blocked author. |
@@ -133,8 +125,8 @@ The first-priority foundations have been merged to Main in PR #6. This branch st
 
 ### Data contracts
 
-1. `Community_Posts/{postId}` remains the public feed document. For `postType == MCQ`, it may contain `quizOptions` (4 or 5 strings) and creator metadata only. It MUST NOT contain `correctOptionIndex`, `correctAnswer`, `answerKey`, or private explanation.
-2. `Community_MCQ_AnswerKeys/{postId}` stores `creatorId`, `correctOptionIndex`, `explanation`, `createdAt`. Only the creator/Admin may read it; only the creator may create it once. Cloud Functions use Admin SDK to read it.
+1. `Community_Posts/{postId}` remains the public feed document. Normal `DISCUSSION`, `DOUBT`, and `MCQ` posts are created only by `createCommunityPost`. For `postType == MCQ`, it may contain `quizOptions` (4 or 5 strings) and server-derived `creatorRole` only. It MUST NOT contain `correctOptionIndex`, `correctAnswer`, `answerKey`, or private explanation.
+2. `Community_MCQ_AnswerKeys/{postId}` stores `creatorId`, `correctOptionIndex`, `explanation`, `createdAt`. Only the creator/Admin may read it. Client create/update/delete is denied; the trusted Cloud Function creates it atomically and reads it with Admin SDK.
 3. `Community_MCQ_Attempts/{postId}/Users/{uid}` stores `selectedOptionIndex`, `correctOptionIndex`, `isCorrect`, `explanation`, `attemptedAt`, and `postCreatorId`. Client writes are denied. The owner/Admin may read. Cloud Function writes atomically and idempotently.
 4. `Community_Reports/{reportId}` stores reporter, optional post/user target, reason, optional private evidence path, status and timestamps. Students create only; Admin reads/updates status.
 5. `Users_Data/{uid}/Blocked_Users/{blockedUid}` is an owner-managed block entry. A user cannot block themselves.
@@ -146,12 +138,18 @@ No Community PDF, multi-question quizzes, timer, multi-select answer, AI doubt/r
 
 ### Execution checklist
 
-- [ ] Implement and test P0-D1/D2/D3.
-- [ ] Implement and test P0-E1/E2/E3/E4.
-- [ ] Implement and test P0-F1/F2.
-- [ ] Review every changed file and all Community call sites.
-- [ ] Confirm no changes to non-Community PDF workflows.
-- [ ] Verify the exact PR head SHA on all CI workflows before merge.
+- [x] Implement MCQ composer, private answer-key contract, server attempt grading, and attempt-after-reveal UI.
+- [x] Implement server-side subject validation synced to all 23 canonical exam mappings.
+- [x] Implement report submission with optional private single-image evidence and owner-managed block/unblock UI.
+- [x] Implement Admin Reports inbox with resolve/dismiss/hide/restore/remove and server-side audit logging.
+- [x] Implement hidden-post visibility boundary, legacy visibility backfill callable, and feed index.
+- [ ] Run current-head Android unit tests and debug APK build.
+- [ ] Run current-head Firestore/Storage emulator tests and backend contract tests.
+- [ ] Review all Community call sites and ensure test-share owner flow remains functional.
+- [ ] Confirm non-Community PDF workflows are unchanged.
+- [ ] Review the separately tracked Shared_Community_Tests answer-key confidentiality risk.
+- [ ] Verify exact PR head SHA and CI results before merge.
+- [ ] Deploy Cloud Functions/Firestore/Storage only after separate explicit deployment approval.
 
 ## 1. Purpose and working rules
 
