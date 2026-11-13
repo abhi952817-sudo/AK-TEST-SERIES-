@@ -27,6 +27,10 @@ test("Option equivalence: index to letter and numerical precision", () => {
   assert.strictEqual(areOptionsEquivalent("B", "2"), true);
   assert.strictEqual(areOptionsEquivalent("3.14", "3.15", true), false);
   assert.strictEqual(areOptionsEquivalent("10.0", "10.000", true), true);
+  assert.strictEqual(areOptionsEquivalent("-2.5e2", "-250", true), true);
+  assert.strictEqual(areOptionsEquivalent("12abc", "12", true), false);
+  assert.strictEqual(areOptionsEquivalent("3.5kg", "3.5", true), false);
+  assert.strictEqual(areOptionsEquivalent("12abc", "12"), false);
   assert.strictEqual(areOptionsEquivalent("A", "C"), false);
 });
 
