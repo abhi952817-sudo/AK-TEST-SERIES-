@@ -36,6 +36,7 @@ fun CommunityAdminScreen(viewModel: NEETViewModel) {
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Posts") })
             Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Reports") })
             Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 }, text = { Text("Audit") })
+            Tab(selected = selectedTab == 4, onClick = { selectedTab = 4 }, text = { Text("Migrations") })
         }
 
         when (selectedTab) {
@@ -46,7 +47,8 @@ fun CommunityAdminScreen(viewModel: NEETViewModel) {
                 onOpenTest = { testId -> viewModel.handleDeepLinkTest(testId) }
             )
             2 -> CommunityAdminReportsScreen(viewModel)
-            else -> CommunityAdminAuditScreen(viewModel)
+            3 -> CommunityAdminAuditScreen(viewModel)
+            else -> CommunityAdminMigrationScreen(viewModel)
         }
     }
 }
