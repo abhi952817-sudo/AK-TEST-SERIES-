@@ -312,7 +312,8 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
         action: String,
         targetType: String,
         targetId: String,
-        targetWrite: (com.google.firebase.firestore.WriteBatch) -> Unit = {}
+        targetWrite: (com.google.firebase.firestore.WriteBatch) -> Unit = {},
+        onSuccess: () -> Unit = {}
     ) {
         val actor = adminUid ?: return
         if (!viewModel.isAdmin) return
@@ -338,7 +339,9 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
                 "createdAt" to FieldValue.serverTimestamp()
             )
         )
-        batch.commit().addOnFailureListener { error = it.localizedMessage ?: "Moderation action and audit could not be saved." }
+        batch.commit()
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { error = it.localizedMessage ?: "Moderation action and audit could not be saved." }
     }
 
     fun updateReport(report: CommunityReportRow, status: String, action: String) {
@@ -372,17 +375,20 @@ fun CommunityAdminReportsScreen(viewModel: NEETViewModel) {
     fun suspendReportedUser(report: CommunityReportRow) {
         val uid = report.reportedUserId ?: return
         val userRef = db.collection("Users_Data").document(uid)
-        commitModerationAction(report, "RESOLVED", "SUSPEND_USER", "USER", uid) { batch ->
-            batch.update(
-                userRef,
-                mapOf(
-                    "isBanned" to true,
-                    "communitySuspendedAt" to FieldValue.serverTimestamp(),
-                    "communitySuspendedBy" to adminUid.orEmpty()
+        commitModerationAction(
+            report, "RESOLVED", "SUSPEND_USER", "USER", uid,
+            targetWrite = { batch ->
+                batch.update(
+                    userRef,
+                    mapOf(
+                        "isBanned" to true,
+                        "communitySuspendedAt" to FieldValue.serverTimestamp(),
+                        "communitySuspendedBy" to adminUid.orEmpty()
+                    )
                 )
-            )
-        }
-        viewModel.fetchAdminUsers()
+            },
+            onSuccess = { viewModel.fetchAdminUsers() }
+        )
     }
 
     fun refreshReports() {
