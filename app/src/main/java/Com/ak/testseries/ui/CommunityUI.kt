@@ -452,35 +452,30 @@ fun CommunityScreen(
     }
 
     val createPostInFirebase: (CommunityPost, (Boolean) -> Unit) -> Unit = { newPost, onComplete ->
-        val db = FirebaseFirestore.getInstance()
-        val postRef = db.collection("Community_Posts").document(newPost.id)
-        val batch = db.batch()
-        batch.set(postRef, communityPostToMap(newPost))
-        var validPayload = true
+        val payload = hashMapOf<String, Any?>(
+            "post" to communityPostToMap(newPost)
+        )
         if (newPost.postType == "MCQ") {
-            val answerIndex = newPost.quizCorrectOptionIndex
-            if (answerIndex != null && answerIndex in newPost.quizOptions.indices) {
-                val answerRef = db.collection("Community_MCQ_AnswerKeys").document(newPost.id)
-                batch.set(answerRef, mapOf(
-                    "creatorId" to newPost.creatorId,
-                    "correctOptionIndex" to answerIndex,
-                    "explanation" to (newPost.quizExplanation ?: ""),
-                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                ))
-            } else {
-                validPayload = false
+            payload["quizCorrectOptionIndex"] = newPost.quizCorrectOptionIndex
+            payload["quizExplanation"] = newPost.quizExplanation ?: ""
+        }
+        com.google.firebase.functions.FirebaseFunctions.getInstance()
+            .getHttpsCallable("createCommunityPost")
+            .call(payload)
+            .addOnSuccessListener {
+                onComplete(true)
             }
-        }
-        if (validPayload) {
-            batch.commit()
-                .addOnSuccessListener { onComplete(true) }
-                .addOnFailureListener { error ->
-                    android.widget.Toast.makeText(context, error.localizedMessage ?: "Post could not be published.", android.widget.Toast.LENGTH_LONG).show()
-                    onComplete(false)
+            .addOnFailureListener { error ->
+                newPost.imageStoragePath?.let { path ->
+                    FirebaseStorage.getInstance().reference.child(path).delete()
                 }
-        } else {
-            onComplete(false)
-        }
+                android.widget.Toast.makeText(
+                    context,
+                    error.localizedMessage ?: "Post could not be published.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                onComplete(false)
+            }
     }
 
     val updatePostInFirebase: (CommunityPost) -> Unit = { updatedPost ->
