@@ -15,6 +15,7 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const { validateCommunityMcqPost, gradeCommunityMcqAttempt } = require("./communityMvp");
 
 exports.normalizeExamKey = normalizeExamKey;
 
@@ -893,3 +894,119 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   };
 });
 
+
+
+/**
+ * Securely records one Community MCQ attempt.
+ * The answer key is stored separately from the public Community post and is never
+ * readable by another student. A user's first attempt is immutable; retries return
+ * the exact previously recorded result without creating another attempt.
+ */
+exports.submitCommunityMcqAttempt = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in before attempting this question.");
+  }
+
+  const userId = context.auth.uid;
+  const postId = typeof data?.postId === "string" ? data.postId.trim() : "";
+  const selectedOptionIndex = data?.selectedOptionIndex;
+
+  if (!postId || postId.length > 128 || !Number.isInteger(selectedOptionIndex)) {
+    throw new functions.https.HttpsError("invalid-argument", "A valid post ID and selected option are required.");
+  }
+
+  const userRef = db.collection("Users_Data").doc(userId);
+  const postRef = db.collection("Community_Posts").doc(postId);
+  const keyRef = db.collection("Community_MCQ_AnswerKeys").doc(postId);
+  const attemptRef = db.collection("Community_MCQ_Attempts").doc(postId)
+    .collection("Users").doc(userId);
+
+  try {
+    return await db.runTransaction(async transaction => {
+      const [userSnapshot, postSnapshot, keySnapshot, attemptSnapshot] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(postRef),
+        transaction.get(keyRef),
+        transaction.get(attemptRef),
+      ]);
+
+      try {
+        assertActiveUserStatus(userSnapshot.exists ? userSnapshot.data() : null, userId);
+      } catch (statusError) {
+        throw new functions.https.HttpsError(statusError.code || "permission-denied", statusError.message);
+      }
+
+      if (!postSnapshot.exists) {
+        throw new functions.https.HttpsError("not-found", "Community question was not found.");
+      }
+      const post = postSnapshot.data();
+      if (post.isHidden === true || post.postType !== "MCQ") {
+        throw new functions.https.HttpsError("failed-precondition", "This question is not available for an attempt.");
+      }
+
+      const validation = validateCommunityMcqPost(post);
+      if (!validation.valid) {
+        throw new functions.https.HttpsError("failed-precondition", "This Community MCQ is invalid: " + validation.reason);
+      }
+      if (!keySnapshot.exists) {
+        throw new functions.https.HttpsError("failed-precondition", "The private answer key is unavailable.");
+      }
+      const key = keySnapshot.data();
+      if (key.creatorId !== post.creatorId ||
+          !Number.isInteger(key.correctOptionIndex) ||
+          key.correctOptionIndex < 0 ||
+          key.correctOptionIndex >= validation.options.length) {
+        throw new functions.https.HttpsError("failed-precondition", "The private answer key failed validation.");
+      }
+
+      // Idempotent retry: do not permit a second attempt or mutate the original result.
+      if (attemptSnapshot.exists) {
+        const previous = attemptSnapshot.data();
+        return {
+          success: true,
+          alreadyAttempted: true,
+          selectedOptionIndex: previous.selectedOptionIndex,
+          correctOptionIndex: previous.correctOptionIndex,
+          isCorrect: previous.isCorrect,
+          explanation: previous.explanation || "",
+        };
+      }
+
+      let grade;
+      try {
+        grade = gradeCommunityMcqAttempt(
+          selectedOptionIndex,
+          key.correctOptionIndex,
+          validation.options.length
+        );
+      } catch (validationError) {
+        throw new functions.https.HttpsError("invalid-argument", validationError.message);
+      }
+
+      const explanation = typeof key.explanation === "string" ? key.explanation.slice(0, 2000) : "";
+      transaction.create(attemptRef, {
+        postId,
+        userId,
+        postCreatorId: post.creatorId,
+        selectedOptionIndex: grade.selectedOptionIndex,
+        correctOptionIndex: grade.correctOptionIndex,
+        isCorrect: grade.isCorrect,
+        explanation,
+        attemptedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        alreadyAttempted: false,
+        selectedOptionIndex: grade.selectedOptionIndex,
+        correctOptionIndex: grade.correctOptionIndex,
+        isCorrect: grade.isCorrect,
+        explanation,
+      };
+    });
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error("submitCommunityMcqAttempt failed:", error);
+    throw new functions.https.HttpsError("internal", "Could not record this Community attempt.");
+  }
+});
