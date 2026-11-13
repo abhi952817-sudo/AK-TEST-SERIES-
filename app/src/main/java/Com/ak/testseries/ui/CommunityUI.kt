@@ -466,14 +466,12 @@ fun CommunityScreen(
     }
 
     // Attach user bookmark and like status to posts
-    val postsWithUserStatus = posts
-        .filter { post -> isAdmin || post.creatorId.isNullOrBlank() || !blockedUserIds.contains(post.creatorId) }
-        .map { post ->
-            post.copy(
-                isBookmarked = bookmarkedPostIds.contains(post.id),
-                userReaction = if (likedPostIds.contains(post.id)) "UP" else null
-            )
-        }
+    val postsWithUserStatus = posts.map { post ->
+        post.copy(
+            isBookmarked = bookmarkedPostIds.contains(post.id),
+            userReaction = if (likedPostIds.contains(post.id)) "UP" else null
+        )
+    }
 
     when (currentRoute) {
         CommunityRoute.FEED -> {
@@ -494,6 +492,8 @@ fun CommunityScreen(
                 },
                 onToggleBookmark = toggleBookmark,
                 onToggleLike = toggleLikePost,
+                blockedUserIds = blockedUserIds.toList(),
+                onUnblockUser = toggleBlockUser,
                 onExit = onExit,
                 onOpenTest = onOpenTest
             )
@@ -550,9 +550,12 @@ fun CommunityFeedScreen(
     onExit: () -> Unit,
     onOpenTest: (String) -> Unit = {},
     onToggleBookmark: (CommunityPost) -> Unit = {},
-    onToggleLike: (CommunityPost) -> Unit = {}
+    onToggleLike: (CommunityPost) -> Unit = {},
+    blockedUserIds: List<String> = emptyList(),
+    onUnblockUser: (String) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var showBlockedUsersDialog by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
     var currentTab by remember { mutableStateOf(CommunityTab.FEED) }
     var showExitDialog by remember { mutableStateOf(false) }
@@ -630,6 +633,11 @@ fun CommunityFeedScreen(
                         }
                     },
                     actions = {
+                        if (blockedUserIds.isNotEmpty()) {
+                            IconButton(onClick = { showBlockedUsersDialog = true }) {
+                                Icon(Icons.Default.PersonOff, contentDescription = "Manage blocked accounts")
+                            }
+                        }
                         IconButton(onClick = { isSearchActive = true }) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
@@ -704,9 +712,10 @@ fun CommunityFeedScreen(
             // Feed
             val filteredPosts = posts.filter {
                 val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                val isBlockedAuthor = !it.creatorId.isNullOrBlank() && blockedUserIds.contains(it.creatorId)
                 val matchesTab = when(currentTab) {
-                    CommunityTab.FEED -> true
-                    CommunityTab.BOOKMARKS -> it.isBookmarked
+                    CommunityTab.FEED -> !isBlockedAuthor
+                    CommunityTab.BOOKMARKS -> it.isBookmarked && !isBlockedAuthor
                     CommunityTab.MY_POSTS -> !currentUid.isNullOrBlank() && it.creatorId == currentUid
                 }
                 val matchesSubject = if (currentTab == CommunityTab.FEED && selectedSubject != "All") {
@@ -753,6 +762,13 @@ fun CommunityFeedScreen(
                 }
             }
         }
+    }
+    if (showBlockedUsersDialog) {
+        CommunityBlockedUsersDialog(
+            blockedUserIds = blockedUserIds,
+            onUnblock = onUnblockUser,
+            onDismiss = { showBlockedUsersDialog = false }
+        )
     }
 }
 
