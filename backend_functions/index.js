@@ -181,6 +181,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     testDoc = await db.collection("LiveTests").doc(cleanTestId).get();
   }
   if (!testDoc.exists) {
+    testDoc = await db.collection("Shared_Community_Tests").doc(cleanTestId).get();
+  }
+  if (!testDoc.exists) {
     throw new functions.https.HttpsError(
       "not-found",
       "Test document not found."
@@ -188,6 +191,10 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const testData = testDoc.data();
+  if (testDoc.ref.parent.id === "Shared_Community_Tests" &&
+      (testData.answerKeySeparated !== true || testData.sharingState !== "COMMUNITY_SHARED")) {
+    throw new functions.https.HttpsError("failed-precondition", "Community test has not passed answer-key separation.");
+  }
   if (testDoc.ref.parent.id === "LiveTests" &&
       (testData.processingStatus !== "Ready" || testData.questionsVerified !== true)
   ) {
@@ -261,6 +268,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+  if (testDoc.ref.parent.id === "Shared_Community_Tests") {
+    const keyList = privateKeyData?.questions || privateKeyData?.keys || [];
+    const keyIds = new Set(keyList.map(item => item && item.id ? String(item.id) : "").filter(Boolean));
+    if (!privateKeyDoc.exists || questions.some(question => !keyIds.has(String(question.id)))) {
+      throw new functions.https.HttpsError("failed-precondition", "Community test is missing one or more private grading keys.");
+    }
+  }
   let solutionKeys = {};
   try {
     const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
@@ -822,6 +836,10 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
 
   const testData = testDoc.data();
+  if (testDoc.ref.parent.id === "Shared_Community_Tests" &&
+      (testData.answerKeySeparated !== true || testData.sharingState !== "COMMUNITY_SHARED")) {
+    throw new functions.https.HttpsError("failed-precondition", "Community test has not passed answer-key separation.");
+  }
   const isCallerAdmin = Boolean(
     context.auth.token && (
       context.auth.token.admin === true ||
@@ -879,6 +897,13 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
 
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+  if (testDoc.ref.parent.id === "Shared_Community_Tests") {
+    const keyList = privateKeyData?.questions || privateKeyData?.keys || [];
+    const keyIds = new Set(keyList.map(item => item && item.id ? String(item.id) : "").filter(Boolean));
+    if (!privateKeyDoc.exists || questions.some(question => !keyIds.has(String(question.id)))) {
+      throw new functions.https.HttpsError("failed-precondition", "Community test is missing one or more private solution keys.");
+    }
+  }
   let solutionKeys = {};
   try {
     const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
