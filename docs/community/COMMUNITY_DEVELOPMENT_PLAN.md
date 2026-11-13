@@ -105,6 +105,54 @@ Work is being implemented on this feature branch only. This progress table super
 
 This branch is not ready to merge while Android CI is running or Firestore/Storage rules are unvalidated. The pull request is draft. Merge only after reviewing the final diff, passing Android unit tests/build, validating Firestore/Storage rules, and confirming no unrelated Main changes are included.
 
+
+## 0.3 Remaining MVP completion plan (2026-11-13)
+
+The first-priority foundations have been merged to Main in PR #6. This branch starts from that merged Main baseline and completes the remaining P0-D, P0-E and P0-F work. Do not re-implement the four completed foundations unless regression evidence requires it.
+
+### Branch and merge boundary
+
+- Completion branch: `feature/community-mvp-completion-2026-11-13`
+- Base: current `main` after PR #6 merge.
+- All remaining Community work, tests, and documentation stay on this branch until a reviewed PR is ready.
+- Do not push direct implementation commits to Main and do not merge until all current-head CI checks pass.
+
+### Remaining work packages
+
+| Package | Files / systems | Required implementation | Completion evidence |
+|---|---|---|---|
+| P0-D1 MCQ contract | `CommunityUI.kt`, `firestore.rules`, `firestore.test.js` | Public post stores exactly one question and 4 or 5 non-empty options. Student/Admin creator metadata is explicit. No correct option or explanation in public post fields. | Rules tests reject 3/6 options, empty option, public answer-key fields and invalid creator metadata. |
+| P0-D2 private answer key | `CommunityUI.kt`, `firestore.rules`, `backend_functions/index.js`, new pure helper/tests | Store correct option index and explanation in `Community_MCQ_AnswerKeys/{postId}`, readable only by its creator/Admin. Client creates post and key in one batch. Cloud Function grades attempts with Admin SDK. | Another student cannot read key or write attempts; owner cannot overwrite key; callable returns answer only after first valid attempt. |
+| P0-D3 attempt/reveal | `CommunityUI.kt`, backend callable, rules and tests | One attempt per authenticated active student per MCQ post. Server validates post type, options and answer key, writes immutable result, supports idempotent retry, and returns correct option/explanation only after attempt. | Unit tests for correct/incorrect answer, duplicate retry, invalid index, missing key, banned user, and attempt privacy. |
+| P0-E1 report flow | `CommunityUI.kt`, `firestore.rules`, `storage.rules`, `storage.test.js` | Report post/user with reason and optional one private JPEG/PNG/WebP evidence image (max 5 MB). Validate target and owner. No PDF path. | Reporter can create; student cannot read report/evidence; Admin can read evidence; suspended users cannot submit. |
+| P0-E2 block flow | `CommunityUI.kt`, `firestore.rules`, `firestore.test.js` | Block/unblock author from post actions. Exclude blocked authors' posts from ordinary student feed. Prevent self-block and duplicate/self-forged ownership. | Block owner can add/remove own entry; another user cannot; feed filter hides blocked author. |
+| P0-E3 Admin report inbox | `CommunityAdminUI.kt`, `firestore.rules`, `storage.rules` | Add Reports tab with OPEN/RESOLVED/DISMISSED states, target details and private evidence preview. Admin can resolve/dismiss, hide/restore or remove a reported post. No ordinary post approval queue. | Admin-only inbox/evidence; student cannot change report status or moderation fields. |
+| P0-E4 audit | `CommunityAdminUI.kt`, existing `NEETViewModel.logAdminAudit`, `firestore.rules` | Every report resolution, hide/restore/remove, suspend/unban action writes immutable Admin_Audit_Logs with actor, target, action, reason and timestamp. | Audit entries are Admin-readable and immutable; no client can update/delete them. |
+| P0-F1 hidden content | `CommunityUI.kt`, `firestore.rules`, tests | Hidden posts are not readable/rendered by ordinary students; owner/Admin may inspect according to moderation policy. Admin can restore. | Emulator tests verify hidden content visibility boundary. |
+| P0-F2 integration & regression | Android UI/model tests, Firebase emulator tests, CI | No AI calls in doubt/reply; no PDF Community path; no public answer key; no fake content. Run Android unit tests, debug APK build, Firestore and Storage emulator tests on exact PR head. | All current-head checks pass; any device-only checks explicitly marked NOT RUN. |
+
+### Data contracts
+
+1. `Community_Posts/{postId}` remains the public feed document. For `postType == MCQ`, it may contain `quizOptions` (4 or 5 strings) and creator metadata only. It MUST NOT contain `correctOptionIndex`, `correctAnswer`, `answerKey`, or private explanation.
+2. `Community_MCQ_AnswerKeys/{postId}` stores `creatorId`, `correctOptionIndex`, `explanation`, `createdAt`. Only the creator/Admin may read it; only the creator may create it once. Cloud Functions use Admin SDK to read it.
+3. `Community_MCQ_Attempts/{postId}/Users/{uid}` stores `selectedOptionIndex`, `correctOptionIndex`, `isCorrect`, `explanation`, `attemptedAt`, and `postCreatorId`. Client writes are denied. The owner/Admin may read. Cloud Function writes atomically and idempotently.
+4. `Community_Reports/{reportId}` stores reporter, optional post/user target, reason, optional private evidence path, status and timestamps. Students create only; Admin reads/updates status.
+5. `Users_Data/{uid}/Blocked_Users/{blockedUid}` is an owner-managed block entry. A user cannot block themselves.
+6. Admin moderation changes are recorded in existing immutable `Admin_Audit_Logs`. Do not create a parallel audit collection.
+
+### Explicit non-goals remain unchanged
+
+No Community PDF, multi-question quizzes, timer, multi-select answer, AI doubt/replies, public answer keys, real-time chat, voice/video, pre-publication approval queue, fake seed posts, or unrelated app redesign.
+
+### Execution checklist
+
+- [ ] Implement and test P0-D1/D2/D3.
+- [ ] Implement and test P0-E1/E2/E3/E4.
+- [ ] Implement and test P0-F1/F2.
+- [ ] Review every changed file and all Community call sites.
+- [ ] Confirm no changes to non-Community PDF workflows.
+- [ ] Verify the exact PR head SHA on all CI workflows before merge.
+
 ## 1. Purpose and working rules
 
 This document is the implementation guide for anyone assigned to develop the Community module. Read it before changing code.
