@@ -599,6 +599,21 @@ test("Community reports are private to Admin and block lists are owner-managed",
       createdAt: Date.now()
     })
   );
+  await assertFails(aliceDb.collection("Community_Reports").doc("self_report").set({
+    reporterId: ALICE_UID,
+    reportedUserId: ALICE_UID,
+    reason: "Self report",
+    status: "OPEN",
+    createdAt: Date.now()
+  }));
+  await assertFails(aliceDb.collection("Community_Reports").doc("wrong_target").set({
+    reporterId: ALICE_UID,
+    postId: "post_1",
+    reportedUserId: ALICE_UID,
+    reason: "Forged target",
+    status: "OPEN",
+    createdAt: Date.now()
+  }));
   await assertFails(aliceDb.collection("Community_Reports").doc("report_1").get());
   await assertFails(bobDb.collection("Community_Reports").doc("report_1").get());
   await assertSucceeds(adminDb.collection("Community_Reports").doc("report_1").get());
