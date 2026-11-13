@@ -74,6 +74,9 @@ fun CommunityAdminSettingsScreen(viewModel: NEETViewModel) {
     var retentionExpanded by remember { mutableStateOf(false) }
     val retentionOptions = listOf("7 Days", "30 Days", "60 Days", "90 Days", "Never Delete (Not Recommended)")
     var announcementText by remember { mutableStateOf("") }
+    var showRegistrySyncConfirm by remember { mutableStateOf(false) }
+    var registrySyncLoading by remember { mutableStateOf(false) }
+    var registrySyncMessage by remember { mutableStateOf<String?>(null) }
     
     // Search and filters for REAL users
     var searchKeyword by remember { mutableStateOf("") }
@@ -110,6 +113,27 @@ fun CommunityAdminSettingsScreen(viewModel: NEETViewModel) {
             .set(mapOf(key to value), com.google.firebase.firestore.SetOptions.merge())
     }
     
+    fun syncCommunityExamRegistry() {
+        if (!viewModel.isAdmin || registrySyncLoading) return
+        registrySyncLoading = true
+        registrySyncMessage = null
+        com.google.firebase.functions.FirebaseFunctions.getInstance()
+            .getHttpsCallable("syncCommunityExamSubjects")
+            .call(mapOf("dryRun" to false, "confirm" to "SYNC_COMMUNITY_EXAM_SUBJECTS"))
+            .addOnSuccessListener { response ->
+                @Suppress("UNCHECKED_CAST")
+                val result = response.data as? Map<String, Any?>
+                val exams = (result?.get("examCount") as? Number)?.toInt() ?: 0
+                val subjects = (result?.get("subjectCount") as? Number)?.toInt() ?: 0
+                registrySyncMessage = "Synced $exams exams and $subjects registered subjects."
+                registrySyncLoading = false
+            }
+            .addOnFailureListener { error ->
+                registrySyncMessage = error.localizedMessage ?: "Registry sync failed."
+                registrySyncLoading = false
+            }
+    }
+
     // Filtered users lists
     val filteredUsers = remember(users, searchKeyword, selectedTabFilter) {
         users.filter { user ->
@@ -128,6 +152,23 @@ fun CommunityAdminSettingsScreen(viewModel: NEETViewModel) {
     val totalUsersCount = users.size
     val activeUsersCount = users.count { !it.isBanned }
     val suspendedUsersCount = users.count { it.isBanned }
+
+    if (showRegistrySyncConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRegistrySyncConfirm = false },
+            title = { Text("Synchronize exam registry?") },
+            text = { Text("This writes the canonical exam aliases and registered subjects to Firestore. Deploy the updated Cloud Functions and Firestore Rules first. No student content is changed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRegistrySyncConfirm = false
+                    syncCommunityExamRegistry()
+                }) { Text("Sync registry") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRegistrySyncConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -197,6 +238,23 @@ fun CommunityAdminSettingsScreen(viewModel: NEETViewModel) {
             }
         }
         
+        item {
+            AdminSectionCard(
+                title = "Community subject registry",
+                subtitle = "Synchronize the canonical exam and subject names before enabling student posts.",
+                icon = Icons.Rounded.MenuBook
+            ) {
+                Button(
+                    onClick = { showRegistrySyncConfirm = true },
+                    enabled = viewModel.isAdmin && !registrySyncLoading
+                ) {
+                    if (registrySyncLoading) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                    else Text("Sync exam registry")
+                }
+                registrySyncMessage?.let { Text(it, color = if (it.contains("Synced")) neonGreen else warningRed) }
+            }
+        }
+
         // Real-Time Stats Row
         item {
             Row(
