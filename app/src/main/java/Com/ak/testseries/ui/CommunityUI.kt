@@ -80,6 +80,7 @@ data class CommunityPost(
     val totalMarks: Double? = null,
     val topic: String? = null,
     val quizOptions: List<String> = emptyList(),
+    val creatorRole: String = "STUDENT",
     // Transient values: never serialize the answer key or explanation into a public post.
     val quizCorrectOptionIndex: Int? = null,
     val quizExplanation: String? = null,
@@ -146,7 +147,10 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "userReaction" to null,
         "isHidden" to false
     )
-    if (post.postType == "MCQ") data["quizOptions"] = post.quizOptions
+    if (post.postType == "MCQ") {
+        data["quizOptions"] = post.quizOptions
+        data["creatorRole"] = post.creatorRole
+    }
     // quizCorrectOptionIndex and quizExplanation are written only to the private answer-key document.
     return data
 }
@@ -244,6 +248,7 @@ fun CommunityScreen(
 
     val currentAuthUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val currentUid = currentAuthUser?.uid
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     DisposableEffect(currentUid) {
         if (currentUid.isNullOrBlank()) {
@@ -441,11 +446,12 @@ fun CommunityScreen(
         }
     }
 
-    val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
+    val createPostInFirebase: (CommunityPost, (Boolean) -> Unit) -> Unit = { newPost, onComplete ->
         val db = FirebaseFirestore.getInstance()
         val postRef = db.collection("Community_Posts").document(newPost.id)
         val batch = db.batch()
         batch.set(postRef, communityPostToMap(newPost))
+        var validPayload = true
         if (newPost.postType == "MCQ") {
             val answerIndex = newPost.quizCorrectOptionIndex
             if (answerIndex != null && answerIndex in newPost.quizOptions.indices) {
@@ -457,10 +463,19 @@ fun CommunityScreen(
                     "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                 ))
             } else {
-                return@let
+                validPayload = false
             }
         }
-        batch.commit()
+        if (validPayload) {
+            batch.commit()
+                .addOnSuccessListener { onComplete(true) }
+                .addOnFailureListener { error ->
+                    android.widget.Toast.makeText(context, error.localizedMessage ?: "Post could not be published.", android.widget.Toast.LENGTH_LONG).show()
+                    onComplete(false)
+                }
+        } else {
+            onComplete(false)
+        }
     }
 
     val updatePostInFirebase: (CommunityPost) -> Unit = { updatedPost ->
@@ -518,9 +533,11 @@ fun CommunityScreen(
             CreatePostScreen(
                 targetExam = targetExam,
                 onBack = { currentRoute = CommunityRoute.FEED },
-                onPostCreated = { newPost ->
-                    createPostInFirebase(newPost)
-                    currentRoute = CommunityRoute.FEED
+                onPostCreated = { newPost, onComplete ->
+                    createPostInFirebase(newPost) { success ->
+                        if (success) currentRoute = CommunityRoute.FEED
+                        onComplete(success)
+                    }
                 }
             )
         }
@@ -587,14 +604,14 @@ fun CommunityScreen(
                             .addOnSuccessListener {
                                 reportTarget = null
                                 android.widget.Toast.makeText(
-                                    androidx.compose.ui.platform.LocalContext.current,
+                                    context,
                                     "Report submitted",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                             }
                             .addOnFailureListener {
                                 android.widget.Toast.makeText(
-                                    androidx.compose.ui.platform.LocalContext.current,
+                                    context,
                                     it.localizedMessage ?: "Report could not be submitted",
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
@@ -603,8 +620,7 @@ fun CommunityScreen(
                     if (evidenceUri == null) {
                         saveReport(null)
                     } else {
-                        val mime = androidx.compose.ui.platform.LocalContext.current.contentResolver.getType(evidenceUri) ?: ""
-                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val mime = context.contentResolver.getType(evidenceUri) ?: ""
                         val size = try {
                             context.contentResolver.openAssetFileDescriptor(evidenceUri, "r")?.use { it.length }
                         } catch (_: Exception) { null }
