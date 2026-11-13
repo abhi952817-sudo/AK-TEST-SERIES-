@@ -402,21 +402,22 @@ test("F-016: Student CANNOT read private_keys subcollection or TestAnswerKeys di
 
 test("Student: CAN create community post with own creatorId", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  await assertSucceeds(
-    aliceDb.collection("Community_Posts").doc("alice_post_1").set({
-      creatorId: ALICE_UID,
-      authorName: "Alice",
-      title: "Best revision strategy for Physics?",
-      content: "How to master Rotational Motion?",
-      subject: "Physics",
-      targetExam: "JEE Main",
-      examId: "jee_main",
-      postType: "DISCUSSION",
-      moderationState: "VISIBLE",
-      upvotes: 0,
-      comments: 0,
-    })
-  );
+  const ownPost = aliceDb.collection("Community_Posts").doc("alice_post_1");
+  await assertSucceeds(ownPost.set({
+    creatorId: ALICE_UID,
+    authorName: "Alice",
+    title: "Best revision strategy for Physics?",
+    content: "How to master Rotational Motion?",
+    subject: "Physics",
+    targetExam: "JEE Main",
+    examId: "jee_main",
+    postType: "DISCUSSION",
+    moderationState: "VISIBLE",
+    upvotes: 0,
+    comments: 0
+  }));
+  await assertSucceeds(ownPost.update({ content: "Updated Physics question" }));
+  await assertFails(ownPost.update({ subject: "General" }));
 });
 
 test("Student: CANNOT spoof isPinned or isOfficial on community post creation", async () => {
