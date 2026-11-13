@@ -137,7 +137,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "totalMarks" to post.totalMarks,
         "topic" to post.topic,
         "userReaction" to post.userReaction,
-        "commentsList" to post.commentsList.map { commentToMap(it) }
+        // Replies live in Community_Posts/{postId}/Comments/{commentId}; never write a shared array.
     )
 }
 
@@ -636,7 +636,7 @@ fun CommunityFeedScreen(
             // Subject Filter
             if (currentTab == CommunityTab.FEED) {
                 val subjects = remember(targetExam) {
-                    listOf("All") + Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(targetExam) + listOf("General")
+                    listOf("All") + Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
                 }
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 8.dp),
@@ -964,14 +964,13 @@ fun PostCard(
                     tint = if (post.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
-                if (isAdmin) {
+                val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                if (isAdmin || currentUid == post.creatorId) {
                     Spacer(modifier = Modifier.width(16.dp))
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete Post",
-                        modifier = Modifier.size(20.dp).clickable {
-                            onDeletePost(post)
-                        },
+                        modifier = Modifier.size(20.dp).clickable { onDeletePost(post) },
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -1112,14 +1111,14 @@ fun CreatePostScreen(
             }
             OutlinedTextField(
                 value = title,
-                onValueChange = { title = it },
+                onValueChange = { title = it.take(120) },
                 label = { Text("Title (optional)") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
             OutlinedTextField(
                 value = content,
-                onValueChange = { content = it },
+                onValueChange = { content = it.take(5000) },
                 label = { Text("Write your post") },
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 minLines = 4
