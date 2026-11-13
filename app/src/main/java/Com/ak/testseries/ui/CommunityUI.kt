@@ -235,15 +235,18 @@ fun CommunityScreen(
     onExit: () -> Unit = {},
     onOpenTest: (String) -> Unit = {}
 ) {
+    val canonicalTargetExam = Com.ak.testseries.exam.UniversalExamRegistry
+        .findExamByNameOrShortName(targetExam)?.examName ?: targetExam
+
     var currentRoute by remember { mutableStateOf(CommunityRoute.FEED) }
     var selectedPostId by remember { mutableStateOf<String?>(null) }
     
     val posts = remember { mutableStateListOf<CommunityPost>() }
-    var lastVisiblePostDocument by remember(targetExam) { mutableStateOf<com.google.firebase.firestore.DocumentSnapshot?>(null) }
-    var canLoadMorePosts by remember(targetExam) { mutableStateOf(true) }
+    var lastVisiblePostDocument by remember(canonicalTargetExam) { mutableStateOf<com.google.firebase.firestore.DocumentSnapshot?>(null) }
+    var canLoadMorePosts by remember(canonicalTargetExam) { mutableStateOf(true) }
     var isLoadingMorePosts by remember { mutableStateOf(false) }
     var loadMoreError by remember { mutableStateOf<String?>(null) }
-    var loadMoreAction by remember(targetExam) { mutableStateOf<(() -> Unit)?>(null) }
+    var loadMoreAction by remember(canonicalTargetExam) { mutableStateOf<(() -> Unit)?>(null) }
     val bookmarkedPostIds = remember { mutableStateListOf<String>() }
     val likedPostIds = remember { mutableStateListOf<String>() }
     val blockedUserIds = remember { mutableStateListOf<String>() }
@@ -292,7 +295,7 @@ fun CommunityScreen(
         }
     }
 
-    DisposableEffect(targetExam) {
+    DisposableEffect(canonicalTargetExam) {
         posts.clear()
         lastVisiblePostDocument = null
         canLoadMorePosts = true
@@ -335,7 +338,7 @@ fun CommunityScreen(
                     comments = (doc.getLong("comments")?.toInt() ?: parsedComments.size),
                     views = doc.getString("views") ?: "0",
                     subject = doc.getString("subject") ?: "",
-                    targetExam = doc.getString("targetExam") ?: targetExam,
+                    canonicalTargetExam = doc.getString("canonicalTargetExam") ?: canonicalTargetExam,
                     examId = doc.getString("examId"),
                     moderationState = doc.getString("moderationState") ?: "VISIBLE",
                     imageUrl = doc.getString("imageUrl"),
@@ -390,7 +393,7 @@ fun CommunityScreen(
                 isLoadingMorePosts = true
                 loadMoreError = null
                 var nextPageQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
-                    .whereEqualTo("targetExam", targetExam)
+                    .whereEqualTo("canonicalTargetExam", canonicalTargetExam)
                 if (!isAdmin) {
                     nextPageQuery = nextPageQuery.whereEqualTo("moderationState", "VISIBLE")
                 }
@@ -415,7 +418,7 @@ fun CommunityScreen(
         }
 
         var feedQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
-            .whereEqualTo("targetExam", targetExam)
+            .whereEqualTo("canonicalTargetExam", canonicalTargetExam)
         if (!isAdmin) {
             feedQuery = feedQuery.whereEqualTo("moderationState", "VISIBLE")
         }
@@ -426,7 +429,7 @@ fun CommunityScreen(
                 if (error != null) {
                     // Fallback query if compound index is building or fails
                     var fallbackQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
-                        .whereEqualTo("targetExam", targetExam)
+                        .whereEqualTo("canonicalTargetExam", canonicalTargetExam)
                     if (!isAdmin) {
                         fallbackQuery = fallbackQuery.whereEqualTo("moderationState", "VISIBLE")
                     }
@@ -606,7 +609,7 @@ fun CommunityScreen(
         CommunityRoute.FEED -> {
             CommunityFeedScreen(
                 isAdmin = isAdmin,
-                targetExam = targetExam,
+                canonicalTargetExam = canonicalTargetExam,
                 posts = postsWithUserStatus,
                 onNavigateToCreate = { currentRoute = CommunityRoute.CREATE_POST },
                 onNavigateToDetail = { post ->
@@ -633,7 +636,7 @@ fun CommunityScreen(
         }
         CommunityRoute.CREATE_POST -> {
             CreatePostScreen(
-                targetExam = targetExam,
+                canonicalTargetExam = canonicalTargetExam,
                 onBack = { currentRoute = CommunityRoute.FEED },
                 onPostCreated = { newPost, onComplete ->
                     createPostInFirebase(newPost) { error ->
