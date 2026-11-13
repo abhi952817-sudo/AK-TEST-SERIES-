@@ -15,6 +15,8 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const { validateCommunityMcqCreate, validateCommunityMcqAttempt } = require("./communityValidation");
+const crypto = require("crypto");
 
 exports.normalizeExamKey = normalizeExamKey;
 
@@ -893,3 +895,164 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   };
 });
 
+
+
+/**
+ * Creates a one-question Community MCQ. The public post contains options only;
+ * the correct option is stored in a separate server-only document.
+ */
+exports.createCommunityMcq = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to create a Community MCQ.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityMcqCreate(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const userSnap = await userRef.get();
+  try {
+    assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+
+  const requestDigest = crypto.createHash("sha256").update(JSON.stringify({
+    title: payload.title,
+    question: payload.question,
+    subject: payload.subject,
+    targetExam: payload.targetExam,
+    options: payload.options,
+    correctOptionIndex: payload.correctOptionIndex,
+    imageUrl: payload.imageUrl
+  })).digest("hex");
+  const postId = crypto.createHash("sha256").update(uid + ":" + payload.requestId).digest("hex").slice(0, 40);
+  const postRef = db.collection("Community_Posts").doc(postId);
+  const keyRef = db.collection("Community_MCQ_AnswerKeys").doc(postId);
+
+  const existing = await postRef.get();
+  if (existing.exists) {
+    const existingKey = await keyRef.get();
+    if (existing.data().creatorId !== uid || !existingKey.exists || existingKey.data().requestDigest !== requestDigest) {
+      throw new functions.https.HttpsError("already-exists", "This request ID was already used with different content.");
+    }
+    return { success: true, postId, duplicate: true };
+  }
+
+  const authorName = String(userSnap.data().name || userSnap.data().displayName || context.auth.token.name || "Student").slice(0, 80);
+  const now = Date.now();
+  const batch = db.batch();
+  batch.create(postRef, {
+    id: postId,
+    authorName,
+    authorSubtitle: payload.targetExam + " Aspirant",
+    title: payload.title,
+    content: payload.question,
+    subject: payload.subject,
+    targetExam: payload.targetExam,
+    imageUrl: payload.imageUrl,
+    postType: "MCQ",
+    mcqOptions: payload.options,
+    creatorId: uid,
+    isOfficial: false,
+    isMonitor: false,
+    isPinned: false,
+    upvotes: 0,
+    comments: 0,
+    views: "0",
+    timestamp: now,
+    moderationState: "VISIBLE"
+  });
+  batch.create(keyRef, {
+    creatorId: uid,
+    correctOptionIndex: payload.correctOptionIndex,
+    requestDigest,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+  await batch.commit();
+  return { success: true, postId, duplicate: false };
+});
+
+/**
+ * Records one canonical attempt per student and reveals the correct option only
+ * after the attempt record is committed in the same Firestore transaction.
+ */
+exports.submitCommunityMcqAttempt = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to attempt this MCQ.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityMcqAttempt(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  const keyRef = db.collection("Community_MCQ_AnswerKeys").doc(payload.postId);
+  const attemptRef = db.collection("Community_MCQ_Attempts").doc(payload.postId).collection("Users").doc(uid);
+
+  try {
+    const result = await db.runTransaction(async transaction => {
+      const userSnap = await transaction.get(userRef);
+      assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+
+      const postSnap = await transaction.get(postRef);
+      const keySnap = await transaction.get(keyRef);
+      const attemptSnap = await transaction.get(attemptRef);
+
+      if (!postSnap.exists || postSnap.data().postType !== "MCQ" || postSnap.data().moderationState === "HIDDEN") {
+        throw new functions.https.HttpsError("not-found", "Community MCQ is unavailable.");
+      }
+      const options = postSnap.data().mcqOptions;
+      if (!Array.isArray(options) || ![4, 5].includes(options.length) ||
+          payload.optionIndex < 0 || payload.optionIndex >= options.length) {
+        throw new functions.https.HttpsError("invalid-argument", "Selected option is outside the MCQ option range.");
+      }
+      if (!keySnap.exists) {
+        throw new functions.https.HttpsError("failed-precondition", "MCQ answer key is unavailable.");
+      }
+
+      if (attemptSnap.exists) {
+        const prior = attemptSnap.data();
+        return {
+          selectedOptionIndex: prior.selectedOptionIndex,
+          correctOptionIndex: prior.correctOptionIndex,
+          isCorrect: prior.isCorrect,
+          duplicate: true
+        };
+      }
+
+      const correctOptionIndex = keySnap.data().correctOptionIndex;
+      if (!Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex >= options.length) {
+        throw new functions.https.HttpsError("failed-precondition", "MCQ answer key is invalid.");
+      }
+      const attempt = {
+        userId: uid,
+        postId: payload.postId,
+        selectedOptionIndex: payload.optionIndex,
+        correctOptionIndex,
+        isCorrect: payload.optionIndex === correctOptionIndex,
+        attemptedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      transaction.create(attemptRef, attempt);
+      return {
+        selectedOptionIndex: attempt.selectedOptionIndex,
+        correctOptionIndex: attempt.correctOptionIndex,
+        isCorrect: attempt.isCorrect,
+        duplicate: false
+      };
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error("submitCommunityMcqAttempt failed", error);
+    throw new functions.https.HttpsError("internal", "MCQ attempt could not be recorded.");
+  }
+});
