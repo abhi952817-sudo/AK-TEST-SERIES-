@@ -231,6 +231,11 @@ fun CommunityScreen(
     var selectedPostId by remember { mutableStateOf<String?>(null) }
     
     val posts = remember { mutableStateListOf<CommunityPost>() }
+    var lastVisiblePostDocument by remember(targetExam) { mutableStateOf<com.google.firebase.firestore.DocumentSnapshot?>(null) }
+    var canLoadMorePosts by remember(targetExam) { mutableStateOf(true) }
+    var isLoadingMorePosts by remember { mutableStateOf(false) }
+    var loadMoreError by remember { mutableStateOf<String?>(null) }
+    var loadMoreAction by remember(targetExam) { mutableStateOf<(() -> Unit)?>(null) }
     val bookmarkedPostIds = remember { mutableStateListOf<String>() }
     val likedPostIds = remember { mutableStateListOf<String>() }
     val blockedUserIds = remember { mutableStateListOf<String>() }
@@ -342,7 +347,7 @@ fun CommunityScreen(
 
         fun updatePostsList(docs: List<com.google.firebase.firestore.DocumentSnapshot>) {
             val newPosts = docs.mapNotNull { parseDocument(it) }
-            posts.clear()
+            val existingTail = posts.toList()
             val seenShareKeys = mutableSetOf<String>()
             val deduplicated = mutableListOf<CommunityPost>()
             val sortedList = newPosts.sortedWith(compareByDescending<CommunityPost> { it.isPinned }.thenByDescending { it.timestamp })
@@ -356,7 +361,37 @@ fun CommunityScreen(
                     deduplicated.add(post)
                 }
             }
-            posts.addAll(deduplicated.distinctBy { it.id })
+            val firstPage = deduplicated.distinctBy { it.id }
+            val firstPageIds = firstPage.mapTo(mutableSetOf()) { it.id }
+            posts.clear()
+            posts.addAll(firstPage)
+            posts.addAll(existingTail.filterNot { it.id in firstPageIds })
+        }
+
+        loadMoreAction = {
+            val cursor = lastVisiblePostDocument
+            if (cursor != null && canLoadMorePosts && !isLoadingMorePosts) {
+                isLoadingMorePosts = true
+                loadMoreError = null
+                db.collection("Community_Posts")
+                    .whereEqualTo("targetExam", targetExam)
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .startAfter(cursor)
+                    .limit(20)
+                    .get()
+                    .addOnSuccessListener { page ->
+                        val nextPosts = page.documents.mapNotNull { parseDocument(it) }
+                        val existingIds = posts.mapTo(mutableSetOf()) { it.id }
+                        posts.addAll(nextPosts.filterNot { it.id in existingIds })
+                        lastVisiblePostDocument = page.documents.lastOrNull() ?: cursor
+                        canLoadMorePosts = page.documents.size == 20
+                        isLoadingMorePosts = false
+                    }
+                    .addOnFailureListener { error ->
+                        isLoadingMorePosts = false
+                        loadMoreError = error.localizedMessage ?: "More posts could not be loaded."
+                    }
+            }
         }
 
         val listenerRegistration = db.collection("Community_Posts")
@@ -378,11 +413,14 @@ fun CommunityScreen(
                 
                 if (snapshot != null) {
                     updatePostsList(snapshot.documents)
+                    lastVisiblePostDocument = snapshot.documents.lastOrNull()
+                    canLoadMorePosts = snapshot.documents.size == 20
                 }
             }
             
         onDispose {
             listenerRegistration.remove()
+            loadMoreAction = null
         }
     }
 
@@ -494,6 +532,10 @@ fun CommunityScreen(
                 onToggleLike = toggleLikePost,
                 blockedUserIds = blockedUserIds.toList(),
                 onUnblockUser = toggleBlockUser,
+                onLoadMore = { loadMoreAction?.invoke() },
+                canLoadMore = canLoadMorePosts,
+                isLoadingMore = isLoadingMorePosts,
+                loadMoreError = loadMoreError,
                 onExit = onExit,
                 onOpenTest = onOpenTest
             )
@@ -552,7 +594,11 @@ fun CommunityFeedScreen(
     onToggleBookmark: (CommunityPost) -> Unit = {},
     onToggleLike: (CommunityPost) -> Unit = {},
     blockedUserIds: List<String> = emptyList(),
-    onUnblockUser: (String) -> Unit = {}
+    onUnblockUser: (String) -> Unit = {},
+    onLoadMore: () -> Unit = {},
+    canLoadMore: Boolean = false,
+    isLoadingMore: Boolean = false,
+    loadMoreError: String? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var showBlockedUsersDialog by remember { mutableStateOf(false) }
@@ -758,6 +804,17 @@ fun CommunityFeedScreen(
                             textAlign = TextAlign.Center,
                             color = Color.Gray
                         )
+                    }
+                }
+                if (loadMoreError != null) {
+                    item { Text(loadMoreError.orEmpty(), color = MaterialTheme.colorScheme.error) }
+                }
+                if (canLoadMore) {
+                    item {
+                        Button(onClick = onLoadMore, enabled = !isLoadingMore, modifier = Modifier.fillMaxWidth()) {
+                            if (isLoadingMore) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                            else Text("Load more posts")
+                        }
                     }
                 }
             }
