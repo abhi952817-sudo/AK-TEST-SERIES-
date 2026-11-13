@@ -934,3 +934,172 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
 });
 
 
+
+
+// =========================================================================
+// COMMUNITY MVP COMPLETION: MCQ ANSWER PRIVACY, REPORTS, BLOCKS AND HIDING
+// =========================================================================
+
+test("Community MCQ: owner creates public question and private answer key atomically", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const batch = aliceDb.batch();
+  const postRef = aliceDb.collection("Community_Posts").doc("mcq_private_1");
+  const keyRef = aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1");
+  batch.set(postRef, {
+    id: "mcq_private_1",
+    creatorId: ALICE_UID,
+    creatorRole: "STUDENT",
+    authorName: "Alice",
+    title: "Which is the SI unit of force?",
+    content: "",
+    subject: "Physics",
+    targetExam: "NEET UG",
+    postType: "MCQ",
+    quizOptions: ["Newton", "Joule", "Watt", "Pascal"],
+    imageUrl: null,
+    isHidden: false,
+    timestamp: Date.now()
+  });
+  batch.set(keyRef, {
+    creatorId: ALICE_UID,
+    correctOptionIndex: 0,
+    explanation: "Force is measured in newtons.",
+    createdAt: Date.now()
+  });
+  await assertSucceeds(batch.commit());
+
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  await assertFails(bobDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").get());
+  await assertSucceeds(aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").get());
+  await assertFails(bobDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").set({
+    creatorId: BOB_UID, correctOptionIndex: 2, explanation: "Forged", createdAt: Date.now()
+  }));
+  await assertFails(aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_private_1").update({
+    correctOptionIndex: 2
+  }));
+});
+
+test("Community MCQ: rejects invalid option count, missing option and public answer leakage", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const base = {
+    creatorId: ALICE_UID,
+    creatorRole: "STUDENT",
+    title: "Question?",
+    content: "",
+    subject: "Physics",
+    targetExam: "NEET UG",
+    postType: "MCQ",
+    isHidden: false,
+    timestamp: Date.now()
+  };
+  await assertFails(aliceDb.collection("Community_Posts").doc("mcq_three_options").set({
+    ...base, quizOptions: ["A", "B", "C"]
+  }));
+  await assertFails(aliceDb.collection("Community_Posts").doc("mcq_blank_option").set({
+    ...base, quizOptions: ["A", "", "C", "D"]
+  }));
+  await assertFails(aliceDb.collection("Community_Posts").doc("mcq_answer_leak").set({
+    ...base, quizOptions: ["A", "B", "C", "D"], correctOptionIndex: 1
+  }));
+  await assertFails(aliceDb.collection("Community_Posts").doc("mcq_wrong_role").set({
+    ...base, creatorRole: "ADMIN", quizOptions: ["A", "B", "C", "D"]
+  }));
+});
+
+test("Community MCQ attempts: client cannot create attempts and only owner can read", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  await testEnv.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().collection("Community_MCQ_Attempts").doc("mcq_1")
+      .collection("Users").doc(ALICE_UID).set({
+        selectedOptionIndex: 0, correctOptionIndex: 2, isCorrect: false, explanation: "Private result"
+      });
+  });
+  await assertSucceeds(
+    aliceDb.collection("Community_MCQ_Attempts").doc("mcq_1").collection("Users").doc(ALICE_UID).get()
+  );
+  await assertFails(
+    bobDb.collection("Community_MCQ_Attempts").doc("mcq_1").collection("Users").doc(ALICE_UID).get()
+  );
+  await assertFails(
+    bobDb.collection("Community_MCQ_Attempts").doc("mcq_1").collection("Users").doc(BOB_UID).set({
+      selectedOptionIndex: 0
+    })
+  );
+});
+
+test("Community reports: evidence path is bound to reporter and report ID", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(
+    aliceDb.collection("Community_Reports").doc("report_valid_evidence").set({
+      reporterId: ALICE_UID,
+      postId: "reported_post",
+      reportedUserId: BOB_UID,
+      reason: "Harassment in this post",
+      evidenceImagePath: "community_report_evidence/" + ALICE_UID + "/report_valid_evidence",
+      status: "OPEN",
+      createdAt: Date.now()
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Reports").doc("report_forged_evidence").set({
+      reporterId: ALICE_UID,
+      reportedUserId: BOB_UID,
+      reason: "Forged path",
+      evidenceImagePath: "community_report_evidence/" + BOB_UID + "/report_forged_evidence",
+      status: "OPEN",
+      createdAt: Date.now()
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Reports").doc("report_no_target").set({
+      reporterId: ALICE_UID,
+      reason: "No target",
+      status: "OPEN",
+      createdAt: Date.now()
+    })
+  );
+});
+
+test("Community blocks: owner can block another user but cannot self-block or edit another list", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).set({
+      blockedUid: BOB_UID, createdAt: Date.now()
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(ALICE_UID).set({
+      blockedUid: ALICE_UID, createdAt: Date.now()
+    })
+  );
+  await assertFails(
+    bobDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc("other_user").set({
+      blockedUid: "other_user", createdAt: Date.now()
+    })
+  );
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).delete()
+  );
+});
+
+test("Community moderation: hidden post is readable only by Admin and owner", async () => {
+  await testEnv.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().collection("Community_Posts").doc("hidden_post").set({
+      creatorId: ALICE_UID,
+      title: "Hidden",
+      content: "Hidden content",
+      subject: "Physics",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
+      isHidden: true
+    });
+  });
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await assertSucceeds(aliceDb.collection("Community_Posts").doc("hidden_post").get());
+  await assertFails(bobDb.collection("Community_Posts").doc("hidden_post").get());
+  await assertSucceeds(adminDb.collection("Community_Posts").doc("hidden_post").get());
+});
