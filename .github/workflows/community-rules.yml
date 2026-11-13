@@ -8,6 +8,9 @@ on:
       - "storage.rules"
       - "firestore.test.js"
       - "storage.test.js"
+      - "backend_functions/index.js"
+      - "backend_functions/communityMvp.js"
+      - "backend_functions/communityMvp.test.js"
       - "firebase.json"
       - ".github/workflows/community-rules.yml"
   push:
@@ -39,6 +42,9 @@ jobs:
 
       - name: Install Firebase rules test dependencies
         run: npm install --no-save firebase-tools firebase @firebase/rules-unit-testing
+
+      - name: Check Community Cloud Functions syntax
+        run: node --check backend_functions/index.js && node --check backend_functions/communityMvp.js
 
       - name: Run Firestore and Storage emulator tests
         env:
