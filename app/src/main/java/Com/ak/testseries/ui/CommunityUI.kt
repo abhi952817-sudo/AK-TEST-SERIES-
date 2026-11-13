@@ -19,6 +19,8 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import android.net.Uri
+import android.graphics.Bitmap
+import java.io.FileOutputStream
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
@@ -1005,6 +1007,22 @@ fun CreatePostScreen(
         selectedImageUri = uri
         uploadError = null
     }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            try {
+                val imageFile = java.io.File(context.cacheDir, "community_capture_${UUID.randomUUID()}.jpg")
+                FileOutputStream(imageFile).use { output ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 88, output)
+                }
+                selectedImageUri = Uri.fromFile(imageFile)
+                uploadError = null
+            } catch (error: Exception) {
+                uploadError = error.localizedMessage ?: "Camera image could not be saved."
+            }
+        }
+    }
 
     fun publish(imageUrl: String?) {
         val uid = creatorUid ?: return
@@ -1046,7 +1064,7 @@ fun CreatePostScreen(
                                 if (uri == null) {
                                     publish(null)
                                 } else {
-                                    val mimeType = context.contentResolver.getType(uri) ?: ""
+                                    val mimeType = context.contentResolver.getType(uri) ?: if (uri.scheme == "file") "image/jpeg" else ""
                                     val size = try {
                                         context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
                                     } catch (_: Exception) { null }
@@ -1135,15 +1153,21 @@ fun CreatePostScreen(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(
+                    onClick = { cameraLauncher.launch(null) },
+                    enabled = selectedImageUri == null && !isUploading
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Camera")
+                }
+                OutlinedButton(
                     onClick = { imagePickerLauncher.launch("image/*") },
                     enabled = selectedImageUri == null && !isUploading
                 ) {
                     Icon(Icons.Default.Image, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Attach one image")
+                    Spacer(Modifier.width(4.dp))
+                    Text("Gallery")
                 }
-                Spacer(Modifier.width(8.dp))
-                Text("PDF uploads are not supported.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             uploadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
