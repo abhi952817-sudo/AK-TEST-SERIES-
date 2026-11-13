@@ -1046,7 +1046,7 @@ fun CreatePostScreen(
                                 if (uri == null) {
                                     publish(null)
                                 } else {
-                                    val mimeType = context.contentResolver.getType(uri)
+                                    val mimeType = context.contentResolver.getType(uri) ?: ""
                                     val size = try {
                                         context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
                                     } catch (_: Exception) { null }
