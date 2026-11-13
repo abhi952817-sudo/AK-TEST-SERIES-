@@ -43,12 +43,14 @@ beforeEach(async () => {
         examId: "neet_ug",
         examName: "NEET UG",
         shortName: "NEET",
+        aliases: ["neet_ug", "NEET UG", "NEET"],
         subjects: ["Physics", "Chemistry", "Botany", "Zoology"]
       });
       await db.collection("Community_Exam_Subjects").doc("jee_main").set({
         examId: "jee_main",
         examName: "JEE Main",
         shortName: "JEE",
+        aliases: ["jee_main", "JEE Main", "JEE"],
         subjects: ["Physics", "Chemistry", "Mathematics"]
       });
     });
@@ -543,6 +545,16 @@ test("Community posts reject General subject and PDF attachment fields", async (
   await assertFails(
     aliceDb.collection("Community_Posts").doc("general_subject_post").set({
       ...base, subject: "General"
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("unregistered_subject_post").set({
+      ...base, subject: "Biology"
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("forged_exam_subject_post").set({
+      ...base, subject: "Physics", targetExam: "JEE Main"
     })
   );
   await assertFails(
