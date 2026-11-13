@@ -566,6 +566,11 @@ test("Community posts reject General subject and PDF attachment fields", async (
     })
   );
   await assertFails(
+    aliceDb.collection("Community_Posts").doc("alias_exam_name_post").set({
+      ...base, subject: "Botany", targetExam: "NEET"
+    })
+  );
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("pdf_attachment_post").set({
       ...base, subject: "Botany", pdfUrl: "https://example.invalid/test.pdf"
     })
@@ -870,6 +875,21 @@ test("Shared_Community_Tests: safe question projection is public but answer keys
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
   const sharedRef = aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test");
+
+  await assertFails(aliceDb.collection("Shared_Community_Tests").doc("alias_exam_test").set({
+    testId: "alias_exam_test",
+    title: "Alias exam name must be canonical",
+    creatorId: ALICE_UID,
+    targetExam: "NEET",
+    examId: "neet_ug",
+    subject: "Botany",
+    isPublic: true,
+    isOfficial: false,
+    countsTowardRanking: false,
+    status: "Published",
+    sharingState: "COMMUNITY_SHARED",
+    answerKeySeparated: true
+  }));
 
   await assertSucceeds(sharedRef.set({
     testId: "alice_comm_test",
