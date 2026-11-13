@@ -1268,17 +1268,13 @@ exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, 
         : null;
 
       if (safeQuestions.length === 0 && Array.isArray(inlineQuestions)) {
-        try {
-          const separatedInline = splitLegacySharedQuestions(inlineQuestions, doc.id);
-          safeQuestions = separatedInline.publicQuestions;
-          privateKeys = privateKeys || separatedInline.privateKeys;
-          questionWrites = safeQuestions.map(question => ({
-            ref: doc.ref.collection("questions").doc(question.id),
-            data: question
-          }));
-        } catch (_) {
-          // The test is quarantined below if no complete private key can be reconstructed.
-        }
+        safeQuestions = inlineQuestions.map((question, index) =>
+          sanitizeSharedQuestionProjection(question, doc.id, index)
+        );
+        questionWrites = safeQuestions.map(question => ({
+          ref: doc.ref.collection("questions").doc(question.id),
+          data: question
+        }));
       }
 
       const keysComplete = Array.isArray(privateKeys) && safeQuestions.length > 0 &&
@@ -1399,6 +1395,15 @@ exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, 
         rawQuestions = JSON.parse(existing.questionsJson);
       } catch (_) {
         rawQuestions = null;
+      }
+    }
+    if (!rawQuestions) {
+      const legacyQuestionDocs = await doc.ref.collection("questions").get();
+      if (!legacyQuestionDocs.empty) {
+        rawQuestions = legacyQuestionDocs.docs.map(questionDoc => ({
+          ...questionDoc.data(),
+          id: questionDoc.id
+        }));
       }
     }
 
