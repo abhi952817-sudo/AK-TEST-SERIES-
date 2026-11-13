@@ -301,6 +301,7 @@ service cloud.firestore {
                     && request.resource.data.subject != 'General'
                     && request.resource.data.targetExam is string
                     && request.resource.data.targetExam.size() > 0
+                    && request.resource.data.postType in ['DISCUSSION', 'DOUBT', 'MCQ', 'TEST_SHARE']
                     && request.resource.data.title is string
                     && request.resource.data.title.size() <= 120
                     && request.resource.data.content is string
@@ -326,8 +327,15 @@ service cloud.firestore {
                         && request.resource.data.subject is string
                         && request.resource.data.subject.size() > 0
                         && request.resource.data.subject != 'General'
+                        && request.resource.data.title is string
+                        && request.resource.data.title.size() <= 120
                         && request.resource.data.content is string
                         && request.resource.data.content.size() <= 5000
+                        && (request.resource.data.content.size() > 0
+                            || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
+                        && (!('imageUrl' in request.resource.data)
+                            || request.resource.data.imageUrl == null
+                            || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
                         && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName']));
 
       allow delete: if isAdmin() || (isAuthenticated() && !isUserBanned(request.auth.uid) && resource.data.creatorId == request.auth.uid);
