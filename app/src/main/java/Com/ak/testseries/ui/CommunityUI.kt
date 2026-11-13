@@ -1249,7 +1249,7 @@ fun CreatePostScreen(
                                     val size = try {
                                         context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
                                     } catch (_: Exception) { null }
-                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || (size != null && size >= 5L * 1024L * 1024L)) {
+                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || (size != null && size > 5L * 1024L * 1024L)) {
                                         uploadError = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
                                     } else {
                                         isUploading = true
