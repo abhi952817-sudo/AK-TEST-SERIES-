@@ -989,15 +989,43 @@ fun CreatePostScreen(
 ) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
-    var selectedSubject by remember { mutableStateOf("General") }
+    var selectedSubject by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
     val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-    val isUserSignedIn = authUser != null
     val authorName = authUser?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
     val creatorUid = authUser?.uid
-    
     val subjects = remember(targetExam) {
-        Com.ak.testseries.exam.UniversalExamRegistry.getSubjectsForExamName(targetExam) + listOf("General")
+        Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
+    }
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        selectedImageUri = uri
+        uploadError = null
+    }
+
+    fun publish(imageUrl: String?) {
+        val uid = creatorUid ?: return
+        val cleanContent = content.trim()
+        if (selectedSubject !in subjects || (cleanContent.isBlank() && imageUrl.isNullOrBlank())) return
+        onPostCreated(
+            CommunityPost(
+                authorName = authorName,
+                authorSubtitle = "$targetExam Aspirant",
+                creatorId = uid,
+                title = title.trim().ifBlank { cleanContent.take(80) },
+                content = cleanContent,
+                subject = selectedSubject,
+                targetExam = targetExam,
+                imageUrl = imageUrl,
+                postType = "DISCUSSION",
+                timestamp = System.currentTimeMillis()
+            )
+        )
     }
 
     Scaffold(
@@ -1012,68 +1040,114 @@ fun CreatePostScreen(
                 actions = {
                     Button(
                         onClick = {
-                            if (title.isNotBlank() && content.isNotBlank() && creatorUid != null) {
-                                onPostCreated(
-                                    CommunityPost(
-                                        authorName = authorName,
-                                        authorSubtitle = "$targetExam Aspirant",
-                                        creatorId = creatorUid,
-                                        isOfficial = false,
-                                        isMonitor = false,
-                                        isPinned = false,
-                                        title = title,
-                                        content = content,
-                                        subject = selectedSubject,
-                                        targetExam = targetExam,
-                                        timeAgo = "Just now",
-                                        timestamp = System.currentTimeMillis()
-                                    )
-                                )
+                            val uid = creatorUid
+                            if (uid != null && selectedSubject in subjects && !isUploading &&
+                                (content.isNotBlank() || selectedImageUri != null)
+                            ) {
+                                val uri = selectedImageUri
+                                if (uri == null) {
+                                    publish(null)
+                                } else {
+                                    val mimeType = context.contentResolver.getType(uri)
+                                    val size = try {
+                                        context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+                                    } catch (_: Exception) { null }
+                                    if (mimeType?.startsWith("image/") != true || (size != null && size > 5L * 1024L * 1024L)) {
+                                        uploadError = "Only images up to 5 MB are allowed."
+                                    } else {
+                                        isUploading = true
+                                        val fileRef = FirebaseStorage.getInstance().reference
+                                            .child("community_images/$uid/${UUID.randomUUID()}")
+                                        val metadata = StorageMetadata.Builder().setContentType(mimeType).build()
+                                        fileRef.putFile(uri, metadata)
+                                            .addOnSuccessListener {
+                                                fileRef.downloadUrl
+                                                    .addOnSuccessListener { downloadUri ->
+                                                        isUploading = false
+                                                        publish(downloadUri.toString())
+                                                    }
+                                                    .addOnFailureListener { error ->
+                                                        isUploading = false
+                                                        uploadError = error.localizedMessage ?: "Image URL could not be loaded."
+                                                    }
+                                            }
+                                            .addOnFailureListener { error ->
+                                                isUploading = false
+                                                uploadError = error.localizedMessage ?: "Image upload failed. Please retry."
+                                            }
+                                    }
+                                }
                             }
                         },
-                        enabled = title.isNotBlank() && content.isNotBlank() && isUserSignedIn
+                        enabled = creatorUid != null && selectedSubject in subjects &&
+                            (content.isNotBlank() || selectedImageUri != null) && !isUploading
                     ) {
-                        Text("Post")
+                        Text(if (isUploading) "Uploading…" else "Post")
                     }
                 }
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            if (!isUserSignedIn) {
-                Text(
-                    text = "Please sign in to share a post with the community.",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (creatorUid == null) {
+                Text("Please sign in to post.", color = MaterialTheme.colorScheme.error)
+            }
+            Text("Subject (required)", fontWeight = FontWeight.Bold)
+            if (subjects.isEmpty()) {
+                Text("No registered subjects are available for this exam. Posting is disabled.", color = MaterialTheme.colorScheme.error)
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(subjects.size) { index ->
+                        val subject = subjects[index]
+                        FilterChip(
+                            selected = selectedSubject == subject,
+                            onClick = { selectedSubject = subject },
+                            label = { Text(subject) }
+                        )
+                    }
+                }
             }
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Title") },
-                modifier = Modifier.fillMaxWidth()
+                label = { Text("Title (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
-            Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = content,
                 onValueChange = { content = it },
-                label = { Text("Content") },
+                label = { Text("Write your post") },
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                minLines = 5
+                minLines = 4
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Subject", fontWeight = FontWeight.Bold)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                items(subjects.size) { index ->
-                    val subject = subjects[index]
-                    FilterChip(
-                        selected = selectedSubject == subject,
-                        onClick = { selectedSubject = subject },
-                        label = { Text(subject) }
-                    )
+            selectedImageUri?.let { uri ->
+                AsyncImage(
+                    model = uri,
+                    contentDescription = "Selected image preview",
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).clip(RoundedCornerShape(12.dp))
+                )
+                TextButton(onClick = { selectedImageUri = null }) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Text("Remove image")
                 }
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    enabled = selectedImageUri == null && !isUploading
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Attach one image")
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("PDF uploads are not supported.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            uploadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
 }
