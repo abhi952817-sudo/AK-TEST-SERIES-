@@ -934,3 +934,95 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
 });
 
 
+
+
+test("Community students cannot create MCQs directly or read the private answer key", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+
+  await assertFails(aliceDb.collection("Community_Posts").doc("forged_mcq").set({
+    creatorId: ALICE_UID,
+    authorName: "Alice",
+    title: "Question",
+    content: "Which is correct?",
+    subject: "Biology",
+    targetExam: "NEET UG",
+    postType: "MCQ",
+    mcqOptions: ["A", "B", "C", "D"],
+    timestamp: Date.now()
+  }));
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Community_MCQ_AnswerKeys").doc("mcq_1").set({
+      creatorId: BOB_UID,
+      correctOptionIndex: 2
+    });
+  });
+  await assertFails(aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_1").get());
+  await assertSucceeds(adminDb.collection("Community_MCQ_AnswerKeys").doc("mcq_1").get());
+});
+
+test("Community MCQ attempt is readable only by its owner and cannot be client-written", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Community_MCQ_Attempts").doc("mcq_1")
+      .collection("Users").doc(ALICE_UID).set({
+        userId: ALICE_UID,
+        selectedOptionIndex: 0,
+        correctOptionIndex: 1,
+        isCorrect: false
+      });
+  });
+
+  const aliceAttempt = aliceDb.collection("Community_MCQ_Attempts").doc("mcq_1")
+    .collection("Users").doc(ALICE_UID);
+  const bobAttempt = bobDb.collection("Community_MCQ_Attempts").doc("mcq_1")
+    .collection("Users").doc(ALICE_UID);
+  await assertSucceeds(aliceAttempt.get());
+  await assertFails(bobAttempt.get());
+  await assertFails(aliceAttempt.set({ selectedOptionIndex: 1, correctOptionIndex: 1, isCorrect: true }));
+});
+
+test("Community hidden posts are readable by Admin only", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Community_Posts").doc("hidden_post").set({
+      creatorId: BOB_UID,
+      subject: "Biology",
+      targetExam: "NEET UG",
+      title: "Hidden",
+      content: "Moderated content",
+      postType: "DISCUSSION",
+      moderationState: "HIDDEN"
+    });
+  });
+  await assertFails(aliceDb.collection("Community_Posts").doc("hidden_post").get());
+  await assertSucceeds(adminDb.collection("Community_Posts").doc("hidden_post").get());
+});
+
+test("Community moderation audit is Admin-created, Admin-readable and immutable", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const event = adminDb.collection("Community_Moderation_Audit").doc("event_1");
+  await assertFails(aliceDb.collection("Community_Moderation_Audit").doc("fake").set({
+    actorUid: ALICE_UID,
+    action: "HIDE_POST",
+    targetType: "COMMUNITY_POST",
+    targetId: "post_1",
+    reason: "fake",
+    createdAt: Date.now()
+  }));
+  await assertSucceeds(event.set({
+    actorUid: ADMIN_UID,
+    action: "HIDE_POST",
+    targetType: "COMMUNITY_POST",
+    targetId: "post_1",
+    reason: "Policy violation",
+    createdAt: Date.now()
+  }));
+  await assertSucceeds(event.get());
+  await assertFails(event.update({ reason: "tampered" }));
+  await assertFails(event.delete());
+});
