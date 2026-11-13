@@ -1097,3 +1097,53 @@ exports.moderateCommunityReport = functions.https.onCall(async (data, context) =
 
   return { success: true, action, reportId, targetId };
 });
+
+
+/** Deletes an owned Community post and its private MCQ answer/attempt records. */
+exports.deleteCommunityPost = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in before deleting a Community post.");
+  }
+  const uid = context.auth.uid;
+  const postId = typeof data?.postId === "string" ? data.postId.trim() : "";
+  if (!postId || postId.length > 128) {
+    throw new functions.https.HttpsError("invalid-argument", "A valid Community post ID is required.");
+  }
+  const isCallerAdmin = Boolean(
+    context.auth.token && (
+      context.auth.token.admin === true ||
+      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+    )
+  );
+  const postRef = db.collection("Community_Posts").doc(postId);
+  const postSnapshot = await postRef.get();
+  if (!postSnapshot.exists) return { success: true, alreadyDeleted: true };
+  const post = postSnapshot.data();
+  if (!isCallerAdmin && post.creatorId !== uid) {
+    throw new functions.https.HttpsError("permission-denied", "Only the post owner or an Admin can delete this post.");
+  }
+  if (!isCallerAdmin) {
+    const userSnapshot = await db.collection("Users_Data").doc(uid).get();
+    try {
+      assertActiveUserStatus(userSnapshot.exists ? userSnapshot.data() : null, uid);
+    } catch (statusError) {
+      throw new functions.https.HttpsError(statusError.code || "permission-denied", statusError.message);
+    }
+  }
+
+  await db.recursiveDelete(postRef);
+  await db.collection("Community_MCQ_AnswerKeys").doc(postId).delete().catch(() => {});
+  await db.recursiveDelete(db.collection("Community_MCQ_Attempts").doc(postId));
+
+  if (isCallerAdmin) {
+    await db.collection("Admin_Audit_Logs").add({
+      action: "COMMUNITY_POST_DELETED",
+      performedBy: uid,
+      targetId: postId,
+      details: { creatorId: post.creatorId || null, postType: post.postType || null },
+      clientTimestamp: Date.now(),
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+  return { success: true, alreadyDeleted: false };
+});
