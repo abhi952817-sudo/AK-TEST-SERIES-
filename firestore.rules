@@ -457,9 +457,9 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly([
                       'creatorId', 'correctOptionIndex', 'explanation', 'createdAt'
                     ])
-                    && exists(/databases/$(database)/documents/Community_Posts/$(postId))
-                    && get(/databases/$(database)/documents/Community_Posts/$(postId)).data.creatorId == request.auth.uid
-                    && get(/databases/$(database)/documents/Community_Posts/$(postId)).data.postType == 'MCQ';
+                    && existsAfter(/databases/$(database)/documents/Community_Posts/$(postId))
+                    && getAfter(/databases/$(database)/documents/Community_Posts/$(postId)).data.creatorId == request.auth.uid
+                    && getAfter(/databases/$(database)/documents/Community_Posts/$(postId)).data.postType == 'MCQ';
       allow update, delete: if false;
     }
 
