@@ -1010,3 +1010,90 @@ exports.submitCommunityMcqAttempt = functions.https.onCall(async (data, context)
     throw new functions.https.HttpsError("internal", "Could not record this Community attempt.");
   }
 });
+
+
+/**
+ * Admin-only Community report moderation. All moderation state changes and the
+ * immutable audit event are committed through the Admin SDK, not trusted to UI state.
+ */
+exports.moderateCommunityReport = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Admin authentication is required.");
+  }
+  const isCallerAdmin = Boolean(
+    context.auth.token && (
+      context.auth.token.admin === true ||
+      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+    )
+  );
+  if (!isCallerAdmin) {
+    throw new functions.https.HttpsError("permission-denied", "Only Community moderators can perform this action.");
+  }
+
+  const reportId = typeof data?.reportId === "string" ? data.reportId.trim() : "";
+  const action = typeof data?.action === "string" ? data.action.trim().toUpperCase() : "";
+  const note = typeof data?.note === "string" ? data.note.trim().slice(0, 500) : "";
+  const allowedActions = ["RESOLVE", "DISMISS", "HIDE_POST", "RESTORE_POST", "REMOVE_POST"];
+  if (!reportId || !allowedActions.includes(action)) {
+    throw new functions.https.HttpsError("invalid-argument", "A valid report ID and moderation action are required.");
+  }
+
+  const reportRef = db.collection("Community_Reports").doc(reportId);
+  const reportSnapshot = await reportRef.get();
+  if (!reportSnapshot.exists) {
+    throw new functions.https.HttpsError("not-found", "Community report was not found.");
+  }
+  const report = reportSnapshot.data();
+  const postId = typeof report.postId === "string" ? report.postId : "";
+  const postRef = postId ? db.collection("Community_Posts").doc(postId) : null;
+  const actorUid = context.auth.uid;
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  let targetId = reportId;
+
+  if (["HIDE_POST", "RESTORE_POST", "REMOVE_POST"].includes(action)) {
+    if (!postRef) {
+      throw new functions.https.HttpsError("failed-precondition", "This report does not reference a post.");
+    }
+    const postSnapshot = await postRef.get();
+    if (!postSnapshot.exists && action !== "REMOVE_POST") {
+      throw new functions.https.HttpsError("not-found", "Reported Community post no longer exists.");
+    }
+    targetId = postId;
+    if (action === "HIDE_POST") {
+      await postRef.update({ isHidden: true, moderatedAt: now, moderatedBy: actorUid });
+    } else if (action === "RESTORE_POST") {
+      await postRef.update({ isHidden: false, moderatedAt: now, moderatedBy: actorUid });
+    } else {
+      await db.recursiveDelete(postRef);
+      await db.collection("Community_MCQ_AnswerKeys").doc(postId).delete().catch(() => {});
+      await db.collection("Community_MCQ_Attempts").doc(postId).delete().catch(() => {});
+    }
+  }
+
+  if (action === "RESOLVE" || action === "DISMISS") {
+    await reportRef.update({
+      status: action === "RESOLVE" ? "RESOLVED" : "DISMISSED",
+      resolvedBy: actorUid,
+      resolvedAt: now,
+      resolutionNote: note,
+    });
+  } else if (action === "HIDE_POST" || action === "RESTORE_POST" || action === "REMOVE_POST") {
+    await reportRef.update({
+      status: "RESOLVED",
+      resolvedBy: actorUid,
+      resolvedAt: now,
+      resolutionNote: note || action,
+    });
+  }
+
+  await db.collection("Admin_Audit_Logs").add({
+    action: "COMMUNITY_" + action,
+    performedBy: actorUid,
+    targetId,
+    details: { reportId, postId, reportedUserId: report.reportedUserId || null, note },
+    clientTimestamp: Date.now(),
+    timestamp: now,
+  });
+
+  return { success: true, action, reportId, targetId };
+});
