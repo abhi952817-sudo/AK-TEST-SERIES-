@@ -19,6 +19,7 @@ const {
   validateCommunityMcqCreate,
   validateCommunityMcqAttempt,
   validateCommunityReplyCreate,
+  validateCommunityReplyDelete,
   validateCommunityReaction,
   splitLegacySharedQuestions
 } = require("./communityValidation");
@@ -1419,6 +1420,70 @@ exports.createCommunityReply = functions.https.onCall(async (data, context) => {
     }
     console.error("createCommunityReply failed", error);
     throw new functions.https.HttpsError("internal", "Reply could not be saved.");
+  }
+});
+
+/**
+ * Deletes a reply only for its author or an authorized Admin and decrements
+ * the parent counter in the same transaction.
+ */
+exports.deleteCommunityReply = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to delete a reply.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityReplyDelete(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  let isAdmin = false;
+  try {
+    validateSetAdminRoleAuth(context);
+    isAdmin = true;
+  } catch (_) {
+    isAdmin = false;
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  const commentRef = postRef.collection("Comments").doc(payload.commentId);
+
+  try {
+    const result = await db.runTransaction(async transaction => {
+      if (!isAdmin) {
+        const userSnap = await transaction.get(userRef);
+        assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+      }
+      const postSnap = await transaction.get(postRef);
+      const commentSnap = await transaction.get(commentRef);
+      if (!postSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Community post is unavailable.");
+      }
+      const currentCount = Number.isFinite(postSnap.data().comments)
+        ? Math.max(0, postSnap.data().comments)
+        : 0;
+      if (!commentSnap.exists) {
+        return { deleted: false, commentsCount: currentCount, duplicate: true };
+      }
+      if (!isAdmin && commentSnap.data().creatorId !== uid) {
+        throw new functions.https.HttpsError("permission-denied", "Only the reply author or an Admin can delete this reply.");
+      }
+      transaction.delete(commentRef);
+      const nextCount = Math.max(0, currentCount - 1);
+      transaction.update(postRef, { comments: nextCount });
+      return { deleted: true, commentsCount: nextCount, duplicate: false };
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("deleteCommunityReply failed", error);
+    throw new functions.https.HttpsError("internal", "Reply could not be deleted.");
   }
 });
 
