@@ -78,7 +78,8 @@ data class CommunityPost(
     val difficulty: String? = null,
     val classLevel: String? = null,
     val totalMarks: Double? = null,
-    val topic: String? = null
+    val topic: String? = null,
+    val mcqOptions: List<String> = emptyList()
 )
 
 data class CommunityComment(
@@ -139,6 +140,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "totalMarks" to post.totalMarks,
         "topic" to post.topic,
         "userReaction" to post.userReaction,
+        "mcqOptions" to post.mcqOptions,
         // Replies live in Community_Posts/{postId}/Comments/{commentId}; never write a shared array.
     )
 }
@@ -231,6 +233,7 @@ fun CommunityScreen(
     val posts = remember { mutableStateListOf<CommunityPost>() }
     val bookmarkedPostIds = remember { mutableStateListOf<String>() }
     val likedPostIds = remember { mutableStateListOf<String>() }
+    val blockedUserIds = remember { mutableStateListOf<String>() }
 
     val currentAuthUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val currentUid = currentAuthUser?.uid
@@ -240,6 +243,7 @@ fun CommunityScreen(
         if (currentUid.isNullOrBlank()) {
             bookmarkedPostIds.clear()
             likedPostIds.clear()
+            blockedUserIds.clear()
             return@DisposableEffect onDispose {}
         }
         val db = FirebaseFirestore.getInstance()
@@ -259,9 +263,18 @@ fun CommunityScreen(
                     likedPostIds.addAll(snapshot.documents.map { it.id })
                 }
             }
+        val blockedListener = db.collection("Users_Data").document(currentUid)
+            .collection("Blocked_Users")
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    blockedUserIds.clear()
+                    blockedUserIds.addAll(snapshot.documents.map { it.id })
+                }
+            }
         onDispose {
             bookmarkListener.remove()
             likedListener.remove()
+            blockedListener.remove()
         }
     }
 
@@ -270,6 +283,7 @@ fun CommunityScreen(
 
         fun parseDocument(doc: com.google.firebase.firestore.DocumentSnapshot): CommunityPost? {
             return try {
+                if (!isAdmin && doc.getString("moderationState") == "HIDDEN") return null
                 val rawComments = doc.get("commentsList") as? List<Map<String, Any?>> ?: emptyList()
                 val parsedComments = rawComments.mapNotNull { cMap ->
                     try {
@@ -318,7 +332,8 @@ fun CommunityScreen(
                     totalMarks = doc.getDouble("totalMarks") ?: doc.getLong("totalMarks")?.toDouble(),
                     topic = doc.getString("topic"),
                     userReaction = doc.getString("userReaction"),
-                    commentsList = parsedComments
+                    commentsList = parsedComments,
+                    mcqOptions = (doc.get("mcqOptions") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
                 )
             } catch (e: Exception) {
                 null
@@ -417,6 +432,21 @@ fun CommunityScreen(
         db.collection("Community_Posts").document(newPost.id).set(communityPostToMap(newPost))
     }
 
+    val toggleBlockUser: (String) -> Unit = { blockedUid ->
+        val uid = currentUid
+        if (!uid.isNullOrBlank() && blockedUid.isNotBlank() && blockedUid != uid) {
+            val ref = FirebaseFirestore.getInstance().collection("Users_Data").document(uid)
+                .collection("Blocked_Users").document(blockedUid)
+            if (blockedUserIds.contains(blockedUid)) {
+                blockedUserIds.remove(blockedUid)
+                ref.delete()
+            } else {
+                blockedUserIds.add(blockedUid)
+                ref.set(mapOf("blockedUid" to blockedUid, "createdAt" to System.currentTimeMillis()))
+            }
+        }
+    }
+
     val updatePostInFirebase: (CommunityPost) -> Unit = { updatedPost ->
         val db = FirebaseFirestore.getInstance()
         if (currentUid == updatedPost.creatorId || isAdmin) {
@@ -473,7 +503,8 @@ fun CommunityScreen(
                 onPostCreated = { newPost ->
                     createPostInFirebase(newPost)
                     currentRoute = CommunityRoute.FEED
-                }
+                },
+                onMcqCreated = { currentRoute = CommunityRoute.FEED }
             )
         }
         CommunityRoute.POST_DETAIL -> {
@@ -489,6 +520,8 @@ fun CommunityScreen(
                     onToggleBookmark = toggleBookmark,
                     onToggleLike = toggleLikePost,
                     onAddComment = addCommentToPost,
+                    onToggleBlockUser = toggleBlockUser,
+                    isAuthorBlocked = post.creatorId?.let { blockedUserIds.contains(it) } == true,
                     onDeletePost = { p ->
                         deletePostInFirebase(p)
                         currentRoute = CommunityRoute.FEED
@@ -985,7 +1018,8 @@ fun PostCard(
 fun CreatePostScreen(
     targetExam: String,
     onBack: () -> Unit,
-    onPostCreated: (CommunityPost) -> Unit
+    onPostCreated: (CommunityPost) -> Unit,
+    onMcqCreated: () -> Unit = {}
 ) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
@@ -993,6 +1027,11 @@ fun CreatePostScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isUploading by remember { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf<String?>(null) }
+    var selectedPostType by remember { mutableStateOf("DISCUSSION") }
+    var optionCount by remember { mutableStateOf(4) }
+    var optionTexts by remember { mutableStateOf(listOf("", "", "", "", "")) }
+    var correctOptionIndex by remember { mutableStateOf(0) }
+    var creatingMcq by remember { mutableStateOf(false) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
@@ -1027,7 +1066,39 @@ fun CreatePostScreen(
     fun publish(imageUrl: String?) {
         val uid = creatorUid ?: return
         val cleanContent = content.trim()
-        if (selectedSubject !in subjects || (cleanContent.isBlank() && imageUrl.isNullOrBlank())) return
+        if (selectedSubject !in subjects || cleanContent.isBlank()) return
+        if (selectedPostType == "MCQ") {
+            val options = optionTexts.take(optionCount).map { it.trim() }
+            if (options.any { it.isBlank() } || options.distinctBy { it.lowercase() }.size != optionCount ||
+                correctOptionIndex !in options.indices
+            ) {
+                uploadError = "Enter $optionCount different options and select one correct option."
+                return
+            }
+            creatingMcq = true
+            val payload = hashMapOf<String, Any>(
+                "title" to title.trim().ifBlank { cleanContent.take(120) },
+                "question" to cleanContent,
+                "subject" to selectedSubject,
+                "targetExam" to targetExam,
+                "options" to options,
+                "correctOptionIndex" to correctOptionIndex,
+                "authorName" to authorName
+            )
+            if (!imageUrl.isNullOrBlank()) payload["imageUrl"] = imageUrl
+            com.google.firebase.functions.FirebaseFunctions.getInstance()
+                .getHttpsCallable("createCommunityMcq")
+                .call(payload)
+                .addOnSuccessListener {
+                    creatingMcq = false
+                    onMcqCreated()
+                }
+                .addOnFailureListener { error ->
+                    creatingMcq = false
+                    uploadError = error.localizedMessage ?: "MCQ could not be published."
+                }
+            return
+        }
         onPostCreated(
             CommunityPost(
                 authorName = authorName,
@@ -1038,7 +1109,7 @@ fun CreatePostScreen(
                 subject = selectedSubject,
                 targetExam = targetExam,
                 imageUrl = imageUrl,
-                postType = "DISCUSSION",
+                postType = selectedPostType,
                 timestamp = System.currentTimeMillis()
             )
         )
@@ -1057,8 +1128,9 @@ fun CreatePostScreen(
                     Button(
                         onClick = {
                             val uid = creatorUid
-                            if (uid != null && selectedSubject in subjects && !isUploading &&
-                                (content.isNotBlank() || selectedImageUri != null)
+                            if (uid != null && selectedSubject in subjects && !isUploading && !creatingMcq &&
+                                content.isNotBlank() &&
+                                (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() })
                             ) {
                                 val uri = selectedImageUri
                                 if (uri == null) {
@@ -1096,9 +1168,11 @@ fun CreatePostScreen(
                             }
                         },
                         enabled = creatorUid != null && selectedSubject in subjects &&
-                            (content.isNotBlank() || selectedImageUri != null) && !isUploading
+                            content.isNotBlank() &&
+                            (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() }) &&
+                            !isUploading && !creatingMcq
                     ) {
-                        Text(if (isUploading) "Uploading…" else "Post")
+                        Text(if (isUploading || creatingMcq) "Publishing…" else "Post")
                     }
                 }
             )
@@ -1110,6 +1184,12 @@ fun CreatePostScreen(
         ) {
             if (creatorUid == null) {
                 Text("Please sign in to post.", color = MaterialTheme.colorScheme.error)
+            }
+            Text("Post type", fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("DISCUSSION" to "Discussion", "DOUBT" to "Doubt", "MCQ" to "MCQ").forEach { (type, label) ->
+                    FilterChip(selected = selectedPostType == type, onClick = { selectedPostType = type }, label = { Text(label) })
+                }
             }
             Text("Subject (required)", fontWeight = FontWeight.Bold)
             if (subjects.isEmpty()) {
@@ -1140,6 +1220,27 @@ fun CreatePostScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 minLines = 4
             )
+            if (selectedPostType == "MCQ") {
+                Text("One question • one correct option", fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(4, 5).forEach { count ->
+                        FilterChip(selected = optionCount == count, onClick = { optionCount = count }, label = { Text("$count options") })
+                    }
+                }
+                for (index in 0 until optionCount) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = correctOptionIndex == index, onClick = { correctOptionIndex = index })
+                        OutlinedTextField(
+                            value = optionTexts[index],
+                            onValueChange = { value -> optionTexts = optionTexts.toMutableList().also { it[index] = value.take(500) } },
+                            label = { Text("Option ${index + 1}") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                }
+                Text("The correct answer stays hidden until a student submits an attempt.", style = MaterialTheme.typography.bodySmall)
+            }
             selectedImageUri?.let { uri ->
                 AsyncImage(
                     model = uri,
@@ -1185,9 +1286,12 @@ fun PostDetailScreen(
     onOpenTest: (String) -> Unit = {},
     onToggleBookmark: (CommunityPost) -> Unit = {},
     onToggleLike: (CommunityPost) -> Unit = {},
-    onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> }
+    onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> },
+    onToggleBlockUser: (String) -> Unit = {},
+    isAuthorBlocked: Boolean = false
 ) {
     var commentText by remember { mutableStateOf("") }
+    var showReportDialog by remember(post.id) { mutableStateOf(false) }
     var comments by remember(post.id) { mutableStateOf(post.commentsList.distinctBy { it.id }) }
     val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
 
@@ -1226,6 +1330,18 @@ fun PostDetailScreen(
                     }
                 },
                 actions = {
+                    val viewerUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                    if (viewerUid != null && viewerUid != post.creatorId) {
+                        IconButton(onClick = { onToggleBlockUser(post.creatorId.orEmpty()) }) {
+                            Icon(
+                                if (isAuthorBlocked) Icons.Default.PersonAdd else Icons.Default.Block,
+                                contentDescription = if (isAuthorBlocked) "Unblock author" else "Block author"
+                            )
+                        }
+                        IconButton(onClick = { showReportDialog = true }) {
+                            Icon(Icons.Default.Flag, contentDescription = "Report post or author")
+                        }
+                    }
                     IconButton(onClick = { onToggleBookmark(post) }) {
                         Icon(
                             if (post.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
@@ -1307,6 +1423,13 @@ fun PostDetailScreen(
                 )
             }
         }
+    }
+    if (showReportDialog) {
+        CommunityReportDialog(
+            post = post,
+            onDismiss = { showReportDialog = false },
+            onSubmitted = { showReportDialog = false }
+        )
     }
 }
 
