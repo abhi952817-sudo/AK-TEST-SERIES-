@@ -13,7 +13,7 @@
   ],
   "firestore": [
     {
-      "database": "ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf",
+      "database": "(default)",
       "rules": "firestore.rules",
       "indexes": "firestore.indexes.json"
     }

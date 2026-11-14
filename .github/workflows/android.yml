@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FIREBASE_CONFIG_AVAILABLE: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 != '' }}
 
     steps:
     - uses: actions/checkout@v4
@@ -27,6 +29,22 @@ jobs:
     - name: Setup Environment File
       run: cp .env.example .env
 
+    - name: Configure Firebase Android client (from GitHub Secret)
+      env:
+        GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+      run: |
+        if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON_BASE64 is required for main-branch builds."
+            exit 1
+          fi
+          echo "::warning::GOOGLE_SERVICES_JSON_BASE64 is missing. Unit tests and APK compilation will run, but Firebase runtime initialization is not verified."
+          exit 0
+        fi
+        printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+        jq -e '.project_info.project_id and .client[0].client_info.mobilesdk_app_id and any(.client[]?.client_info?.android_client_info?.package_name == "Com.ak.testseries")' app/google-services.json >/dev/null
+        echo "Firebase Android configuration validated for Com.ak.testseries."
+
     - name: Generate Debug Keystore
       run: |
         keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
@@ -41,6 +59,19 @@ jobs:
 
     - name: Build with Gradle
       run: gradle assembleDebug
+
+    - name: Compile Firebase runtime smoke test APK
+      run: gradle assembleDebugAndroidTest
+
+    - name: Run Firebase runtime initialization smoke test on emulator
+      if: ${{ env.FIREBASE_CONFIG_AVAILABLE == 'true' }}
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 35
+        target: google_apis
+        arch: x86_64
+        disable-animations: true
+        script: gradle connectedDebugAndroidTest
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
