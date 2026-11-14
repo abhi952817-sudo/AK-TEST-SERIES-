@@ -2021,6 +2021,18 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val genIsLive = MutableStateFlow(false)
     val genIsPublic = MutableStateFlow(true)
     val autoShareToCommunity = MutableStateFlow(false)
+
+    private val _pendingCommunityShareTest = MutableStateFlow<TestEntity?>(null)
+    val pendingCommunityShareTest: StateFlow<TestEntity?> = _pendingCommunityShareTest.asStateFlow()
+
+    fun cancelCommunityShareVerification() {
+        _pendingCommunityShareTest.value = null
+    }
+
+    fun confirmCommunityShareVerification(test: TestEntity, selectedSubject: String) {
+        _pendingCommunityShareTest.value = null
+        shareTestToCommunity(test, selectedSubject)
+    }
     val genLiveScheduledTime = MutableStateFlow("2026-07-20 10:00 AM")
     val genLiveDurationMinutes = MutableStateFlow(180)
     val allQuestionsList = ArrayList<org.json.JSONObject>()
@@ -2157,7 +2169,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun shareTestToCommunity(test: TestEntity) {
+    fun shareTestToCommunity(test: TestEntity, selectedSubject: String? = null) {
+        if (selectedSubject.isNullOrBlank()) {
+            val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+            if (uid.isNullOrBlank()) {
+                android.widget.Toast.makeText(getApplication(), "Please sign in to share tests", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            if (isCurrentUserBanned.value) {
+                android.widget.Toast.makeText(getApplication(), "Your account has been suspended by administration. Community sharing is disabled.", android.widget.Toast.LENGTH_LONG).show()
+                return
+            }
+            if (test.uploaderId != uid) {
+                android.widget.Toast.makeText(getApplication(), "Only the test owner can share this test", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            _pendingCommunityShareTest.value = test
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
             val currentUser = auth.currentUser
@@ -2445,7 +2474,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val canonicalCommunityTargetExam = communityExamConfig.examName
                 val communityRegisteredSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
-                val communityShareSubject = test.subject.takeIf { it in communityRegisteredSubjects } ?: "Full Syllabus"
+                val selectedRegisteredSubject = communityRegisteredSubjects.firstOrNull { it.equals(selectedSubject.trim(), ignoreCase = true) }
+                val actualQuestionSubjects = questionsList.mapNotNull { (it["subject"] as? String)?.trim() }
+                    .filter { it.isNotBlank() }.toSet()
+                val fullSyllabusVerified = communityRegisteredSubjects.isNotEmpty() &&
+                    communityRegisteredSubjects.all { expected -> actualQuestionSubjects.any { it.equals(expected, ignoreCase = true) } }
+                if (questionsList.isEmpty()) {
+                    throw IllegalStateException("The test has no readable questions, so it cannot be shared.")
+                }
+                val communityShareSubject = when {
+                    selectedSubject.trim().equals("Full Syllabus", ignoreCase = true) && fullSyllabusVerified -> "Full Syllabus"
+                    selectedRegisteredSubject != null && actualQuestionSubjects.any { it.equals(selectedRegisteredSubject, ignoreCase = true) } -> selectedRegisteredSubject
+                    else -> throw IllegalArgumentException("Selected subject does not match the actual questions in this test. Check the exam and subject mapping.")
+                }
 
                 val authorName = _userProfile.value.name.takeIf { it.isNotBlank() }
                     ?: currentUser.displayName?.takeIf { it.isNotBlank() }
@@ -2545,6 +2586,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     authorName = authorName,
                     authorSubtitle = authorSubtitle,
                     targetExam = canonicalCommunityTargetExam,
+                    selectedSubject = communityShareSubject,
                     totalMarks = calculatedTotalMarks,
                     questionCount = finalQuestionCount,
                     durationMinutes = durationMinutes,
