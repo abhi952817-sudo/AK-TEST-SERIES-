@@ -27,6 +27,18 @@ jobs:
     - name: Setup Environment File
       run: cp .env.example .env
 
+    - name: Configure Firebase Android client (from GitHub Secret)
+      env:
+        GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+      run: |
+        if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+          echo "::warning::GOOGLE_SERVICES_JSON_BASE64 is not configured. CI can compile, but Firebase runtime initialization is NOT verified."
+          exit 0
+        fi
+        printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+        jq -e '.project_info.project_id and .client[0].client_info.mobilesdk_app_id and any(.client[]?.client_info?.android_client_info?.package_name == "Com.ak.testseries")' app/google-services.json >/dev/null
+        echo "Firebase Android configuration validated for Com.ak.testseries."
+
     - name: Generate Debug Keystore
       run: |
         keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
