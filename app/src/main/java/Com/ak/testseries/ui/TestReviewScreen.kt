@@ -148,6 +148,7 @@ fun TestReviewScreen(
                 pdfUriForCrop?.let { uri ->
                     PdfCropperOverlay(
                         pdfUri = uri,
+                        testId = testId,
                         questionId = question.id,
                         onCropSuccess = { webpUrl ->
                             scope.launch {
@@ -393,6 +394,7 @@ fun OptionRowIndicator(label: String, text: String, isCorrect: Boolean) {
 @Composable
 fun PdfCropperOverlay(
     pdfUri: Uri,
+    testId: String,
     questionId: String,
     onCropSuccess: (String) -> Unit,
     onDismiss: () -> Unit
@@ -524,6 +526,7 @@ fun PdfCropperOverlay(
                                         // Compress and Upload
                                         compressAndUploadToFirebase(
                                             bitmap = croppedBitmap,
+                                            testId = testId,
                                             questionId = questionId,
                                             onSuccess = { downloadUrl ->
                                                 isUploading = false
@@ -649,6 +652,7 @@ fun PdfCropperOverlay(
  */
 suspend fun compressAndUploadToFirebase(
     bitmap: Bitmap,
+    testId: String,
     questionId: String,
     onSuccess: (String) -> Unit,
     onFailure: (Exception) -> Unit
@@ -677,8 +681,10 @@ suspend fun compressAndUploadToFirebase(
                     val downloadUrl = uri.toString()
                     
                     // Update Firestore document with downloaded image URL
-                                        try {
+                                    try {
                         FirebaseFirestore.getInstance()
+                            .collection("Tests_Data")
+                            .document(testId)
                             .collection("questions")
                             .document(questionId)
                             .update("imageUrl", downloadUrl)
