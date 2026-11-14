@@ -1281,3 +1281,41 @@ test("Community doubt posts require question text even when an image is attached
     content: "Why does this process occur?"
   }));
 });
+
+
+test("Community Doubt accepts bounded highlighted text spans and rejects malformed span collections", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const base = {
+    creatorId: ALICE_UID,
+    authorName: "Alice",
+    title: "Highlighted doubt",
+    content: "Why does this reaction occur?",
+    subject: "Botany",
+    targetExam: "NEET UG",
+    examId: "neet_ug",
+    postType: "DOUBT",
+    moderationState: "VISIBLE",
+    timestamp: Date.now()
+  };
+
+  await assertSucceeds(
+    aliceDb.collection("Community_Posts").doc("doubt_with_highlight").set({
+      ...base,
+      highlightedSpans: [{ start: 0, end: 8 }, { start: 14, end: 22 }]
+    })
+  );
+
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("too_many_highlights").set({
+      ...base,
+      highlightedSpans: Array.from({ length: 21 }, (_, index) => ({ start: index, end: index + 1 }))
+    })
+  );
+
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("malformed_highlights").set({
+      ...base,
+      highlightedSpans: "not-a-list"
+    })
+  );
+});
