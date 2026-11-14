@@ -27,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.json.JSONArray
 
 /**
  * Requires an explicit exam/subject confirmation before a test is shared to Community.
@@ -37,6 +36,7 @@ import org.json.JSONArray
 @Composable
 fun CommunityTestVerificationDialog(
     test: TestEntity,
+    availableSubjects: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
@@ -44,39 +44,7 @@ fun CommunityTestVerificationDialog(
         UniversalExamRegistry.findExamByNameOrShortName(test.targetExam)
     }
     val examName = exam?.examName ?: test.targetExam
-    val registeredSubjects = remember(examName) {
-        UniversalExamRegistry.getRegisteredSubjectsForExamName(examName)
-    }
-    val actualQuestionSubjects = remember(test.id, test.questionsJson, test.subject) {
-        val found = linkedSetOf<String>()
-        val raw = test.questionsJson.orEmpty()
-        if (raw.isNotBlank()) {
-            runCatching {
-                val array = JSONArray(raw)
-                for (index in 0 until array.length()) {
-                    val question = array.optJSONObject(index) ?: continue
-                    question.optString("subject", "").trim().takeIf { it.isNotBlank() }?.let(found::add)
-                }
-            }
-        }
-        if (found.isEmpty() && test.subject.isNotBlank() && !test.subject.equals("Full Syllabus", true)) {
-            found.add(test.subject.trim())
-        }
-        found.toSet()
-    }
-    val availableSubjects = remember(registeredSubjects, actualQuestionSubjects) {
-        registeredSubjects.filter { expected ->
-            actualQuestionSubjects.any { actual -> actual.equals(expected, ignoreCase = true) }
-        }
-    }
-    val fullSyllabusVerified = remember(registeredSubjects, actualQuestionSubjects) {
-        registeredSubjects.isNotEmpty() && registeredSubjects.all { expected ->
-            actualQuestionSubjects.any { actual -> actual.equals(expected, ignoreCase = true) }
-        }
-    }
-    val choices = remember(availableSubjects, fullSyllabusVerified) {
-        availableSubjects + if (fullSyllabusVerified) listOf("Full Syllabus") else emptyList()
-    }
+    val choices = remember(test.id, availableSubjects) { availableSubjects.distinct() }
     var selectedSubject by remember(test.id, choices) {
         mutableStateOf(choices.firstOrNull().orEmpty())
     }
