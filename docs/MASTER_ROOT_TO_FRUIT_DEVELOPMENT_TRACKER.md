@@ -1092,3 +1092,40 @@ Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. 
 - `pauseTest()` serializes question index, remaining time, answers, marked/checked/visited sets and per-question time into SharedPreferences; `startTest()` restores that snapshot.
 - The inspected answer-selection path only updates in-memory StateFlows. The only call site found for `pauseTest()` in `MainActivity.kt` is the explicit pause-confirmation button; no answer-change debounce save or lifecycle/background autosave call was found in the inspected app entry point.
 - **UPLOAD-NEET-011 — MEDIUM/HIGH/RELIABILITY:** test progress is saved on explicit pause, but automatic crash/background/force-close persistence is not established. Add debounced local progress writes on answer/navigation/timer checkpoints and lifecycle stop, with account+test scoped keys, then test process death and account switching.
+
+
+---
+
+## 25. Firebase project/app identity reconciliation — BLOCKER before NEET flow changes
+
+**User requirement:** preserve the Firebase project/app that already contains the larger and more complete existing dataset/configuration. A recently integrated Firebase app/project may belong to a separate app and must not silently replace or split the existing production data. Compare first; do not remove, migrate, deploy rules, or delete anything until the authoritative project is identified.
+
+### 25.1 Static evidence from integration branch `integration/root-to-fruit-master-2026-11-13`
+
+- `firebase.json` targets named Firestore database ID:
+  `ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612`.
+- `app/src/main/res/values/firebase_applet_config.xml` selects the same named database ID.
+- `FirestoreHelper.kt` uses that named database ID when the resource is available.
+- `backend_functions/index.js` also selects the same named database ID through `admin.firestore(FIRESTORE_DATABASE_ID)`.
+- Thus the Android named-database setting, Functions database setting, and checked-in Firebase CLI database target are aligned to the `4a0...` database ID on this integration branch.
+- **Important distinction:** a Firestore *database ID* is not a Firebase *project ID*. The checked-in values above do not establish which Firebase project owns that database.
+
+### 25.2 Confirmed configuration hazards
+
+- `.firebaserc` was not found on this branch. The active Firebase CLI project/alias therefore cannot be established from this repository snapshot; a deploy command could target whichever project is selected locally.
+- `app/google-services.json` was not found in the tracked branch. It may be intentionally local/ignored, but the actual Android Firebase project ID, app ID, API key, and package registration cannot be verified from GitHub source.
+- `NEETApplication.kt` contains a programmatic fallback that incorrectly uses the named Firestore database ID as the Firebase project ID and supplies placeholder-looking app/API-key values. This is not a trustworthy Firebase project identity configuration.
+- `FirestoreHelper.getInstance()` catches named-database initialization errors and falls back to the default Firestore database. This can silently send app reads/writes to a different database than the one selected by the resource/Functions.
+- A code-search result from another repository revision/branch showed a different named database ID ending `9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`; do not port that value or assume it is the desired project without checking the exact branch and live Firebase Console data.
+
+### 25.3 Required comparison before any Firebase replacement or rules deployment
+
+1. Identify every Firebase project and Android Firebase app involved, including the currently integrated one and the older/established app.
+2. For each project, compare Firebase Project ID, Android App ID/package registration, Firestore database IDs, Auth providers/users, collection/document counts and representative schemas, Storage buckets/object counts, Functions deployment/region, indexes, rules, App Check, and enabled services.
+3. Confirm which project contains the larger/authoritative student, test, attempt, ranking, community, and admin configuration data. Do not infer this from a project name or a database ID.
+4. Export/backup and verify the chosen project's data before any migration or cutover. Never merge data or deploy rules to an unconfirmed project.
+5. Set one explicit project alias for the intended deployment target; align Android `google-services.json`, Firebase initialization, named Firestore database ID, Functions database selection, Storage bucket, Auth, and rules/index deployment to that same project.
+6. Remove the silent default-database fallback. Firebase initialization/database selection must fail visibly and safely if the configured project/database is unavailable; it must never silently switch databases.
+7. Run Firestore/Storage emulator tests and a controlled read-only identity smoke test before any production write or rules deployment.
+
+**Status:** `BLOCKED — IDENTITY/DATA INVENTORY REQUIRED`. Static source inspection only; no Firebase Console/API access, live project comparison, data counts, export, code changes, rules deployment, migration, or project removal performed. Preserve both Firebase integrations until the authoritative data owner is proven.
