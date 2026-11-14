@@ -229,9 +229,11 @@ class OkHttpGoogleDriveApiClient(
                 for (i in 0 until files.length()) {
                     val fileObj = files.getJSONObject(i)
                     val backup = GoogleDriveRemoteBackup.fromDriveFileJson(fileObj)
-                    // Strict zero-trust filter: only include backups owned by active user
-                    if (backup != null && (backup.ownerUid == safeUid || backup.name.contains(safeUid))) {
-                        backupList.add(backup.copy(driveFolderId = folderId, ownerUid = safeUid))
+                    // Strict zero-trust filter: owner identity must come from trusted
+                    // appProperties/manifest metadata. A filename substring is not proof
+                    // of ownership and can collide with another UID.
+                    if (backup != null && backup.ownerUid == safeUid) {
+                        backupList.add(backup.copy(driveFolderId = folderId))
                     }
                 }
 
