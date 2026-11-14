@@ -93,3 +93,38 @@ test("Community report evidence is private to reporter and Admin", async () => {
     getBytes(ref(adminStorage, `community_report_evidence/${ALICE_UID}/report-1`))
   );
 });
+
+
+test("Chart and question image uploads require an allowed image MIME type", async () => {
+  const aliceStorage = testEnv.authenticatedContext(ALICE_UID).storage();
+  const bytes = Buffer.from("test-image-bytes");
+
+  await assertSucceeds(
+    uploadBytes(ref(aliceStorage, "chart_images/chart.webp"), bytes, { contentType: "image/webp" })
+  );
+  await assertSucceeds(
+    uploadBytes(ref(aliceStorage, "question_images/question.webp"), bytes, { contentType: "image/webp" })
+  );
+  await assertFails(
+    uploadBytes(ref(aliceStorage, "chart_images/not-image.bin"), bytes, { contentType: "application/octet-stream" })
+  );
+  await assertFails(
+    uploadBytes(ref(aliceStorage, "question_images/not-image.pdf"), bytes, { contentType: "application/pdf" })
+  );
+});
+
+test("PDF uploads are restricted to Admin and application/pdf", async () => {
+  const aliceStorage = testEnv.authenticatedContext(ALICE_UID).storage();
+  const adminStorage = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).storage();
+  const pdfBytes = Buffer.from("%PDF-1.4 test");
+
+  await assertFails(
+    uploadBytes(ref(aliceStorage, "pdfs/student.pdf"), pdfBytes, { contentType: "application/pdf" })
+  );
+  await assertSucceeds(
+    uploadBytes(ref(adminStorage, "pdfs/admin.pdf"), pdfBytes, { contentType: "application/pdf" })
+  );
+  await assertFails(
+    uploadBytes(ref(adminStorage, "pdfs/not-pdf.bin"), pdfBytes, { contentType: "application/octet-stream" })
+  );
+});
