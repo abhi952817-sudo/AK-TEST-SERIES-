@@ -188,6 +188,7 @@ object CommunityShareManager {
         authorName: String,
         authorSubtitle: String,
         targetExam: String,
+        selectedSubject: String,
         totalMarks: Double? = null,
         questionCount: Int? = null,
         durationMinutes: Int? = null,
@@ -203,7 +204,10 @@ object CommunityShareManager {
         }
         val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
         val registeredSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
-        val shareSubject = test.subject.takeIf { it in registeredSubjects } ?: "Full Syllabus"
+        require(selectedSubject == "Full Syllabus" || selectedSubject in registeredSubjects) {
+            "A registered subject must be selected before sharing this test."
+        }
+        val shareSubject = selectedSubject
 
         return CommunityPost(
             id = postId,
