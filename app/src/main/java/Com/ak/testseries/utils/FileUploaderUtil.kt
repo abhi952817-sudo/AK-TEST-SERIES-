@@ -38,13 +38,14 @@ object FileUploaderUtil {
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: return@withContext null
-            originalBitmap = inputStream.use { BitmapFactory.decodeStream(it) }
+            val decodedBitmap = inputStream.use { BitmapFactory.decodeStream(it) }
                 ?: return@withContext null
+            originalBitmap = decodedBitmap
 
             val maxDimension = 1280
-            val width = originalBitmap.width
-            val height = originalBitmap.height
-            scaledBitmap = if (width > maxDimension || height > maxDimension) {
+            val width = decodedBitmap.width
+            val height = decodedBitmap.height
+            val outputBitmap = if (width > maxDimension || height > maxDimension) {
                 val ratio = width.toFloat() / height.toFloat()
                 val targetWidth: Int
                 val targetHeight: Int
@@ -55,17 +56,18 @@ object FileUploaderUtil {
                     targetHeight = maxDimension
                     targetWidth = (maxDimension * ratio).toInt()
                 }
-                Bitmap.createScaledBitmap(originalBitmap, targetWidth, targetHeight, true)
+                Bitmap.createScaledBitmap(decodedBitmap, targetWidth, targetHeight, true)
             } else {
-                originalBitmap
+                decodedBitmap
             }
+            scaledBitmap = outputBitmap
 
             val baos = ByteArrayOutputStream()
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                scaledBitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 75, baos)
+                outputBitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 75, baos)
             } else {
                 @Suppress("DEPRECATION")
-                scaledBitmap.compress(Bitmap.CompressFormat.WEBP, 75, baos)
+                outputBitmap.compress(Bitmap.CompressFormat.WEBP, 75, baos)
             }
             val compressedBytes = baos.toByteArray()
             if (compressedBytes.isEmpty()) return@withContext null
