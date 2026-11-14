@@ -32,12 +32,8 @@ jobs:
         GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
       run: |
         if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ]; then
-          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            echo "::error::GOOGLE_SERVICES_JSON_BASE64 is required for main-branch builds."
-            exit 1
-          fi
-          echo "::warning::GOOGLE_SERVICES_JSON_BASE64 is not configured. Pull-request CI can compile, but Firebase runtime initialization is NOT verified."
-          exit 0
+          echo "::error::GOOGLE_SERVICES_JSON_BASE64 is required. Add the correct Android Firebase config as a repository Actions secret before CI can pass."
+          exit 1
         fi
         printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
         jq -e '.project_info.project_id and .client[0].client_info.mobilesdk_app_id and any(.client[]?.client_info?.android_client_info?.package_name == "Com.ak.testseries")' app/google-services.json >/dev/null
@@ -60,6 +56,15 @@ jobs:
 
     - name: Compile Firebase runtime smoke test APK
       run: gradle assembleDebugAndroidTest
+
+    - name: Run Firebase runtime initialization smoke test on emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 35
+        target: google_apis
+        arch: x86_64
+        disable-animations: true
+        script: gradle connectedDebugAndroidTest
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
