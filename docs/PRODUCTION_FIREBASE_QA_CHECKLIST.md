@@ -10,7 +10,7 @@ Status: checklist prepared; live Console/device checks have not been performed.
    - Linux: `base64 -w0 app/google-services.json`
    - macOS: `base64 app/google-services.json | tr -d '\\n'`
 4. In GitHub repository Settings > Secrets and variables > Actions, create repository secret `GOOGLE_SERVICES_JSON_BASE64` and paste the encoded value.
-5. The Android workflow decodes the secret into the gitignored `app/google-services.json`, validates the package name, and compiles the Firebase runtime smoke test APK. Main-branch builds fail if this secret is missing.
+5. The Android workflow decodes the secret into the gitignored `app/google-services.json`, validates the package name, compiles the Firebase runtime smoke test APK, and runs the Firebase SDK initialization test on an Android emulator. CI fails if this secret is missing or invalid.
 6. Never print the secret in logs, commit the JSON, or send it in chat. Rotate the Firebase API key if the file is accidentally exposed.
 
 ## A. Confirm the exact Firebase project and database
