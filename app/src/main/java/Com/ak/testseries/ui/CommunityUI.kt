@@ -1301,6 +1301,12 @@ fun CreatePostScreen(
     fun publish(imageUrl: String?, imagePath: String? = null) {
         val uid = creatorUid ?: return
         val cleanContent = content.trim()
+        val leadingTrim = content.length - content.trimStart().length
+        val normalizedHighlightedSpans = highlightedSpans.mapNotNull { span ->
+            val start = (span.start - leadingTrim).coerceAtLeast(0)
+            val end = (span.end - leadingTrim).coerceAtMost(cleanContent.length)
+            if (end > start) CommunityTextHighlight(start, end) else null
+        }
         if (examId.isNullOrBlank() || selectedSubject !in subjects) {
             clearPendingImage(deleteRemote = true)
             imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
@@ -1364,7 +1370,7 @@ fun CreatePostScreen(
                 creatorId = uid,
                 title = title.trim().ifBlank { cleanContent.take(80) },
                 content = cleanContent,
-                highlightedSpans = if (selectedPostType == "DOUBT") highlightedSpans else emptyList(),
+                highlightedSpans = if (selectedPostType == "DOUBT") normalizedHighlightedSpans else emptyList(),
                 subject = selectedSubject,
                 targetExam = targetExam,
                 examId = examId,
