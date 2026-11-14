@@ -1363,7 +1363,7 @@ fun CreatePostScreen(
                 creatorId = uid,
                 title = title.trim().ifBlank { cleanContent.take(80) },
                 content = cleanContent,
-                highlightedSpans = highlightedSpans,
+                highlightedSpans = if (selectedPostType == "DOUBT") highlightedSpans else emptyList(),
                 subject = selectedSubject,
                 targetExam = targetExam,
                 examId = examId,
