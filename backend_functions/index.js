@@ -2,9 +2,9 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 admin.initializeApp();
 
-// Android and privileged Cloud Functions must use the same retained named database.
-// Keep this fixed to prevent an environment override from splitting production traffic.
-const FIRESTORE_DATABASE_ID = "ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf";
+// Android and privileged Cloud Functions must use the same existing named database.
+// Keep the historical database ID fixed; do not redirect production traffic via environment overrides.
+const FIRESTORE_DATABASE_ID = "ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612";
 const db = admin.firestore(FIRESTORE_DATABASE_ID);
 const {
   evaluateTestAttempt,
