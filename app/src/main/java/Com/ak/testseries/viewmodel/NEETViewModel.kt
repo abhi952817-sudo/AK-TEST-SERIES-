@@ -2024,13 +2024,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _pendingCommunityShareTest = MutableStateFlow<TestEntity?>(null)
     val pendingCommunityShareTest: StateFlow<TestEntity?> = _pendingCommunityShareTest.asStateFlow()
+    private val _pendingCommunityShareSubjects = MutableStateFlow<List<String>>(emptyList())
+    val pendingCommunityShareSubjects: StateFlow<List<String>> = _pendingCommunityShareSubjects.asStateFlow()
 
     fun cancelCommunityShareVerification() {
         _pendingCommunityShareTest.value = null
+        _pendingCommunityShareSubjects.value = emptyList()
     }
 
     fun confirmCommunityShareVerification(test: TestEntity, selectedSubject: String) {
         _pendingCommunityShareTest.value = null
+        _pendingCommunityShareSubjects.value = emptyList()
         shareTestToCommunity(test, selectedSubject)
     }
     val genLiveScheduledTime = MutableStateFlow("2026-07-20 10:00 AM")
@@ -2184,7 +2188,59 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 android.widget.Toast.makeText(getApplication(), "Only the test owner can share this test", android.widget.Toast.LENGTH_SHORT).show()
                 return
             }
-            _pendingCommunityShareTest.value = test
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    var questionJson = test.questionsJson.orEmpty()
+                    if (questionJson.isBlank()) {
+                        val dbQuestions = repository.getQuestionsForTestList(test.id)
+                        if (dbQuestions.isNotEmpty()) questionJson = serializeQuestionsToJson(dbQuestions)
+                    }
+                    if (questionJson.isBlank()) {
+                        val file = java.io.File(getApplication<Application>().filesDir, "test_questions_${test.id}.json")
+                        if (file.exists() && file.canRead()) questionJson = file.readText()
+                    }
+                    val actualSubjects = linkedSetOf<String>()
+                    if (questionJson.isNotBlank()) {
+                        val array = org.json.JSONArray(questionJson)
+                        for (index in 0 until array.length()) {
+                            val question = array.optJSONObject(index) ?: continue
+                            question.optString("subject", "").trim().takeIf { it.isNotBlank() }?.let(actualSubjects::add)
+                        }
+                    }
+                    val exam = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(test.targetExam)
+                    val registered = exam?.let {
+                        Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(it.examName)
+                    }.orEmpty()
+                    if (actualSubjects.isEmpty() && test.subject in registered) actualSubjects.add(test.subject)
+                    val options = registered.filter { expected ->
+                        actualSubjects.any { actual -> actual.equals(expected, ignoreCase = true) }
+                    }.toMutableList()
+                    val fullSyllabusVerified = registered.isNotEmpty() && registered.all { expected ->
+                        actualSubjects.any { actual -> actual.equals(expected, ignoreCase = true) }
+                    }
+                    if (fullSyllabusVerified) options.add("Full Syllabus")
+                    withContext(Dispatchers.Main) {
+                        if (options.isEmpty()) {
+                            android.widget.Toast.makeText(
+                                getApplication(),
+                                "Question subject mapping is missing or does not match this exam. Test sharing is blocked.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            _pendingCommunityShareSubjects.value = options.distinct()
+                            _pendingCommunityShareTest.value = test
+                        }
+                    }
+                } catch (error: Exception) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            getApplication(),
+                            error.localizedMessage ?: "Test subjects could not be verified.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
             return
         }
         viewModelScope.launch(Dispatchers.IO) {
