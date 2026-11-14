@@ -60,28 +60,23 @@ Status: NOT IMPLEMENTED; release blocker.
 
 The latest change validates the subject in Android before the client writes the shared-test documents. Firestore Rules validate canonical exam/subject registration but cannot prove the subject distribution of the underlying question set. A modified client can bypass the UI validation. Implement a trusted callable that validates the submitted test/question structure, ownership, exam/stage/paper, question count, duration and subject distribution before creating the public card and protected answer-key documents. Keep direct client writes from bypassing this validation.
 
-### COM-DOUBT-001 — Highlighted text is not implemented
+### COM-DOUBT-001 — Highlighted text
 
-Evidence:
-- `CreatePostScreen` stores the doubt body as a plain `String` in a basic `OutlinedTextField`.
-- No selection/highlight formatting control or persisted highlighted-span representation was found in the inspected Community composer.
+Status: Implemented in the latest branch commits; Android CI and emulator Rules CI are pending.
 
-Required:
-- Add a simple, accessible way to select a portion of the doubt text and mark it as highlighted.
-- Persist only a safe, bounded text/span representation; do not accept arbitrary HTML.
-- Render highlighted spans consistently in the feed and post detail.
-- Keep normal text entry, one optional image, and manual replies working.
-- Do not add AI calls or AI-generated content.
+- Doubt composer now uses text selection and a `Highlight selected text` action.
+- Highlight ranges are stored as bounded start/end offsets, not HTML or arbitrary rich-text markup.
+- Feed rendering applies a visible highlight style to valid ranges; malformed, overlapping, out-of-range or excessive spans are ignored.
+- Firestore Rules allow at most 20 span entries. Editing the doubt text clears stale ranges so offsets cannot silently point at unrelated text.
+- Manual replies and the existing one-image camera/gallery flow are unchanged.
 
-### COM-REPORT-001 — Report evidence failure cleanup needs verification
+### COM-REPORT-001 — Report evidence failure cleanup
 
-Evidence:
-- Report UI uploads the evidence image first and then writes the report document.
-- Verify that a Firestore report-write failure removes the newly uploaded evidence object, and that retry does not create orphaned files or duplicate reports.
+Status: Existing cleanup path confirmed in code review.
 
-Required:
-- Add cleanup on report-write failure and tests for image upload/report write failure.
-- Preserve private evidence access for the reporter and authorized Admin only.
+- The report flow uploads the optional evidence image, writes the report document, and calls `storageRef.delete()` if the Firestore write fails.
+- The dialog prevents a second upload while submission is active and keeps evidence private under the reporter UID path.
+- A dedicated automated test for the Firestore-write-failure cleanup callback is still desirable, but no missing cleanup branch was found.
 
 ## Cross-PR database dependency
 
