@@ -202,7 +202,7 @@ object CommunityShareManager {
         val shareContent = if (test.description.isNotBlank()) {
             test.description
         } else {
-            "Check out this test: ${test.title} (${test.subject} - $qCount Questions, $durMins Mins)."
+            "Check out this test: ${test.title} ($selectedSubject - $qCount Questions, $durMins Mins)."
         }
         val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
         val registeredSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
