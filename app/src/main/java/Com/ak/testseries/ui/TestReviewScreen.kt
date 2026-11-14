@@ -46,6 +46,7 @@ import Com.ak.testseries.data.QuestionEntity
 import Com.ak.testseries.viewmodel.NEETViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -675,7 +676,10 @@ suspend fun compressAndUploadToFirebase(
             }
             val imageRef = storageRef.child("question_images/$questionId.webp")
 
-            val uploadTask = imageRef.putBytes(data)
+            val metadata = StorageMetadata.Builder()
+                .setContentType("image/webp")
+                .build()
+            val uploadTask = imageRef.putBytes(data, metadata)
             uploadTask.addOnSuccessListener {
                 imageRef.downloadUrl.addOnSuccessListener { uri ->
                     val downloadUrl = uri.toString()
