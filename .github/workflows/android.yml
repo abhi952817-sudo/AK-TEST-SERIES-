@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feature/community-completion-2026-11-13" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "feature/community-completion-2026-11-13" ]
 
 jobs:
   build:
@@ -35,6 +35,7 @@ jobs:
       run: |
         node --check backend_functions/index.js
         node --check backend_functions/examScoring.js
+        node --check backend_functions/communityValidation.js
 
     - name: Run Unit Tests
       run: gradle testDebugUnitTest

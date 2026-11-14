@@ -185,7 +185,8 @@ class MainActivity : ComponentActivity() {
                                 viewModel.autoRoutedWorkflow.value = autoWorkflowFromIntent
                                 val isPub = (autoWorkflowFromIntent == "public")
                                 viewModel.genIsPublic.value = isPub
-                                viewModel.autoShareToCommunity.value = isPub
+                                // Community publication requires an explicit verification-card confirmation.
+                                viewModel.autoShareToCommunity.value = false
                             }
                         }
                     }
@@ -1302,6 +1303,16 @@ fun DashboardScreen(
 // ==========================================
 @Composable
 fun HomeTabScreen(viewModel: NEETViewModel) {
+    val pendingCommunityShareTest by viewModel.pendingCommunityShareTest.collectAsStateWithLifecycle()
+    val pendingCommunityShareSubjects by viewModel.pendingCommunityShareSubjects.collectAsStateWithLifecycle()
+    pendingCommunityShareTest?.let { test ->
+        Com.ak.testseries.ui.CommunityTestVerificationDialog(
+            test = test,
+            availableSubjects = pendingCommunityShareSubjects,
+            onDismiss = { viewModel.cancelCommunityShareVerification() },
+            onConfirm = { subject -> viewModel.confirmCommunityShareVerification(test, subject) }
+        )
+    }
     val tests by viewModel.testsList.collectAsStateWithLifecycle()
     val attempts by viewModel.attemptHistory.collectAsStateWithLifecycle()
     val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()

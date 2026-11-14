@@ -419,7 +419,23 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val db = firestoreDb
-                db.collection("Users_Data").document(userId).update("isBanned", isBanned).await()
+                val actorUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                    ?: throw IllegalStateException("Admin session is unavailable.")
+                val batch = db.batch()
+                batch.update(db.collection("Users_Data").document(userId), "isBanned", isBanned)
+                batch.set(
+                    db.collection("Community_Moderation_Audit").document(),
+                    mapOf(
+                        "actorUid" to actorUid,
+                        "action" to if (isBanned) "SUSPEND_USER" else "UNBAN_USER",
+                        "targetType" to "USER",
+                        "targetId" to userId,
+                        "reason" to if (isBanned) "Admin suspended the account from the Community users panel."
+                            else "Admin restored the account from the Community users panel.",
+                        "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    )
+                )
+                batch.commit().await()
                 _adminUsers.value = _adminUsers.value.map {
                     if (it.id == userId) it.copy(isBanned = isBanned) else it
                 }
@@ -1666,7 +1682,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     testType = "Live",
                     questionsCount = effectiveQCount,
                     isOfficial = true,
-                    isVerifiedCommunity = true,
+                    isVerifiedCommunity = false,
                     classLevel = classLevel,
                     targetExam = targetExam,
                     chapter = chapter,
@@ -2002,7 +2018,23 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val genQuestionsCount = MutableStateFlow(5)
     val genIsLive = MutableStateFlow(false)
     val genIsPublic = MutableStateFlow(true)
-    val autoShareToCommunity = MutableStateFlow(true)
+    val autoShareToCommunity = MutableStateFlow(false)
+
+    private val _pendingCommunityShareTest = MutableStateFlow<TestEntity?>(null)
+    val pendingCommunityShareTest: StateFlow<TestEntity?> = _pendingCommunityShareTest.asStateFlow()
+    private val _pendingCommunityShareSubjects = MutableStateFlow<List<String>>(emptyList())
+    val pendingCommunityShareSubjects: StateFlow<List<String>> = _pendingCommunityShareSubjects.asStateFlow()
+
+    fun cancelCommunityShareVerification() {
+        _pendingCommunityShareTest.value = null
+        _pendingCommunityShareSubjects.value = emptyList()
+    }
+
+    fun confirmCommunityShareVerification(test: TestEntity, selectedSubject: String) {
+        _pendingCommunityShareTest.value = null
+        _pendingCommunityShareSubjects.value = emptyList()
+        shareTestToCommunity(test, selectedSubject)
+    }
     val genLiveScheduledTime = MutableStateFlow("2026-07-20 10:00 AM")
     val genLiveDurationMinutes = MutableStateFlow(180)
     val allQuestionsList = ArrayList<org.json.JSONObject>()
@@ -2139,7 +2171,76 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun shareTestToCommunity(test: TestEntity) {
+    fun shareTestToCommunity(test: TestEntity, selectedSubject: String? = null) {
+        if (selectedSubject.isNullOrBlank()) {
+            val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+            if (uid.isNullOrBlank()) {
+                android.widget.Toast.makeText(getApplication(), "Please sign in to share tests", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            if (isCurrentUserBanned.value) {
+                android.widget.Toast.makeText(getApplication(), "Your account has been suspended by administration. Community sharing is disabled.", android.widget.Toast.LENGTH_LONG).show()
+                return
+            }
+            if (test.uploaderId != uid) {
+                android.widget.Toast.makeText(getApplication(), "Only the test owner can share this test", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    var questionJson = test.questionsJson.orEmpty()
+                    if (questionJson.isBlank()) {
+                        val dbQuestions = repository.getQuestionsForTestList(test.id)
+                        if (dbQuestions.isNotEmpty()) questionJson = serializeQuestionsToJson(dbQuestions)
+                    }
+                    if (questionJson.isBlank()) {
+                        val file = java.io.File(getApplication<Application>().filesDir, "test_questions_${test.id}.json")
+                        if (file.exists() && file.canRead()) questionJson = file.readText()
+                    }
+                    val actualSubjects = linkedSetOf<String>()
+                    if (questionJson.isNotBlank()) {
+                        val array = org.json.JSONArray(questionJson)
+                        for (index in 0 until array.length()) {
+                            val question = array.optJSONObject(index) ?: continue
+                            question.optString("subject", "").trim().takeIf { it.isNotBlank() }?.let(actualSubjects::add)
+                        }
+                    }
+                    val exam = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(test.targetExam)
+                    val registered = exam?.let {
+                        Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(it.examName)
+                    }.orEmpty()
+                    if (actualSubjects.isEmpty() && test.subject in registered) actualSubjects.add(test.subject)
+                    val options = registered.filter { expected ->
+                        actualSubjects.any { actual -> actual.equals(expected, ignoreCase = true) }
+                    }.toMutableList()
+                    val fullSyllabusVerified = registered.isNotEmpty() && registered.all { expected ->
+                        actualSubjects.any { actual -> actual.equals(expected, ignoreCase = true) }
+                    }
+                    if (fullSyllabusVerified) options.add("Full Syllabus")
+                    withContext(Dispatchers.Main) {
+                        if (options.isEmpty()) {
+                            android.widget.Toast.makeText(
+                                getApplication(),
+                                "Question subject mapping is missing or does not match this exam. Test sharing is blocked.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            _pendingCommunityShareSubjects.value = options.distinct()
+                            _pendingCommunityShareTest.value = test
+                        }
+                    }
+                } catch (error: Exception) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            getApplication(),
+                            error.localizedMessage ?: "Test subjects could not be verified.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
             val currentUser = auth.currentUser
@@ -2311,6 +2412,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 // Strict validation: verify no unuploaded local paths remain in question diagrams
                 val finalJsonArray = org.json.JSONArray(sanitizedQuestionsJson)
                 val questionsList = mutableListOf<Map<String, Any>>()
+                val privateAnswerKeys = mutableListOf<Map<String, Any>>()
                 for (i in 0 until finalJsonArray.length()) {
                     val q = finalJsonArray.getJSONObject(i)
                     val img = q.optString("imageUrl", "").trim()
@@ -2322,20 +2424,35 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
 
+                    val questionId = q.optString("id", "${test.id}_q$i")
+                    val correctAnswer = q.optString("correctAnswer", "").trim()
+                    if (correctAnswer.isBlank()) {
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(getApplication(), "Question answer key is missing. Test not shared.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
+                    privateAnswerKeys.add(
+                        mapOf(
+                            "id" to questionId,
+                            "correctAnswer" to correctAnswer,
+                            "explanation" to q.optString("explanation", ""),
+                            "explanationHi" to q.optString("explanationHi", "")
+                        )
+                    )
                     val qMap = mutableMapOf<String, Any>(
-                        "id" to q.optString("id", "${test.id}_q$i"),
+                        "id" to questionId,
+                        "testId" to test.id,
                         "questionText" to q.optString("questionText", ""),
                         "optionA" to q.optString("optionA", ""),
                         "optionB" to q.optString("optionB", ""),
                         "optionC" to q.optString("optionC", ""),
                         "optionD" to q.optString("optionD", ""),
                         "questionType" to q.optString("questionType", "MCQ"),
-                        "correctAnswer" to q.optString("correctAnswer", ""),
                         "positiveMarks" to q.optDouble("positiveMarks", defaultPosMark),
                         "negativeMarks" to q.optDouble("negativeMarks", defaultNegMark),
                         "section" to q.optString("section", "SECTION_A"),
                         "sectionName" to q.optString("sectionName", "Section A"),
-                        "explanation" to q.optString("explanation", ""),
                         "subject" to q.optString("subject", test.subject),
                         "chapter" to q.optString("chapter", test.chapter),
                         "topic" to q.optString("topic", test.topic),
@@ -2363,9 +2480,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                     if (q.has("questionTextHi") && q.getString("questionTextHi").isNotBlank()) {
                         qMap["questionTextHi"] = q.getString("questionTextHi")
-                    }
-                    if (q.has("explanationHi") && q.getString("explanationHi").isNotBlank()) {
-                        qMap["explanationHi"] = q.getString("explanationHi")
                     }
                     if (q.has("optionAHi") && q.getString("optionAHi").isNotBlank()) {
                         qMap["optionAHi"] = q.getString("optionAHi")
@@ -2405,6 +2519,28 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val testSource = test.institute.takeIf { it.isNotBlank() } ?: "Private Upload"
+                val communityExamConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+                if (communityExamConfig == null) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(getApplication(), "This exam is not registered for Community sharing.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+                val canonicalCommunityTargetExam = communityExamConfig.examName
+                val communityRegisteredSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
+                val selectedRegisteredSubject = communityRegisteredSubjects.firstOrNull { it.equals(selectedSubject.trim(), ignoreCase = true) }
+                val actualQuestionSubjects = questionsList.mapNotNull { (it["subject"] as? String)?.trim() }
+                    .filter { it.isNotBlank() }.toSet()
+                val fullSyllabusVerified = communityRegisteredSubjects.isNotEmpty() &&
+                    communityRegisteredSubjects.all { expected -> actualQuestionSubjects.any { it.equals(expected, ignoreCase = true) } }
+                if (questionsList.isEmpty()) {
+                    throw IllegalStateException("The test has no readable questions, so it cannot be shared.")
+                }
+                val communityShareSubject = when {
+                    selectedSubject.trim().equals("Full Syllabus", ignoreCase = true) && fullSyllabusVerified -> "Full Syllabus"
+                    selectedRegisteredSubject != null && actualQuestionSubjects.any { it.equals(selectedRegisteredSubject, ignoreCase = true) } -> selectedRegisteredSubject
+                    else -> throw IllegalArgumentException("Selected subject does not match the actual questions in this test. Check the exam and subject mapping.")
+                }
 
                 val authorName = _userProfile.value.name.takeIf { it.isNotBlank() }
                     ?: currentUser.displayName?.takeIf { it.isNotBlank() }
@@ -2416,10 +2552,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 // Canonical shared document in Shared_Community_Tests/{testId}
                 val sharedCommunityTestData = hashMapOf<String, Any>(
                     "testId" to test.id,
+                    "answerKeySeparated" to true,
+                    "isPublic" to true,
+                    "isOfficial" to false,
+                    "countsTowardRanking" to false,
+                    "status" to "Published",
+                    "examId" to communityExamConfig.examId,
+                    "stageId" to (test.stageId ?: ""),
+                    "paperId" to (test.paperId ?: ""),
+                    "scoringVersion" to (test.scoringVersion ?: 1),
                     "title" to test.title,
                     "description" to test.description,
-                    "targetExam" to targetExam,
-                    "subject" to test.subject,
+                    "targetExam" to canonicalCommunityTargetExam,
+                    "subject" to communityShareSubject,
                     "classLevel" to test.classLevel,
                     "chapter" to test.chapter,
                     "topic" to test.topic,
@@ -2434,21 +2579,31 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "creatorName" to authorName,
                     "sharedAt" to System.currentTimeMillis(),
                     "version" to 1,
-                    "sharingState" to "COMMUNITY_SHARED",
-                    "questions" to questionsList,
-                    "questionsJson" to sanitizedQuestionsJson
+                    "sharingState" to "COMMUNITY_SHARED"
                 )
 
                 val db = firestoreDb
 
-                // Create or update canonical copy: Shared_Community_Tests/{testId}
-                // CRITICAL: Original local test remains isPublic = false and untouched!
-                db.collection("Shared_Community_Tests")
-                    .document(test.id)
-                    .set(sharedCommunityTestData)
-                    .await()
+                // Publish safe question documents and keep grading keys in a server-only subcollection.
+                // The original local test remains unchanged and private.
+                val sharedTestRef = db.collection("Shared_Community_Tests").document(test.id)
+                val shareBatch = db.batch()
+                shareBatch.set(sharedTestRef, sharedCommunityTestData)
+                for (questionMap in questionsList) {
+                    val questionId = questionMap["id"] as? String ?: continue
+                    shareBatch.set(sharedTestRef.collection("questions").document(questionId), questionMap)
+                }
+                shareBatch.set(
+                    sharedTestRef.collection("private_keys").document("answerKey"),
+                    mapOf(
+                        "testId" to test.id,
+                        "questions" to privateAnswerKeys,
+                        "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    )
+                )
+                shareBatch.commit().await()
 
-                val authorSubtitle = "$targetExam Aspirant"
+                val authorSubtitle = "$canonicalCommunityTargetExam Aspirant"
 
                 // Deterministic Document ID ensures same creator + same test can NEVER create duplicate documents
                 val deterministicPostId = "TEST_SHARE_${currentUid}_${test.id}"
@@ -2484,7 +2639,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     currentUid = currentUid,
                     authorName = authorName,
                     authorSubtitle = authorSubtitle,
-                    targetExam = targetExam,
+                    targetExam = canonicalCommunityTargetExam,
+                    selectedSubject = communityShareSubject,
                     totalMarks = calculatedTotalMarks,
                     questionCount = finalQuestionCount,
                     durationMinutes = durationMinutes,
@@ -3511,11 +3667,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun parseAndValidateSharedCommunityTest(
+    private suspend fun parseAndValidateSharedCommunityTest(
         testId: String,
         doc: com.google.firebase.firestore.DocumentSnapshot
     ): Pair<TestEntity, List<QuestionEntity>>? {
-        if (testId.isBlank()) return null
+        if (testId.isBlank() || doc.getBoolean("answerKeySeparated") != true) return null
+        if (doc.contains("questions") || doc.contains("questionsJson")) return null
         val title = doc.getString("title")?.trim() ?: ""
         if (title.isBlank()) return null
 
@@ -3537,9 +3694,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         val qList = mutableListOf<QuestionEntity>()
 
-        // 1. Try parsing questions array of maps
-        val rawQuestions = doc.get("questions") as? List<*>
-        if (!rawQuestions.isNullOrEmpty()) {
+        // Public question documents contain no correct answer or explanation.
+        val questionSnapshot = doc.reference.collection("questions").get().await()
+        val rawQuestions = questionSnapshot.documents.mapNotNull { questionDoc ->
+            questionDoc.data?.plus("id" to questionDoc.id)
+        }
+        if (rawQuestions.isNotEmpty()) {
             for (i in rawQuestions.indices) {
                 val map = rawQuestions[i] as? Map<*, *> ?: return null
                 val qId = (map["id"] as? String)?.trim()?.ifBlank { "${testId}_q$i" } ?: "${testId}_q$i"
@@ -3551,10 +3711,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val optB = (map["optionB"] as? String)?.trim() ?: (rawOpts?.getOrNull(1) as? String)?.trim() ?: ""
                 val optC = (map["optionC"] as? String)?.trim() ?: (rawOpts?.getOrNull(2) as? String)?.trim() ?: ""
                 val optD = (map["optionD"] as? String)?.trim() ?: (rawOpts?.getOrNull(3) as? String)?.trim() ?: ""
+                val optE = (map["optionE"] as? String)?.trim() ?: (rawOpts?.getOrNull(4) as? String)?.trim()
 
                 val qType = (map["questionType"] as? String)?.trim() ?: "MCQ"
-                val correctAns = (map["correctAnswer"] as? String)?.trim() ?: ""
-                if (correctAns.isBlank()) return null
+                val correctAns = ""
 
                 val isNumerical = qType.contains("NUMERICAL", ignoreCase = true) || qType.contains("NAT", ignoreCase = true)
                 if (!isNumerical && (optA.isBlank() || optB.isBlank())) {
@@ -3588,8 +3748,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionB = optB,
                         optionC = optC,
                         optionD = optD,
+                        optionE = optE,
                         correctAnswer = correctAns,
-                        explanation = (map["explanation"] as? String)?.trim() ?: "",
+                        explanation = "",
                         subject = (map["subject"] as? String)?.trim() ?: subject,
                         chapter = (map["chapter"] as? String)?.trim() ?: chapter,
                         topic = (map["topic"] as? String)?.trim() ?: topic,
@@ -3599,7 +3760,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         optionBHi = (map["optionBHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         optionCHi = (map["optionCHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                         optionDHi = (map["optionDHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
-                        explanationHi = (map["explanationHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                        optionEHi = (map["optionEHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                        explanationHi = null,
                         questionType = qType,
                         section = (map["section"] as? String)?.trim() ?: "SECTION_A",
                         imageUrl = imgUrl?.takeIf { it.isNotBlank() }
@@ -3608,89 +3770,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // 2. Fallback to questionsJson if questions list was empty
-        if (qList.isEmpty()) {
-            val questionsJson = doc.getString("questionsJson")?.trim() ?: ""
-            if (questionsJson.isBlank()) return null
-            try {
-                val jsonArray = org.json.JSONArray(questionsJson)
-                if (jsonArray.length() == 0) return null
-                for (i in 0 until jsonArray.length()) {
-                    val qObj = jsonArray.getJSONObject(i)
-                    val qId = qObj.optString("id", "${testId}_q$i").ifBlank { "${testId}_q$i" }
-                    val qText = qObj.optString("questionText", qObj.optString("questionTextEn", "")).trim()
-                    if (qText.isBlank()) return null
-
-                    val optA = qObj.optString("optionA", qObj.optString("optionAEn", "")).trim()
-                    val optB = qObj.optString("optionB", qObj.optString("optionBEn", "")).trim()
-                    val optC = qObj.optString("optionC", qObj.optString("optionCEn", "")).trim()
-                    val optD = qObj.optString("optionD", qObj.optString("optionDEn", "")).trim()
-                    val optE = qObj.optString("optionE", qObj.optString("optionEEn", "")).trim().takeIf { it.isNotBlank() }
-
-                    val qType = qObj.optString("questionType", "MCQ")
-                    val correctAns = qObj.optString("correctAnswer", "").trim()
-                    if (correctAns.isBlank()) return null
-
-                    val isNumerical = qType.contains("NUMERICAL", ignoreCase = true) || qType.contains("NAT", ignoreCase = true)
-                    if (!isNumerical && (optA.isBlank() || optB.isBlank())) {
-                        return null
-                    }
-
-                    val posMarks = qObj.optDouble("positiveMarks", 4.0)
-                    if (posMarks <= 0.0) return null
-                    val negMarks = qObj.optDouble("negativeMarks", 1.0)
-                    if (negMarks < 0.0) return null
-
-                    val imgUrl = qObj.optString("imageUrl", "").trim()
-                    if (imgUrl.isNotEmpty()) {
-                        if (imgUrl.startsWith("/") || imgUrl.startsWith("file:", ignoreCase = true) ||
-                            imgUrl.contains("/cache/") || imgUrl.contains("/extracted_cropped_images/")) {
-                            return null
-                        }
-                        if (!imgUrl.startsWith("http://", ignoreCase = true) && !imgUrl.startsWith("https://", ignoreCase = true)) {
-                            return null
-                        }
-                    }
-
-                    qList.add(
-                        QuestionEntity(
-                            id = qId,
-                            testId = testId, // downloaded question.testId = testId
-                            questionText = qText,
-                            optionA = optA,
-                            optionB = optB,
-                            optionC = optC,
-                            optionD = optD,
-                            optionE = optE,
-                            correctAnswer = correctAns,
-                            explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")).trim(),
-                            subject = qObj.optString("subject", subject).trim(),
-                            chapter = qObj.optString("chapter", chapter).trim(),
-                            topic = qObj.optString("topic", topic).trim(),
-                            difficulty = qObj.optString("difficulty", difficulty).trim(),
-                            questionTextHi = qObj.optString("questionTextHi").trim().takeIf { it.isNotBlank() },
-                            optionAHi = qObj.optString("optionAHi").trim().takeIf { it.isNotBlank() },
-                            optionBHi = qObj.optString("optionBHi").trim().takeIf { it.isNotBlank() },
-                            optionCHi = qObj.optString("optionCHi").trim().takeIf { it.isNotBlank() },
-                            optionDHi = qObj.optString("optionDHi").trim().takeIf { it.isNotBlank() },
-                            optionEHi = qObj.optString("optionEHi").trim().takeIf { it.isNotBlank() },
-                            explanationHi = qObj.optString("explanationHi").trim().takeIf { it.isNotBlank() },
-                            questionType = qType,
-                            section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
-                            imageUrl = imgUrl.takeIf { it.isNotBlank() }
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                return null
-            }
-        }
-
+        // Safe Community shares require the dedicated public questions subcollection.
+        // Legacy inline arrays/JSON are intentionally rejected because they may contain answer keys.
         if (qList.isEmpty()) return null
+
         if (expectedQCount > 0 && qList.size < expectedQCount) return null
 
-        val finalQuestionsJson = doc.getString("questionsJson")?.takeIf { it.isNotBlank() }
-            ?: serializeQuestionsToJson(qList)
+        val finalQuestionsJson = serializeQuestionsToJson(qList)
 
         val testEntity = Com.ak.testseries.data.TestEntity(
             id = testId,
@@ -3705,7 +3791,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             testType = "Community Test",
             questionsCount = qList.size,
             isOfficial = false,
-            isVerifiedCommunity = true,
+            isVerifiedCommunity = false,
             isPublic = false,
             countsTowardRanking = false,
             isDownloaded = true,

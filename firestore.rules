@@ -15,8 +15,9 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        request.auth.token.get('admin', false) == true
-        || (request.auth.token.get('email', '') == 'abhi952817@gmail.com' && request.auth.token.email_verified == true)
+        ('admin' in request.auth.token && request.auth.token.admin == true)
+        || ('email' in request.auth.token && request.auth.token.email == 'abhi952817@gmail.com'
+            && 'email_verified' in request.auth.token && request.auth.token.email_verified == true)
       );
     }
 
@@ -261,26 +262,127 @@ service cloud.firestore {
     // Update/Delete: Creator or Verified Admin (creatorId and uploaderId cannot be forged or altered)
     // =========================================================================
     match /Shared_Community_Tests/{testId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && !isUserBanned(request.auth.uid) && (
-        request.resource.data.get('creatorId', '') == request.auth.uid
-        || request.resource.data.get('uploaderId', '') == request.auth.uid
+      // Old inline shared documents may contain correct answers/explanations.
+      // They remain Admin-only until the explicit answer-key separation migration runs.
+      allow read: if isAuthenticated() && (
+        isAdmin()
+        || (resource.data.answerKeySeparated == true
+            && resource.data.sharingState == 'COMMUNITY_SHARED')
       );
+      allow create: if isAuthenticated()
+                    && !isUserBanned(request.auth.uid)
+                    && request.resource.data.creatorId == request.auth.uid
+                    && request.resource.data.answerKeySeparated == true
+                    && request.resource.data.sharingState == 'COMMUNITY_SHARED'
+                    && request.resource.data.isPublic == true
+                    && request.resource.data.isOfficial == false
+                    && request.resource.data.countsTowardRanking == false
+                    && request.resource.data.status == 'Published'
+                    && request.resource.data.examId is string
+                    && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+                    && request.resource.data.targetExam == get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.examName
+                    && (request.resource.data.subject == 'Full Syllabus'
+                        || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
+                    && request.resource.data.keys().hasOnly([
+                      'testId', 'title', 'description', 'targetExam', 'subject',
+                      'classLevel', 'chapter', 'topic', 'difficulty', 'questionCount',
+                      'questionsCount', 'durationMinutes', 'totalMarks', 'source',
+                      'creatorId', 'creatorDisplayName', 'creatorName', 'sharedAt',
+                      'version', 'sharingState', 'answerKeySeparated', 'isPublic',
+                      'isOfficial', 'countsTowardRanking', 'status', 'examId',
+                      'stageId', 'paperId', 'scoringVersion'
+                    ]);
       allow update: if isAdmin() || (
         isAuthenticated()
         && !isUserBanned(request.auth.uid)
-        && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'uploaderId'])
+        && resource.data.creatorId == request.auth.uid
+        && request.resource.data.creatorId == resource.data.creatorId
+        && request.resource.data.answerKeySeparated == true
+        && request.resource.data.sharingState == 'COMMUNITY_SHARED'
+        && request.resource.data.isPublic == true
+        && request.resource.data.isOfficial == false
+        && request.resource.data.countsTowardRanking == false
+        && request.resource.data.status == 'Published'
+        && request.resource.data.examId is string
+        && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+        && request.resource.data.targetExam == get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.examName
+        && (request.resource.data.subject == 'Full Syllabus'
+            || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
+        && request.resource.data.keys().hasOnly([
+          'testId', 'title', 'description', 'targetExam', 'subject',
+          'classLevel', 'chapter', 'topic', 'difficulty', 'questionCount',
+          'questionsCount', 'durationMinutes', 'totalMarks', 'source',
+          'creatorId', 'creatorDisplayName', 'creatorName', 'sharedAt',
+          'version', 'sharingState', 'answerKeySeparated', 'isPublic',
+          'isOfficial', 'countsTowardRanking', 'status', 'examId',
+          'stageId', 'paperId', 'scoringVersion'
+        ])
       );
       allow delete: if isAdmin() || (
-        isAuthenticated()
-        && !isUserBanned(request.auth.uid)
-        && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
+        isAuthenticated() && !isUserBanned(request.auth.uid)
+        && resource.data.creatorId == request.auth.uid
       );
+
+      match /questions/{questionId} {
+        function safeParent() {
+          return get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.answerKeySeparated == true
+            && get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.sharingState == 'COMMUNITY_SHARED';
+        }
+        function safeQuestionFields(data) {
+          return data.keys().hasOnly([
+            'id', 'testId', 'questionText', 'questionTextEn', 'optionA', 'optionB', 'optionC',
+            'optionD', 'optionE', 'optionAEn', 'optionBEn', 'optionCEn', 'optionDEn', 'optionEEn',
+            'options', 'questionType', 'positiveMarks',
+            'negativeMarks', 'section', 'sectionId', 'sectionName', 'subject', 'chapter',
+            'topic', 'difficulty', 'imageUrl', 'needsImage', 'questionTextHi', 'optionAHi',
+            'optionBHi', 'optionCHi', 'optionDHi', 'optionEHi'
+          ])
+          && data.questionText is string
+          && data.questionText.size() > 0
+          && data.questionText.size() <= 5000
+          && data.id == questionId
+          && data.testId == testId;
+        }
+        allow read: if isAuthenticated() && safeParent();
+        allow create: if isAuthenticated()
+                      && !isUserBanned(request.auth.uid)
+                      && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid
+                      && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.answerKeySeparated == true
+                      && safeQuestionFields(request.resource.data);
+        allow update: if isAuthenticated()
+                      && !isUserBanned(request.auth.uid)
+                      && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid
+                      && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.answerKeySeparated == true
+                      && safeQuestionFields(request.resource.data);
+        allow delete: if isAdmin()
+                      || (isAuthenticated()
+                          && get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid);
+      }
+
+      match /private_keys/{keyId} {
+        allow read: if isAdmin();
+        allow create, update: if isAuthenticated()
+                              && !isUserBanned(request.auth.uid)
+                              && keyId == 'answerKey'
+                              && getAfter(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid
+                              && request.resource.data.keys().hasOnly(['testId', 'questions', 'updatedAt'])
+                              && request.resource.data.testId == testId
+                              && request.resource.data.questions is list;
+        allow delete: if isAdmin()
+                      || (isAuthenticated()
+                          && !isUserBanned(request.auth.uid)
+                          && get(/databases/$(database)/documents/Shared_Community_Tests/$(testId)).data.creatorId == request.auth.uid);
+      }
+    }
+
+    match /Community_Exam_Subjects/{examId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if false;
     }
 
     match /Community_Posts/{postId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated()
+                  && (isAdmin() || resource.data.moderationState == 'VISIBLE');
 
       // A Community post is text and/or one image. PDF metadata is never accepted.
       // The Android client selects subjects only from UniversalExamRegistry; rules
@@ -290,31 +392,55 @@ service cloud.firestore {
                     && request.resource.data.creatorId == request.auth.uid
                     && request.resource.data.keys().hasOnly([
                       'id', 'authorName', 'authorSubtitle', 'isOfficial', 'isMonitor',
-                      'timeAgo', 'title', 'content', 'isPinned', 'upvotes', 'comments',
-                      'views', 'subject', 'targetExam', 'imageUrl', 'isBookmarked',
-                      'timestamp', 'postType', 'testId', 'creatorId', 'testTitle',
+                      'timeAgo', 'title', 'content', 'highlightedSpans', 'isPinned', 'upvotes', 'comments',
+                      'views', 'subject', 'targetExam', 'examId', 'imageUrl', 'isBookmarked',
+                      'timestamp', 'postType', 'testId', 'creatorId', 'testTitle', 'imagePath',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
-                      'classLevel', 'totalMarks', 'topic', 'userReaction'
+                      'classLevel', 'totalMarks', 'topic', 'userReaction', 'mcqOptions',
+                      'moderationState'
                     ])
                     && request.resource.data.subject is string
                     && request.resource.data.subject.size() > 0
                     && request.resource.data.subject != 'General'
+                    && request.resource.data.moderationState == 'VISIBLE'
+                    && request.resource.data.examId is string
+                    && request.resource.data.examId.size() > 0
+                    && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+                    && request.resource.data.targetExam == get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.examName
+                    && ((request.resource.data.postType == 'TEST_SHARE'
+                          && request.resource.data.subject == 'Full Syllabus')
+                        || request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects)
                     && request.resource.data.targetExam is string
                     && request.resource.data.targetExam.size() > 0
-                    && request.resource.data.postType in ['DISCUSSION', 'DOUBT', 'MCQ', 'TEST_SHARE']
+                    // MCQ documents are created only by the trusted callable so the
+                    // correct option can never be accepted from a student client.
+                    && request.resource.data.postType in ['DISCUSSION', 'DOUBT', 'TEST_SHARE']
                     && request.resource.data.title is string
                     && request.resource.data.title.size() <= 120
                     && request.resource.data.content is string
                     && request.resource.data.content.size() <= 5000
+                    && (!('highlightedSpans' in request.resource.data)
+                        || (request.resource.data.highlightedSpans is list && request.resource.data.highlightedSpans.size() <= 20))
+                    && (request.resource.data.postType != 'DOUBT' || request.resource.data.content.size() > 0)
                     && (request.resource.data.content.size() > 0
                         || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
                     && (!('imageUrl' in request.resource.data)
                         || request.resource.data.imageUrl == null
                         || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
+                    && ((!('imageUrl' in request.resource.data) || request.resource.data.imageUrl == null)
+                        == (!('imagePath' in request.resource.data) || request.resource.data.imagePath == null))
+                    && (!('imagePath' in request.resource.data) || request.resource.data.imagePath == null
+                        || (request.resource.data.imagePath is string
+                            && request.resource.data.imagePath.matches('community_images/' + request.auth.uid + '/[^/]+')))
+                    && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl == null
+                        || (request.resource.data.imageUrl is string
+                            && request.resource.data.imageUrl.matches('https://firebasestorage\\.googleapis\\.com/v0/b/[^/]+/o/community_images%2F' + request.auth.uid + '%2F[^?]+\\?alt=media.*')))
                     && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName'])
                     && (!('isPinned' in request.resource.data) || request.resource.data.isPinned == false)
                     && (!('isOfficial' in request.resource.data) || request.resource.data.isOfficial == false)
-                    && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false);
+                    && (!('isMonitor' in request.resource.data) || request.resource.data.isMonitor == false)
+                    && (!('mcqOptions' in request.resource.data)
+                        || (request.resource.data.mcqOptions is list && request.resource.data.mcqOptions.size() == 0));
 
       // Only the owner may edit the post body/subject/image. Replies are separate
       // documents so one student can never overwrite another student's reply list.
@@ -323,14 +449,21 @@ service cloud.firestore {
                         && !isUserBanned(request.auth.uid)
                         && resource.data.creatorId == request.auth.uid
                         && request.resource.data.diff(resource.data).affectedKeys()
-                            .hasOnly(['title', 'content', 'subject', 'targetExam', 'imageUrl'])
+                            .hasOnly(['title', 'content', 'highlightedSpans', 'subject', 'targetExam'])
                         && request.resource.data.subject is string
                         && request.resource.data.subject.size() > 0
                         && request.resource.data.subject != 'General'
+                        && request.resource.data.examId is string
+                        && exists(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId))
+                        && request.resource.data.targetExam == get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.examName
+                        && request.resource.data.subject in get(/databases/$(database)/documents/Community_Exam_Subjects/$(request.resource.data.examId)).data.subjects
                         && request.resource.data.title is string
                         && request.resource.data.title.size() <= 120
                         && request.resource.data.content is string
                         && request.resource.data.content.size() <= 5000
+                        && (!('highlightedSpans' in request.resource.data)
+                            || (request.resource.data.highlightedSpans is list && request.resource.data.highlightedSpans.size() <= 20))
+                        && (resource.data.postType != 'DOUBT' || request.resource.data.content.size() > 0)
                         && (request.resource.data.content.size() > 0
                             || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
                         && (!('imageUrl' in request.resource.data)
@@ -338,28 +471,26 @@ service cloud.firestore {
                             || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048))
                         && !request.resource.data.keys().hasAny(['pdfUrl', 'pdfFileName']));
 
-      allow delete: if isAdmin() || (isAuthenticated() && !isUserBanned(request.auth.uid) && resource.data.creatorId == request.auth.uid);
+      // Owner deletion goes through the callable so replies and the owned image are cleaned up.
+      allow delete: if isAdmin();
 
       match /Comments/{commentId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated()
-                      && !isUserBanned(request.auth.uid)
-                      && request.resource.data.creatorId == request.auth.uid
-                      && request.resource.data.content is string
-                      && request.resource.data.content.size() > 0
-                      && request.resource.data.content.size() <= 2000
-                      && request.resource.data.keys().hasOnly([
-                        'id', 'authorName', 'timeAgo', 'content', 'upvotes',
-                        'isCorrectAnswer', 'userReaction', 'creatorId', 'timestamp'
-                      ]);
+        allow read: if isAuthenticated()
+                      && (isAdmin()
+                          || get(/databases/$(database)/documents/Community_Posts/$(postId)).data.get('moderationState', '') == 'VISIBLE');
+        // Student replies are created through the trusted callable so the
+        // parent comment counter and reply document commit atomically.
+        allow create: if isAdmin();
         allow update: if isAdmin()
                       || (isAuthenticated()
                           && !isUserBanned(request.auth.uid)
                           && resource.data.creatorId == request.auth.uid
-                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content']));
-        allow delete: if isAdmin()
-                      || (isAuthenticated() && !isUserBanned(request.auth.uid)
-                          && resource.data.creatorId == request.auth.uid);
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content'])
+                          && request.resource.data.content is string
+                          && request.resource.data.content.size() > 0
+                          && request.resource.data.content.size() <= 2000);
+        // The callable deletes the reply and decrements the parent counter atomically.
+        allow delete: if isAdmin();
       }
     }
 
@@ -375,9 +506,56 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly([
                       'reporterId', 'postId', 'reportedUserId', 'reason',
                       'evidenceImagePath', 'status', 'createdAt'
-                    ]);
-      allow read, update: if isAdmin();
+                    ])
+                    && request.resource.data.keys().hasAny(['postId', 'reportedUserId'])
+                    && ((('postId' in request.resource.data)
+                          && request.resource.data.postId is string
+                          && request.resource.data.postId.size() > 0
+                          && exists(/databases/$(database)/documents/Community_Posts/$(request.resource.data.postId))
+                          && (!('reportedUserId' in request.resource.data)
+                              || (request.resource.data.reportedUserId is string
+                                  && request.resource.data.reportedUserId != request.auth.uid
+                                  && request.resource.data.reportedUserId == get(/databases/$(database)/documents/Community_Posts/$(request.resource.data.postId)).data.creatorId)))
+                        || (!('postId' in request.resource.data)
+                            && 'reportedUserId' in request.resource.data
+                            && request.resource.data.reportedUserId is string
+                            && request.resource.data.reportedUserId.size() > 0
+                            && request.resource.data.reportedUserId != request.auth.uid
+                            && exists(/databases/$(database)/documents/Users_Data/$(request.resource.data.reportedUserId))))
+                    && (!('evidenceImagePath' in request.resource.data)
+                        || (request.resource.data.evidenceImagePath is string
+                            && request.resource.data.evidenceImagePath.matches('community_report_evidence/' + request.auth.uid + '/[^/]+')));
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['status', 'resolvedBy', 'resolvedAt', 'resolutionNote'])
+                    && request.resource.data.status in ['OPEN', 'RESOLVED', 'DISMISSED'];
       allow delete: if false;
+    }
+
+    match /Community_Moderation_Audit/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+                    && request.resource.data.actorUid == request.auth.uid
+                    && request.resource.data.action is string
+                    && request.resource.data.targetType is string
+                    && request.resource.data.targetId is string
+                    && request.resource.data.reason is string
+                    && request.resource.data.keys().hasOnly([
+                      'actorUid', 'action', 'targetType', 'targetId', 'reportId',
+                      'reason', 'createdAt'
+                    ]);
+      allow update, delete: if false;
+    }
+
+    match /Community_MCQ_AnswerKeys/{postId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /Community_MCQ_Attempts/{postId}/Users/{userId} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+      allow create, update, delete: if false;
     }
 
     // Per-user block list. A student can only manage their own block entries.
@@ -386,7 +564,9 @@ service cloud.firestore {
       allow create: if isAuthenticated()
                     && !isUserBanned(request.auth.uid)
                     && request.auth.uid == userId
-                    && request.resource.data.blockedUid == blockedUid;
+                    && blockedUid != request.auth.uid
+                    && request.resource.data.blockedUid == blockedUid
+                    && request.resource.data.keys().hasOnly(['blockedUid', 'createdAt']);
       allow delete: if isAuthenticated() && request.auth.uid == userId;
       allow update: if false;
     }

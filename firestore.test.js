@@ -37,7 +37,33 @@ after(async () => {
 beforeEach(async () => {
   if (testEnv) {
     await testEnv.clearFirestore();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection("Community_Exam_Subjects").doc("neet_ug").set({
+        examId: "neet_ug",
+        examName: "NEET UG",
+        shortName: "NEET",
+        aliases: ["neet_ug", "NEET UG", "NEET"],
+        subjects: ["Physics", "Chemistry", "Botany", "Zoology"]
+      });
+      await db.collection("Community_Exam_Subjects").doc("jee_main").set({
+        examId: "jee_main",
+        examName: "JEE Main",
+        shortName: "JEE",
+        aliases: ["jee_main", "JEE Main", "JEE"],
+        subjects: ["Physics", "Chemistry", "Mathematics"]
+      });
+    });
   }
+});
+
+
+test("Students can read but cannot alter the canonical Community exam registry", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const registryRef = aliceDb.collection("Community_Exam_Subjects").doc("neet_ug");
+  await assertSucceeds(registryRef.get());
+  await assertFails(registryRef.update({ subjects: ["General"] }));
+  await assertFails(registryRef.set({ examId: "forged", subjects: ["Anything"] }));
 });
 
 // =========================================================================
@@ -374,19 +400,22 @@ test("F-016: Student CANNOT read private_keys subcollection or TestAnswerKeys di
 
 test("Student: CAN create community post with own creatorId", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  await assertSucceeds(
-    aliceDb.collection("Community_Posts").doc("alice_post_1").set({
-      creatorId: ALICE_UID,
-      authorName: "Alice",
-      title: "Best revision strategy for Physics?",
-      content: "How to master Rotational Motion?",
-      subject: "Physics",
-      targetExam: "JEE Main",
-      postType: "DISCUSSION",
-      upvotes: 0,
-      comments: 0,
-    })
-  );
+  const ownPost = aliceDb.collection("Community_Posts").doc("alice_post_1");
+  await assertSucceeds(ownPost.set({
+    creatorId: ALICE_UID,
+    authorName: "Alice",
+    title: "Best revision strategy for Physics?",
+    content: "How to master Rotational Motion?",
+    subject: "Physics",
+    targetExam: "JEE Main",
+    examId: "jee_main",
+    postType: "DISCUSSION",
+    moderationState: "VISIBLE",
+    upvotes: 0,
+    comments: 0
+  }));
+  await assertSucceeds(ownPost.update({ content: "Updated Physics question" }));
+  await assertFails(ownPost.update({ subject: "General" }));
 });
 
 test("Student: CANNOT spoof isPinned or isOfficial on community post creation", async () => {
@@ -396,9 +425,11 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       creatorId: ALICE_UID,
       title: "Important Notice",
       content: "Exam Cancelled",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       isPinned: true, // Malicious spoof
     })
   );
@@ -408,9 +439,11 @@ test("Student: CANNOT spoof isPinned or isOfficial on community post creation", 
       creatorId: ALICE_UID,
       title: "Official Announcement",
       content: "Free VIP for everyone",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       isOfficial: true, // Malicious spoof
     })
   );
@@ -424,7 +457,9 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       content: "Need help with Organic Chemistry",
       subject: "Chemistry",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       upvotes: 5,
       views: 20,
       comments: 2,
@@ -432,6 +467,7 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
   });
 
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
   // Students cannot mutate shared counters directly.
   await assertFails(
@@ -451,6 +487,11 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
   await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").delete()
   );
+  // Even the owner uses the trusted deletion callable so replies and image storage are cleaned up.
+  await assertFails(
+    bobDb.collection("Community_Posts").doc("bob_post").delete()
+  );
+
 
   // Replies are independent documents. Alice cannot replace the parent's
   // comments array/counter, but can create her own reply.
@@ -462,7 +503,7 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       ]
     })
   );
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").set({
       id: "alice_reply_1",
       creatorId: ALICE_UID,
@@ -475,13 +516,12 @@ test("Student: CANNOT mutate another post or shared counters, but CAN create and
       timestamp: Date.now()
     })
   );
-  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   await assertFails(
     bobDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").update({
       content: "Edited by Bob"
     })
   );
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("bob_post").collection("Comments").doc("alice_reply_1").delete()
   );
 
@@ -511,7 +551,9 @@ test("Community posts reject General subject and PDF attachment fields", async (
     title: "A question",
     content: "Question text",
     targetExam: "NEET UG",
-    postType: "DISCUSSION"
+    examId: "neet_ug",
+    postType: "DISCUSSION",
+    moderationState: "VISIBLE",
   };
   await assertFails(
     aliceDb.collection("Community_Posts").doc("general_subject_post").set({
@@ -519,13 +561,40 @@ test("Community posts reject General subject and PDF attachment fields", async (
     })
   );
   await assertFails(
-    aliceDb.collection("Community_Posts").doc("pdf_attachment_post").set({
-      ...base, subject: "Biology", pdfUrl: "https://example.invalid/test.pdf"
+    aliceDb.collection("Community_Posts").doc("unregistered_subject_post").set({
+      ...base, subject: "Biology"
     })
   );
   await assertFails(
+    aliceDb.collection("Community_Posts").doc("forged_exam_subject_post").set({
+      ...base, subject: "Physics", targetExam: "JEE Main"
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("alias_exam_name_post").set({
+      ...base, subject: "Botany", targetExam: "NEET"
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("pdf_attachment_post").set({
+      ...base, subject: "Botany", pdfUrl: "https://example.invalid/test.pdf"
+    })
+  );
+  await assertFails(aliceDb.collection("Community_Posts").doc("foreign_image_path").set({
+    ...base,
+    subject: "Botany",
+    imageUrl: `https://firebasestorage.googleapis.com/v0/b/test-bucket/o/community_images%2F${BOB_UID}%2Fimage.jpg?alt=media&token=test-token`,
+    imagePath: `community_images/${BOB_UID}/image.jpg`
+  }));
+  await assertFails(aliceDb.collection("Community_Posts").doc("external_image_url").set({
+    ...base,
+    subject: "Botany",
+    imageUrl: "https://example.invalid/image.jpg",
+    imagePath: `community_images/${ALICE_UID}/image.jpg`
+  }));
+  await assertFails(
     aliceDb.collection("Community_Posts").doc("multiple_images_post").set({
-      ...base, subject: "Biology", imageUrls: ["https://example.invalid/1.jpg", "https://example.invalid/2.jpg"]
+      ...base, subject: "Botany", imageUrls: ["https://example.invalid/1.jpg", "https://example.invalid/2.jpg"]
     })
   );
 });
@@ -534,6 +603,13 @@ test("Community reports are private to Admin and block lists are owner-managed",
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Community_Posts").doc("post_1").set({
+      creatorId: BOB_UID,
+      moderationState: "VISIBLE"
+    });
+  });
 
   await assertSucceeds(
     aliceDb.collection("Community_Reports").doc("report_1").set({
@@ -545,9 +621,30 @@ test("Community reports are private to Admin and block lists are owner-managed",
       createdAt: Date.now()
     })
   );
+  await assertFails(aliceDb.collection("Community_Reports").doc("self_report").set({
+    reporterId: ALICE_UID,
+    reportedUserId: ALICE_UID,
+    reason: "Self report",
+    status: "OPEN",
+    createdAt: Date.now()
+  }));
+  await assertFails(aliceDb.collection("Community_Reports").doc("wrong_target").set({
+    reporterId: ALICE_UID,
+    postId: "post_1",
+    reportedUserId: ALICE_UID,
+    reason: "Forged target",
+    status: "OPEN",
+    createdAt: Date.now()
+  }));
   await assertFails(aliceDb.collection("Community_Reports").doc("report_1").get());
   await assertFails(bobDb.collection("Community_Reports").doc("report_1").get());
   await assertSucceeds(adminDb.collection("Community_Reports").doc("report_1").get());
+  await assertFails(aliceDb.collection("Community_Reports").doc("report_1").update({ status: "RESOLVED" }));
+  await assertSucceeds(adminDb.collection("Community_Reports").doc("report_1").update({
+    status: "RESOLVED",
+    resolvedBy: ADMIN_UID,
+    resolvedAt: Date.now()
+  }));
 
   await assertSucceeds(
     aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).set({
@@ -557,6 +654,18 @@ test("Community reports are private to Admin and block lists are owner-managed",
   );
   await assertFails(
     bobDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).delete()
+  );
+  await assertSucceeds(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).get()
+  );
+  await assertFails(
+    aliceDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(ALICE_UID).set({
+      blockedUid: ALICE_UID,
+      createdAt: Date.now()
+    })
+  );
+  await assertFails(
+    bobDb.collection("Users_Data").doc(ALICE_UID).collection("Blocked_Users").doc(BOB_UID).get()
   );
 });
 
@@ -778,30 +887,106 @@ test("Private Test Ownership: ownerId and uploaderId are supported, missing owne
   await assertFails(aliceDb.collection("Tests_Data").doc("orphan_private_test").get());
 });
 
-test("Shared_Community_Tests: Creator can update, but cannot alter creatorId or uploaderId", async () => {
+test("Shared_Community_Tests: safe question projection is public but answer keys remain private", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const sharedRef = aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test");
 
-  // Alice creates community test
-  await assertSucceeds(
-    aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").set({
-      title: "Shared Community Test",
-      creatorId: ALICE_UID,
-      targetExam: "NEET"
+  await assertFails(aliceDb.collection("Shared_Community_Tests").doc("alias_exam_test").set({
+    testId: "alias_exam_test",
+    title: "Alias exam name must be canonical",
+    creatorId: ALICE_UID,
+    targetExam: "NEET",
+    examId: "neet_ug",
+    subject: "Botany",
+    isPublic: true,
+    isOfficial: false,
+    countsTowardRanking: false,
+    status: "Published",
+    sharingState: "COMMUNITY_SHARED",
+    answerKeySeparated: true
+  }));
+
+  await assertSucceeds(sharedRef.set({
+    testId: "alice_comm_test",
+    title: "Shared Community Test",
+    creatorId: ALICE_UID,
+    targetExam: "NEET UG",
+    examId: "neet_ug",
+    subject: "Botany",
+    questionCount: 1,
+    questionsCount: 1,
+    durationMinutes: 180,
+    isPublic: true,
+    isOfficial: false,
+    countsTowardRanking: false,
+    status: "Published",
+    sharingState: "COMMUNITY_SHARED",
+    answerKeySeparated: true
+  }));
+
+  const safeQuestion = {
+    id: "q1",
+    testId: "alice_comm_test",
+    questionText: "Which organelle produces ATP?",
+    optionA: "Nucleus",
+    optionB: "Mitochondrion",
+    optionC: "Ribosome",
+    optionD: "Golgi body",
+    options: ["Nucleus", "Mitochondrion", "Ribosome", "Golgi body"],
+    questionType: "MCQ",
+    positiveMarks: 4,
+    negativeMarks: 1,
+    section: "SECTION_A"
+  };
+  await assertSucceeds(sharedRef.collection("questions").doc("q1").set(safeQuestion));
+  await assertSucceeds(bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").get());
+  await assertSucceeds(bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").collection("questions").doc("q1").get());
+
+  await assertFails(
+    sharedRef.collection("questions").doc("q2").set({
+      ...safeQuestion,
+      id: "q2",
+      correctAnswer: "B",
+      explanation: "This would expose the key."
+    })
+  );
+  await assertFails(
+    sharedRef.collection("questions").doc("q3").set({
+      ...safeQuestion,
+      id: "q3",
+      explanationHi: "यह उत्तर का कारण है।"
     })
   );
 
-  // Bob cannot delete or alter Alice's community test
-  await assertFails(
-    bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").delete()
-  );
+  const privateKeyRef = sharedRef.collection("private_keys").doc("answerKey");
+  await assertSucceeds(privateKeyRef.set({
+    testId: "alice_comm_test",
+    questions: [{ id: "q1", correctAnswer: "B", explanation: "ATP is produced by mitochondria." }],
+    updatedAt: Date.now()
+  }));
+  await assertFails(aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").collection("private_keys").doc("answerKey").get());
+  await assertFails(bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").collection("private_keys").doc("answerKey").get());
+  await assertSucceeds(adminDb.collection("Shared_Community_Tests").doc("alice_comm_test").collection("private_keys").doc("answerKey").get());
 
-  // Alice cannot reassign creatorId to Bob
-  await assertFails(
-    aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").update({
-      creatorId: BOB_UID
-    })
-  );
+  await assertFails(bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").delete());
+  await assertFails(sharedRef.update({ creatorId: BOB_UID }));
+  await assertSucceeds(sharedRef.update({ title: "Updated safe title" }));
+});
+
+test("Legacy inline Community tests remain unreadable until answer keys are separated", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Shared_Community_Tests").doc("legacy_inline_test").set({
+      creatorId: BOB_UID,
+      targetExam: "NEET UG",
+      examId: "neet_ug",
+      questions: [{ id: "q1", correctAnswer: "A", explanation: "Secret" }],
+      questionsJson: JSON.stringify([{ id: "q1", correctAnswer: "A" }])
+    });
+  });
+  await assertFails(aliceDb.collection("Shared_Community_Tests").doc("legacy_inline_test").get());
 });
 
 // =========================================================================
@@ -834,9 +1019,11 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
     aliceDb.collection("Community_Posts").doc("post_active_1").set({
       title: "Active Post",
       content: "Active student post",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       creatorId: ALICE_UID,
       timestamp: Date.now()
     })
@@ -869,9 +1056,11 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
     bobDb.collection("Community_Posts").doc("post_banned_1").set({
       title: "Spam Post",
       content: "Spam",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       creatorId: BOB_UID,
       timestamp: Date.now()
     })
@@ -882,7 +1071,8 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
     bobDb.collection("Shared_Community_Tests").doc("comm_test_banned_1").set({
       title: "Banned Test",
       creatorId: BOB_UID,
-      targetExam: "NEET"
+      targetExam: "NEET",
+      examId: "neet_ug",
     })
   );
 
@@ -908,9 +1098,11 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
     bobDb.collection("Community_Posts").doc("post_bob_reinstated").set({
       title: "Hello Again",
       content: "Back from suspension",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       creatorId: BOB_UID
     })
   );
@@ -925,12 +1117,205 @@ test("Ban Enforcement Rules: Admin can unban student and restore privileges in r
     bobDb.collection("Community_Posts").doc("post_bob_reinstated").set({
       title: "Hello Again",
       content: "Back from suspension",
-      subject: "Biology",
+      subject: "Botany",
       targetExam: "NEET UG",
+      examId: "neet_ug",
       postType: "DISCUSSION",
+      moderationState: "VISIBLE",
       creatorId: BOB_UID
     })
   );
 });
 
 
+
+
+test("Community students cannot create MCQs directly or read the private answer key", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+
+  await assertFails(aliceDb.collection("Community_Posts").doc("forged_mcq").set({
+    creatorId: ALICE_UID,
+    authorName: "Alice",
+    title: "Question",
+    content: "Which is correct?",
+    subject: "Botany",
+    targetExam: "NEET UG",
+    examId: "neet_ug",
+    postType: "MCQ",
+    moderationState: "VISIBLE",
+    mcqOptions: ["A", "B", "C", "D"],
+    timestamp: Date.now()
+  }));
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Community_MCQ_AnswerKeys").doc("mcq_1").set({
+      creatorId: BOB_UID,
+      correctOptionIndex: 2
+    });
+  });
+  await assertFails(aliceDb.collection("Community_MCQ_AnswerKeys").doc("mcq_1").get());
+  await assertSucceeds(adminDb.collection("Community_MCQ_AnswerKeys").doc("mcq_1").get());
+});
+
+test("Community MCQ attempt is readable only by its owner and cannot be client-written", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Community_MCQ_Attempts").doc("mcq_1")
+      .collection("Users").doc(ALICE_UID).set({
+        userId: ALICE_UID,
+        selectedOptionIndex: 0,
+        correctOptionIndex: 1,
+        isCorrect: false
+      });
+  });
+
+  const aliceAttempt = aliceDb.collection("Community_MCQ_Attempts").doc("mcq_1")
+    .collection("Users").doc(ALICE_UID);
+  const bobAttempt = bobDb.collection("Community_MCQ_Attempts").doc("mcq_1")
+    .collection("Users").doc(ALICE_UID);
+  await assertSucceeds(aliceAttempt.get());
+  await assertFails(bobAttempt.get());
+  await assertFails(aliceAttempt.set({ selectedOptionIndex: 1, correctOptionIndex: 1, isCorrect: true }));
+});
+
+test("Community hidden posts are readable by Admin only", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Community_Posts").doc("hidden_post").set({
+      creatorId: BOB_UID,
+      subject: "Botany",
+      targetExam: "NEET UG",
+      examId: "neet_ug",
+      title: "Hidden",
+      content: "Moderated content",
+      postType: "DISCUSSION",
+      moderationState: "HIDDEN"
+    });
+  });
+  await assertFails(aliceDb.collection("Community_Posts").doc("hidden_post").get());
+  await assertSucceeds(adminDb.collection("Community_Posts").doc("hidden_post").get());
+});
+
+test("Community moderation audit is Admin-created, Admin-readable and immutable", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const event = adminDb.collection("Community_Moderation_Audit").doc("event_1");
+  await assertFails(aliceDb.collection("Community_Moderation_Audit").doc("fake").set({
+    actorUid: ALICE_UID,
+    action: "HIDE_POST",
+    targetType: "COMMUNITY_POST",
+    targetId: "post_1",
+    reason: "fake",
+    createdAt: Date.now()
+  }));
+  await assertSucceeds(event.set({
+    actorUid: ADMIN_UID,
+    action: "HIDE_POST",
+    targetType: "COMMUNITY_POST",
+    targetId: "post_1",
+    reason: "Policy violation",
+    createdAt: Date.now()
+  }));
+  await assertSucceeds(event.get());
+  await assertFails(event.update({ reason: "tampered" }));
+  await assertFails(event.delete());
+});
+
+
+test("Community replies enforce parent visibility and per-author deletion", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await db.collection("Community_Posts").doc("visible_reply_parent").set({
+      creatorId: BOB_UID, moderationState: "VISIBLE"
+    });
+    await db.collection("Community_Posts").doc("hidden_reply_parent").set({
+      creatorId: BOB_UID, moderationState: "HIDDEN"
+    });
+    await db.collection("Community_Posts").doc("visible_reply_parent")
+      .collection("Comments").doc("alice_reply").set({ creatorId: ALICE_UID, content: "Alice reply" });
+    await db.collection("Community_Posts").doc("visible_reply_parent")
+      .collection("Comments").doc("bob_reply").set({ creatorId: BOB_UID, content: "Bob reply" });
+    await db.collection("Community_Posts").doc("hidden_reply_parent")
+      .collection("Comments").doc("hidden_reply").set({ creatorId: BOB_UID, content: "Hidden reply" });
+  });
+
+  const visibleComments = aliceDb.collection("Community_Posts").doc("visible_reply_parent").collection("Comments");
+  const hiddenComment = aliceDb.collection("Community_Posts").doc("hidden_reply_parent").collection("Comments").doc("hidden_reply");
+  await assertSucceeds(visibleComments.doc("alice_reply").get());
+  await assertFails(hiddenComment.get());
+  await assertSucceeds(adminDb.collection("Community_Posts").doc("hidden_reply_parent")
+    .collection("Comments").doc("hidden_reply").get());
+
+  await assertFails(bobDb.collection("Community_Posts").doc("visible_reply_parent")
+    .collection("Comments").doc("alice_reply").delete());
+  await assertFails(visibleComments.doc("alice_reply").delete());
+  await assertSucceeds(adminDb.collection("Community_Posts").doc("visible_reply_parent")
+    .collection("Comments").doc("bob_reply").delete());
+});
+
+test("Community doubt posts require question text even when an image is attached", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const invalidDoubt = {
+    creatorId: ALICE_UID,
+    title: "Doubt",
+    content: "",
+    imageUrl: `https://firebasestorage.googleapis.com/v0/b/test-bucket/o/community_images%2F${ALICE_UID}%2Fdoubt.jpg?alt=media&token=test-token`,
+    imagePath: `community_images/${ALICE_UID}/doubt.jpg`,
+    subject: "Botany",
+    targetExam: "NEET UG",
+    examId: "neet_ug",
+    postType: "DOUBT",
+    moderationState: "VISIBLE",
+    timestamp: Date.now()
+  };
+  await assertFails(aliceDb.collection("Community_Posts").doc("empty_doubt").set(invalidDoubt));
+  await assertSucceeds(aliceDb.collection("Community_Posts").doc("valid_doubt").set({
+    ...invalidDoubt,
+    content: "Why does this process occur?"
+  }));
+});
+
+
+test("Community Doubt accepts bounded highlighted text spans and rejects malformed span collections", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const base = {
+    creatorId: ALICE_UID,
+    authorName: "Alice",
+    title: "Highlighted doubt",
+    content: "Why does this reaction occur?",
+    subject: "Botany",
+    targetExam: "NEET UG",
+    examId: "neet_ug",
+    postType: "DOUBT",
+    moderationState: "VISIBLE",
+    timestamp: Date.now()
+  };
+
+  await assertSucceeds(
+    aliceDb.collection("Community_Posts").doc("doubt_with_highlight").set({
+      ...base,
+      highlightedSpans: [{ start: 0, end: 8 }, { start: 14, end: 22 }]
+    })
+  );
+
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("too_many_highlights").set({
+      ...base,
+      highlightedSpans: Array.from({ length: 21 }, (_, index) => ({ start: index, end: index + 1 }))
+    })
+  );
+
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("malformed_highlights").set({
+      ...base,
+      highlightedSpans: "not-a-list"
+    })
+  );
+});

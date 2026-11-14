@@ -57,13 +57,17 @@ data class CommunityPost(
     val timeAgo: String = "Just now",
     val title: String = "",
     val content: String = "",
+    val highlightedSpans: List<CommunityTextHighlight> = emptyList(),
     val isPinned: Boolean = false,
     val upvotes: Int = 0,
     val comments: Int = 0,
     val views: String = "0",
     val subject: String = "",
     val targetExam: String = "NEET",
+    val examId: String? = null,
+    val moderationState: String = "VISIBLE",
     val imageUrl: String? = null,
+    val imagePath: String? = null,
     val userReaction: String? = null,
     val commentsList: List<CommunityComment> = emptyList(),
     val isBookmarked: Boolean = false,
@@ -78,7 +82,9 @@ data class CommunityPost(
     val difficulty: String? = null,
     val classLevel: String? = null,
     val totalMarks: Double? = null,
-    val topic: String? = null
+    val topic: String? = null,
+    val mcqOptions: List<String> = emptyList(),
+    val creatorRole: String = "STUDENT"
 )
 
 data class CommunityComment(
@@ -118,13 +124,16 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "timeAgo" to post.timeAgo,
         "title" to post.title,
         "content" to post.content,
+        "highlightedSpans" to post.highlightedSpans.map { mapOf("start" to it.start, "end" to it.end) },
         "isPinned" to post.isPinned,
         "upvotes" to post.upvotes,
         "comments" to post.comments,
         "views" to post.views,
         "subject" to post.subject,
         "targetExam" to post.targetExam,
+        "examId" to (post.examId ?: Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(post.targetExam)?.examId.orEmpty()),
         "imageUrl" to post.imageUrl,
+        "imagePath" to post.imagePath,
         "isBookmarked" to post.isBookmarked,
         "timestamp" to post.timestamp,
         "postType" to post.postType,
@@ -139,6 +148,8 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "totalMarks" to post.totalMarks,
         "topic" to post.topic,
         "userReaction" to post.userReaction,
+        "mcqOptions" to post.mcqOptions,
+        "moderationState" to post.moderationState,
         // Replies live in Community_Posts/{postId}/Comments/{commentId}; never write a shared array.
     )
 }
@@ -179,6 +190,7 @@ object CommunityShareManager {
         authorName: String,
         authorSubtitle: String,
         targetExam: String,
+        selectedSubject: String,
         totalMarks: Double? = null,
         questionCount: Int? = null,
         durationMinutes: Int? = null,
@@ -190,8 +202,14 @@ object CommunityShareManager {
         val shareContent = if (test.description.isNotBlank()) {
             test.description
         } else {
-            "Check out this test: ${test.title} (${test.subject} - $qCount Questions, $durMins Mins)."
+            "Check out this test: ${test.title} ($selectedSubject - $qCount Questions, $durMins Mins)."
         }
+        val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
+        val registeredSubjects = Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
+        require(selectedSubject == "Full Syllabus" || selectedSubject in registeredSubjects) {
+            "A registered subject must be selected before sharing this test."
+        }
+        val shareSubject = selectedSubject
 
         return CommunityPost(
             id = postId,
@@ -199,8 +217,9 @@ object CommunityShareManager {
             authorSubtitle = authorSubtitle,
             title = shareTitle,
             content = shareContent,
-            subject = test.subject,
+            subject = shareSubject,
             targetExam = targetExam,
+            examId = examConfig?.examId ?: test.examId,
             timeAgo = "Just now",
             timestamp = System.currentTimeMillis(),
             postType = "TEST_SHARE",
@@ -225,21 +244,32 @@ fun CommunityScreen(
     onExit: () -> Unit = {},
     onOpenTest: (String) -> Unit = {}
 ) {
+    val canonicalTargetExam = Com.ak.testseries.exam.UniversalExamRegistry
+        .findExamByNameOrShortName(targetExam)?.examName ?: targetExam
+
     var currentRoute by remember { mutableStateOf(CommunityRoute.FEED) }
     var selectedPostId by remember { mutableStateOf<String?>(null) }
     
     val posts = remember { mutableStateListOf<CommunityPost>() }
+    var lastVisiblePostDocument by remember(canonicalTargetExam) { mutableStateOf<com.google.firebase.firestore.DocumentSnapshot?>(null) }
+    var canLoadMorePosts by remember(canonicalTargetExam) { mutableStateOf(true) }
+    var isLoadingMorePosts by remember { mutableStateOf(false) }
+    var loadMoreError by remember { mutableStateOf<String?>(null) }
+    var loadMoreAction by remember(canonicalTargetExam) { mutableStateOf<(() -> Unit)?>(null) }
     val bookmarkedPostIds = remember { mutableStateListOf<String>() }
     val likedPostIds = remember { mutableStateListOf<String>() }
+    val blockedUserIds = remember { mutableStateListOf<String>() }
 
     val currentAuthUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val currentUid = currentAuthUser?.uid
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Isolate bookmarks and likes per user under Users_Data/{userId}
     DisposableEffect(currentUid) {
         if (currentUid.isNullOrBlank()) {
             bookmarkedPostIds.clear()
             likedPostIds.clear()
+            blockedUserIds.clear()
             return@DisposableEffect onDispose {}
         }
         val db = FirebaseFirestore.getInstance()
@@ -259,17 +289,32 @@ fun CommunityScreen(
                     likedPostIds.addAll(snapshot.documents.map { it.id })
                 }
             }
+        val blockedListener = db.collection("Users_Data").document(currentUid)
+            .collection("Blocked_Users")
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    blockedUserIds.clear()
+                    blockedUserIds.addAll(snapshot.documents.map { it.id })
+                }
+            }
         onDispose {
             bookmarkListener.remove()
             likedListener.remove()
+            blockedListener.remove()
         }
     }
 
-    DisposableEffect(targetExam) {
+    DisposableEffect(canonicalTargetExam) {
+        posts.clear()
+        lastVisiblePostDocument = null
+        canLoadMorePosts = true
+        isLoadingMorePosts = false
+        loadMoreError = null
         val db = FirebaseFirestore.getInstance()
 
         fun parseDocument(doc: com.google.firebase.firestore.DocumentSnapshot): CommunityPost? {
             return try {
+                if (!isAdmin && doc.getString("moderationState") == "HIDDEN") return null
                 val rawComments = doc.get("commentsList") as? List<Map<String, Any?>> ?: emptyList()
                 val parsedComments = rawComments.mapNotNull { cMap ->
                     try {
@@ -297,13 +342,17 @@ fun CommunityScreen(
                     timeAgo = doc.getString("timeAgo") ?: "Just now",
                     title = doc.getString("title") ?: "",
                     content = doc.getString("content") ?: "",
+                    highlightedSpans = parseCommunityTextHighlights(doc.get("highlightedSpans"), doc.getString("content").orEmpty()),
                     isPinned = doc.getBoolean("isPinned") ?: false,
                     upvotes = doc.getLong("upvotes")?.toInt() ?: 0,
                     comments = (doc.getLong("comments")?.toInt() ?: parsedComments.size),
                     views = doc.getString("views") ?: "0",
                     subject = doc.getString("subject") ?: "",
-                    targetExam = doc.getString("targetExam") ?: targetExam,
+                    targetExam = doc.getString("targetExam") ?: canonicalTargetExam,
+                    examId = doc.getString("examId"),
+                    moderationState = doc.getString("moderationState") ?: "VISIBLE",
                     imageUrl = doc.getString("imageUrl"),
+                    imagePath = doc.getString("imagePath"),
                     isBookmarked = false,
                     timestamp = doc.getLong("timestamp") ?: 0L,
                     postType = doc.getString("postType") ?: "DISCUSSION",
@@ -318,7 +367,9 @@ fun CommunityScreen(
                     totalMarks = doc.getDouble("totalMarks") ?: doc.getLong("totalMarks")?.toDouble(),
                     topic = doc.getString("topic"),
                     userReaction = doc.getString("userReaction"),
-                    commentsList = parsedComments
+                    commentsList = parsedComments,
+                    mcqOptions = (doc.get("mcqOptions") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                    creatorRole = doc.getString("creatorRole") ?: "STUDENT"
                 )
             } catch (e: Exception) {
                 null
@@ -327,7 +378,7 @@ fun CommunityScreen(
 
         fun updatePostsList(docs: List<com.google.firebase.firestore.DocumentSnapshot>) {
             val newPosts = docs.mapNotNull { parseDocument(it) }
-            posts.clear()
+            val existingTail = posts.toList()
             val seenShareKeys = mutableSetOf<String>()
             val deduplicated = mutableListOf<CommunityPost>()
             val sortedList = newPosts.sortedWith(compareByDescending<CommunityPost> { it.isPinned }.thenByDescending { it.timestamp })
@@ -341,33 +392,79 @@ fun CommunityScreen(
                     deduplicated.add(post)
                 }
             }
-            posts.addAll(deduplicated.distinctBy { it.id })
+            val firstPage = deduplicated.distinctBy { it.id }
+            val firstPageIds = firstPage.mapTo(mutableSetOf()) { it.id }
+            posts.clear()
+            posts.addAll(firstPage)
+            posts.addAll(existingTail.filterNot { it.id in firstPageIds })
         }
 
-        val listenerRegistration = db.collection("Community_Posts")
-            .whereEqualTo("targetExam", targetExam)
+        loadMoreAction = {
+            val cursor = lastVisiblePostDocument
+            if (cursor != null && canLoadMorePosts && !isLoadingMorePosts) {
+                isLoadingMorePosts = true
+                loadMoreError = null
+                var nextPageQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
+                    .whereEqualTo("targetExam", canonicalTargetExam)
+                if (!isAdmin) {
+                    nextPageQuery = nextPageQuery.whereEqualTo("moderationState", "VISIBLE")
+                }
+                nextPageQuery
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .startAfter(cursor)
+                    .limit(20)
+                    .get()
+                    .addOnSuccessListener { page ->
+                        val nextPosts = page.documents.mapNotNull { parseDocument(it) }
+                        val existingIds = posts.mapTo(mutableSetOf()) { it.id }
+                        posts.addAll(nextPosts.filterNot { it.id in existingIds })
+                        lastVisiblePostDocument = page.documents.lastOrNull() ?: cursor
+                        canLoadMorePosts = page.documents.size == 20
+                        isLoadingMorePosts = false
+                    }
+                    .addOnFailureListener { error ->
+                        isLoadingMorePosts = false
+                        loadMoreError = error.localizedMessage ?: "More posts could not be loaded."
+                    }
+            }
+        }
+
+        var feedQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
+            .whereEqualTo("targetExam", canonicalTargetExam)
+        if (!isAdmin) {
+            feedQuery = feedQuery.whereEqualTo("moderationState", "VISIBLE")
+        }
+        val listenerRegistration = feedQuery
             .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(20)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     // Fallback query if compound index is building or fails
-                    db.collection("Community_Posts")
-                        .whereEqualTo("targetExam", targetExam)
-                        .limit(20)
+                    var fallbackQuery: com.google.firebase.firestore.Query = db.collection("Community_Posts")
+                        .whereEqualTo("targetExam", canonicalTargetExam)
+                    if (!isAdmin) {
+                        fallbackQuery = fallbackQuery.whereEqualTo("moderationState", "VISIBLE")
+                    }
+                    fallbackQuery.limit(20)
                         .get()
                         .addOnSuccessListener { fallbackSnap ->
                             updatePostsList(fallbackSnap.documents)
+                            lastVisiblePostDocument = null
+                            canLoadMorePosts = false
                         }
                     return@addSnapshotListener
                 }
                 
                 if (snapshot != null) {
                     updatePostsList(snapshot.documents)
+                    lastVisiblePostDocument = snapshot.documents.lastOrNull()
+                    canLoadMorePosts = snapshot.documents.size == 20
                 }
             }
             
         onDispose {
             listenerRegistration.remove()
+            loadMoreAction = null
         }
     }
 
@@ -388,33 +485,110 @@ fun CommunityScreen(
 
     val toggleLikePost: (CommunityPost) -> Unit = { post ->
         val uid = currentUid
-        if (!uid.isNullOrBlank()) {
-            val db = FirebaseFirestore.getInstance()
-            val likeDoc = db.collection("Users_Data").document(uid).collection("Liked_Posts").document(post.id)
-            val isLiked = likedPostIds.contains(post.id)
-            if (isLiked) {
-                likedPostIds.remove(post.id)
-                likeDoc.delete()
+        if (uid.isNullOrBlank()) {
+            android.widget.Toast.makeText(context, "Sign in to react.", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            val desiredLiked = !likedPostIds.contains(post.id)
+            com.google.firebase.functions.FirebaseFunctions.getInstance()
+                .getHttpsCallable("setCommunityReaction")
+                .call(mapOf("postId" to post.id, "liked" to desiredLiked))
+                .addOnSuccessListener { response ->
+                    @Suppress("UNCHECKED_CAST")
+                    val result = response.data as? Map<String, Any?>
+                    val liked = result?.get("liked") as? Boolean ?: desiredLiked
+                    val upvotes = (result?.get("upvotes") as? Number)?.toInt()
+                    if (liked && !likedPostIds.contains(post.id)) likedPostIds.add(post.id)
+                    if (!liked) likedPostIds.remove(post.id)
+                    if (upvotes != null) {
+                        val index = posts.indexOfFirst { it.id == post.id }
+                        if (index >= 0) posts[index] = posts[index].copy(
+                            upvotes = upvotes,
+                            userReaction = if (liked) "UP" else null
+                        )
+                    }
+                }
+                .addOnFailureListener { error ->
+                    android.widget.Toast.makeText(
+                        context,
+                        error.localizedMessage ?: "Reaction could not be saved.",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+        }
+    }
+
+    val addCommentToPost: (CommunityPost, CommunityComment, (Boolean) -> Unit) -> Unit = { targetPost, newComment, onComplete ->
+        if (currentUid.isNullOrBlank()) {
+            android.widget.Toast.makeText(context, "Sign in to reply.", android.widget.Toast.LENGTH_SHORT).show()
+            onComplete(false)
+        } else if (newComment.content.isNotBlank()) {
+            com.google.firebase.functions.FirebaseFunctions.getInstance()
+                .getHttpsCallable("createCommunityReply")
+                .call(
+                    mapOf(
+                        "postId" to targetPost.id,
+                        "content" to newComment.content.trim(),
+                        "requestId" to newComment.id
+                    )
+                )
+                .addOnSuccessListener { response ->
+                    @Suppress("UNCHECKED_CAST")
+                    val result = response.data as? Map<String, Any?>
+                    val count = (result?.get("commentsCount") as? Number)?.toInt()
+                    if (count != null) {
+                        val index = posts.indexOfFirst { it.id == targetPost.id }
+                        if (index >= 0) posts[index] = posts[index].copy(comments = count)
+                    }
+                    onComplete(true)
+                }
+                .addOnFailureListener { error ->
+                    android.widget.Toast.makeText(
+                        context,
+                        error.localizedMessage ?: "Reply could not be saved.",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    onComplete(false)
+                }
+        } else {
+            onComplete(false)
+        }
+    }
+
+    val createPostInFirebase: (CommunityPost, (Exception?) -> Unit) -> Unit = { newPost, onComplete ->
+        val db = FirebaseFirestore.getInstance()
+        db.collection("Community_Posts").document(newPost.id)
+            .set(communityPostToMap(newPost))
+            .addOnSuccessListener { onComplete(null) }
+            .addOnFailureListener { error -> onComplete(error) }
+    }
+
+    val toggleBlockUser: (String) -> Unit = { blockedUid ->
+        val uid = currentUid
+        if (!uid.isNullOrBlank() && blockedUid.isNotBlank() && blockedUid != uid) {
+            val ref = FirebaseFirestore.getInstance().collection("Users_Data").document(uid)
+                .collection("Blocked_Users").document(blockedUid)
+            if (blockedUserIds.contains(blockedUid)) {
+                ref.delete()
+                    .addOnSuccessListener { blockedUserIds.remove(blockedUid) }
+                    .addOnFailureListener { error ->
+                        android.widget.Toast.makeText(
+                            context,
+                            error.localizedMessage ?: "User could not be unblocked.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
             } else {
-                likedPostIds.add(post.id)
-                likeDoc.set(mapOf("postId" to post.id, "timestamp" to System.currentTimeMillis()))
+                ref.set(mapOf("blockedUid" to blockedUid, "createdAt" to System.currentTimeMillis()))
+                    .addOnSuccessListener { blockedUserIds.add(blockedUid) }
+                    .addOnFailureListener { error ->
+                        android.widget.Toast.makeText(
+                            context,
+                            error.localizedMessage ?: "User could not be blocked.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
             }
         }
-    }
-
-    val addCommentToPost: (CommunityPost, CommunityComment) -> Unit = { targetPost, newComment ->
-        val uid = currentUid
-        if (!uid.isNullOrBlank() && newComment.content.isNotBlank()) {
-            FirebaseFirestore.getInstance()
-                .collection("Community_Posts").document(targetPost.id)
-                .collection("Comments").document(newComment.id)
-                .set(commentToMap(newComment.copy(creatorId = uid)))
-        }
-    }
-
-    val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
-        val db = FirebaseFirestore.getInstance()
-        db.collection("Community_Posts").document(newPost.id).set(communityPostToMap(newPost))
     }
 
     val updatePostInFirebase: (CommunityPost) -> Unit = { updatedPost ->
@@ -431,8 +605,16 @@ fun CommunityScreen(
     }
 
     fun deletePostInFirebase(post: CommunityPost) {
-        val db = FirebaseFirestore.getInstance()
-        db.collection("Community_Posts").document(post.id).delete()
+        com.google.firebase.functions.FirebaseFunctions.getInstance()
+            .getHttpsCallable("deleteCommunityPost")
+            .call(mapOf("postId" to post.id))
+            .addOnFailureListener { error ->
+                android.widget.Toast.makeText(
+                    context,
+                    error.localizedMessage ?: "Post could not be deleted.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
     }
 
     // Attach user bookmark and like status to posts
@@ -447,7 +629,7 @@ fun CommunityScreen(
         CommunityRoute.FEED -> {
             CommunityFeedScreen(
                 isAdmin = isAdmin,
-                targetExam = targetExam,
+                targetExam = canonicalTargetExam,
                 posts = postsWithUserStatus,
                 onNavigateToCreate = { currentRoute = CommunityRoute.CREATE_POST },
                 onNavigateToDetail = { post ->
@@ -462,18 +644,27 @@ fun CommunityScreen(
                 },
                 onToggleBookmark = toggleBookmark,
                 onToggleLike = toggleLikePost,
+                blockedUserIds = blockedUserIds.toList(),
+                onUnblockUser = toggleBlockUser,
+                onLoadMore = { loadMoreAction?.invoke() },
+                canLoadMore = canLoadMorePosts,
+                isLoadingMore = isLoadingMorePosts,
+                loadMoreError = loadMoreError,
                 onExit = onExit,
                 onOpenTest = onOpenTest
             )
         }
         CommunityRoute.CREATE_POST -> {
             CreatePostScreen(
-                targetExam = targetExam,
+                targetExam = canonicalTargetExam,
                 onBack = { currentRoute = CommunityRoute.FEED },
-                onPostCreated = { newPost ->
-                    createPostInFirebase(newPost)
-                    currentRoute = CommunityRoute.FEED
-                }
+                onPostCreated = { newPost, onComplete ->
+                    createPostInFirebase(newPost) { error ->
+                        if (error == null) currentRoute = CommunityRoute.FEED
+                        onComplete(error)
+                    }
+                },
+                onMcqCreated = { currentRoute = CommunityRoute.FEED }
             )
         }
         CommunityRoute.POST_DETAIL -> {
@@ -489,6 +680,8 @@ fun CommunityScreen(
                     onToggleBookmark = toggleBookmark,
                     onToggleLike = toggleLikePost,
                     onAddComment = addCommentToPost,
+                    onToggleBlockUser = toggleBlockUser,
+                    isAuthorBlocked = post.creatorId?.let { blockedUserIds.contains(it) } == true,
                     onDeletePost = { p ->
                         deletePostInFirebase(p)
                         currentRoute = CommunityRoute.FEED
@@ -515,9 +708,16 @@ fun CommunityFeedScreen(
     onExit: () -> Unit,
     onOpenTest: (String) -> Unit = {},
     onToggleBookmark: (CommunityPost) -> Unit = {},
-    onToggleLike: (CommunityPost) -> Unit = {}
+    onToggleLike: (CommunityPost) -> Unit = {},
+    blockedUserIds: List<String> = emptyList(),
+    onUnblockUser: (String) -> Unit = {},
+    onLoadMore: () -> Unit = {},
+    canLoadMore: Boolean = false,
+    isLoadingMore: Boolean = false,
+    loadMoreError: String? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var showBlockedUsersDialog by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
     var currentTab by remember { mutableStateOf(CommunityTab.FEED) }
     var showExitDialog by remember { mutableStateOf(false) }
@@ -595,6 +795,11 @@ fun CommunityFeedScreen(
                         }
                     },
                     actions = {
+                        if (blockedUserIds.isNotEmpty()) {
+                            IconButton(onClick = { showBlockedUsersDialog = true }) {
+                                Icon(Icons.Default.PersonOff, contentDescription = "Manage blocked accounts")
+                            }
+                        }
                         IconButton(onClick = { isSearchActive = true }) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
@@ -633,6 +838,12 @@ fun CommunityFeedScreen(
                     onClick = { currentTab = CommunityTab.BOOKMARKS },
                     modifier = Modifier.weight(1f)
                 )
+                CommunityTabItem(
+                    title = "My Posts",
+                    isSelected = currentTab == CommunityTab.MY_POSTS,
+                    onClick = { currentTab = CommunityTab.MY_POSTS },
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             // Subject Filter
@@ -662,10 +873,12 @@ fun CommunityFeedScreen(
 
             // Feed
             val filteredPosts = posts.filter {
+                val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                val isBlockedAuthor = !it.creatorId.isNullOrBlank() && blockedUserIds.contains(it.creatorId)
                 val matchesTab = when(currentTab) {
-                    CommunityTab.FEED -> true
-                    CommunityTab.BOOKMARKS -> it.isBookmarked
-                    else -> true
+                    CommunityTab.FEED -> !isBlockedAuthor
+                    CommunityTab.BOOKMARKS -> it.isBookmarked && !isBlockedAuthor
+                    CommunityTab.MY_POSTS -> !currentUid.isNullOrBlank() && it.creatorId == currentUid
                 }
                 val matchesSubject = if (currentTab == CommunityTab.FEED && selectedSubject != "All") {
                     it.subject == selectedSubject
@@ -709,8 +922,26 @@ fun CommunityFeedScreen(
                         )
                     }
                 }
+                if (loadMoreError != null) {
+                    item { Text(loadMoreError.orEmpty(), color = MaterialTheme.colorScheme.error) }
+                }
+                if (canLoadMore) {
+                    item {
+                        Button(onClick = onLoadMore, enabled = !isLoadingMore, modifier = Modifier.fillMaxWidth()) {
+                            if (isLoadingMore) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                            else Text("Load more posts")
+                        }
+                    }
+                }
             }
         }
+    }
+    if (showBlockedUsersDialog) {
+        CommunityBlockedUsersDialog(
+            blockedUserIds = blockedUserIds,
+            onUnblock = onUnblockUser,
+            onDismiss = { showBlockedUsersDialog = false }
+        )
     }
 }
 
@@ -750,6 +981,15 @@ fun PostCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (isAdmin && post.moderationState == "HIDDEN") {
+                Text(
+                    "HIDDEN • ADMIN REVIEW REQUIRED",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+            }
             // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -785,12 +1025,17 @@ fun PostCard(
             // Content
             if (post.title.isNotBlank()) Text(post.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
+            CommunityHighlightedText(
                 text = post.content,
+                highlights = post.highlightedSpans,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier,
                 maxLines = 3
             )
+            if (post.postType == "MCQ") {
+                CommunityMcqAttemptCard(post)
+            }
 
             // If TEST_SHARE, show Test Details and Action
             if (post.postType == "TEST_SHARE") {
@@ -985,25 +1230,53 @@ fun PostCard(
 fun CreatePostScreen(
     targetExam: String,
     onBack: () -> Unit,
-    onPostCreated: (CommunityPost) -> Unit
+    onPostCreated: (CommunityPost, (Exception?) -> Unit) -> Unit,
+    onMcqCreated: () -> Unit = {}
 ) {
     var title by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
+    var contentField by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("")) }
+    val content = contentField.text
+    var highlightedSpans by remember { mutableStateOf(emptyList<CommunityTextHighlight>()) }
     var selectedSubject by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isUploading by remember { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf<String?>(null) }
+    var selectedPostType by remember { mutableStateOf("DISCUSSION") }
+    var optionCount by remember { mutableStateOf(4) }
+    var optionTexts by remember { mutableStateOf(listOf("", "", "", "", "")) }
+    var correctOptionIndex by remember { mutableStateOf(0) }
+    var creatingMcq by remember { mutableStateOf(false) }
+    var mcqRequestId by remember { mutableStateOf(UUID.randomUUID().toString()) }
+    var pendingUploadedImageUrl by remember { mutableStateOf<String?>(null) }
+    var pendingUploadedImagePath by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(title, content, highlightedSpans, selectedSubject, selectedPostType, optionTexts, optionCount, correctOptionIndex, selectedImageUri) {
+        mcqRequestId = UUID.randomUUID().toString()
+    }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val authorName = authUser?.displayName?.takeIf { it.isNotBlank() } ?: "Student"
     val creatorUid = authUser?.uid
+
+    fun clearPendingImage(deleteRemote: Boolean) {
+        val path = pendingUploadedImagePath
+        if (deleteRemote && !path.isNullOrBlank()) {
+            FirebaseStorage.getInstance().reference.child(path).delete()
+        }
+        pendingUploadedImagePath = null
+        pendingUploadedImageUrl = null
+    }
+    val examId = remember(targetExam) {
+        Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)?.examId
+    }
     val subjects = remember(targetExam) {
         Com.ak.testseries.exam.UniversalExamRegistry.getRegisteredSubjectsForExamName(targetExam)
     }
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
+        clearPendingImage(deleteRemote = false)
         selectedImageUri = uri
         uploadError = null
     }
@@ -1011,6 +1284,7 @@ fun CreatePostScreen(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
+            clearPendingImage(deleteRemote = false)
             try {
                 val imageFile = java.io.File(context.cacheDir, "community_capture_${UUID.randomUUID()}.jpg")
                 FileOutputStream(imageFile).use { output ->
@@ -1024,10 +1298,71 @@ fun CreatePostScreen(
         }
     }
 
-    fun publish(imageUrl: String?) {
+    fun publish(imageUrl: String?, imagePath: String? = null) {
         val uid = creatorUid ?: return
         val cleanContent = content.trim()
-        if (selectedSubject !in subjects || (cleanContent.isBlank() && imageUrl.isNullOrBlank())) return
+        val leadingTrim = content.length - content.trimStart().length
+        val normalizedHighlightedSpans = highlightedSpans.mapNotNull { span ->
+            val start = (span.start - leadingTrim).coerceAtLeast(0)
+            val end = (span.end - leadingTrim).coerceAtMost(cleanContent.length)
+            if (end > start) CommunityTextHighlight(start, end) else null
+        }
+        if (examId.isNullOrBlank() || selectedSubject !in subjects) {
+            clearPendingImage(deleteRemote = true)
+            imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+            return
+        }
+        if (selectedPostType == "MCQ" && cleanContent.isBlank()) {
+            imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+            return
+        }
+        if (selectedPostType == "DOUBT" && cleanContent.isBlank()) {
+            clearPendingImage(deleteRemote = true)
+            imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+            uploadError = "Write one doubt question before publishing."
+            return
+        }
+        if (selectedPostType != "MCQ" && cleanContent.isBlank() && imageUrl.isNullOrBlank()) {
+            imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+            return
+        }
+        if (selectedPostType == "MCQ") {
+            val options = optionTexts.take(optionCount).map { it.trim() }
+            if (options.any { it.isBlank() } || options.distinctBy { it.lowercase() }.size != optionCount ||
+                correctOptionIndex !in options.indices
+            ) {
+                clearPendingImage(deleteRemote = true)
+                imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+                uploadError = "Enter $optionCount different options and select one correct option."
+                return
+            }
+            creatingMcq = true
+            val payload = hashMapOf<String, Any>(
+                "title" to title.trim().ifBlank { cleanContent.take(120) },
+                "question" to cleanContent,
+                "subject" to selectedSubject,
+                "targetExam" to targetExam,
+                "options" to options,
+                "correctOptionIndex" to correctOptionIndex,
+                "requestId" to mcqRequestId,
+                "authorName" to authorName
+            )
+            if (!imageUrl.isNullOrBlank()) payload["imageUrl"] = imageUrl
+            if (!pendingUploadedImagePath.isNullOrBlank()) payload["imagePath"] = pendingUploadedImagePath!!
+            com.google.firebase.functions.FirebaseFunctions.getInstance()
+                .getHttpsCallable("createCommunityMcq")
+                .call(payload)
+                .addOnSuccessListener {
+                    creatingMcq = false
+                    clearPendingImage(deleteRemote = false)
+                    onMcqCreated()
+                }
+                .addOnFailureListener { error ->
+                    creatingMcq = false
+                    uploadError = error.localizedMessage ?: "MCQ could not be published."
+                }
+            return
+        }
         onPostCreated(
             CommunityPost(
                 authorName = authorName,
@@ -1035,13 +1370,24 @@ fun CreatePostScreen(
                 creatorId = uid,
                 title = title.trim().ifBlank { cleanContent.take(80) },
                 content = cleanContent,
+                highlightedSpans = if (selectedPostType == "DOUBT") normalizedHighlightedSpans else emptyList(),
                 subject = selectedSubject,
                 targetExam = targetExam,
+                examId = examId,
                 imageUrl = imageUrl,
-                postType = "DISCUSSION",
+                imagePath = imagePath,
+                postType = selectedPostType,
                 timestamp = System.currentTimeMillis()
             )
-        )
+        ) { error ->
+            if (error != null) {
+                clearPendingImage(deleteRemote = true)
+                imagePath?.let { FirebaseStorage.getInstance().reference.child(it).delete() }
+                uploadError = error.localizedMessage ?: "Post could not be published."
+            } else {
+                clearPendingImage(deleteRemote = false)
+            }
+        }
     }
 
     Scaffold(
@@ -1057,33 +1403,45 @@ fun CreatePostScreen(
                     Button(
                         onClick = {
                             val uid = creatorUid
-                            if (uid != null && selectedSubject in subjects && !isUploading &&
-                                (content.isNotBlank() || selectedImageUri != null)
+                            if (uid != null && selectedSubject in subjects && !isUploading && !creatingMcq &&
+                                (if (selectedPostType == "MCQ") content.isNotBlank() else if (selectedPostType == "DOUBT") content.isNotBlank() else content.isNotBlank() || selectedImageUri != null) &&
+                                (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() })
                             ) {
                                 val uri = selectedImageUri
-                                if (uri == null) {
+                                if (!pendingUploadedImageUrl.isNullOrBlank()) {
+                                    publish(pendingUploadedImageUrl, pendingUploadedImagePath)
+                                } else if (uri == null) {
                                     publish(null)
                                 } else {
                                     val mimeType = context.contentResolver.getType(uri) ?: if (uri.scheme == "file") "image/jpeg" else ""
-                                    val size = try {
-                                        context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
-                                    } catch (_: Exception) { null }
-                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || (size != null && size >= 5L * 1024L * 1024L)) {
+                                    val size = if (uri.scheme == "file") {
+                                        java.io.File(uri.path.orEmpty()).length()
+                                    } else {
+                                        try {
+                                            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                                        } catch (_: Exception) {
+                                            -1L
+                                        }
+                                    }
+                                    if (mimeType !in setOf("image/jpeg", "image/png", "image/webp") || size <= 0L || size > 5L * 1024L * 1024L) {
                                         uploadError = "Only JPEG, PNG or WebP images up to 5 MB are allowed."
                                     } else {
                                         isUploading = true
-                                        val fileRef = FirebaseStorage.getInstance().reference
-                                            .child("community_images/$uid/${UUID.randomUUID()}")
+                                        val imagePath = "community_images/$uid/${UUID.randomUUID()}"
+                                        val fileRef = FirebaseStorage.getInstance().reference.child(imagePath)
                                         val metadata = StorageMetadata.Builder().setContentType(mimeType).build()
                                         fileRef.putFile(uri, metadata)
                                             .addOnSuccessListener {
                                                 fileRef.downloadUrl
                                                     .addOnSuccessListener { downloadUri ->
                                                         isUploading = false
-                                                        publish(downloadUri.toString())
+                                                        pendingUploadedImageUrl = downloadUri.toString()
+                                                        pendingUploadedImagePath = imagePath
+                                                        publish(downloadUri.toString(), imagePath)
                                                     }
                                                     .addOnFailureListener { error ->
                                                         isUploading = false
+                                                        fileRef.delete()
                                                         uploadError = error.localizedMessage ?: "Image URL could not be loaded."
                                                     }
                                             }
@@ -1096,9 +1454,11 @@ fun CreatePostScreen(
                             }
                         },
                         enabled = creatorUid != null && selectedSubject in subjects &&
-                            (content.isNotBlank() || selectedImageUri != null) && !isUploading
+                            (if (selectedPostType == "MCQ") content.isNotBlank() else if (selectedPostType == "DOUBT") content.isNotBlank() else content.isNotBlank() || selectedImageUri != null) &&
+                            (selectedPostType != "MCQ" || optionTexts.take(optionCount).all { it.isNotBlank() }) &&
+                            !isUploading && !creatingMcq
                     ) {
-                        Text(if (isUploading) "Uploading…" else "Post")
+                        Text(if (isUploading || creatingMcq) "Publishing…" else "Post")
                     }
                 }
             )
@@ -1110,6 +1470,12 @@ fun CreatePostScreen(
         ) {
             if (creatorUid == null) {
                 Text("Please sign in to post.", color = MaterialTheme.colorScheme.error)
+            }
+            Text("Post type", fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("DISCUSSION" to "Discussion", "DOUBT" to "Doubt", "MCQ" to "MCQ").forEach { (type, label) ->
+                    FilterChip(selected = selectedPostType == type, onClick = { selectedPostType = type }, label = { Text(label) })
+                }
             }
             Text("Subject (required)", fontWeight = FontWeight.Bold)
             if (subjects.isEmpty()) {
@@ -1134,12 +1500,52 @@ fun CreatePostScreen(
                 singleLine = true
             )
             OutlinedTextField(
-                value = content,
-                onValueChange = { content = it.take(5000) },
+                value = contentField,
+                onValueChange = { nextValue ->
+                    if (nextValue.text != contentField.text) highlightedSpans = emptyList()
+                    contentField = nextValue.copy(text = nextValue.text.take(5000))
+                },
                 label = { Text("Write your post") },
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 minLines = 4
             )
+            if (selectedPostType == "DOUBT") {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        enabled = selectedCommunityTextHighlight(contentField) != null,
+                        onClick = {
+                            val span = selectedCommunityTextHighlight(contentField)
+                            if (span != null && highlightedSpans.none { it.start < span.end && span.start < it.end }) {
+                                highlightedSpans = (highlightedSpans + span).sortedBy { it.start }
+                            }
+                        }
+                    ) { Text("Highlight selected text") }
+                    if (highlightedSpans.isNotEmpty()) {
+                        Text("${highlightedSpans.size} highlighted", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            if (selectedPostType == "MCQ") {
+                Text("One question • one correct option", fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(4, 5).forEach { count ->
+                        FilterChip(selected = optionCount == count, onClick = { optionCount = count }, label = { Text("$count options") })
+                    }
+                }
+                for (index in 0 until optionCount) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = correctOptionIndex == index, onClick = { correctOptionIndex = index })
+                        OutlinedTextField(
+                            value = optionTexts[index],
+                            onValueChange = { value -> optionTexts = optionTexts.toMutableList().also { it[index] = value.take(500) } },
+                            label = { Text("Option ${index + 1}") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                }
+                Text("The correct answer stays hidden until a student submits an attempt.", style = MaterialTheme.typography.bodySmall)
+            }
             selectedImageUri?.let { uri ->
                 AsyncImage(
                     model = uri,
@@ -1185,11 +1591,17 @@ fun PostDetailScreen(
     onOpenTest: (String) -> Unit = {},
     onToggleBookmark: (CommunityPost) -> Unit = {},
     onToggleLike: (CommunityPost) -> Unit = {},
-    onAddComment: (CommunityPost, CommunityComment) -> Unit = { _, _ -> }
+    onAddComment: (CommunityPost, CommunityComment, (Boolean) -> Unit) -> Unit = { _, _, done -> done(false) },
+    onToggleBlockUser: (String) -> Unit = {},
+    isAuthorBlocked: Boolean = false
 ) {
     var commentText by remember { mutableStateOf("") }
+    var pendingReplyId by remember(post.id) { mutableStateOf(UUID.randomUUID().toString()) }
+    var isSubmittingReply by remember(post.id) { mutableStateOf(false) }
+    var showReportDialog by remember(post.id) { mutableStateOf(false) }
     var comments by remember(post.id) { mutableStateOf(post.commentsList.distinctBy { it.id }) }
     val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     DisposableEffect(post.id) {
         val registration = FirebaseFirestore.getInstance()
@@ -1226,6 +1638,18 @@ fun PostDetailScreen(
                     }
                 },
                 actions = {
+                    val viewerUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                    if (viewerUid != null && !post.creatorId.isNullOrBlank() && viewerUid != post.creatorId) {
+                        IconButton(onClick = { onToggleBlockUser(post.creatorId.orEmpty()) }) {
+                            Icon(
+                                if (isAuthorBlocked) Icons.Default.PersonAdd else Icons.Default.Block,
+                                contentDescription = if (isAuthorBlocked) "Unblock author" else "Block author"
+                            )
+                        }
+                        IconButton(onClick = { showReportDialog = true }) {
+                            Icon(Icons.Default.Flag, contentDescription = "Report post or author")
+                        }
+                    }
                     IconButton(onClick = { onToggleBookmark(post) }) {
                         Icon(
                             if (post.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
@@ -1255,22 +1679,29 @@ fun PostDetailScreen(
                     IconButton(
                         onClick = {
                             val uid = currentUid
-                            if (!uid.isNullOrBlank() && commentText.isNotBlank()) {
+                            if (!uid.isNullOrBlank() && commentText.isNotBlank() && !isSubmittingReply) {
                                 val auth = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                                isSubmittingReply = true
                                 onAddComment(
                                     post,
                                     CommunityComment(
+                                        id = pendingReplyId,
                                         authorName = auth?.displayName?.takeIf { it.isNotBlank() } ?: "Student",
                                         timeAgo = "Just now",
                                         content = commentText.trim(),
                                         creatorId = uid,
                                         timestamp = System.currentTimeMillis()
                                     )
-                                )
-                                commentText = ""
+                                ) { success ->
+                                    isSubmittingReply = false
+                                    if (success) {
+                                        commentText = ""
+                                        pendingReplyId = UUID.randomUUID().toString()
+                                    }
+                                }
                             }
                         },
-                        enabled = currentUid != null && commentText.isNotBlank(),
+                        enabled = currentUid != null && commentText.isNotBlank() && !isSubmittingReply,
                         modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
                     ) {
                         Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.onPrimary)
@@ -1300,13 +1731,30 @@ fun PostDetailScreen(
                     comment = comment,
                     canDelete = isAdmin || comment.creatorId == currentUid,
                     onDelete = {
-                        FirebaseFirestore.getInstance()
-                            .collection("Community_Posts").document(post.id)
-                            .collection("Comments").document(comment.id).delete()
+                        com.google.firebase.functions.FirebaseFunctions.getInstance()
+                            .getHttpsCallable("deleteCommunityReply")
+                            .call(mapOf("postId" to post.id, "commentId" to comment.id))
+                            .addOnSuccessListener {
+                                comments = comments.filterNot { it.id == comment.id }
+                            }
+                            .addOnFailureListener { error ->
+                                android.widget.Toast.makeText(
+                                    context,
+                                    error.localizedMessage ?: "Reply could not be deleted.",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
                     }
                 )
             }
         }
+    }
+    if (showReportDialog) {
+        CommunityReportDialog(
+            post = post,
+            onDismiss = { showReportDialog = false },
+            onSubmitted = { showReportDialog = false }
+        )
     }
 }
 

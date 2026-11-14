@@ -2,21 +2,31 @@ name: Community Firebase Rules CI
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "feature/community-completion-2026-11-13" ]
     paths:
       - "firestore.rules"
       - "storage.rules"
       - "firestore.test.js"
       - "storage.test.js"
+      - "backend_functions/index.js"
+      - "backend_functions/communityValidation.js"
+      - "backend_functions/communityValidation.test.js"
+      - "backend_functions/communityExamSubjects.json"
+      - "backend_functions/callableValidation.test.js"
       - "firebase.json"
       - ".github/workflows/community-rules.yml"
   push:
-    branches: [ "feature/community-development-plan-2026-11-13" ]
+    branches: [ "feature/community-completion-2026-11-13" ]
     paths:
       - "firestore.rules"
       - "storage.rules"
       - "firestore.test.js"
       - "storage.test.js"
+      - "backend_functions/index.js"
+      - "backend_functions/communityValidation.js"
+      - "backend_functions/communityValidation.test.js"
+      - "backend_functions/communityExamSubjects.json"
+      - "backend_functions/callableValidation.test.js"
       - "firebase.json"
       - ".github/workflows/community-rules.yml"
 
@@ -45,3 +55,6 @@ jobs:
           FIRESTORE_EMULATOR_HOST: 127.0.0.1:8085
           FIREBASE_STORAGE_EMULATOR_HOST: 127.0.0.1:9199
         run: npx firebase emulators:exec --only firestore,storage --project demo-no-project "node --test firestore.test.js storage.test.js"
+
+      - name: Run backend callable validation tests
+        run: node --test backend_functions/callableValidation.test.js backend_functions/communityValidation.test.js

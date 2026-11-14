@@ -1,9 +1,9 @@
 # AK Test Series Community Development Plan
 
-> **Document status:** Planning baseline  
-> **Plan branch:** `feature/community-development-plan-2026-11-13`  
+> **Document status:** Active implementation plan after P0 foundation merge  
+> **Implementation branch:** `feature/community-completion-2026-11-13`  
 > **Base branch:** `main`  
-> **Scope:** Community feature only. This document is a work plan, not authorization to merge or modify Main.  
+> **Scope:** Complete remaining Community MVP features on a dedicated branch. Main remains unchanged until the final tested PR is explicitly merged.  
 > **Last reviewed:** 2026-11-13
 
 ## 0. First-priority MVP scope (decision recorded 2026-11-13)
@@ -54,7 +54,7 @@ PDF attachments in Community (permanently disallowed); multi-question quizzes; q
 
 ## 0.1 First-priority implementation audit findings
 
-Read-only inspection of the current Community code on this branch confirms the following. These are concrete implementation targets, not claims that the MVP is already implemented.
+Historical baseline captured before the P0 foundation was merged. The gaps below are retained as an audit record; use the current implementation status in Sections 0.2–0.4 for what is now complete.
 
 | File | Confirmed current state | Required first-priority change |
 |---|---|---|
@@ -77,33 +77,66 @@ Read-only inspection of the current Community code on this branch confirms the f
 6. Add report/block flows and the minimal Admin report inbox.
 7. Run Firestore emulator tests, Android unit tests and debug APK build. If any command cannot be run in the available environment, record it as NOT RUN rather than PASS.
 
-## 0.2 Implementation progress (2026-11-13)
+## 0.2 P0 foundation merge record
 
-Work is being implemented on this feature branch only. This progress table supersedes any assumption that a planned item is complete merely because it appears in the scope above.
+The first-priority foundation was merged to Main in PR #6, merge commit `1e236d099522d63ec89ab0d11287b48315efc48c`. It delivered registry-only subject lookup, one-image Community attachments, Community PDF rejection, per-reply documents and ownership, dedicated Community Storage paths, and Firebase rules CI.
 
-| Work item | Current state | Evidence / remaining work |
-|---|---|---|
-| Read-only baseline audit | **Completed** | Community UI, Admin UI, Firestore rules, Storage rules, registry, and existing Firestore tests inspected. |
-| Mandatory registry subject | **Implemented in branch; CI pending** | Community composer and feed now use `getRegisteredSubjectsForExamName`, which returns no generic fallback. Firestore rejects blank and `General` subjects. |
-| Community PDF prohibition | **Implemented in branch; CI pending** | PDF fields removed from the Community Kotlin model, parser and new writes; Firestore rejects `pdfUrl` / `pdfFileName`. Other Admin/test PDF workflows remain intact. |
-| One-image post | **Camera/gallery flow implemented; device validation pending** | One selected JPEG/PNG/WebP image, maximum 5 MB, preview/remove, Storage upload and post image rendering. Upload failure blocks publishing. Camera uses Android preview capture and saves a temporary JPEG before upload. |
-| Safe replies | **Implemented in branch; CI pending** | Replies now use `Community_Posts/{postId}/Comments/{commentId}`; reply creator is recorded and only its author/Admin can delete. Shared parent-array writes and client counter mutation removed. |
-| Community Storage paths | **Rules + emulator tests implemented; CI pending** | `community_images/{uid}/{fileName}` is owner-write, authenticated-read, image-only, max 5 MB. Private report-evidence path is Admin/reporter-read and image-only. `storage.test.js` and a dedicated Community Rules CI workflow now exercise owner-path, PDF/MIME rejection and private-evidence access. |
-| Report/block Firestore security | **Rules scaffolding implemented; UI pending** | Private `Community_Reports` records and owner-managed `Blocked_Users` records have rules and tests authored. Report form, optional private evidence upload, block controls and Admin report inbox are not yet implemented. |
-| Single-question MCQ | **Not implemented** | One question, 4/5 options and secure answer reveal remain pending. Do not treat this PR as delivering quiz creation/attempt scoring. |
-| Automated validation | **Rules PASS; Android unit tests PASS; APK build pending** | Latest Firestore/Storage emulator run on the current rules/test head: **32 passed, 0 failed**. Android CI now uses JDK 21; latest Android run has completed the Unit Tests step successfully and is running `assembleDebug`. JDK 21 resolves the known Robolectric SDK 36 / `DefaultSdkProvider.java:170` failure previously seen on Main with JDK 17. Merge only after the current-head Android build and both current-head workflows finish successfully. |
+PR #6 and its Android/Firebase validation are historical evidence. The remaining implementation below is a separate completion branch and has its own validation gate.
 
-### Implementation commits
+## 0.3 Remaining MVP implementation status (2026-11-13)
 
-- Registry-only Community subject lookup and subject-gated composer.
-- Community PDF model/write removal and Firestore rejection.
-- Dedicated image Storage paths.
-- Per-reply documents and ownership enforcement.
-- Firestore security regression test updates.
+Implementation branch: `feature/community-completion-2026-11-13`; Draft PR: [#8](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/8). The following status is based on the current branch files and CI evidence, not on UI mockups.
 
-### Merge gate
+| Phase | Status | Implemented files / behavior | Remaining verification |
+|---|---|---|---|
+| C1 — Report and block | **Implemented** | `CommunityUI.kt`, `CommunityModerationUI.kt`, `firestore.rules`, `storage.rules`. Report post/user, optional private one-image evidence, owner block list, unblock dialog, blocked-author feed filtering. | Multi-account physical-device QA and live Storage permission check. |
+| C2 — Admin moderation | **Implemented** | Admin report inbox, live status, hide/restore/remove, suspend user, existing Admin unban, immutable audit events, read-only Audit tab. Moderation updates and audit writes use one Firestore batch. | Verify real Admin claims and run a full moderation scenario after Functions/Rules deployment. |
+| C3 — Single-question MCQ | **Implemented in code** | `CommunityMcqUI.kt`, `backend_functions/index.js`, `communityValidation.js`, `communityExamSubjects.json`, Firestore rules. Exactly 4/5 options, one correct answer, separate private answer key, callable creation, one server-recorded attempt per student, answer reveal after attempt, and private answer-key/attempt cleanup when an owner/Admin deletes the post. | Live Firebase callable integration after Functions deployment; real-device UX QA. |
+| C4 — Community UX | **Implemented with one search limitation** | My Posts tab, cursor-based 20-post pagination, hidden-post filtering, blocked-author filtering, owner delete, image-only post support, upload cleanup on Firestore failure, create error handling, local image-size enforcement and parsed MCQ creator-role metadata. | Search currently filters pages already loaded; global server-side full-text search remains deferred. Camera/gallery requires device QA. |
+| C5 — Security and regression | **Emulator/backend PASS; Android CI pending** | Firestore/Storage Rules tests, MCQ secrecy/attempt tests, subject registry tests, shared-test answer-key separation, migration sanitizers, Android CI updated to JDK 21. | Current-head Android unit tests, APK build and artifact upload must finish successfully before merge. |
 
-This branch is not ready to merge while Android CI is running or Firestore/Storage rules are unvalidated. The pull request is draft. Merge only after reviewing the final diff, passing Android unit tests/build, validating Firestore/Storage rules, and confirming no unrelated Main changes are included.
+### Additional security work included in the completion branch
+
+- **Canonical exam subject registry:** `communityExamSubjects.json` is generated from the Universal Exam Registry's current 25 exam mappings. MCQ callable validation checks exact exam/subject pairs. Firestore Rules require canonical `examId`, a matching exam alias and a registered subject for student-created posts. `Community_Exam_Subjects` is Admin-synchronized through `syncCommunityExamSubjects`; Admin Settings now has a confirmed sync control.
+- **Shared-test answer-key isolation:** public shared-test metadata and safe question projections are separated from `private_keys/answerKey`. Student question projections cannot contain `correctAnswer` or explanations. `submitTestAttemptServerSide` and `getTestAttemptSolutions` load the private keys on the server and fail closed if any key is missing. Parsing no longer marks a shared test verified automatically.
+- **Legacy data migration:** Admin-only `migrateLegacyCommunitySharedTests` and `migrateLegacyCommunityPostVisibility` callables are paginated, dry-run by default, and require explicit confirmation for writes. Unknown exam mappings are not silently guessed. Legacy shared tests remain unreadable to students until their answer keys have been separated.
+- **Hidden post policy:** student feed queries require `moderationState == VISIBLE`; hidden posts are Admin-only. Existing legacy posts without a visibility state need the visibility migration before they appear in student feeds.
+- **No Community PDF path:** Community Storage accepts only JPEG/PNG/WebP images up to 5 MB. The existing official/admin test PDF workflows are untouched.
+
+### Verified automated test evidence
+
+- Firestore + Storage emulator suite: **41 passed, 0 failed** on completion-branch CI run #99 (GitHub run `43354970874`).
+- Backend callable/validation suite: **53 passed, 0 failed** on completion-branch CI run #99 (GitHub run `43354970874`).
+- The latest Rules run (#99) passed on the final Firestore/Storage rules and backend validator files. The duplicate `bobDb` declaration that previously prevented the test file from loading was removed.
+- Android CI passed on earlier head `aca2a619` (run #533). The latest Kotlin changes include local file-size validation for Community/report images, Live Test verification metadata correction, and preservation of MCQ creator-role metadata in the Community model. Android CI passed on code commit `1aba2f80` (run #542): Unit Tests, Gradle Build and `app-debug` artifact upload all succeeded. Current PR head `9dcded7b` only updates this status document; its final-head Android rerun is still in progress. Do not mark the PR ready until that rerun also completes successfully.
+
+## 0.4 Deployment and legacy migration runbook
+
+Production deployment has **not** been performed from this development workflow. The following operations must be run by an authorized Admin only after reviewing the PR and taking a backup.
+
+1. Deploy the updated Cloud Functions, Firestore Rules and Storage Rules.
+2. From Admin Settings, run the confirmed **Sync exam registry** action. The callable is `syncCommunityExamSubjects`; its default is dry-run, and the UI sends `dryRun=false` only after confirmation. This creates the read-only `Community_Exam_Subjects/{examId}` records required by Firestore Rules.
+3. Run a dry-run of `migrateLegacyCommunityPostVisibility` with `{ "dryRun": true, "pageSize": 100 }`. Continue with `startAfter` using the returned `nextCursor` until it is null. It preserves existing HIDDEN/REMOVED states and hides posts whose exam cannot be resolved.
+4. Run a dry-run of `migrateLegacyCommunitySharedTests` with `{ "dryRun": true, "pageSize": 10 }`. Continue with the returned cursor. It skips malformed tests, duplicate question IDs, missing answer keys and unknown exams.
+5. Review dry-run summaries and take/verify a Firestore backup. Only then run the two migrations with their explicit confirmation values:
+   - `migrateLegacyCommunityPostVisibility`: `{ "dryRun": false, "confirm": "MIGRATE_COMMUNITY_POST_VISIBILITY", "pageSize": 100, "startAfter": "<cursor>" }`
+   - `migrateLegacyCommunitySharedTests`: `{ "dryRun": false, "confirm": "MIGRATE_SHARED_COMMUNITY_TESTS", "pageSize": 10, "startAfter": "<cursor>" }`
+6. Re-run the dry-run after migration. Expected result: no eligible legacy documents remain; skipped documents have a reason and require Admin review.
+7. Deploy the Android build only after current-head CI passes. Test with an Admin account and at least two student accounts before enabling Community broadly.
+
+**Important:** these migration callables have not been invoked against production data. No legacy document has been deleted or rewritten by this branch. The Admin Settings controls for daily post/comment quotas, blocked words, retention, rewards and announcements are still configuration-only; server enforcement is a separate Phase 9 task and those settings must not be represented as active protections yet.
+
+## 0.5 Remaining release gates
+
+- [ ] Current-head Android Unit Tests pass.
+- [ ] Current-head `assembleDebug` succeeds and APK artifact uploads.
+- [ ] Current-head Firestore/Storage emulator CI passes after the final Admin claim helper update.
+- [ ] Review complete PR diff against current Main; no unrelated files or test workflows changed.
+- [ ] Deploy Functions/Rules/Storage only as a separate authorized operation.
+- [ ] Run Admin registry sync and dry-run migrations after backup.
+- [ ] Complete two-student + Admin device QA, including camera, gallery, report evidence, block/unblock, MCQ attempt and answer reveal.
+- [ ] Confirm no AI call from Doubt/reply paths and no Community PDF upload route.
+- [ ] Only then approve and merge the completion PR.
 
 ## 1. Purpose and working rules
 
@@ -457,9 +490,9 @@ Update this plan with exact paths, functions, call sites and test commands disco
 
 ## 10. Branch and merge policy
 
-- This branch contains planning documentation only unless a later task explicitly authorizes implementation.
-- Do not merge this branch into `main` automatically.
-- Implementation can use this branch or a dedicated feature branch created from an agreed base.
+- This branch contains the remaining Community MVP implementation and its plan.
+- Do not merge this branch into `main` until current-head Android CI, Firebase Rules CI, full diff review and release gates pass.
+- Keep implementation changes on `feature/community-completion-2026-11-13` or a separately approved follow-up branch.
 - Before any merge, compare the complete diff against current `main`, inspect overlapping files, run all required CI and security tests, and resolve conflicts deliberately.
 - No force-push or destructive migration without explicit approval.
 

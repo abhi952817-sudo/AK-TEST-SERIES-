@@ -93,3 +93,24 @@ test("Community report evidence is private to reporter and Admin", async () => {
     getBytes(ref(adminStorage, `community_report_evidence/${ALICE_UID}/report-1`))
   );
 });
+
+
+test("Community post and report evidence paths reject images larger than 5 MB", async () => {
+  const aliceStorage = testEnv.authenticatedContext(ALICE_UID).storage();
+  const oversized = Buffer.alloc(5 * 1024 * 1024 + 1, 1);
+
+  await assertFails(
+    uploadBytes(
+      ref(aliceStorage, `community_images/${ALICE_UID}/oversized.jpg`),
+      oversized,
+      { contentType: "image/jpeg" }
+    )
+  );
+  await assertFails(
+    uploadBytes(
+      ref(aliceStorage, `community_report_evidence/${ALICE_UID}/oversized-report`),
+      oversized,
+      { contentType: "image/jpeg" }
+    )
+  );
+});

@@ -15,6 +15,18 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const {
+  validateCommunityMcqCreate,
+  validateCommunityMcqAttempt,
+  validateCommunityReplyCreate,
+  validateCommunityPostDelete,
+  validateCommunityReplyDelete,
+  validateCommunityReaction,
+  splitLegacySharedQuestions,
+  sanitizeSharedQuestionProjection
+} = require("./communityValidation");
+const crypto = require("crypto");
+const communityExamSubjects = require("./communityExamSubjects.json");
 
 exports.normalizeExamKey = normalizeExamKey;
 
@@ -179,6 +191,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     testDoc = await db.collection("LiveTests").doc(cleanTestId).get();
   }
   if (!testDoc.exists) {
+    testDoc = await db.collection("Shared_Community_Tests").doc(cleanTestId).get();
+  }
+  if (!testDoc.exists) {
     throw new functions.https.HttpsError(
       "not-found",
       "Test document not found."
@@ -186,6 +201,10 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const testData = testDoc.data();
+  if (testDoc.ref.parent.id === "Shared_Community_Tests" &&
+      (testData.answerKeySeparated !== true || testData.sharingState !== "COMMUNITY_SHARED")) {
+    throw new functions.https.HttpsError("failed-precondition", "Community test has not passed answer-key separation.");
+  }
   if (testDoc.ref.parent.id === "LiveTests" &&
       (testData.processingStatus !== "Ready" || testData.questionsVerified !== true)
   ) {
@@ -259,6 +278,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+  if (testDoc.ref.parent.id === "Shared_Community_Tests") {
+    const keyList = privateKeyData?.questions || privateKeyData?.keys || [];
+    const keyIds = new Set(keyList.map(item => item && item.id ? String(item.id) : "").filter(Boolean));
+    if (!privateKeyDoc.exists || questions.some(question => !keyIds.has(String(question.id)))) {
+      throw new functions.https.HttpsError("failed-precondition", "Community test is missing one or more private grading keys.");
+    }
+  }
   let solutionKeys = {};
   try {
     const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
@@ -820,6 +846,10 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
 
   const testData = testDoc.data();
+  if (testDoc.ref.parent.id === "Shared_Community_Tests" &&
+      (testData.answerKeySeparated !== true || testData.sharingState !== "COMMUNITY_SHARED")) {
+    throw new functions.https.HttpsError("failed-precondition", "Community test has not passed answer-key separation.");
+  }
   const isCallerAdmin = Boolean(
     context.auth.token && (
       context.auth.token.admin === true ||
@@ -877,6 +907,13 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
 
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
+  if (testDoc.ref.parent.id === "Shared_Community_Tests") {
+    const keyList = privateKeyData?.questions || privateKeyData?.keys || [];
+    const keyIds = new Set(keyList.map(item => item && item.id ? String(item.id) : "").filter(Boolean));
+    if (!privateKeyDoc.exists || questions.some(question => !keyIds.has(String(question.id)))) {
+      throw new functions.https.HttpsError("failed-precondition", "Community test is missing one or more private solution keys.");
+    }
+  }
   let solutionKeys = {};
   try {
     const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
@@ -893,3 +930,977 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   };
 });
 
+
+
+/**
+ * Deletes a post only for its creator or an authorized Admin. The post is first
+ * marked REMOVED to stop concurrent replies/attempts, then child replies and
+ * its owned image are cleaned up.
+ */
+exports.deleteCommunityPost = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to delete this Community post.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityPostDelete(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  let isAdmin = false;
+  try {
+    validateSetAdminRoleAuth(context);
+    isAdmin = true;
+  } catch (_) {
+    isAdmin = false;
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  try {
+    const removal = await db.runTransaction(async transaction => {
+      if (!isAdmin) {
+        const userSnap = await transaction.get(userRef);
+        assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+      }
+      const postSnap = await transaction.get(postRef);
+      if (!postSnap.exists) return { exists: false, imagePath: null };
+      const postData = postSnap.data();
+      if (!isAdmin && postData.creatorId !== uid) {
+        throw new functions.https.HttpsError("permission-denied", "Only the post author or an Admin can delete this post.");
+      }
+      transaction.update(postRef, {
+        moderationState: "REMOVED",
+        moderatedBy: uid,
+        moderatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return {
+        exists: true,
+        imagePath: typeof postData.imagePath === "string" ? postData.imagePath : null
+      };
+    });
+
+    if (!removal.exists) return { success: true, deleted: false, duplicate: true };
+
+    const commentsSnapshot = await postRef.collection("Comments").get();
+    for (let offset = 0; offset < commentsSnapshot.docs.length; offset += 400) {
+      const batch = db.batch();
+      commentsSnapshot.docs.slice(offset, offset + 400).forEach(comment => batch.delete(comment.ref));
+      await batch.commit();
+    }
+
+    // Remove private MCQ answer keys and per-user attempts before deleting the
+    // parent post. Keeping the post until cleanup completes makes retries safe.
+    const attemptsSnapshot = await db.collection("Community_MCQ_Attempts")
+      .doc(payload.postId).collection("Users").get();
+    for (let offset = 0; offset < attemptsSnapshot.docs.length; offset += 400) {
+      const batch = db.batch();
+      attemptsSnapshot.docs.slice(offset, offset + 400).forEach(attempt => batch.delete(attempt.ref));
+      await batch.commit();
+    }
+    await db.collection("Community_MCQ_AnswerKeys").doc(payload.postId).delete();
+    await postRef.delete();
+
+    if (removal.imagePath && removal.imagePath.startsWith("community_images/") &&
+        removal.imagePath.split("/").length === 3 && !removal.imagePath.includes("..")) {
+      try {
+        await admin.storage().bucket().file(removal.imagePath).delete({ ignoreNotFound: true });
+      } catch (storageError) {
+        console.error("deleteCommunityPost image cleanup failed", storageError);
+      }
+    }
+
+    if (isAdmin) {
+      await db.collection("Community_Moderation_Audit").add({
+        actorUid: uid,
+        action: "DELETE_POST",
+        targetType: "COMMUNITY_POST",
+        targetId: payload.postId,
+        reason: "Admin permanently deleted a Community post and its stored replies.",
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    return { success: true, deleted: true, duplicate: false };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("deleteCommunityPost failed", error);
+    throw new functions.https.HttpsError("internal", "Community post could not be deleted.");
+  }
+});
+
+/**
+ * Creates a one-question Community MCQ. The public post contains options only;
+ * the correct option is stored in a separate server-only document.
+ */
+exports.createCommunityMcq = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to create a Community MCQ.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityMcqCreate(data, context.auth.uid);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const userSnap = await userRef.get();
+  try {
+    assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+
+  const requestDigest = crypto.createHash("sha256").update(JSON.stringify({
+    title: payload.title,
+    question: payload.question,
+    subject: payload.subject,
+    targetExam: payload.targetExam,
+    options: payload.options,
+    correctOptionIndex: payload.correctOptionIndex,
+    imageUrl: payload.imageUrl
+  })).digest("hex");
+  const postId = crypto.createHash("sha256").update(uid + ":" + payload.requestId).digest("hex").slice(0, 40);
+  const postRef = db.collection("Community_Posts").doc(postId);
+  const keyRef = db.collection("Community_MCQ_AnswerKeys").doc(postId);
+
+  const existing = await postRef.get();
+  if (existing.exists) {
+    const existingKey = await keyRef.get();
+    if (existing.data().creatorId !== uid || !existingKey.exists || existingKey.data().requestDigest !== requestDigest) {
+      throw new functions.https.HttpsError("already-exists", "This request ID was already used with different content.");
+    }
+    return { success: true, postId, duplicate: true };
+  }
+
+  let creatorRole = "STUDENT";
+  try {
+    validateSetAdminRoleAuth(context);
+    creatorRole = "ADMIN";
+  } catch (_) {
+    creatorRole = "STUDENT";
+  }
+  const authorName = String(userSnap.data().name || userSnap.data().displayName || context.auth.token.name || "Student").slice(0, 80);
+  const now = Date.now();
+  const batch = db.batch();
+  batch.create(postRef, {
+    id: postId,
+    authorName,
+    authorSubtitle: creatorRole === "ADMIN" ? "Community Admin" : payload.targetExam + " Aspirant",
+    title: payload.title,
+    content: payload.question,
+    subject: payload.subject,
+    targetExam: payload.targetExam,
+    examId: payload.examId,
+    imageUrl: payload.imageUrl,
+    imagePath: payload.imagePath,
+    postType: "MCQ",
+    mcqOptions: payload.options,
+    creatorId: uid,
+    creatorRole,
+    isOfficial: false,
+    isMonitor: false,
+    isPinned: false,
+    upvotes: 0,
+    comments: 0,
+    views: "0",
+    timestamp: now,
+    moderationState: "VISIBLE"
+  });
+  batch.create(keyRef, {
+    creatorId: uid,
+    correctOptionIndex: payload.correctOptionIndex,
+    requestDigest,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+  await batch.commit();
+  return { success: true, postId, duplicate: false };
+});
+
+/**
+ * Records one canonical attempt per student and reveals the correct option only
+ * after the attempt record is committed in the same Firestore transaction.
+ */
+exports.submitCommunityMcqAttempt = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to attempt this MCQ.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityMcqAttempt(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  const keyRef = db.collection("Community_MCQ_AnswerKeys").doc(payload.postId);
+  const attemptRef = db.collection("Community_MCQ_Attempts").doc(payload.postId).collection("Users").doc(uid);
+
+  try {
+    const result = await db.runTransaction(async transaction => {
+      const userSnap = await transaction.get(userRef);
+      assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+
+      const postSnap = await transaction.get(postRef);
+      const keySnap = await transaction.get(keyRef);
+      const attemptSnap = await transaction.get(attemptRef);
+
+      if (!postSnap.exists || postSnap.data().postType !== "MCQ" || postSnap.data().moderationState !== "VISIBLE") {
+        throw new functions.https.HttpsError("not-found", "Community MCQ is unavailable.");
+      }
+      const postData = postSnap.data();
+      const authorUid = typeof postData.creatorId === "string" ? postData.creatorId : "";
+      if (authorUid === uid) {
+        throw new functions.https.HttpsError("permission-denied", "You cannot attempt your own Community MCQ.");
+      }
+      if (authorUid) {
+        const [callerBlockedAuthor, authorBlockedCaller] = await Promise.all([
+          transaction.get(userRef.collection("Blocked_Users").doc(authorUid)),
+          transaction.get(db.collection("Users_Data").doc(authorUid).collection("Blocked_Users").doc(uid))
+        ]);
+        if (callerBlockedAuthor.exists || authorBlockedCaller.exists) {
+          throw new functions.https.HttpsError("permission-denied", "MCQ attempt is unavailable because one account has blocked the other.");
+        }
+      }
+      const options = postData.mcqOptions;
+      if (!Array.isArray(options) || ![4, 5].includes(options.length) ||
+          payload.optionIndex < 0 || payload.optionIndex >= options.length) {
+        throw new functions.https.HttpsError("invalid-argument", "Selected option is outside the MCQ option range.");
+      }
+      if (!keySnap.exists) {
+        throw new functions.https.HttpsError("failed-precondition", "MCQ answer key is unavailable.");
+      }
+
+      if (attemptSnap.exists) {
+        const prior = attemptSnap.data();
+        return {
+          selectedOptionIndex: prior.selectedOptionIndex,
+          correctOptionIndex: prior.correctOptionIndex,
+          isCorrect: prior.isCorrect,
+          duplicate: true
+        };
+      }
+
+      const correctOptionIndex = keySnap.data().correctOptionIndex;
+      if (!Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex >= options.length) {
+        throw new functions.https.HttpsError("failed-precondition", "MCQ answer key is invalid.");
+      }
+      const attempt = {
+        userId: uid,
+        postId: payload.postId,
+        selectedOptionIndex: payload.optionIndex,
+        correctOptionIndex,
+        isCorrect: payload.optionIndex === correctOptionIndex,
+        attemptedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      transaction.create(attemptRef, attempt);
+      return {
+        selectedOptionIndex: attempt.selectedOptionIndex,
+        correctOptionIndex: attempt.correctOptionIndex,
+        isCorrect: attempt.isCorrect,
+        duplicate: false
+      };
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("submitCommunityMcqAttempt failed", error);
+    throw new functions.https.HttpsError("internal", "MCQ attempt could not be recorded.");
+  }
+});
+
+
+/**
+ * Admin-only, paged migration for legacy Community shared tests that stored
+ * correct answers/explanations inside broadly readable question documents.
+ * Dry-run is the default. A write run requires an explicit confirmation token.
+ */
+exports.migrateLegacyCommunitySharedTests = functions.https.onCall(async (data, context) => {
+  try {
+    validateSetAdminRoleAuth(context);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+
+  const dryRun = !data || data.dryRun !== false;
+  if (!dryRun && data.confirm !== "MIGRATE_SHARED_COMMUNITY_TESTS") {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "A write migration requires confirm=MIGRATE_SHARED_COMMUNITY_TESTS after backup and dry-run review."
+    );
+  }
+  const pageSize = Math.max(1, Math.min(Number.isInteger(data?.pageSize) ? data.pageSize : 5, 10));
+  const cursor = typeof data?.startAfter === "string" ? data.startAfter.trim() : "";
+  let query = db.collection("Shared_Community_Tests")
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(pageSize);
+  if (cursor) query = query.startAfter(cursor);
+
+  const snapshot = await query.get();
+  const results = [];
+  let migratedCount = 0;
+  let skippedCount = 0;
+
+  for (const doc of snapshot.docs) {
+    const existing = doc.data();
+    if (existing.answerKeySeparated === true && existing.sharingState === "COMMUNITY_SHARED") {
+      const questionSnapshot = await doc.ref.collection("questions").get();
+      const privateKeyRef = doc.ref.collection("private_keys").doc("answerKey");
+      const privateKeySnap = await privateKeyRef.get();
+      const inlineQuestions = Array.isArray(existing.questions)
+        ? existing.questions
+        : (typeof existing.questionsJson === "string" && existing.questionsJson.trim()
+            ? (() => { try { return JSON.parse(existing.questionsJson); } catch (_) { return null; } })()
+            : null);
+      const rawPublicQuestions = questionSnapshot.docs.map(questionDoc => ({
+        ...questionDoc.data(),
+        id: questionDoc.id
+      }));
+      let safeQuestions = rawPublicQuestions.map((question, index) =>
+        sanitizeSharedQuestionProjection(question, doc.id, index)
+      );
+      let questionWrites = questionSnapshot.docs.map((questionDoc, index) => ({
+        ref: questionDoc.ref,
+        data: safeQuestions[index]
+      }));
+      let privateKeys = privateKeySnap.exists && Array.isArray(privateKeySnap.data().questions)
+        ? privateKeySnap.data().questions
+        : null;
+
+      if (safeQuestions.length === 0 && Array.isArray(inlineQuestions)) {
+        safeQuestions = inlineQuestions.map((question, index) =>
+          sanitizeSharedQuestionProjection(question, doc.id, index)
+        );
+        questionWrites = safeQuestions.map(question => ({
+          ref: doc.ref.collection("questions").doc(question.id),
+          data: question
+        }));
+      }
+
+      const keysComplete = Array.isArray(privateKeys) && safeQuestions.length > 0 &&
+        safeQuestions.every(question => privateKeys.some(key =>
+          key && key.id === question.id &&
+          typeof key.correctAnswer === "string" && key.correctAnswer.trim().length > 0
+        ));
+
+      if (!keysComplete && (Array.isArray(inlineQuestions) || rawPublicQuestions.length > 0)) {
+        try {
+          const rawSource = Array.isArray(inlineQuestions) ? inlineQuestions : rawPublicQuestions;
+          const rebuilt = splitLegacySharedQuestions(rawSource, doc.id);
+          privateKeys = rebuilt.privateKeys;
+          if (questionWrites.length === 0) {
+            safeQuestions = rebuilt.publicQuestions;
+            questionWrites = safeQuestions.map(question => ({
+              ref: doc.ref.collection("questions").doc(question.id),
+              data: question
+            }));
+          }
+        } catch (_) {
+          // Keep the existing private key only if it was complete; otherwise quarantine below.
+        }
+      }
+
+      const safeQuestionIds = new Set(safeQuestions.map(question => question.id));
+      const safeQuestionContentValid = safeQuestions.length > 0 &&
+        safeQuestions.every(question =>
+          typeof question.questionText === "string" && question.questionText.trim().length > 0
+        );
+      const privateKeyIds = Array.isArray(privateKeys)
+        ? new Set(privateKeys.map(key => key && key.id).filter(Boolean))
+        : new Set();
+      const privateKeysUnique = Array.isArray(privateKeys) && privateKeyIds.size === privateKeys.length;
+      const completeAfterRepair = Array.isArray(privateKeys) &&
+        safeQuestions.length > 0 &&
+        safeQuestionIds.size === safeQuestions.length &&
+        safeQuestionContentValid &&
+        privateKeysUnique &&
+        safeQuestions.every(question => privateKeys.some(key =>
+          key && key.id === question.id &&
+          typeof key.correctAnswer === "string" && key.correctAnswer.trim().length > 0
+        ));
+      const examKey = String(existing.targetExam || existing.examId || "").trim().toLocaleLowerCase();
+      const safeExamMatches = communityExamSubjects.exams.filter(exam =>
+        [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === examKey)
+      );
+      const safeCanonicalExam = safeExamMatches.length === 1 ? safeExamMatches[0] : null;
+
+      if (!completeAfterRepair || !safeCanonicalExam) {
+        if (!dryRun) {
+          const quarantineBatch = db.batch();
+          quarantineBatch.update(doc.ref, {
+            sharingState: "MIGRATION_REQUIRED",
+            isPublic: false
+          });
+          quarantineBatch.set(db.collection("Community_Moderation_Audit").doc(), {
+            actorUid: context.auth.uid,
+            action: "QUARANTINE_UNSAFE_SHARED_TEST",
+            targetType: "SHARED_COMMUNITY_TEST",
+            targetId: doc.id,
+            reason: !completeAfterRepair
+              ? "Quarantined shared test because a complete private answer key could not be verified."
+              : "Quarantined shared test because its exam could not be resolved against the canonical registry.",
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          await quarantineBatch.commit();
+        }
+        results.push({ testId: doc.id, status: dryRun ? "WOULD_QUARANTINE_UNSAFE_SHARED_TEST" : "QUARANTINED_UNSAFE_SHARED_TEST" });
+        skippedCount += 1;
+        continue;
+      }
+
+      const canonicalSubject = safeCanonicalExam.subjects.find(subject =>
+        subject.toLocaleLowerCase() === String(existing.subject || "").trim().toLocaleLowerCase()
+      ) || "Full Syllabus";
+      const hasUnsafePublicFields = questionSnapshot.docs.some((questionDoc, index) =>
+        JSON.stringify(questionDoc.data()) !== JSON.stringify(safeQuestions[index])
+      );
+      const needsParentCleanup = Object.prototype.hasOwnProperty.call(existing, "questions") ||
+        Object.prototype.hasOwnProperty.call(existing, "questionsJson");
+      const needsNormalization = existing.targetExam !== safeCanonicalExam.examName ||
+        existing.examId !== safeCanonicalExam.examId || existing.subject !== canonicalSubject;
+      const needsRepair = hasUnsafePublicFields || needsParentCleanup || needsNormalization ||
+        (questionSnapshot.empty && questionWrites.length > 0);
+
+      if (!needsRepair) {
+        results.push({ testId: doc.id, status: "ALREADY_SAFE" });
+        skippedCount += 1;
+        continue;
+      }
+
+      if (!dryRun) {
+        const batch = db.batch();
+        batch.update(doc.ref, {
+          questions: admin.firestore.FieldValue.delete(),
+          questionsJson: admin.firestore.FieldValue.delete(),
+          targetExam: safeCanonicalExam.examName,
+          examId: safeCanonicalExam.examId,
+          subject: canonicalSubject
+        });
+        questionWrites.forEach(question => batch.set(question.ref, question.data));
+        batch.set(privateKeyRef, {
+          testId: doc.id,
+          questions: privateKeys,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        batch.set(db.collection("Community_Moderation_Audit").doc(), {
+          actorUid: context.auth.uid,
+          action: "SANITIZE_SHARED_TEST_ANSWER_KEY_PROJECTION",
+          targetType: "SHARED_COMMUNITY_TEST",
+          targetId: doc.id,
+          reason: "Removed answer/explanation fields from public questions and verified the private answer key.",
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+      }
+      migratedCount += 1;
+      results.push({
+        testId: doc.id,
+        status: dryRun ? "WOULD_SANITIZE_SAFE_PROJECTION" : "SANITIZED_SAFE_PROJECTION",
+        questionCount: safeQuestions.length,
+        removedPublicAnswerFields: hasUnsafePublicFields
+      });
+      continue;
+    }
+
+    let rawQuestions = Array.isArray(existing.questions) ? existing.questions : null;
+    if (!rawQuestions && typeof existing.questionsJson === "string" && existing.questionsJson.trim()) {
+      try {
+        rawQuestions = JSON.parse(existing.questionsJson);
+      } catch (_) {
+        rawQuestions = null;
+      }
+    }
+    if (!rawQuestions) {
+      const legacyQuestionDocs = await doc.ref.collection("questions").get();
+      if (!legacyQuestionDocs.empty) {
+        rawQuestions = legacyQuestionDocs.docs.map(questionDoc => ({
+          ...questionDoc.data(),
+          id: questionDoc.id
+        }));
+      }
+    }
+
+    let separated;
+    try {
+      separated = splitLegacySharedQuestions(rawQuestions, doc.id);
+    } catch (error) {
+      results.push({ testId: doc.id, status: "SKIPPED_UNSAFE", reason: error.message });
+      skippedCount += 1;
+      continue;
+    }
+    const targetExam = String(existing.targetExam || existing.examId || "").trim().toLocaleLowerCase();
+    const examMatches = communityExamSubjects.exams.filter(exam =>
+      [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === targetExam)
+    );
+    if (examMatches.length !== 1) {
+      results.push({ testId: doc.id, status: "SKIPPED_UNKNOWN_EXAM" });
+      skippedCount += 1;
+      continue;
+    }
+    const canonicalExam = examMatches[0];
+    const existingSubject = String(existing.subject || "").trim();
+    const canonicalSubject = canonicalExam.subjects.find(subject => subject.toLocaleLowerCase() === existingSubject.toLocaleLowerCase())
+      || "Full Syllabus";
+
+    if (!dryRun) {
+      const batch = db.batch();
+      batch.update(doc.ref, {
+        questions: admin.firestore.FieldValue.delete(),
+        questionsJson: admin.firestore.FieldValue.delete(),
+        answerKeySeparated: true,
+        sharingState: "COMMUNITY_SHARED",
+        isPublic: true,
+        isOfficial: false,
+        countsTowardRanking: false,
+        status: "Published",
+        examId: canonicalExam.examId,
+        targetExam: canonicalExam.examName,
+        subject: canonicalSubject,
+        migratedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      for (const question of separated.publicQuestions) {
+        batch.set(doc.ref.collection("questions").doc(question.id), question);
+      }
+      batch.set(doc.ref.collection("private_keys").doc("answerKey"), {
+        testId: doc.id,
+        questions: separated.privateKeys,
+        migratedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      batch.set(db.collection("Community_Moderation_Audit").doc(), {
+        actorUid: context.auth.uid,
+        action: "MIGRATE_SHARED_TEST_ANSWER_KEYS",
+        targetType: "SHARED_COMMUNITY_TEST",
+        targetId: doc.id,
+        reason: "Separated legacy answer keys from public Community question documents.",
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+      migratedCount += 1;
+    } else {
+      migratedCount += 1;
+    }
+
+    results.push({
+      testId: doc.id,
+      status: dryRun ? "WOULD_MIGRATE" : "MIGRATED",
+      questionCount: separated.publicQuestions.length
+    });
+  }
+
+  return {
+    success: true,
+    dryRun,
+    scannedCount: snapshot.size,
+    migratedOrReadyCount: migratedCount,
+    skippedCount,
+    results,
+    nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1].id : null
+  };
+});
+
+
+/**
+ * Admin-only, paged migration that marks pre-moderation Community posts visible.
+ * Hidden/removed posts are never overwritten. Dry-run is the default.
+ */
+exports.migrateLegacyCommunityPostVisibility = functions.https.onCall(async (data, context) => {
+  try {
+    validateSetAdminRoleAuth(context);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+
+  const dryRun = !data || data.dryRun !== false;
+  if (!dryRun && data.confirm !== "MIGRATE_COMMUNITY_POST_VISIBILITY") {
+    throw new functions.https.HttpsError("failed-precondition", "A write migration requires explicit confirmation after reviewing the dry run.");
+  }
+  const pageSize = Math.max(1, Math.min(Number.isInteger(data?.pageSize) ? data.pageSize : 50, 100));
+  const cursor = typeof data?.startAfter === "string" ? data.startAfter.trim() : "";
+  let query = db.collection("Community_Posts")
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(pageSize);
+  if (cursor) query = query.startAfter(cursor);
+
+  const snapshot = await query.get();
+  const results = [];
+  let readyCount = 0;
+  let skippedCount = 0;
+
+  const legacyAttachmentFields = [
+    "pdfUrl", "pdfFileName", "pdfStoragePath", "pdfPath", "pdfSize",
+    "imageUrls", "imagePaths", "attachments"
+  ];
+  let removedLegacyAttachmentFieldCount = 0;
+
+  for (const doc of snapshot.docs) {
+    const state = doc.get("moderationState");
+    const postData = doc.data();
+    const targetExam = String(postData.targetExam || "").trim().toLocaleLowerCase();
+    const examMatches = communityExamSubjects.exams.filter(exam =>
+      [exam.examId, exam.examName, exam.shortName].some(alias => alias.toLocaleLowerCase() === targetExam)
+    );
+    const canonicalExam = examMatches.length === 1 ? examMatches[0] : null;
+    const cleanup = {};
+    const removedFields = [];
+    for (const field of legacyAttachmentFields) {
+      if (Object.prototype.hasOwnProperty.call(postData, field)) {
+        cleanup[field] = admin.firestore.FieldValue.delete();
+        removedFields.push(field);
+      }
+    }
+    removedLegacyAttachmentFieldCount += removedFields.length;
+
+    const needsExamNormalization = Boolean(canonicalExam) &&
+      (postData.targetExam !== canonicalExam.examName || postData.examId !== canonicalExam.examId);
+
+    if (typeof state === "string" && state.length > 0) {
+      if (!needsExamNormalization && removedFields.length === 0) {
+        results.push({ postId: doc.id, status: state === "VISIBLE" ? "ALREADY_VISIBLE" : "PRESERVED_" + state });
+        skippedCount += 1;
+        continue;
+      }
+      if (!dryRun) {
+        const batch = db.batch();
+        const updates = { ...cleanup };
+        if (needsExamNormalization) {
+          updates.targetExam = canonicalExam.examName;
+          updates.examId = canonicalExam.examId;
+        }
+        batch.update(doc.ref, updates);
+        batch.set(db.collection("Community_Moderation_Audit").doc(), {
+          actorUid: context.auth.uid,
+          action: removedFields.length > 0 ? "REMOVE_LEGACY_COMMUNITY_ATTACHMENTS" : "NORMALIZE_POST_EXAM_ALIAS",
+          targetType: "COMMUNITY_POST",
+          targetId: doc.id,
+          reason: removedFields.length > 0
+            ? "Removed legacy PDF/multi-image attachment metadata while preserving the post's moderation state."
+            : "Normalized the legacy Community post to its canonical exam registry name while preserving moderation state.",
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+      }
+      readyCount += 1;
+      results.push({
+        postId: doc.id,
+        status: dryRun ? "WOULD_CLEAN_OR_NORMALIZE" : "CLEANED_OR_NORMALIZED",
+        moderationState: state,
+        removedFields
+      });
+      continue;
+    }
+
+    const visibility = canonicalExam ? "VISIBLE" : "HIDDEN";
+    const reason = canonicalExam
+      ? "Set legacy post visibility to VISIBLE, attached its canonical exam ID and removed legacy attachment metadata."
+      : "Hidden legacy post because its exam could not be resolved against the canonical registry; removed legacy attachment metadata.";
+
+    if (!dryRun) {
+      const batch = db.batch();
+      batch.update(doc.ref, {
+        moderationState: visibility,
+        ...cleanup,
+        ...(canonicalExam ? { examId: canonicalExam.examId, targetExam: canonicalExam.examName } : {}),
+        moderationMigrationReason: canonicalExam ? admin.firestore.FieldValue.delete() : "UNKNOWN_EXAM_REGISTRY_MAPPING"
+      });
+      batch.set(db.collection("Community_Moderation_Audit").doc(), {
+        actorUid: context.auth.uid,
+        action: canonicalExam ? "MIGRATE_POST_VISIBILITY" : "HIDE_UNMAPPED_LEGACY_POST",
+        targetType: "COMMUNITY_POST",
+        targetId: doc.id,
+        reason,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+    }
+    readyCount += 1;
+    results.push({
+      postId: doc.id,
+      status: dryRun ? "WOULD_SET_" + visibility : "SET_" + visibility,
+      removedFields
+    });
+  }
+
+  return {
+    success: true,
+    dryRun,
+    scannedCount: snapshot.size,
+    readyOrUpdatedCount: readyCount,
+    skippedCount,
+    removedLegacyAttachmentFieldCount,
+    results,
+    nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1].id : null
+  };
+});
+
+
+/**
+ * Admin-only registry sync. It writes the canonical Kotlin exam registry
+ * projection used by Firestore Rules to validate student Community subjects.
+ * Dry-run is default; a write requires explicit confirmation.
+ */
+exports.syncCommunityExamSubjects = functions.https.onCall(async (data, context) => {
+  try {
+    validateSetAdminRoleAuth(context);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+  const dryRun = !data || data.dryRun !== false;
+  if (!dryRun && data.confirm !== "SYNC_COMMUNITY_EXAM_SUBJECTS") {
+    throw new functions.https.HttpsError("failed-precondition", "Explicit registry sync confirmation is required.");
+  }
+  const exams = communityExamSubjects.exams;
+  if (!Array.isArray(exams) || exams.length === 0) {
+    throw new functions.https.HttpsError("failed-precondition", "Backend Community exam registry is empty.");
+  }
+  const existingSnapshot = await db.collection("Community_Exam_Subjects").get();
+  const expectedIds = new Set(exams.map(exam => exam.examId));
+  const staleDocs = existingSnapshot.docs.filter(doc => !expectedIds.has(doc.id));
+  if (!dryRun) {
+    if (exams.length + staleDocs.length + 1 > 500) {
+      throw new functions.https.HttpsError("failed-precondition", "Registry sync exceeds Firestore's atomic batch limit; review stale registry documents first.");
+    }
+    const batch = db.batch();
+    for (const exam of exams) {
+      batch.set(db.collection("Community_Exam_Subjects").doc(exam.examId), {
+        examId: exam.examId,
+        examName: exam.examName,
+        shortName: exam.shortName,
+        aliases: [exam.examId, exam.examName, exam.shortName],
+        subjects: exam.subjects,
+        registryVersion: communityExamSubjects.registryVersion,
+        syncedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    staleDocs.forEach(doc => batch.delete(doc.ref));
+    batch.set(db.collection("Community_Moderation_Audit").doc(), {
+      actorUid: context.auth.uid,
+      action: "SYNC_COMMUNITY_EXAM_SUBJECT_REGISTRY",
+      targetType: "COMMUNITY_EXAM_SUBJECTS",
+      targetId: communityExamSubjects.registryVersion,
+      reason: `Synchronized canonical exam and subject names; removed ${staleDocs.length} stale exam mappings.`,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+  }
+  return {
+    success: true,
+    dryRun,
+    registryVersion: communityExamSubjects.registryVersion,
+    examCount: exams.length,
+    subjectCount: exams.reduce((total, exam) => total + exam.subjects.length, 0),
+    staleExamCount: staleDocs.length,
+    staleExamIds: staleDocs.map(doc => doc.id)
+  };
+});
+
+
+/**
+ * Creates one manual text reply and increments the post counter atomically.
+ * Replies are never sent to an AI service.
+ */
+exports.createCommunityReply = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to reply.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityReplyCreate(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  const commentId = crypto.createHash("sha256").update(uid + ":" + payload.requestId).digest("hex").slice(0, 40);
+  const commentRef = postRef.collection("Comments").doc(commentId);
+
+  try {
+    const result = await db.runTransaction(async transaction => {
+      const userSnap = await transaction.get(userRef);
+      assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+      const postSnap = await transaction.get(postRef);
+      const existingComment = await transaction.get(commentRef);
+      if (!postSnap.exists || postSnap.data().moderationState !== "VISIBLE") {
+        throw new functions.https.HttpsError("not-found", "Community post is unavailable.");
+      }
+      const postData = postSnap.data();
+      const authorUid = typeof postData.creatorId === "string" ? postData.creatorId : "";
+      if (authorUid && authorUid !== uid) {
+        const [callerBlockedAuthor, authorBlockedCaller] = await Promise.all([
+          transaction.get(userRef.collection("Blocked_Users").doc(authorUid)),
+          transaction.get(db.collection("Users_Data").doc(authorUid).collection("Blocked_Users").doc(uid))
+        ]);
+        if (callerBlockedAuthor.exists || authorBlockedCaller.exists) {
+          throw new functions.https.HttpsError("permission-denied", "Reply is unavailable because one account has blocked the other.");
+        }
+      }
+      const commentsCount = Number.isFinite(postData.comments) ? Math.max(0, postData.comments) : 0;
+      if (existingComment.exists) {
+        return { commentId, commentsCount, duplicate: true };
+      }
+      const authorName = String(userSnap.data().name || userSnap.data().displayName || context.auth.token.name || "Student").slice(0, 80);
+      transaction.create(commentRef, {
+        id: commentId,
+        authorName,
+        timeAgo: "Just now",
+        content: payload.content,
+        upvotes: 0,
+        isCorrectAnswer: false,
+        userReaction: null,
+        creatorId: uid,
+        timestamp: Date.now()
+      });
+      transaction.update(postRef, { comments: commentsCount + 1 });
+      return { commentId, commentsCount: commentsCount + 1, duplicate: false };
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("createCommunityReply failed", error);
+    throw new functions.https.HttpsError("internal", "Reply could not be saved.");
+  }
+});
+
+/**
+ * Deletes a reply only for its author or an authorized Admin and decrements
+ * the parent counter in the same transaction.
+ */
+exports.deleteCommunityReply = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to delete a reply.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityReplyDelete(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+
+  let isAdmin = false;
+  try {
+    validateSetAdminRoleAuth(context);
+    isAdmin = true;
+  } catch (_) {
+    isAdmin = false;
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  const commentRef = postRef.collection("Comments").doc(payload.commentId);
+
+  try {
+    const result = await db.runTransaction(async transaction => {
+      if (!isAdmin) {
+        const userSnap = await transaction.get(userRef);
+        assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+      }
+      const postSnap = await transaction.get(postRef);
+      const commentSnap = await transaction.get(commentRef);
+      if (!postSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Community post is unavailable.");
+      }
+      const currentCount = Number.isFinite(postSnap.data().comments)
+        ? Math.max(0, postSnap.data().comments)
+        : 0;
+      if (!commentSnap.exists) {
+        return { deleted: false, commentsCount: currentCount, duplicate: true };
+      }
+      if (!isAdmin && commentSnap.data().creatorId !== uid) {
+        throw new functions.https.HttpsError("permission-denied", "Only the reply author or an Admin can delete this reply.");
+      }
+      transaction.delete(commentRef);
+      const nextCount = Math.max(0, currentCount - 1);
+      transaction.update(postRef, { comments: nextCount });
+      return { deleted: true, commentsCount: nextCount, duplicate: false };
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("deleteCommunityReply failed", error);
+    throw new functions.https.HttpsError("internal", "Reply could not be deleted.");
+  }
+});
+
+/**
+ * Idempotent like/unlike operation. The client sends the desired final state,
+ * not a toggle, so a retry cannot accidentally reverse a successful reaction.
+ */
+exports.setCommunityReaction = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in to react.");
+  }
+  const uid = context.auth.uid;
+  let payload;
+  try {
+    payload = validateCommunityReaction(data);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "invalid-argument", error.message);
+  }
+  const desiredLiked = payload.liked;
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const postRef = db.collection("Community_Posts").doc(payload.postId);
+  const likeRef = userRef.collection("Liked_Posts").doc(payload.postId);
+
+  try {
+    const result = await db.runTransaction(async transaction => {
+      const userSnap = await transaction.get(userRef);
+      assertActiveUserStatus(userSnap.exists ? userSnap.data() : null, uid);
+      const postSnap = await transaction.get(postRef);
+      const likeSnap = await transaction.get(likeRef);
+      if (!postSnap.exists || postSnap.data().moderationState !== "VISIBLE") {
+        throw new functions.https.HttpsError("not-found", "Community post is unavailable.");
+      }
+      const postData = postSnap.data();
+      const authorUid = typeof postData.creatorId === "string" ? postData.creatorId : "";
+      if (authorUid && authorUid !== uid) {
+        const [callerBlockedAuthor, authorBlockedCaller] = await Promise.all([
+          transaction.get(userRef.collection("Blocked_Users").doc(authorUid)),
+          transaction.get(db.collection("Users_Data").doc(authorUid).collection("Blocked_Users").doc(uid))
+        ]);
+        if (callerBlockedAuthor.exists || authorBlockedCaller.exists) {
+          throw new functions.https.HttpsError("permission-denied", "Reaction is unavailable because one account has blocked the other.");
+        }
+      }
+      const currentCount = Number.isFinite(postData.upvotes) ? Math.max(0, postData.upvotes) : 0;
+      if (desiredLiked && !likeSnap.exists) {
+        transaction.create(likeRef, { postId: payload.postId, timestamp: Date.now() });
+        transaction.update(postRef, { upvotes: currentCount + 1 });
+        return { liked: true, upvotes: currentCount + 1, duplicate: false };
+      }
+      if (!desiredLiked && likeSnap.exists) {
+        transaction.delete(likeRef);
+        transaction.update(postRef, { upvotes: Math.max(0, currentCount - 1) });
+        return { liked: false, upvotes: Math.max(0, currentCount - 1), duplicate: false };
+      }
+      return { liked: desiredLiked, upvotes: currentCount, duplicate: true };
+    });
+    return { success: true, ...result };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (typeof error.code === "string" && error.message) {
+      throw new functions.https.HttpsError(error.code, error.message);
+    }
+    console.error("setCommunityReaction failed", error);
+    throw new functions.https.HttpsError("internal", "Reaction could not be saved.");
+  }
+});
