@@ -113,7 +113,8 @@ dependencies {
   implementation("com.amazonaws:aws-android-sdk-mobile-client:2.73.0")
   
   implementation(libs.firebase.ai)
-  // implementation(libs.firebase.appcheck.recaptcha)
+  implementation(libs.firebase.appcheck.recaptcha)
+  implementation(libs.firebase.appcheck.debug)
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.storage)
   implementation(libs.firebase.auth)

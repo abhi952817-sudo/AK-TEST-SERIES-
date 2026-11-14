@@ -1642,12 +1642,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 // Trigger AI Extraction if PDF was uploaded
                 if (finalPdfUrl.isNotEmpty()) {
                     viewModelScope.launch(Dispatchers.IO) {
-                        val keys = getGeminiApiKeys()
-                        val apiKey = if (keys.isNotEmpty()) keys.first().second else ""
                         Com.ak.testseries.utils.GeminiPdfExtractor.processPdfWithGemini(
                             pdfUrl = finalPdfUrl,
                             testId = testId,
-                            apiKey = apiKey,
+                            apiKey = "",
                             totalQuestionsExpected = effectiveQCount,
                             targetExam = liveExamConfig.examId,
                             subject = liveSubject.subjectId
@@ -5358,13 +5356,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getGeminiApiKeys(): List<Pair<Int, String>> {
-        val primary = BuildConfig.GEMINI_API_KEY
         val secondary = getSecondaryGeminiKey()
-
         val list = mutableListOf<Pair<Int, String>>()
-        if (isPrimaryGeminiActive.value && primary.isNotEmpty() && primary != "MY_GEMINI_API_KEY") {
-            list.add(Pair(0, primary))
-        }
         if (isSecondaryGeminiActive.value && secondary.isNotEmpty() && secondary != "MY_GEMINI_API_KEY") {
             list.add(Pair(1, secondary))
         }
@@ -5379,6 +5372,24 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             geminiStatusMessage.value = "AI Engine is disabled by Admin."
             return null
         }
+
+        if (isPrimaryGeminiActive.value) {
+            geminiStatusMessage.value = "Generating via Firebase AI Logic..."
+            try {
+                val aiResult = Com.ak.testseries.ai.FirebaseAiService.generateJson(prompt, systemInstruction)
+                activeAiModel.value = Com.ak.testseries.ai.FirebaseAiService.DEFAULT_MODEL
+                activeGeminiKeyIndex.value = 0
+                geminiStatusMessage.value = "Firebase AI Logic Active (${Com.ak.testseries.ai.FirebaseAiService.DEFAULT_MODEL})"
+                incrementGeminiUsage(0)
+                return aiResult
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "Firebase AI Logic question generation failed", e)
+                geminiStatusMessage.value = e.localizedMessage ?: "Firebase AI generation failed."
+            }
+        }
+
         val keys = getGeminiApiKeys()
         if (keys.isEmpty()) {
             return null
@@ -5393,22 +5404,22 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val currentKeyPair = keys[currentIndex]
             val keyId = currentKeyPair.first
             val currentKey = currentKeyPair.second
-            
-            geminiStatusMessage.value = "Trying API Key ${if (keyId == 0) "Primary" else "Secondary"}..."
+
+            geminiStatusMessage.value = "Trying Secondary API Key..."
             val result = callGeminiApiForQuestions(currentKey, prompt, systemInstruction)
             if (result != null) {
                 val currentModel = activeAiModel.value
                 if (activeGeminiKeyIndex.value != keyId) {
                     activeGeminiKeyIndex.value = keyId
-                    geminiStatusMessage.value = "Switched to ${if (keyId == 0) "Primary" else "Secondary"} Key ($currentModel)"
+                    geminiStatusMessage.value = "Switched to Secondary Key ($currentModel)"
                 } else {
-                    geminiStatusMessage.value = "${if (keyId == 0) "Primary" else "Secondary"} Key Active ($currentModel)"
+                    geminiStatusMessage.value = "Secondary Key Active ($currentModel)"
                 }
                 incrementGeminiUsage(keyId)
                 return result
             }
         }
-        geminiStatusMessage.value = "All Gemini API Keys exhausted (Rate limit/Quota reached)!"
+        geminiStatusMessage.value = "All Gemini AI providers failed!"
         return null
     }
 
@@ -5416,6 +5427,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         if (!_isGlobalAiEnabled.value) {
             return null
         }
+
+        if (isPrimaryGeminiActive.value) {
+            try {
+                val aiResult = Com.ak.testseries.ai.FirebaseAiService.generateText(prompt)
+                activeAiModel.value = Com.ak.testseries.ai.FirebaseAiService.DEFAULT_MODEL
+                activeGeminiKeyIndex.value = 0
+                incrementGeminiUsage(0)
+                return aiResult
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("NEETViewModel", "Firebase AI Logic text generation failed", e)
+            }
+        }
+
         val keys = getGeminiApiKeys()
         if (keys.isEmpty()) {
             return null
@@ -5430,7 +5456,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val currentKeyPair = keys[currentIndex]
             val keyId = currentKeyPair.first
             val currentKey = currentKeyPair.second
-            
+
             val result = callGeminiApiText(currentKey, prompt)
             if (result != null) {
                 if (activeGeminiKeyIndex.value != keyId) {

@@ -2,7 +2,7 @@ package Com.ak.testseries.exam
 
 import android.content.Context
 import android.net.Uri
-import Com.ak.testseries.BuildConfig
+import Com.ak.testseries.ai.FirebaseAiService
 import Com.ak.testseries.utils.CompactMarkdownFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -141,7 +141,7 @@ object UniversalPdfPipeline {
 
         val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
         val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
-        val effectiveApiKey = apiKey ?: BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
+        val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
 
         // Process in controlled batches to save API tokens and maintain reliability
         for (batchIndex in (resumeFromBatch - 1) until totalBatches) {
@@ -179,23 +179,21 @@ object UniversalPdfPipeline {
                 )
                 val systemInstruction = UniversalAIContext.buildSystemInstruction(examConfig)
 
-                // Call Gemini API if key is available
+                // Call Firebase AI Logic (or fallback API key if explicitly provided)
                 var batchModels: List<UniversalQuestionModel>? = null
-                if (!effectiveApiKey.isNullOrBlank()) {
-                    val apiResult = callGeminiApi(effectiveApiKey, prompt, systemInstruction)
-                    if (apiResult != null) {
-                        val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Gemini API Generation"
-                        batchModels = parseGeminiResponse(
-                            jsonString = apiResult.responseText,
-                            examConfig = examConfig,
-                            stageId = stageId,
-                            subjectId = subjectId,
-                            batchIndex = batchIndex,
-                            existingHashes = existingHashes,
-                            actualModel = apiResult.modelVersion.takeIf { it != "UNAVAILABLE" } ?: apiResult.modelName,
-                            actualSource = source
-                        )
-                    }
+                val apiResult = callGeminiApi(effectiveApiKey.orEmpty(), prompt, systemInstruction)
+                if (apiResult != null) {
+                    val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Firebase AI Logic Generation"
+                    batchModels = parseGeminiResponse(
+                        jsonString = apiResult.responseText,
+                        examConfig = examConfig,
+                        stageId = stageId,
+                        subjectId = subjectId,
+                        batchIndex = batchIndex,
+                        existingHashes = existingHashes,
+                        actualModel = apiResult.modelVersion.takeIf { it != "UNAVAILABLE" } ?: apiResult.modelName,
+                        actualSource = source
+                    )
                 }
 
                 // If API call succeeded, add parsed models; otherwise generate structured fallback
@@ -229,7 +227,7 @@ object UniversalPdfPipeline {
                         """.trimIndent()
 
                         try {
-                            val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null)
+                            val regenResult = callGeminiApi(effectiveApiKey.orEmpty(), targetedPrompt, null)
                             if (regenResult != null) {
                                 val regenQuestions = parseGeminiResponse(
                                     jsonString = regenResult.responseText,
@@ -292,8 +290,6 @@ object UniversalPdfPipeline {
                     extractedQuestions.addAll(finalBatch)
                 } else {
                     val reason = when {
-                        effectiveApiKey.isNullOrBlank() ->
-                            "Gemini API key is missing. No questions were generated."
                         batchModels.isNullOrEmpty() ->
                             "Gemini did not return a valid question batch. No fallback questions were generated."
                         else ->
@@ -484,6 +480,21 @@ object UniversalPdfPipeline {
         prompt: String,
         systemInstruction: String?
     ): GeminiApiExecutionResult? = withContext(Dispatchers.IO) {
+        try {
+            val text = FirebaseAiService.generateJson(prompt, systemInstruction)
+            return@withContext GeminiApiExecutionResult(
+                responseText = text,
+                modelName = FirebaseAiService.DEFAULT_MODEL,
+                modelVersion = FirebaseAiService.DEFAULT_MODEL
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("UniversalPdfPipeline", "Firebase AI Logic generation failed", e)
+        }
+
+        if (apiKey.isBlank()) return@withContext null
+
         val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
         for (modelName in candidateModels) {
             try {

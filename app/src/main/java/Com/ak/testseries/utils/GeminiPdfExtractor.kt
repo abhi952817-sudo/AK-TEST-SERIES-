@@ -20,19 +20,16 @@ object GeminiPdfExtractor {
     suspend fun processPdfWithGemini(
         pdfUrl: String,
         testId: String,
-        apiKey: String,
+        apiKey: String = "",
         totalQuestionsExpected: Int,
         targetExam: String,
         subject: String
     ) = withContext(Dispatchers.IO) {
-        val db = FirebaseFirestore.getInstance()
+        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         val testRef = db.collection("LiveTests").document(testId)
 
         try {
             require(pdfUrl.isNotBlank()) { "Source PDF URL is missing." }
-            require(apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY") {
-                "Gemini API key is missing. PDF questions were not generated."
-            }
             require(totalQuestionsExpected > 0) { "Expected question count must be greater than zero." }
             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
                 ?: throw IllegalArgumentException("Selected exam is not registered.")
@@ -49,7 +46,6 @@ object GeminiPdfExtractor {
             testRef.update("processingStatus", "Downloading source PDF").await()
             val pdfBytes = downloadPdf(pdfUrl)
             require(pdfBytes.isNotEmpty()) { "Downloaded PDF is empty." }
-            val pdfBase64 = Base64.encodeToString(pdfBytes, Base64.NO_WRAP)
 
             val sectionRules = configuredSections.joinToString("\n") { section ->
                 "- ${section.sectionId}: ${section.sectionName}; type=${section.questionType.name}; options=${section.optionsCount}; correct=+${section.positiveMarks}; incorrect=-${section.negativeMarks}"
@@ -70,15 +66,27 @@ object GeminiPdfExtractor {
             """.trimIndent()
 
             testRef.update("processingStatus", "Extracting questions with Gemini").await()
-            val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
             var responseText: String? = null
             var activeModel: String? = null
             var lastApiError: String? = null
 
-            for (model in candidateModels) {
-                var connection: HttpURLConnection? = null
-                try {
-                    val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
+            try {
+                responseText = Com.ak.testseries.ai.FirebaseAiService.generateFromPdfBytes(pdfBytes, prompt)
+                activeModel = Com.ak.testseries.ai.FirebaseAiService.DEFAULT_MODEL
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("GeminiPdfExtractor", "Firebase AI Logic PDF extraction failed", e)
+                lastApiError = e.message ?: "Firebase AI PDF extraction failed."
+            }
+
+            if (responseText.isNullOrBlank() && apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY") {
+                val pdfBase64 = Base64.encodeToString(pdfBytes, Base64.NO_WRAP)
+                val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
+                for (model in candidateModels) {
+                    var connection: HttpURLConnection? = null
+                    try {
+                        val endpoint = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
                     connection = endpoint.openConnection() as HttpURLConnection
                     connection.requestMethod = "POST"
                     connection.setRequestProperty("Content-Type", "application/json")
@@ -125,7 +133,8 @@ object GeminiPdfExtractor {
                 } catch (e: Exception) {
                     lastApiError = e.message ?: "Gemini request failed for $model."
                 } finally {
-                    connection?.disconnect()
+                        connection?.disconnect()
+                    }
                 }
             }
 

@@ -79,6 +79,7 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        configureAppCheck(this, intent)
         
         val testIdFromDeepLink: String? = intent?.data?.let { data ->
             when {

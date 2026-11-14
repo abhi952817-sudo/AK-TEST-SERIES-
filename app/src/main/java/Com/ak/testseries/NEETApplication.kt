@@ -23,29 +23,11 @@ class NEETApplication : Application() {
             Log.w("NEETApplication", "Default FirebaseApp initialization skipped: ${e.message}")
         }
 
-        // Programmatic fallback if resource-based initialization was not triggered
-        if (FirebaseApp.getApps(this).isEmpty()) {
-            try {
-                val projectId = "ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612"
-                val options = com.google.firebase.FirebaseOptions.Builder()
-                    .setApplicationId("1:836952428988:android:aktestseries")
-                    .setApiKey("AIzaSyMockKeyForInitializationAKTestSeries")
-                    .setProjectId(projectId)
-                    .setStorageBucket("$projectId.appspot.com")
-                    .build()
-                FirebaseApp.initializeApp(this, options)
-                Log.i("NEETApplication", "FirebaseApp initialized with fallback options")
-            } catch (e: Throwable) {
-                Log.w("NEETApplication", "Fallback programmatic Firebase initialization skipped: ${e.message}")
-            }
-        }
-
         try {
             getSafeCrashlytics()?.apply {
-                setCrashlyticsCollectionEnabled(true)
+                setCrashlyticsCollectionEnabled(false)
                 setCustomKey("app_version", BuildConfig.VERSION_NAME)
                 setCustomKey("build_type", BuildConfig.BUILD_TYPE)
-                log("NEETApplication: Crashlytics initialized successfully")
             }
         } catch (e: Throwable) {
             Log.w("NEETApplication", "Crashlytics setup skipped: ${e.message}")
