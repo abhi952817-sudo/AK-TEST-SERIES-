@@ -2020,7 +2020,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val genQuestionsCount = MutableStateFlow(5)
     val genIsLive = MutableStateFlow(false)
     val genIsPublic = MutableStateFlow(true)
-    val autoShareToCommunity = MutableStateFlow(true)
+    val autoShareToCommunity = MutableStateFlow(false)
     val genLiveScheduledTime = MutableStateFlow("2026-07-20 10:00 AM")
     val genLiveDurationMinutes = MutableStateFlow(180)
     val allQuestionsList = ArrayList<org.json.JSONObject>()
