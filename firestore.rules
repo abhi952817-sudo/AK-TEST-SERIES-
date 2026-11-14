@@ -392,7 +392,7 @@ service cloud.firestore {
                     && request.resource.data.creatorId == request.auth.uid
                     && request.resource.data.keys().hasOnly([
                       'id', 'authorName', 'authorSubtitle', 'isOfficial', 'isMonitor',
-                      'timeAgo', 'title', 'content', 'isPinned', 'upvotes', 'comments',
+                      'timeAgo', 'title', 'content', 'highlightedSpans', 'isPinned', 'upvotes', 'comments',
                       'views', 'subject', 'targetExam', 'examId', 'imageUrl', 'isBookmarked',
                       'timestamp', 'postType', 'testId', 'creatorId', 'testTitle', 'imagePath',
                       'questionCount', 'durationMinutes', 'chapter', 'difficulty',
@@ -419,6 +419,8 @@ service cloud.firestore {
                     && request.resource.data.title.size() <= 120
                     && request.resource.data.content is string
                     && request.resource.data.content.size() <= 5000
+                    && (!('highlightedSpans' in request.resource.data)
+                        || (request.resource.data.highlightedSpans is list && request.resource.data.highlightedSpans.size() <= 20))
                     && (request.resource.data.postType != 'DOUBT' || request.resource.data.content.size() > 0)
                     && (request.resource.data.content.size() > 0
                         || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
@@ -447,7 +449,7 @@ service cloud.firestore {
                         && !isUserBanned(request.auth.uid)
                         && resource.data.creatorId == request.auth.uid
                         && request.resource.data.diff(resource.data).affectedKeys()
-                            .hasOnly(['title', 'content', 'subject', 'targetExam'])
+                            .hasOnly(['title', 'content', 'highlightedSpans', 'subject', 'targetExam'])
                         && request.resource.data.subject is string
                         && request.resource.data.subject.size() > 0
                         && request.resource.data.subject != 'General'
@@ -459,6 +461,8 @@ service cloud.firestore {
                         && request.resource.data.title.size() <= 120
                         && request.resource.data.content is string
                         && request.resource.data.content.size() <= 5000
+                        && (!('highlightedSpans' in request.resource.data)
+                            || (request.resource.data.highlightedSpans is list && request.resource.data.highlightedSpans.size() <= 20))
                         && (resource.data.postType != 'DOUBT' || request.resource.data.content.size() > 0)
                         && (request.resource.data.content.size() > 0
                             || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() > 0))
