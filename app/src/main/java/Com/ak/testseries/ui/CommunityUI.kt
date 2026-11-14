@@ -1030,7 +1030,8 @@ fun PostCard(
                 highlights = post.highlightedSpans,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
+                modifier = Modifier,
+                maxLines = 3
             )
             if (post.postType == "MCQ") {
                 CommunityMcqAttemptCard(post)
