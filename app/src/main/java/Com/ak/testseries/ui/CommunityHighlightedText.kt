@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -52,7 +51,8 @@ fun CommunityHighlightedText(
     highlights: List<CommunityTextHighlight>,
     modifier: Modifier = Modifier,
     fontSize: TextUnit = 14.sp,
-    color: Color = MaterialTheme.colorScheme.onSurfaceVariant
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    maxLines: Int = Int.MAX_VALUE
 ) {
     val highlightBackground = MaterialTheme.colorScheme.tertiaryContainer
     val annotated = buildAnnotatedString {
@@ -70,5 +70,5 @@ fun CommunityHighlightedText(
         }
         if (cursor < text.length) append(text.substring(cursor))
     }
-    Text(text = annotated, modifier = modifier, fontSize = fontSize, color = color)
+    Text(text = annotated, modifier = modifier, fontSize = fontSize, color = color, maxLines = maxLines)
 }
