@@ -103,9 +103,8 @@ data class GoogleDriveRemoteBackup(
             if (desc.startsWith("{") && desc.endsWith("}")) {
                 try {
                     val descJson = JSONObject(desc)
-                    if (ownerUid.isBlank()) {
-                        ownerUid = descJson.optString("ownerUid", "").trim()
-                    }
+                    // Ownership is never inferred from the editable Drive description.
+                    // Only the appProperties ownerUid set during upload is authoritative.
                     if (schemaVersion == 19 && descJson.has("schemaVersion")) {
                         schemaVersion = descJson.optInt("schemaVersion", 19)
                     }
