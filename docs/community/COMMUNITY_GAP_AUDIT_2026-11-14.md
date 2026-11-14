@@ -27,33 +27,38 @@ Base: `main` at `1e236d099522d63ec89ab0d11287b48315efc48c`
 
 ## Release-blocking gaps found
 
-### COM-SHARE-001 — Test Verification Card is missing
+### COM-SHARE-001 — Explicit Test Verification Card
+
+Status: UI and Android-side validation implemented in the latest follow-up commits; current-head Android CI is pending.
 
 Evidence:
-- `NEETViewModel.shareTestToCommunity(test)` currently prepares and writes `Shared_Community_Tests` and `Community_Posts` directly.
-- `CommunityShareManager.buildTestSharePost` silently chooses the test subject when it matches the registry, otherwise it substitutes `Full Syllabus`.
-- The share flow does not ask the student to select the subject in a verification card.
-- The code does not yet prove that the selected subject matches the actual subject distribution in the test's questions.
+- A new `CommunityTestVerificationDialog` displays exam/test metadata and requires a subject selection before sharing.
+- Subject choices are derived from question-level subject metadata where available; `Full Syllabus` is offered only when the visible question data covers every registered exam subject.
+- `NEETViewModel.shareTestToCommunity` rechecks the selected subject against the full question list loaded from the local test/Room fallback before writing.
+- `CommunityShareManager.buildTestSharePost` no longer silently substitutes `Full Syllabus` for an unrecognized subject.
 
-Required:
-1. Open a verification card before any share write.
-2. Show the canonical exam and only registry-approved subjects that are actually represented in the test.
-3. Permit `Full Syllabus` only when the question set covers the exam's registered subject set.
-4. Validate test owner, test status, question count, duration, stage/paper/section and subject distribution before publishing.
-5. Keep answer keys/explanations out of the public Community card and preserve the original test's privacy/ranking flags.
-6. Unknown or incomplete registry/pattern data must stop sharing with a clear error; no NEET or Full Syllabus fallback.
+Remaining:
+- The question/subject verification currently runs in the Android client. Firestore Rules enforce canonical exam/subject registration, but they do not independently prove that the selected subject matches the actual question documents. A modified client could bypass the UI check.
+- Move the share write behind a trusted callable or otherwise add server-side validation before treating this as a security-complete verification flow.
+- Keep answer keys/explanations out of the public Community card and preserve the original test's privacy/ranking flags.
+- Unknown or incomplete registry/pattern data must stop sharing with a clear error; no NEET or Full Syllabus fallback.
 
-### COM-SHARE-002 — Automatic Community sharing bypasses the verification flow
+### COM-SHARE-002 — Automatic Community sharing
 
-Evidence:
-- `NEETViewModel.autoShareToCommunity` currently defaults to `true`.
-- Test-save logic invokes `shareTestToCommunity(newTest)` automatically when the flag is true.
-- The public auto-workflow intent can set this flag to true.
+Status: Code change applied; Android CI pending.
 
-Required:
-- Disable automatic publishing until the verification card is completed.
-- A public/private test choice must not silently imply Community publication.
-- Community sharing must happen only after the student confirms the verification card.
+- `autoShareToCommunity` now defaults to `false`.
+- The public auto-workflow intent explicitly keeps Community auto-sharing disabled.
+- Manual share entry points now open the Test Verification Card because the share method requires a selected subject before proceeding.
+- Keep automatic publication disabled unless a separate, explicit consent flow is designed and tested.
+
+
+
+### COM-SHARE-003 — Server-side subject verification
+
+Status: NOT IMPLEMENTED; release blocker.
+
+The latest change validates the subject in Android before the client writes the shared-test documents. Firestore Rules validate canonical exam/subject registration but cannot prove the subject distribution of the underlying question set. A modified client can bypass the UI validation. Implement a trusted callable that validates the submitted test/question structure, ownership, exam/stage/paper, question count, duration and subject distribution before creating the public card and protected answer-key documents. Keep direct client writes from bypassing this validation.
 
 ### COM-DOUBT-001 — Highlighted text is not implemented
 
