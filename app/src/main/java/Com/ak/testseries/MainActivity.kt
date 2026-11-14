@@ -184,7 +184,8 @@ class MainActivity : ComponentActivity() {
                                 viewModel.autoRoutedWorkflow.value = autoWorkflowFromIntent
                                 val isPub = (autoWorkflowFromIntent == "public")
                                 viewModel.genIsPublic.value = isPub
-                                viewModel.autoShareToCommunity.value = isPub
+                                // Community publication requires an explicit verification-card confirmation.
+                                viewModel.autoShareToCommunity.value = false
                             }
                         }
                     }
