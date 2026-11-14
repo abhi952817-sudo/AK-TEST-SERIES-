@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -75,7 +76,10 @@ object FileUploaderUtil {
             val firebaseRef = storage?.reference?.child("chart_images/${UUID.randomUUID()}.webp")
                 ?: return@withContext null
 
-            firebaseRef.putBytes(compressedBytes).await()
+            val imageMetadata = StorageMetadata.Builder()
+                .setContentType("image/webp")
+                .build()
+            firebaseRef.putBytes(compressedBytes, imageMetadata).await()
             firebaseRef.downloadUrl.await().toString()
         } catch (_: Exception) {
             null
@@ -97,7 +101,10 @@ object FileUploaderUtil {
         try {
             val ref = storage?.reference?.child("pdfs/${UUID.randomUUID()}.pdf")
                 ?: return@withContext null
-            ref.putFile(uri).await()
+            val pdfMetadata = StorageMetadata.Builder()
+                .setContentType("application/pdf")
+                .build()
+            ref.putFile(uri, pdfMetadata).await()
             ref.downloadUrl.await().toString()
         } catch (_: Exception) {
             null
