@@ -17,7 +17,7 @@ object FirestoreHelper {
                 context?.getString(R.string.firestore_database_id)
             } catch (e: Exception) {
                 null
-            } ?: "ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf"
+            } ?: "ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612"
 
             // Fail closed: never silently redirect named-database traffic to (default).
             val app = FirebaseApp.getInstance()
