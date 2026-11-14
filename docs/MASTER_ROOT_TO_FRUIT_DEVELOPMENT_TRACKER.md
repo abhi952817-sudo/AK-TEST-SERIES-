@@ -1129,3 +1129,16 @@ Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. 
 7. Run Firestore/Storage emulator tests and a controlled read-only identity smoke test before any production write or rules deployment.
 
 **Status:** `BLOCKED — IDENTITY/DATA INVENTORY REQUIRED`. Static source inspection only; no Firebase Console/API access, live project comparison, data counts, export, code changes, rules deployment, migration, or project removal performed. Preserve both Firebase integrations until the authoritative data owner is proven.
+
+
+### 25.4 Additional repository-history comparison
+
+- Current integration branch `firebase.json` explicitly configures Firestore database `4a0dbfd1-96e9-481f-b66c-2984491d0612`; the file also configures Functions, Storage Rules, and emulator ports.
+- `.gitignore` explicitly excludes `app/google-services.json`. Its absence from GitHub is therefore expected and does **not** prove the Android Firebase config is absent on the user's device/build machine.
+- Repository search found an older revision (`a857d6ba0e21c9c37f10c26700e925cb1afaa3e8`) where `firebase.json`, `firebase_applet_config.xml`, and `FirestoreHelper.kt` consistently selected a different named Firestore database ID ending `9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`.
+- That older revision's Android resource/helper and CLI config agreed with each other, while the current integration revision and Functions agree on `4a0...`. This proves the repository has had a Firebase database-ID transition or branch divergence; it does **not** prove which database contains more/authoritative data.
+- Current `firebase.json` targets the `4a0...` database for rules/index deployment. The historical `9fa...` ID must not be assumed to be safe or current.
+- Current Storage Rules permit public reads for `/tests/{testId}/questions/{fileName}`, `/chart_images/{fileName}`, and `/question_images/{fileName}`; this is a separate privacy review item before production rules deployment.
+- No live Firebase Console data, Auth user count, Firestore collection counts, Storage object inventory, Functions deployment, or current CLI project selection was accessible from GitHub source inspection. These remain unverified.
+
+**Updated decision:** do not switch to either database solely from source history. The user wants the established/larger-data Firebase preserved; obtain both live Project IDs + named Database IDs (or inspect the user's Firebase Console with authorized access) and compare before choosing. No deployment or deletion.
