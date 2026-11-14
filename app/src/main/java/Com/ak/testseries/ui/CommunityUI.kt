@@ -57,6 +57,7 @@ data class CommunityPost(
     val timeAgo: String = "Just now",
     val title: String = "",
     val content: String = "",
+    val highlightedSpans: List<CommunityTextHighlight> = emptyList(),
     val isPinned: Boolean = false,
     val upvotes: Int = 0,
     val comments: Int = 0,
@@ -123,6 +124,7 @@ fun communityPostToMap(post: CommunityPost): Map<String, Any?> {
         "timeAgo" to post.timeAgo,
         "title" to post.title,
         "content" to post.content,
+        "highlightedSpans" to post.highlightedSpans.map { mapOf("start" to it.start, "end" to it.end) },
         "isPinned" to post.isPinned,
         "upvotes" to post.upvotes,
         "comments" to post.comments,
@@ -340,6 +342,7 @@ fun CommunityScreen(
                     timeAgo = doc.getString("timeAgo") ?: "Just now",
                     title = doc.getString("title") ?: "",
                     content = doc.getString("content") ?: "",
+                    highlightedSpans = parseCommunityTextHighlights(doc.get("highlightedSpans"), doc.getString("content").orEmpty()),
                     isPinned = doc.getBoolean("isPinned") ?: false,
                     upvotes = doc.getLong("upvotes")?.toInt() ?: 0,
                     comments = (doc.getLong("comments")?.toInt() ?: parsedComments.size),
@@ -1022,11 +1025,12 @@ fun PostCard(
             // Content
             if (post.title.isNotBlank()) Text(post.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
+            CommunityHighlightedText(
                 text = post.content,
+                highlights = post.highlightedSpans,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3
+                modifier = Modifier
             )
             if (post.postType == "MCQ") {
                 CommunityMcqAttemptCard(post)
@@ -1229,7 +1233,9 @@ fun CreatePostScreen(
     onMcqCreated: () -> Unit = {}
 ) {
     var title by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
+    var contentField by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("")) }
+    val content = contentField.text
+    var highlightedSpans by remember { mutableStateOf(emptyList<CommunityTextHighlight>()) }
     var selectedSubject by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isUploading by remember { mutableStateOf(false) }
@@ -1243,7 +1249,7 @@ fun CreatePostScreen(
     var pendingUploadedImageUrl by remember { mutableStateOf<String?>(null) }
     var pendingUploadedImagePath by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(title, content, selectedSubject, selectedPostType, optionTexts, optionCount, correctOptionIndex, selectedImageUri) {
+    LaunchedEffect(title, content, highlightedSpans, selectedSubject, selectedPostType, optionTexts, optionCount, correctOptionIndex, selectedImageUri) {
         mcqRequestId = UUID.randomUUID().toString()
     }
 
@@ -1357,6 +1363,7 @@ fun CreatePostScreen(
                 creatorId = uid,
                 title = title.trim().ifBlank { cleanContent.take(80) },
                 content = cleanContent,
+                highlightedSpans = highlightedSpans,
                 subject = selectedSubject,
                 targetExam = targetExam,
                 examId = examId,
@@ -1486,12 +1493,31 @@ fun CreatePostScreen(
                 singleLine = true
             )
             OutlinedTextField(
-                value = content,
-                onValueChange = { content = it.take(5000) },
+                value = contentField,
+                onValueChange = { nextValue ->
+                    if (nextValue.text != contentField.text) highlightedSpans = emptyList()
+                    contentField = nextValue.copy(text = nextValue.text.take(5000))
+                },
                 label = { Text("Write your post") },
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 minLines = 4
             )
+            if (selectedPostType == "DOUBT") {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        enabled = selectedCommunityTextHighlight(contentField) != null,
+                        onClick = {
+                            val span = selectedCommunityTextHighlight(contentField)
+                            if (span != null && highlightedSpans.none { it.start < span.end && span.start < it.end }) {
+                                highlightedSpans = (highlightedSpans + span).sortedBy { it.start }
+                            }
+                        }
+                    ) { Text("Highlight selected text") }
+                    if (highlightedSpans.isNotEmpty()) {
+                        Text("${highlightedSpans.size} highlighted", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
             if (selectedPostType == "MCQ") {
                 Text("One question • one correct option", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
