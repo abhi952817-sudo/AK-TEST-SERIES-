@@ -52,6 +52,22 @@ test("Community image upload is limited to the authenticated owner's UID path", 
       { contentType: "image/jpeg" }
     )
   );
+
+  const adminStorage = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).storage();
+  await assertFails(
+    uploadBytes(
+      ref(adminStorage, `community_images/${ALICE_UID}/post-image.jpg`),
+      imageBytes,
+      { contentType: "image/jpeg" }
+    )
+  );
+  await assertFails(
+    uploadBytes(
+      ref(adminStorage, "unclassified/admin-upload.bin"),
+      imageBytes,
+      { contentType: "application/octet-stream" }
+    )
+  );
 });
 
 test("Community image path rejects PDF and unsupported MIME types", async () => {
