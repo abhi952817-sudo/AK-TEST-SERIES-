@@ -1302,6 +1302,14 @@ fun DashboardScreen(
 // ==========================================
 @Composable
 fun HomeTabScreen(viewModel: NEETViewModel) {
+    val pendingCommunityShareTest by viewModel.pendingCommunityShareTest.collectAsStateWithLifecycle()
+    pendingCommunityShareTest?.let { test ->
+        Com.ak.testseries.ui.CommunityTestVerificationDialog(
+            test = test,
+            onDismiss = { viewModel.cancelCommunityShareVerification() },
+            onConfirm = { subject -> viewModel.confirmCommunityShareVerification(test, subject) }
+        )
+    }
     val tests by viewModel.testsList.collectAsStateWithLifecycle()
     val attempts by viewModel.attemptHistory.collectAsStateWithLifecycle()
     val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
