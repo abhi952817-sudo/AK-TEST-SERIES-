@@ -33,6 +33,8 @@ gcloud firestore databases describe --database="(default)" --project="$PROJECT_I
 
 Confirm that `BACKUP_BUCKET` exists in the intended project, is private, has appropriate retention/versioning policy, and is accessible to the Firestore managed export/import service agent. Ensure billing and Firestore/Cloud Storage APIs are enabled.
 
+Before starting, note that managed Firestore export/import has billing implications: exports incur document reads, imports incur document writes, and Cloud Storage charges apply to retained export files. Confirm the expected cost and budget first.
+
 ## 1. Export the entire production database
 
 This is a read/export operation. It does not change Firestore documents.
