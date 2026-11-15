@@ -41,14 +41,42 @@ The IDs' existence, contents, region, edition, billing state, and whether they a
 4. A single `admin.firestore(FIRESTORE_DATABASE_ID)` instance is used by backend functions in `index.js`; all exports and their collection operations must be inventoried before changing this selection.
 5. Storage is configured separately in `firebase.json`; changing the Firestore database ID does not copy, move, or synchronize Storage files or their metadata.
 
-## 3. PR review state at audit start
+## 3. Additional direct Firestore access findings
+
+A GitHub code search on `main` found 7 files containing direct `FirebaseFirestore.getInstance()` calls. These calls bypass the centralized `FirestoreHelper` and, unless explicitly configured elsewhere, use the Firebase default database rather than the named database configured in the Android resource:
+
+| File | Direct call sites found | Initial risk |
+|---|---:|---|
+| `app/src/main/java/Com/ak/testseries/data/analytics/AnalyticsManager.kt` | 1 | Analytics writes may already target default |
+| `app/src/main/java/Com/ak/testseries/AdManager.kt` | 1 | Ad-related reads/writes may target default |
+| `app/src/main/java/Com/ak/testseries/ui/CommunityUI.kt` | 10 | Community data may target default independently of FirestoreHelper |
+| `app/src/main/java/Com/ak/testseries/ui/CommunityAdminUI.kt` | 2 | Moderation/admin operations may target default |
+| `app/src/main/java/Com/ak/testseries/ui/AdminPanelScreen.kt` | 2 | Admin panel operations may target default |
+| `app/src/main/java/Com/ak/testseries/ui/TestReviewScreen.kt` | 1 | Test review may target default; PR #10 modifies this file, so its branch version must be checked |
+
+This is a high-priority finding: the app may already be split across the named `9fa...` database and `(default)`, even before any migration. Every call site must be traced to its collection and purpose before centralizing it.
+
+### Cloud Function exports found in `backend_functions/index.js`
+
+The source contains these exported functions:
+
+- `normalizeExamKey`
+- `purgeRetiredDemoTests`
+- `submitTestAttemptServerSide`
+- `getUserRankingDetails`
+- `setAdminRole`
+- `getTestAttemptSolutions`
+
+The backend creates one shared database handle with `admin.firestore(FIRESTORE_DATABASE_ID)`. All exported functions and their nested helper paths must be reviewed for database usage and side effects. `normalizeExamKey` is a plain exported helper, not an HTTPS callable.
+
+## 4. PR review state at audit start
 
 - PR #10, `fix/use-default-firestore-everywhere`: Open, Draft, Unmerged; head `faa5fb9d033d3bb6bd060b56d054445127a60a60`; base `main` at `a857d6ba0e21c9c37f10c26700e925cb1afaa3e8`.
 - PR #8, `feature/community-completion-2026-11-13`: Open, Draft, Unmerged; head `ed032e111d375813fa90fde9b2486ad635f1e3fd`; base `main` at `1e236d099522d63ec89ab0d11287b48315efc48c`.
 
 These PRs are separate workstreams. This audit branch was created from `main` and does not merge or modify either PR.
 
-## 4. Repository inventory snapshot
+## 5. Repository inventory snapshot
 
 The recursive Git tree for `main` contained 299 entries (including directories). Firebase-relevant files identified include:
 
@@ -66,7 +94,7 @@ The recursive Git tree for `main` contained 299 entries (including directories).
 
 This is an initial path inventory, not yet a complete call-site or feature dependency map.
 
-## 5. Required next audit steps
+## 6. Required next audit steps
 
 ### Part A — exhaustive ID and SDK call-site search
 Search all tracked source/config/docs for:
@@ -103,12 +131,12 @@ Do not migrate or delete until:
 - rollback is documented and tested;
 - user explicitly approves the production operation.
 
-## 6. Change log
+## 7. Change log
 
 | Date | Branch | Change | Production impact |
 |---|---|---|---|
-| 2026-11-15 | `audit/default-firestore-consolidation-2026-11-15` | Added this initial audit inventory document | None; documentation only |
+| 2026-11-15 | `audit/default-firestore-consolidation-2026-11-15` | Added initial inventory and documented direct Firestore bypasses and backend exports | None; documentation only |
 
-## 7. Current status
+## 8. Current status
 
 **Audit in progress.** The initial source-level database mismatch is confirmed. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
