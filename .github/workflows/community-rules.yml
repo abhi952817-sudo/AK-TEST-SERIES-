@@ -2,7 +2,7 @@ name: Community Firebase Rules CI
 
 on:
   pull_request:
-    branches: [ "main", "feature/community-completion-2026-11-13" ]
+    branches: [ "main", "feature/community-completion-2026-11-13", "integration/community-firestore-default-2026-11-15" ]
     paths:
       - "firestore.rules"
       - "storage.rules"
@@ -16,7 +16,7 @@ on:
       - "firebase.json"
       - ".github/workflows/community-rules.yml"
   push:
-    branches: [ "feature/community-completion-2026-11-13" ]
+    branches: [ "feature/community-completion-2026-11-13", "integration/community-firestore-default-2026-11-15" ]
     paths:
       - "firestore.rules"
       - "storage.rules"
