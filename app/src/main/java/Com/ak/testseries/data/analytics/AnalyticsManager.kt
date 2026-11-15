@@ -14,7 +14,7 @@ import Com.ak.testseries.data.remote.FirestoreHelper
  * (default) database as the rest of the Android client.
  */
 class AnalyticsManager(
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val authProvider: () -> FirebaseAuth = { FirebaseAuth.getInstance() },
     private val firestoreProvider: () -> FirebaseFirestore = {
         FirestoreHelper.getInstance()
     }
@@ -22,7 +22,7 @@ class AnalyticsManager(
 
     private fun logEvent(eventType: String, attributes: Map<String, Any>) {
         val uid = try {
-            auth.currentUser?.uid
+            authProvider().currentUser?.uid
         } catch (e: Exception) {
             null
         } ?: return
