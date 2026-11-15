@@ -1,81 +1,101 @@
 package Com.ak.testseries.data.analytics
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import Com.ak.testseries.data.remote.FirestoreHelper
 
-class AnalyticsManager {
+/**
+ * Account-scoped analytics writer.
+ *
+ * Analytics is intentionally not written for signed-out/anonymous sessions because
+ * Firestore Rules require an authenticated UID matching the event's userId.
+ * All Firestore access goes through FirestoreHelper so the app uses the same
+ * (default) database as the rest of the Android client.
+ */
+class AnalyticsManager(
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val firestoreProvider: () -> FirebaseFirestore = {
+        FirestoreHelper.getInstance()
+    }
+) {
 
-    private val firestore by lazy {
-        try {
-            FirebaseFirestore.getInstance()
+    private fun logEvent(eventType: String, attributes: Map<String, Any>) {
+        val uid = try {
+            auth.currentUser?.uid
         } catch (e: Exception) {
             null
+        } ?: return
+
+        val safeAttributes = attributes.filterValues { value ->
+            when (value) {
+                is String -> value.isNotBlank() && value.length <= 200
+                is Int -> value >= 0
+                is Long -> value >= 0L
+                is Boolean -> true
+                else -> false
+            }
+        }
+
+        val event = HashMap<String, Any>(safeAttributes).apply {
+            put("userId", uid)
+            put("eventType", eventType)
+            put("timestamp", System.currentTimeMillis())
+        }
+
+        try {
+            firestoreProvider()
+                .collection("User_Analytics")
+                .add(event)
+                .addOnFailureListener { error ->
+                    Log.w(TAG, "Analytics event write failed: $eventType", error)
+                }
+        } catch (e: Exception) {
+            Log.w(TAG, "Analytics event could not be queued: $eventType", e)
         }
     }
 
-    private val currentUserUid: String
-        get() = try {
-            FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous_user"
-        } catch (e: Exception) {
-            "anonymous_user"
-        }
-
     fun logScreenTime(screenName: String, durationSeconds: Int) {
-        val event = hashMapOf(
-            "userId" to currentUserUid,
-            "eventType" to "SCREEN_TIME",
-            "screenName" to screenName,
-            "durationSeconds" to durationSeconds,
-            "timestamp" to System.currentTimeMillis()
+        if (durationSeconds < 0) return
+        logEvent(
+            "SCREEN_TIME",
+            mapOf(
+                "screenName" to screenName.take(MAX_FIELD_LENGTH),
+                "durationSeconds" to durationSeconds
+            )
         )
-        try {
-            firestore?.collection("User_Analytics")?.add(event)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 
     fun logFeatureUsage(featureName: String) {
-        val event = hashMapOf(
-            "userId" to currentUserUid,
-            "eventType" to "FEATURE_USAGE",
-            "featureName" to featureName,
-            "timestamp" to System.currentTimeMillis()
+        logEvent(
+            "FEATURE_USAGE",
+            mapOf("featureName" to featureName.take(MAX_FIELD_LENGTH))
         )
-        try {
-            firestore?.collection("User_Analytics")?.add(event)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 
     fun logTestDropOff(testId: String, completed: Boolean) {
-        val event = hashMapOf(
-            "userId" to currentUserUid,
-            "eventType" to "TEST_DROP_OFF",
-            "testId" to testId,
-            "completed" to completed,
-            "timestamp" to System.currentTimeMillis()
+        logEvent(
+            "TEST_DROP_OFF",
+            mapOf(
+                "testId" to testId.take(MAX_FIELD_LENGTH),
+                "completed" to completed
+            )
         )
-        try {
-            firestore?.collection("User_Analytics")?.add(event)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 
     fun logWeakSubject(subject: String, errorCount: Int) {
-        val event = hashMapOf(
-            "userId" to currentUserUid,
-            "eventType" to "WEAK_SUBJECT",
-            "subject" to subject,
-            "errorCount" to errorCount,
-            "timestamp" to System.currentTimeMillis()
+        if (errorCount < 0) return
+        logEvent(
+            "WEAK_SUBJECT",
+            mapOf(
+                "subject" to subject.take(MAX_FIELD_LENGTH),
+                "errorCount" to errorCount
+            )
         )
-        try {
-            firestore?.collection("User_Analytics")?.add(event)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+    }
+
+    private companion object {
+        const val TAG = "AnalyticsManager"
+        const val MAX_FIELD_LENGTH = 200
     }
 }
