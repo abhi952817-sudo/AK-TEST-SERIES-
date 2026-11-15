@@ -2719,6 +2719,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     fun submitReportIssue(testId: String, category: String, comment: String, context: android.content.Context) {
         viewModelScope.launch {
+            if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) {
+                android.widget.Toast.makeText(context, "Sign in to submit a question report.", android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
             try {
                 val test = repository.getTestById(testId)
                 val uploaderId = test?.uploaderId ?: currentUserId.value
@@ -2802,7 +2806,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 // Save report to Firestore Question_Reports with deterministic idempotency key
                 try {
                     val db = firestoreDb
-                    val uid = currentUserId.value.ifBlank { "anonymous" }
+                    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@launch
                     val reportDocId = "report_${testId}_${category.replace(" ", "_")}_${uid}"
                     val reportMap = hashMapOf<String, Any>(
                         "reportId" to reportDocId,
@@ -2813,7 +2817,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         "userNote" to comment,
                         "aiAnalysis" to (if (autoFixed) "Auto-fixed by AI" else "Manual review requested"),
                         "reporterUserId" to uid,
-                        "status" to (if (autoFixed) "RESOLVED" else "PENDING"),
+                        "status" to "PENDING",
                         "updatedAt" to System.currentTimeMillis()
                     )
                     db.collection("Question_Reports").document(reportDocId)
