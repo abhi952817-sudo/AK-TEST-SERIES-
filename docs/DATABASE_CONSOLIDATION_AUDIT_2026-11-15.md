@@ -31,7 +31,7 @@ Additional IDs supplied/reported during the project discussion, not confirmed by
 - `ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612`: present in backend source, but user-reported Firebase Console listing did not show it.
 - `ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`: present in Android and firebase.json source; user-reported Console listing showed it in Singapore.
 
-The IDs' existence, contents, region, edition, billing state, and whether they are empty must be verified in Firebase Console or through authorized Firebase Admin access. Source code alone cannot establish live database contents.
+The IDs' existence, contents, region, edition, billing state, and whether they are empty must be verified in Firebase Console or through authorized Firebase Admin access. Source code alone cannot establish live database contents. The third ID `b6...` was not found anywhere in the current `main` code-search results; it may still exist in Firebase without being referenced by this repository.
 
 ## 2. Confirmed code-level risks
 
@@ -39,7 +39,7 @@ The IDs' existence, contents, region, edition, billing state, and whether they a
 2. Android `FirestoreHelper` catches initialization errors and falls back to the default database. This can silently route traffic to a different database than configured.
 3. `firebase.json` targets `9fa...` for Firestore Rules and indexes. A future deploy without correcting this target could deploy Rules/indexes to the wrong database.
 4. A single `admin.firestore(FIRESTORE_DATABASE_ID)` instance is used by backend functions in `index.js`; all exports and their collection operations must be inventoried before changing this selection.
-5. Storage is configured separately in `firebase.json`; changing the Firestore database ID does not copy, move, or synchronize Storage files or their metadata.
+5. Storage is configured separately in `firebase.json`; changing the Firestore database ID does not copy, move, or synchronize Storage files or their metadata.\n6. PR #10's default-database change is directionally correct for centralization, but it is not yet merged, deployed, or sufficient by itself to finish the direct-call and feature dependency audit.
 
 ## 3. Additional direct Firestore access findings
 
@@ -54,7 +54,7 @@ A GitHub code search on `main` found 7 files containing direct `FirebaseFirestor
 | `app/src/main/java/Com/ak/testseries/ui/AdminPanelScreen.kt` | 2 | Admin panel operations may target default |
 | `app/src/main/java/Com/ak/testseries/ui/TestReviewScreen.kt` | 1 | Test review may target default; PR #10 modifies this file, so its branch version must be checked |
 
-This is a high-priority finding: the app may already be split across the named `9fa...` database and `(default)`, even before any migration. Every call site must be traced to its collection and purpose before centralizing it.
+This is a high-priority finding: the app may already be split across the named `9fa...` database and `(default)`, even before any migration. Every call site must be traced to its collection and purpose before centralizing it. The PR #10 patch was also inspected: it changes `FirestoreHelper` to fail closed on non-default configuration and changes the TestReview upload path, but it does not remove all direct Firestore calls from the other five UI/analytics/ad files listed above. These remaining direct calls need individual review; they are not automatically proof of wrong-database access because no-argument SDK calls resolve to the default database.
 
 ### Cloud Function exports found in `backend_functions/index.js`
 
@@ -139,4 +139,4 @@ Do not migrate or delete until:
 
 ## 8. Current status
 
-**Audit in progress.** The initial source-level database mismatch is confirmed. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
+**Audit in progress.** The initial source-level database mismatch and direct Firestore call sites are confirmed. PR #10 was inspected and leaves several direct SDK call sites to audit. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
