@@ -242,6 +242,16 @@ Important side-effect and authorization checks:
 - `Question_Reports` has no explicit match in main or PR #8 Firestore Rules; current default-deny blocks those client operations. Do not solve by making the whole collection public or broadly writable.
 - Main `shareTestToCommunity` writes to both `Shared_Community_Tests` and `Community_Posts` from the client; these two records need an atomicity/partial-failure review and a consistent server-authoritative subject validation path.
 
+### Repository and PR snapshot
+
+- Main tree at audit base: 231 tracked files (recursive tree not truncated).
+- PR #8: Open, Draft, Unmerged; head `ed032e111d375813fa90fde9b2486ad635f1e3fd`; base `1e236d099522d63ec89ab0d11287b48315efc48c`.
+- PR #10: Open, Draft, Unmerged; head `faa5fb9d033d3bb6bd060b56d054445127a60a60`; base `a857d6ba0e21c9c37f10c26700e925cb1afaa3e8`.
+- Main Android CI for `a857d6b`: completed successfully.
+- PR #8 Android CI and Community Firebase Rules CI for `ed032e1`: completed successfully.
+- PR #10 Android CI and Community Firebase Rules CI for `faa5fb9`: completed successfully.
+- These results are commit-specific historical checks. They do not test a combined PR #8 + PR #10 integration branch or production Firebase.
+
 ## 9. Remaining Firebase and external-service inventory
 
 The repository-wide search and relevant source files were checked for Firebase Auth, Firestore, Realtime Database, Storage, Functions, Firebase AI, Google Drive and Cloudflare R2.
