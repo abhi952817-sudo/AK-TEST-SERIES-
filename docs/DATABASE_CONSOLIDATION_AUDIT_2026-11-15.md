@@ -170,14 +170,59 @@ Storage paths covered: `tests/{testId}/questions/{fileName}`, `chart_images/{fil
 
 Indexes currently cover Users_Data exam/score queries, Leaderboard exam/eligibility/score queries and Community_Posts exam/timestamp feed. `firebase.json` still targets named `9fa...` on main, so Rules/index deployment currently points to that named database.
 
-## 7. PR review state at audit start
+## 7. PR #8 and PR #10 branch reconciliation
+
+Both PR heads were inspected independently because they are not interchangeable snapshots.
+
+| Branch | Base snapshot | Firestore ID in branch | Backend Functions state |
+|---|---|---|---|
+| PR #8 `feature/community-completion-2026-11-13` | Older main base `1e236d099522d63ec89ab0d11287b48315efc48c` | Android resource, helper and backend all contain named `4a...`; `firebase.json` targets `4a...` | Adds community callables and moderation/migration functions |
+| PR #10 `fix/use-default-firestore-everywhere` | `main` base `a857d6ba0e21c9c37f10c26700e925cb1afaa3e8` | Android resource, helper, backend and `firebase.json` select `(default)` | Changes shared backend DB handle to `admin.firestore()`; does not contain PR #8's new community backend exports |
+
+### PR #8 community backend additions
+
+The complete PR #8 `backend_functions/index.js` (1,907 lines) was fetched. In addition to the six existing exports, it adds:
+
+- `deleteCommunityPost`
+- `createCommunityMcq`
+- `submitCommunityMcqAttempt`
+- `migrateLegacyCommunitySharedTests`
+- `migrateLegacyCommunityPostVisibility`
+- `syncCommunityExamSubjects`
+- `createCommunityReply`
+- `deleteCommunityReply`
+- `setCommunityReaction`
+
+The community functions use the same shared Admin SDK database handle configured to `4a...` in PR #8. Their collections include `Community_Posts`, `Community_MCQ_Attempts`, `Community_MCQ_AnswerKeys`, `Community_Moderation_Audit`, `Community_Exam_Subjects`, `Users_Data/{uid}/Blocked_Users`, and nested Comments/Users.
+
+The migration/sync callables are admin-protected. They default to dry-run and require explicit confirmation strings before write mode. **Do not invoke these callables as part of this audit or before backup and review.**
+
+### PR #8 client-to-backend routing mismatch
+
+PR #8 adds Android calls to the new HTTPS callables from:
+- `CommunityUI.kt`: `setCommunityReaction`, `createCommunityReply`, `deleteCommunityPost`, `createCommunityMcq`, `deleteCommunityReply`
+- `CommunityMcqUI.kt`: `submitCommunityMcqAttempt`
+- `CommunityAdminUI.kt`: `syncCommunityExamSubjects`
+- `CommunityModerationUI.kt`: `migrateLegacyCommunitySharedTests`, `migrateLegacyCommunityPostVisibility`
+
+However, the same PR #8 Community UI uses no-argument `FirebaseFirestore.getInstance()` for direct client reads/writes, which selects `(default)`, while its Admin SDK Cloud Functions use named `4a...`. Therefore PR #8's community feature itself can split direct client data and callable backend data across two databases.
+
+PR #10 changes the helper and backend to `(default)`, which is the intended direction, but PR #10 does not include PR #8's new community functions and PR #8 is based on an older main commit. A safe integration must combine PR #8's community code with PR #10's default-database selection, preserve all new exports, and then re-run backend/Rules/Android tests. Merging either branch blindly risks restoring an old database ID or losing changes in `backend_functions/index.js`.
+
+### PR #8 Rules additions and remaining gap
+
+PR #8 adds Rules for `Community_Exam_Subjects`, `Community_Moderation_Audit`, `Community_MCQ_AnswerKeys`, `Community_MCQ_Attempts/{postId}/Users/{userId}`, plus bounded `highlightedSpans` validation on Community posts. Those additions align with its new community features.
+
+The existing Android `NEETViewModel.kt` also reads/writes `Question_Reports` (main: 61 Firestore collection references in an 8,237-line file; PR #8 version: 8,297 lines). Neither main Rules nor PR #8 Rules define a `Question_Reports` match. The default-deny rule therefore blocks these client operations unless they are moved to an authorized backend path or explicit least-privilege Rules are added. This is separate from `Community_Reports`, which does have Rules.
+
+## 8. PR review state at audit start
 
 - PR #10, `fix/use-default-firestore-everywhere`: Open, Draft, Unmerged; head `faa5fb9d033d3bb6bd060b56d054445127a60a60`; base `main` at `a857d6ba0e21c9c37f10c26700e925cb1afaa3e8`.
 - PR #8, `feature/community-completion-2026-11-13`: Open, Draft, Unmerged; head `ed032e111d375813fa90fde9b2486ad635f1e3fd`; base `main` at `1e236d099522d63ec89ab0d11287b48315efc48c`.
 
 These PRs are separate workstreams. This audit branch was created from `main` and does not merge or modify either PR.
 
-## 8. Repository inventory snapshot
+## 9. Repository inventory snapshot
 
 The recursive Git tree for `main` contained 299 entries (including directories). Firebase-relevant files identified include:
 
@@ -195,7 +240,7 @@ The recursive Git tree for `main` contained 299 entries (including directories).
 
 This is an initial path inventory, not yet a complete call-site or feature dependency map.
 
-## 9. Required next audit steps
+## 10. Required next audit steps
 
 ### Part A — exhaustive ID and SDK call-site search
 Search all tracked source/config/docs for:
@@ -232,12 +277,12 @@ Do not migrate or delete until:
 - rollback is documented and tested;
 - user explicitly approves the production operation.
 
-## 10. Change log
+## 11. Change log
 
 | Date | Branch | Change | Production impact |
 |---|---|---|---|
 | 2026-11-15 | `audit/default-firestore-consolidation-2026-11-15` | Added initial inventory, full Android call-site and Cloud Functions reviews, Rules/index/Storage cross-check and concrete permission/path mismatches | None; documentation only |
 
-## 11. Current status
+## 12. Current status
 
-**Audit in progress.** Complete contents of identified Android Firestore call-site files, backend index/auth helper, Firestore Rules, Storage Rules, Firebase config and indexes were fetched and reviewed. Main-branch cross-database routing and concrete Rules mismatches are documented. Next: dynamic uploader caller tracing, PR #8/#10 reconciliation and collection/schema inventory. No live Firebase state has been inspected; no database has been removed or migrated. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
+**Audit in progress.** Complete contents of identified Android Firestore call-site files, backend index/auth helper, Firestore Rules, Storage Rules, Firebase config and indexes were fetched and reviewed. Main-branch cross-database routing and concrete Rules mismatches are documented. Next: feature-to-collection schema inventory, client/backend caller contract review and PR #8/#10 integration design. Dynamic R2Uploader call search found no callers outside its own file. No live Firebase state has been inspected; no database has been removed or migrated. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
