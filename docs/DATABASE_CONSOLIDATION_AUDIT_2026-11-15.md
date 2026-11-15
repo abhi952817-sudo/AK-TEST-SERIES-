@@ -242,74 +242,90 @@ Important side-effect and authorization checks:
 - `Question_Reports` has no explicit match in main or PR #8 Firestore Rules; current default-deny blocks those client operations. Do not solve by making the whole collection public or broadly writable.
 - Main `shareTestToCommunity` writes to both `Shared_Community_Tests` and `Community_Posts` from the client; these two records need an atomicity/partial-failure review and a consistent server-authoritative subject validation path.
 
-## 9. PR review state at audit start
+## 9. Remaining Firebase and external-service inventory
 
-- PR #10, `fix/use-default-firestore-everywhere`: Open, Draft, Unmerged; head `faa5fb9d033d3bb6bd060b56d054445127a60a60`; base `main` at `a857d6ba0e21c9c37f10c26700e925cb1afaa3e8`.
-- PR #8, `feature/community-completion-2026-11-13`: Open, Draft, Unmerged; head `ed032e111d375813fa90fde9b2486ad635f1e3fd`; base `main` at `1e236d099522d63ec89ab0d11287b48315efc48c`.
+The repository-wide search and relevant source files were checked for Firebase Auth, Firestore, Realtime Database, Storage, Functions, Firebase AI, Google Drive and Cloudflare R2.
 
-These PRs are separate workstreams. This audit branch was created from `main` and does not merge or modify either PR.
+| Service | Current code use | Does Firestore database-ID migration move it? | Audit result |
+|---|---|---|---|
+| Firebase Authentication | Email/password, Google sign-in, email-link sign-in; custom admin claims | No. Auth users and claims are project-level, not Firestore database collections | Keep same Firebase project; verify sign-in and admin claims in QA |
+| Cloud Firestore | Main app data, tests, users, ranking, community, notifications, reports, analytics, configuration | This is the service being consolidated | Route all Android and Admin SDK calls to `(default)`; migrate documents separately |
+| Firebase Realtime Database | `AdminPanelScreen.kt:437-438` writes `live_tests/{activeTestId}` through `Firebase.database` | No. Realtime Database is a separate service/database | No RTDB rules file or RTDB config block exists in `firebase.json`; inspect live RTDB instance/data and rules before deciding whether to retain, migrate or retire |
+| Firebase Storage | Images, question assets, PDFs, community images and report evidence | No. Objects, bucket paths and download URLs are independent | Keep bucket and object paths stable during Firestore cutover; verify bucket identity from Google Services config/Console |
+| Cloud Functions | Server-side grading, ranking, solutions, admin role, community moderation and migrations | Function code must select the same Firestore target explicitly | PR #10 changes shared Admin SDK handle to default; PR #8 community functions must be carried forward |
+| Firebase AI | `FirebaseAiService.kt` uses `Firebase.ai.generativeModel`; Gemini PDF extractor writes generated test data to Firestore via helper | AI model configuration is not a Firestore database; only its Firestore writes are affected | Preserve AI model setup; route only its data persistence through default |
+| Google Drive backup | Account-owned Room/SharedPreferences/files archive, UID-bound, staged restore, retention | No. Drive is an external backup store | Not a full Firestore export. Do not treat it as the source Firestore backup or database migration copy |
+| Cloudflare R2 | `R2Uploader.kt` contains placeholder credentials and dynamic Firestore update | No. R2 bucket/object data is external | No production callers found outside the class/report. All values are placeholders. Never place real R2 secret keys in Android; keep disabled until server-side signed upload design exists |
+| Room / local files | Local tests, attempts, PDF sessions, diagrams and user preferences | No. These are device-local data stores | Keep existing account backup/restore pipeline; verify local data is not mistaken for Firestore cloud data |
 
-## 10. Repository inventory snapshot
+### Additional high-risk findings
 
-The recursive Git tree for `main` contained 299 entries (including directories). Firebase-relevant files identified include:
+1. **Realtime Database is a separate database product:** Admin panel writes `live_tests/{testId}` using `Firebase.database`. `firebase.json` has no `database.rules.json` deployment target and repository tree has no RTDB rules file. Its current production contents/rules cannot be inferred from the code. It must not be deleted as part of Firestore cleanup.
+2. **R2 credentials must never be embedded in Android:** `R2Uploader.kt` has literal placeholders for access key, secret, account ID, bucket and public domain. No production values are present and no app caller was found. Keep this path disabled; if needed later, use a server-issued short-lived upload authorization or backend proxy with secrets in Secret Manager.
+3. **Storage failure fallback is unsafe on main:** `FileUploaderUtil.uploadImage` can return a local cache URI after Firebase Storage upload failure; `uploadPdf` can return the original local content URI after failure. Such references are not remotely accessible to other students/admins and can create broken content. PR #10's patch changes failure handling to return null; retain and test that fail-closed behavior during integration.
+4. **Google Drive is not a Firestore backup:** the account archive exports selected Room tests/questions/attempts/bookmarks/progress/syllabus/profile and diagram files for the signed-in UID. It does not export all Firestore collections, Cloud Functions state, Auth users, Storage objects, RTDB records or indexes.
+5. **Firebase Storage and Firestore Rules have different scopes:** Firestore database selection does not change Storage bucket selection. Preserve existing Storage object URLs and validate rules separately.
 
-- `firebase.json`
-- `firestore.rules`
-- `firestore.indexes.json`
-- `firestore.test.js`
-- `storage.rules`
-- `storage.test.js`
-- `backend_functions/index.js`
-- `backend_functions/authHelper.js`
-- `backend_functions/examScoring.js`
-- Android Firestore helper, remote data source, repositories, auth manager, upload and backup code
-- GitHub Actions workflows `.github/workflows/android.yml` and `.github/workflows/community-rules.yml`
+## 10. Test coverage and observed CI evidence
 
-This is an initial path inventory, not yet a complete call-site or feature dependency map.
+Repository test assets:
+- `firestore.test.js`: 937 lines of Firestore Rules emulator tests.
+- `storage.test.js`: 96 lines of Storage Rules emulator tests.
+- `.github/workflows/community-rules.yml`: runs Firestore and Storage emulator tests using demo project ID `demo-no-project`.
+- Backend unit tests: `callableValidation.test.js` and `examScoring.test.js`.
+- Android test suite includes Room migration, backup/restore, authorization, account switching, exam/ranking and application tests.
 
-## 11. Required next audit steps
+Latest observed GitHub Actions runs at audit time:
+- Main commit `a857d6b`: Android CI completed successfully on 2026-11-14.
+- PR #8 head `ed032e1`: Android CI and Community Firebase Rules CI completed successfully on 2026-11-14.
+- PR #10 head `faa5fb9`: Android CI and Community Firebase Rules CI completed successfully on 2026-11-14.
 
-### Part A — exhaustive ID and SDK call-site search
-Search all tracked source/config/docs for:
-- all known database IDs and `(default)`
-- `FirebaseFirestore.getInstance`
-- `admin.firestore`, `getFirestore`, `initializeApp`
-- `collection(`, `doc(`, transactions, batches, triggers and scheduled functions
-- emulator and deployment target configuration
+These are historical CI results for those exact commits, not a test run of the combined integration branch and not live Firebase QA. Passing emulator Rules tests do not prove the deployed production Rules are current. PR #10 Android CI includes the default-database configuration branch but does not prove live Auth/Firestore/Storage connectivity without the configured CI Google Services secret and emulator/runtime setup.
 
-### Part B — Cloud Functions inventory
-For every exported Function record:
-- trigger type and authentication/authorization
-- Firestore database instance used
-- collections/documents read and written
-- Storage/Auth/Secrets dependencies
-- client callers and expected request/response schema
-- tests and deployment status evidence
+## 11. Target architecture and final dependency decisions
 
-### Part C — Android dependency inventory
-Trace every Firestore read/write from UI/ViewModel through repository/data source/helper. Record offline cache, retry, fallback and error behavior.
+The intended Firestore target is **one database: `(default)`**. The following must be true before a production cutover:
 
-### Part D — Collections, Rules, indexes and Storage
-Build a collection/schema map, match each access path to Rules and indexes, and separately map Storage paths and metadata references.
+- Android helper, every direct Android Firestore call, Cloud Functions, Firestore Rules and indexes all refer to the same project and default database.
+- The app must fail closed on a database configuration mismatch; no silent fallback from a named database.
+- Cloud Functions must preserve all existing main exports and PR #8 community exports when combined.
+- Community client direct calls and Community callable backend functions must use the same database.
+- Collection paths, document IDs, nested subcollections and answer-key locations must be preserved or mapped explicitly.
+- Storage bucket and file paths remain unchanged; Firestore document URLs remain valid.
+- Auth users and custom claims remain in the same Firebase project; admin authorization is tested.
+- RTDB `live_tests` remains a separate, explicitly documented service until its production data/rules are inventoried.
+- R2 remains disabled until secrets are moved server-side and a caller is intentionally introduced.
+- Google Drive account backups remain separate from the full server-side Firestore export.
 
-### Part E — Feature/plugin mapping
-Map tests, ranking, community, notifications, Gemini/Groq/Cerebras connectors, PDF pipeline, admin controls, quotas and backups to their backend and data dependencies.
+## 12. Final migration blockers and safe execution order
 
-### Part F — Migration and retirement readiness
-Do not migrate or delete until:
-- live source and destination inventories are captured;
-- a server-side export/backup is verified;
-- references and document IDs are mapped;
-- dry-run results and counts reconcile;
-- rollback is documented and tested;
-- user explicitly approves the production operation.
+### Blockers that require access/approval outside repository code
 
-## 12. Change log
+1. Firebase Console/Admin access to list every Firestore database, exact database ID, region, edition, document counts, collection counts and project ID. The user-reported `b6...` database and source-only `4a...` ID need explicit existence checks.
+2. Verify the exact default database project, region, edition and whether the reported 27 reads / 5 writes and three collections are still current.
+3. Verify the default Storage bucket and object counts; separately inventory RTDB `live_tests` and its rules.
+4. Create and verify a server-side managed Firestore export for every source database to a private, access-controlled GCS bucket. Confirm export operation completion and object counts. Google Drive account backup is not a substitute.
+5. Run a read-only source/destination document inventory and schema sampling; identify duplicate IDs, collisions, orphan subcollections, references and collection casing differences.
+6. Run a migration dry-run to a protected staging database, reconcile per-collection document counts and checksums, test rollback and obtain explicit production approval.
+
+### Ordered implementation
+
+1. **Code integration branch:** combine PR #8 community feature changes with PR #10 default-database selection without losing main updates or any callable export. Keep PRs unmerged until combined branch passes.
+2. **Database routing:** replace direct no-argument Firestore access with the central default helper or a single injected instance. Keep Storage and RTDB initialization separate.
+3. **Rules/schema fixes:** add least-privilege rules for confirmed client paths such as `Question_Reports` and crash ingestion; reconcile community moderation/MCQ paths and highlighted-span validation. Do not broadly open collections.
+4. **Client/backend contracts:** add explicit callable wrappers and request/response tests for server-side grading, ranking, solutions and PR #8 community callables. The main branch currently has no Kotlin call sites for the five existing backend callables found by name search.
+5. **Backup and migration tooling:** implement a server-side export manifest, source/destination inventory, deterministic ID mapping, idempotent copy, per-collection reconciliation and rollback instructions. Do not run on production yet.
+6. **Automated QA:** Android unit tests, backend tests, Firestore and Storage emulator Rules tests, default database configuration tests, and end-to-end tests with two student accounts and one admin account.
+7. **Staging cutover rehearsal:** test only against a protected staging database, verify app reads/writes, callable paths, admin claims, community, attempts, answer keys, ranking, uploads and backups.
+8. **Production cutover:** only after explicit approval; pause writes, export, copy, reconcile, switch app/backend/rules/index targets, smoke-test and monitor.
+9. **Retirement:** keep old databases read-only through an agreed observation window. Delete only after verified backups, zero remaining traffic, reconciled data and separate explicit approval for each database.
+
+## 13. Change log
 
 | Date | Branch | Change | Production impact |
 |---|---|---|---|
-| 2026-11-15 | `audit/default-firestore-consolidation-2026-11-15` | Added initial inventory, full Android call-site and Cloud Functions reviews, Rules/index/Storage cross-check and concrete permission/path mismatches | None; documentation only |
+| 2026-11-15 | `audit/default-firestore-consolidation-2026-11-15` | Added initial inventory, full Android call-site and Cloud Functions reviews, Rules/index/Storage cross-check, PR #8/#10 reconciliation, service inventory, CI evidence and gated migration plan | None; documentation only |
 
-## 13. Current status
+## 14. Current status
 
-**Audit in progress.** Complete contents of identified Android Firestore call-site files, backend index/auth helper, Firestore Rules, Storage Rules, Firebase config and indexes were fetched and reviewed. Main-branch cross-database routing and concrete Rules mismatches are documented. Next: feature-to-collection schema inventory, client/backend caller contract review and PR #8/#10 integration design. Dynamic R2Uploader call search found no callers outside its own file. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
+**Source-code audit substantially complete for the Firebase/database paths identified in the repository tree and code search.** The main routing split, Community branch split, Rules mismatches, separate RTDB/Storage/Auth/Drive/R2 dependencies and migration requirements are documented. The combined integration branch, code changes, live database inventory, server-side backup, migration rehearsal, deployment and database retirement are not complete. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
