@@ -1319,3 +1319,30 @@ test("Community Doubt accepts bounded highlighted text spans and rejects malform
     })
   );
 });
+
+test("Question reports are authenticated, owner-bound, and Admin-readable only", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const report = {
+    reportId: "report_test-1_wrong-answer_alice",
+    testId: "test-1",
+    testTitle: "QA Test",
+    questionId: "q1",
+    questionText: "Category: Wrong answer",
+    userNote: "Please review this answer.",
+    aiAnalysis: "Manual review requested",
+    reporterUserId: ALICE_UID,
+    status: "PENDING",
+    updatedAt: Date.now()
+  };
+
+  await assertSucceeds(aliceDb.collection("Question_Reports").doc(report.reportId).set(report));
+  await assertFails(bobDb.collection("Question_Reports").doc(report.reportId).get());
+  await assertFails(aliceDb.collection("Question_Reports").doc(report.reportId).update({ status: "RESOLVED" }));
+  await assertSucceeds(adminDb.collection("Question_Reports").doc(report.reportId).get());
+  await assertSucceeds(adminDb.collection("Question_Reports").doc(report.reportId).update({ status: "RESOLVED", updatedAt: Date.now() }));
+  await assertFails(testEnv.unauthenticatedContext().firestore().collection("Question_Reports").doc("anonymous").set({ ...report, reportId: "anonymous" }));
+  await assertFails(bobDb.collection("Question_Reports").doc("forged").set({ ...report, reportId: "forged", reporterUserId: ALICE_UID }));
+  await assertFails(aliceDb.collection("Question_Reports").doc("fake-resolved").set({ ...report, reportId: "fake-resolved", status: "RESOLVED" }));
+});
