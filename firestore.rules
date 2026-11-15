@@ -591,6 +591,40 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    // Student question-error reports are private to Admin review. Client submissions
+    // are always PENDING; only Admin may change moderation status or resolution data.
+    match /Question_Reports/{reportId} {
+      allow create: if isAuthenticated()
+                    && !isUserBanned(request.auth.uid)
+                    && request.resource.data.reporterUserId == request.auth.uid
+                    && request.resource.data.reportId == reportId
+                    && request.resource.data.testId is string
+                    && request.resource.data.testId.size() > 0
+                    && request.resource.data.testId.size() <= 160
+                    && request.resource.data.questionId is string
+                    && request.resource.data.questionId.size() <= 160
+                    && request.resource.data.testTitle is string
+                    && request.resource.data.testTitle.size() <= 200
+                    && request.resource.data.questionText is string
+                    && request.resource.data.questionText.size() <= 10000
+                    && request.resource.data.userNote is string
+                    && request.resource.data.userNote.size() <= 2000
+                    && request.resource.data.aiAnalysis is string
+                    && request.resource.data.aiAnalysis.size() <= 2000
+                    && request.resource.data.status == 'PENDING'
+                    && request.resource.data.updatedAt is int
+                    && request.resource.data.keys().hasOnly([
+                      'reportId', 'testId', 'testTitle', 'questionId', 'questionText',
+                      'userNote', 'aiAnalysis', 'reporterUserId', 'status', 'updatedAt'
+                    ]);
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['status', 'updatedAt', 'aiAnalysis'])
+                    && request.resource.data.status in ['PENDING', 'RESOLVED', 'DISMISSED'];
+      allow delete: if false;
+    }
+
     match /User_Analytics/{eventId} {
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow read, update, delete: if isAdmin();
