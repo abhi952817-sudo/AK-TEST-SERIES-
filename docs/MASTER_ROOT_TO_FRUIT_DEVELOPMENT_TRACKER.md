@@ -1152,3 +1152,14 @@ Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. 
 - The plan defines 22 app workstreams, seven delivery phases (Phase 0 baseline/safety through Phase 6 regression/readiness), acceptance flows, evidence-based status labels, and non-negotiable privacy/no-dummy/no-duplicate rules.
 - First authorized implementation activity is Phase 0 inventory and mapping. This plan-document commit does not itself implement app features or verify runtime behavior.
 - No backend, Firebase project/database, production data, rules, deployment, or Android application code was changed in this documentation step.
+
+
+### 27. App-first Phase 0 baseline audit
+
+- Added `docs/APP_FIRST_INTEGRATION_MATRIX.md` with source-level mapping for all 22 app-first workstreams, existing canonical code candidates, initial statuses, 12 high-priority app integration gaps, dependency decisions, and Phase 0 exit checklist.
+- Audited exact integration branch baseline HEAD: `282e3c6d83c78ae112bd2cda620dcf9611d6698b`.
+- Static inventory: repository tree 231 files; Android app source tree 102 Kotlin files (including PDF/OCR files excluded from this plan); existing Room/repository/Firebase/auth/registry/scoring/validation/UI/ViewModel/test structures mapped.
+- Confirmed important integration risks include invalid-looking Firebase fallback options, named-database-to-default fallback, public-by-default test flags, existing community full-payload privacy issue from Section 23, destructive Room fallback, direct Firestore calls, direct Android Gemini paths, and very large MainActivity/NEETViewModel coupling.
+- Phase 0 is complete for static repository inventory only. No local Gradle/build/test/emulator execution or live Firebase inspection was available; those are explicitly NOT RUN/BLOCKED, not passed.
+- No Android application source, backend implementation, Firebase data, rules, production configuration, migration, or deployment was changed in this audit/documentation batch.
+- Next: review canonical navigation/data ownership and start a small Phase 1 foundation slice only after respecting Firebase identity and privacy blockers.
