@@ -1142,3 +1142,13 @@ Integration branch `integration/root-to-fruit-master-2026-11-13` was inspected. 
 - No live Firebase Console data, Auth user count, Firestore collection counts, Storage object inventory, Functions deployment, or current CLI project selection was accessible from GitHub source inspection. These remain unverified.
 
 **Updated decision:** do not switch to either database solely from source history. The user wants the established/larger-data Firebase preserved; obtain both live Project IDs + named Database IDs (or inspect the user's Firebase Console with authorized access) and compare before choosing. No deployment or deletion.
+
+
+### 26. App-first integration plan
+
+- Added the separate execution plan: `docs/APP_FIRST_INTEGRATION_MASTER_PLAN.md`.
+- Scope: integrate the existing Android Student/Admin app first, reusing current app and backend contracts; full backend completion is deferred and tracked through a Backend Gap Register.
+- PDF/OCR extraction is explicitly excluded.
+- The plan defines 22 app workstreams, seven delivery phases (Phase 0 baseline/safety through Phase 6 regression/readiness), acceptance flows, evidence-based status labels, and non-negotiable privacy/no-dummy/no-duplicate rules.
+- First authorized implementation activity is Phase 0 inventory and mapping. This plan-document commit does not itself implement app features or verify runtime behavior.
+- No backend, Firebase project/database, production data, rules, deployment, or Android application code was changed in this documentation step.
