@@ -2,22 +2,17 @@ package Com.ak.testseries.crash
 
 import android.content.Context
 import android.util.Log
-import android.os.Build
 import androidx.work.*
-import com.google.firebase.crashlytics.FirebaseCrashlytics
-import Com.ak.testseries.BuildConfig
 import Com.ak.testseries.NEETApplication
-import Com.ak.testseries.data.remote.FirestoreHelper
-import kotlinx.coroutines.tasks.await
-import org.json.JSONObject
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.TimeUnit
 
 /**
  * Background WorkManager worker responsible for securely synchronizing offline sanitized
- * crash telemetry to Firebase Crashlytics and real Firebase Firestore cloud database when network connectivity is restored.
+ * crash telemetry to Firebase Crashlytics when network connectivity is restored.
+ *
+ * Firestore upload is intentionally disabled until crash records carry a stable owner UID
+ * captured at incident time and a matching least-privilege server/rules contract exists.
+ * A delayed worker must never attribute an old device crash to whichever account is signed in later.
  */
 class CrashSyncWorker(
     appContext: Context,
@@ -34,7 +29,6 @@ class CrashSyncWorker(
 
         for (report in pendingReports) {
             var syncedToCrashlytics = false
-            var syncedToFirestore = false
 
             // 1. Dual Sync Target A: Firebase Crashlytics custom non-fatal record
             try {
@@ -59,15 +53,8 @@ class CrashSyncWorker(
                 Log.w(TAG, "Crashlytics sync failed for ${report.incidentId}: ${e.message}")
             }
 
-            // 2. Dual Sync Target B: Real Firebase Firestore cloud collection
-            try {
-                syncedToFirestore = dispatchToFirestore(report)
-            } catch (e: Throwable) {
-                Log.w(TAG, "Firestore sync failed for ${report.incidentId}: ${e.message}")
-            }
-
-            // If synced to Crashlytics or Firestore successfully, mark as synchronized
-            if (syncedToCrashlytics || syncedToFirestore) {
+            // Only mark the local incident synchronized after Crashlytics accepts it.
+            if (syncedToCrashlytics) {
                 CrashReportVault.markReportSynced(applicationContext, report.incidentId)
             } else {
                 allSynced = false
@@ -75,35 +62,6 @@ class CrashSyncWorker(
         }
 
         return if (allSynced) Result.success() else Result.retry()
-    }
-
-    /**
-     * Persists the sanitized crash incident record directly into Firebase Firestore
-     * under the 'Crash_Reports' collection.
-     */
-    private suspend fun dispatchToFirestore(report: CrashSanitizer.SanitizedCrash): Boolean {
-        return try {
-            val db = FirestoreHelper.getInstance(applicationContext)
-            val payload = hashMapOf<String, Any>(
-                "incidentId" to report.incidentId,
-                "category" to report.category,
-                "safeUserMessage" to report.safeUserMessage,
-                "rootExceptionType" to report.rootExceptionType,
-                "sanitizedDetails" to report.sanitizedDetails,
-                "timestamp" to report.timestamp,
-                "deviceModel" to Build.MODEL,
-                "osVersion" to Build.VERSION.SDK_INT,
-                "appVersion" to BuildConfig.VERSION_NAME,
-                "syncedAt" to System.currentTimeMillis()
-            )
-            db.collection("Crash_Reports")
-                .document(report.incidentId)
-                .set(payload)
-                .await()
-            true
-        } catch (_: Throwable) {
-            false
-        }
     }
 
     class NonFatalReportException(
