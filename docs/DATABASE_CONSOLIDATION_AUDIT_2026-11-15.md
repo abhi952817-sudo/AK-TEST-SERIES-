@@ -135,8 +135,8 @@ Do not migrate or delete until:
 
 | Date | Branch | Change | Production impact |
 |---|---|---|---|
-| 2026-11-15 | `audit/default-firestore-consolidation-2026-11-15` | Added initial inventory and documented direct Firestore bypasses and backend exports | None; documentation only |
+| 2026-11-15 | `audit/default-firestore-consolidation-2026-11-15` | Added initial inventory, complete Android Firestore call-site review, routing split, path/rules risks and backend exports | None; documentation only |
 
 ## 8. Current status
 
-**Audit in progress.** The initial source-level database mismatch and direct Firestore call sites are confirmed. PR #10 was inspected and leaves several direct SDK call sites to audit. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
+**Audit in progress.** Complete contents of all identified Android Firestore call-site files and backend index/auth helper were reviewed. Main has confirmed direct-default versus helper-named routing split. The next task is full backend callable, Rules, index and feature-dependency reconciliation. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
