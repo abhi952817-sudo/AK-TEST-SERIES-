@@ -104,6 +104,20 @@ class CloudAutoRestoreSecurityHardeningTest {
         assertNotNull(remoteBackup)
         // Must NOT infer ownerUid from filename
         assertTrue("ownerUid must NOT be extracted from filename", remoteBackup!!.ownerUid.isBlank())
+
+        // The Drive description is editable metadata too; it must not authenticate ownership.
+        val descriptionSpoof = JSONObject().apply {
+            put("id", "drive_description_spoof")
+            put("name", "backup.aktsbak")
+            put("appProperties", JSONObject())
+            put("description", JSONObject().put("ownerUid", targetUid).toString())
+        }
+        val descriptionBackup = GoogleDriveRemoteBackup.fromDriveFileJson(descriptionSpoof)
+        assertNotNull(descriptionBackup)
+        assertTrue(
+            "ownerUid must only be trusted from appProperties",
+            descriptionBackup!!.ownerUid.isBlank()
+        )
     }
 
     // 3. Remote backups with foreign or missing owner metadata excluded
