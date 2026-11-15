@@ -205,7 +205,7 @@ PR #8 adds Android calls to the new HTTPS callables from:
 - `CommunityAdminUI.kt`: `syncCommunityExamSubjects`
 - `CommunityModerationUI.kt`: `migrateLegacyCommunitySharedTests`, `migrateLegacyCommunityPostVisibility`
 
-However, the same PR #8 Community UI uses no-argument `FirebaseFirestore.getInstance()` for direct client reads/writes, which selects `(default)`, while its Admin SDK Cloud Functions use named `4a...`. Therefore PR #8's community feature itself can split direct client data and callable backend data across two databases.
+However, PR #8's Community UI, Community Admin UI, Community Moderation UI and Community MCQ UI use no-argument `FirebaseFirestore.getInstance()` for direct client reads/writes, which selects `(default)`. The PR #8 `NEETViewModel` obtains its database through `FirestoreHelper` configured to named `4a...`, while its Admin SDK Cloud Functions also use named `4a...`. Thus Community UI direct feed/report/MCQ-attempt reads can target `(default)`, while ViewModel operations and callable writes target `4a...`. This is a concrete client/server split inside PR #8.
 
 PR #10 changes the helper and backend to `(default)`, which is the intended direction, but PR #10 does not include PR #8's new community functions and PR #8 is based on an older main commit. A safe integration must combine PR #8's community code with PR #10's default-database selection, preserve all new exports, and then re-run backend/Rules/Android tests. Merging either branch blindly risks restoring an old database ID or losing changes in `backend_functions/index.js`.
 
@@ -213,7 +213,7 @@ PR #10 changes the helper and backend to `(default)`, which is the intended dire
 
 PR #8 adds Rules for `Community_Exam_Subjects`, `Community_Moderation_Audit`, `Community_MCQ_AnswerKeys`, `Community_MCQ_Attempts/{postId}/Users/{userId}`, plus bounded `highlightedSpans` validation on Community posts. Those additions align with its new community features.
 
-The existing Android `NEETViewModel.kt` also reads/writes `Question_Reports` (main: 61 Firestore collection references in an 8,237-line file; PR #8 version: 8,297 lines). Neither main Rules nor PR #8 Rules define a `Question_Reports` match. The default-deny rule therefore blocks these client operations unless they are moved to an authorized backend path or explicit least-privilege Rules are added. This is separate from `Community_Reports`, which does have Rules.
+The existing Android `NEETViewModel.kt` also reads/writes `Question_Reports` (main: 61 Firestore collection references in an 8,237-line file; PR #8 version: 8,297 lines). Neither main Rules nor PR #8 Rules define a `Question_Reports` match. The default-deny rule therefore blocks these client operations unless they are moved to an authorized backend path or explicit least-privilege Rules are added. This is separate from `Community_Reports`, which does have Rules. PR #8's new `CommunityModerationUI` also uses direct default-DB access for `Community_Reports`, `Community_Moderation_Audit`, `Community_Posts` and `Users_Data`; `CommunityMcqUI` directly reads `Community_MCQ_Attempts/{postId}/Users/{uid}`. The corresponding Rules exist for those PR #8 paths, but the direct reads must still be aligned with the callable database.
 
 ## 8. NEETViewModel full Firestore dependency map
 
