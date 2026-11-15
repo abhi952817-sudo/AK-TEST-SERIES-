@@ -215,14 +215,41 @@ PR #8 adds Rules for `Community_Exam_Subjects`, `Community_Moderation_Audit`, `C
 
 The existing Android `NEETViewModel.kt` also reads/writes `Question_Reports` (main: 61 Firestore collection references in an 8,237-line file; PR #8 version: 8,297 lines). Neither main Rules nor PR #8 Rules define a `Question_Reports` match. The default-deny rule therefore blocks these client operations unless they are moved to an authorized backend path or explicit least-privilege Rules are added. This is separate from `Community_Reports`, which does have Rules.
 
-## 8. PR review state at audit start
+## 8. NEETViewModel full Firestore dependency map
+
+The complete main-branch `NEETViewModel.kt` (8,237 lines) was fetched and scanned. It contains 61 Firestore collection-reference expressions across these feature groups:
+
+| Collection | Methods / feature areas | Data behavior |
+|---|---|---|
+| `Admin_Audit_Logs` | `logAdminAudit` | Admin audit event creation |
+| `Users_Data` | `fetchAdminUsers`, `toggleUserBan`, `fetchUserRank`, profile save, bookmark loading, account status, backup, attempt sync | Profile, admin user management, status and backup reads/writes |
+| `Leaderboard` | `fetchUserRank`, `fetchLeaderboard`, fallback | Ranking queries and listeners |
+| `Config` | `listenToAdminSettings`, AI/free-test limit and private community controls | Admin configuration read/write |
+| `LiveTests` | schedule, participants/listeners, generated test save, deep-link lookup | Live test lifecycle |
+| `UserNotifications` | add/update/delete/listen, schedule/publish notices | In-app notification lifecycle |
+| `Tests`, `Tests_Data` | delete test, upload/publish/visibility, deep-link lookup | Test lifecycle and publication |
+| `Shared_Community_Tests` | share and deep-link lookup | Shared test content |
+| `Community_Posts` | test-share post creation/deduplication | Community feed publication |
+| `Question_Reports` | submit, report question error, list, update status | Student issue reports and admin review |
+| `test_feedbacks` | submit feedback | Feedback create |
+| nested `private_keys` | upload, generated test save, visibility/publish | Protected answer-key writes |
+
+All of these calls use the ViewModel's injected `db`/Firestore helper path, which resolves to named `9fa...` on main and to `(default)` under PR #10's helper.
+
+Important side-effect and authorization checks:
+- `deleteTest` deletes the same test ID from `Tests`, `Tests_Data` and `LiveTests`; it is a destructive user/admin workflow and must not be used for database migration.
+- Publishing and private answer-key writes depend on admin-only Rules; confirm custom claims and the current signed-in admin account during QA.
+- `Question_Reports` has no explicit match in main or PR #8 Firestore Rules; current default-deny blocks those client operations. Do not solve by making the whole collection public or broadly writable.
+- Main `shareTestToCommunity` writes to both `Shared_Community_Tests` and `Community_Posts` from the client; these two records need an atomicity/partial-failure review and a consistent server-authoritative subject validation path.
+
+## 9. PR review state at audit start
 
 - PR #10, `fix/use-default-firestore-everywhere`: Open, Draft, Unmerged; head `faa5fb9d033d3bb6bd060b56d054445127a60a60`; base `main` at `a857d6ba0e21c9c37f10c26700e925cb1afaa3e8`.
 - PR #8, `feature/community-completion-2026-11-13`: Open, Draft, Unmerged; head `ed032e111d375813fa90fde9b2486ad635f1e3fd`; base `main` at `1e236d099522d63ec89ab0d11287b48315efc48c`.
 
 These PRs are separate workstreams. This audit branch was created from `main` and does not merge or modify either PR.
 
-## 9. Repository inventory snapshot
+## 10. Repository inventory snapshot
 
 The recursive Git tree for `main` contained 299 entries (including directories). Firebase-relevant files identified include:
 
@@ -240,7 +267,7 @@ The recursive Git tree for `main` contained 299 entries (including directories).
 
 This is an initial path inventory, not yet a complete call-site or feature dependency map.
 
-## 10. Required next audit steps
+## 11. Required next audit steps
 
 ### Part A — exhaustive ID and SDK call-site search
 Search all tracked source/config/docs for:
@@ -277,12 +304,12 @@ Do not migrate or delete until:
 - rollback is documented and tested;
 - user explicitly approves the production operation.
 
-## 11. Change log
+## 12. Change log
 
 | Date | Branch | Change | Production impact |
 |---|---|---|---|
 | 2026-11-15 | `audit/default-firestore-consolidation-2026-11-15` | Added initial inventory, full Android call-site and Cloud Functions reviews, Rules/index/Storage cross-check and concrete permission/path mismatches | None; documentation only |
 
-## 12. Current status
+## 13. Current status
 
-**Audit in progress.** Complete contents of identified Android Firestore call-site files, backend index/auth helper, Firestore Rules, Storage Rules, Firebase config and indexes were fetched and reviewed. Main-branch cross-database routing and concrete Rules mismatches are documented. Next: feature-to-collection schema inventory, client/backend caller contract review and PR #8/#10 integration design. Dynamic R2Uploader call search found no callers outside its own file. No live Firebase state has been inspected; no database has been removed or migrated. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
+**Audit in progress.** Complete contents of identified Android Firestore call-site files, backend index/auth helper, Firestore Rules, Storage Rules, Firebase config and indexes were fetched and reviewed. Main-branch cross-database routing and concrete Rules mismatches are documented. Next: feature-to-collection schema inventory, client/backend caller contract review and PR #8/#10 integration design. Dynamic R2Uploader call search found no callers outside its own file. No live Firebase state has been inspected. No database has been removed, migrated, or modified.
