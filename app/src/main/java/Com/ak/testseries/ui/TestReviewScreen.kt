@@ -46,6 +46,7 @@ import Com.ak.testseries.data.QuestionEntity
 import Com.ak.testseries.viewmodel.NEETViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -148,6 +149,7 @@ fun TestReviewScreen(
                 pdfUriForCrop?.let { uri ->
                     PdfCropperOverlay(
                         pdfUri = uri,
+                        testId = testId,
                         questionId = question.id,
                         onCropSuccess = { webpUrl ->
                             scope.launch {
@@ -393,6 +395,7 @@ fun OptionRowIndicator(label: String, text: String, isCorrect: Boolean) {
 @Composable
 fun PdfCropperOverlay(
     pdfUri: Uri,
+    testId: String,
     questionId: String,
     onCropSuccess: (String) -> Unit,
     onDismiss: () -> Unit
@@ -524,6 +527,7 @@ fun PdfCropperOverlay(
                                         // Compress and Upload
                                         compressAndUploadToFirebase(
                                             bitmap = croppedBitmap,
+                                            testId = testId,
                                             questionId = questionId,
                                             onSuccess = { downloadUrl ->
                                                 isUploading = false
@@ -649,6 +653,7 @@ fun PdfCropperOverlay(
  */
 suspend fun compressAndUploadToFirebase(
     bitmap: Bitmap,
+    testId: String,
     questionId: String,
     onSuccess: (String) -> Unit,
     onFailure: (Exception) -> Unit
@@ -671,14 +676,19 @@ suspend fun compressAndUploadToFirebase(
             }
             val imageRef = storageRef.child("question_images/$questionId.webp")
 
-            val uploadTask = imageRef.putBytes(data)
+            val metadata = StorageMetadata.Builder()
+                .setContentType("image/webp")
+                .build()
+            val uploadTask = imageRef.putBytes(data, metadata)
             uploadTask.addOnSuccessListener {
                 imageRef.downloadUrl.addOnSuccessListener { uri ->
                     val downloadUrl = uri.toString()
                     
                     // Update Firestore document with downloaded image URL
-                                        try {
+                                    try {
                         FirebaseFirestore.getInstance()
+                            .collection("Tests_Data")
+                            .document(testId)
                             .collection("questions")
                             .document(questionId)
                             .update("imageUrl", downloadUrl)
