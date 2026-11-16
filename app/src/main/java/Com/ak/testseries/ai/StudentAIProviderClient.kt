@@ -1,0 +1,270 @@
+package Com.ak.testseries.ai
+
+import Com.ak.testseries.utils.StudentAIKeyStore
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+/**
+ * Student BYOK text-generation transport.
+ *
+ * Requests go directly from the device to the selected provider. Student API keys
+ * are read from Android Keystore-backed local storage and are sent only in headers.
+ * This client must not be used for Community Doubts, whose workflow is manual-only.
+ */
+data class StudentAITextRequest(
+    val provider: StudentAIKeyStore.Provider,
+    val model: String,
+    val prompt: String,
+    val systemInstruction: String? = null,
+    val maxOutputTokens: Int = 2048
+)
+
+data class StudentAIUsage(
+    val inputTokens: Long? = null,
+    val outputTokens: Long? = null,
+    val totalTokens: Long? = null
+)
+
+data class StudentAITextResponse(
+    val provider: StudentAIKeyStore.Provider,
+    val model: String,
+    val text: String,
+    val usage: StudentAIUsage
+)
+
+class StudentAIProviderException(
+    val httpStatus: Int? = null,
+    message: String,
+    cause: Throwable? = null
+) : IOException(message, cause)
+
+object StudentAIProviderClient {
+    private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(120, TimeUnit.SECONDS)
+            .build()
+    }
+
+    /**
+     * Runs a text request using the signed-in student's own provider key.
+     * No key is sent to Firebase, Firestore, Cloud Functions, logs or URL parameters.
+     */
+    suspend fun generate(
+        context: Context,
+        authenticatedUid: String,
+        request: StudentAITextRequest
+    ): StudentAITextResponse = withContext(Dispatchers.IO) {
+        require(authenticatedUid.isNotBlank()) { "Sign in before using a personal AI provider." }
+        require(request.model.isNotBlank()) { "Select a provider model first." }
+        require(request.prompt.isNotBlank()) { "Prompt cannot be empty." }
+        require(request.maxOutputTokens in 1..32768) { "Output token limit is outside the supported range." }
+
+        val apiKey = StudentAIKeyStore.read(context.applicationContext, authenticatedUid, request.provider)
+            ?.takeIf { it.isNotBlank() }
+            ?: throw StudentAIProviderException(message = "No personal API key is configured for this provider.")
+
+        val httpRequest = buildHttpRequest(
+            provider = request.provider,
+            apiKey = apiKey,
+            model = request.model.trim(),
+            prompt = request.prompt,
+            systemInstruction = request.systemInstruction,
+            maxOutputTokens = request.maxOutputTokens
+        )
+
+        val rawBody = try {
+            httpClient.newCall(httpRequest).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    throw StudentAIProviderException(
+                        httpStatus = response.code,
+                        message = providerErrorMessage(response.code)
+                    )
+                }
+                body
+            }
+        } catch (e: StudentAIProviderException) {
+            throw e
+        } catch (e: Exception) {
+            throw StudentAIProviderException(message = "The AI provider request failed. Check your connection and provider settings.", cause = e)
+        }
+
+        parseResponse(request.provider, request.model.trim(), rawBody)
+    }
+
+    internal fun buildHttpRequest(
+        provider: StudentAIKeyStore.Provider,
+        apiKey: String,
+        model: String,
+        prompt: String,
+        systemInstruction: String?,
+        maxOutputTokens: Int
+    ): Request {
+        require(apiKey.isNotBlank())
+        require(model.matches(Regex("[A-Za-z0-9._:/-]{1,160}"))) { "Invalid model identifier." }
+
+        val body = when (provider) {
+            StudentAIKeyStore.Provider.GEMINI -> geminiBody(prompt, systemInstruction, maxOutputTokens)
+            StudentAIKeyStore.Provider.OPENAI,
+            StudentAIKeyStore.Provider.GROQ,
+            StudentAIKeyStore.Provider.CEREBRAS -> openAiCompatibleBody(provider, model, prompt, systemInstruction, maxOutputTokens)
+            StudentAIKeyStore.Provider.ANTHROPIC -> anthropicBody(prompt, systemInstruction, maxOutputTokens)
+        }
+
+        val url = when (provider) {
+            StudentAIKeyStore.Provider.GEMINI ->
+                "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
+            StudentAIKeyStore.Provider.OPENAI -> "https://api.openai.com/v1/chat/completions"
+            StudentAIKeyStore.Provider.GROQ -> "https://api.groq.com/openai/v1/chat/completions"
+            StudentAIKeyStore.Provider.CEREBRAS -> "https://api.cerebras.ai/v1/chat/completions"
+            StudentAIKeyStore.Provider.ANTHROPIC -> "https://api.anthropic.com/v1/messages"
+        }
+
+        val builder = Request.Builder()
+            .url(url)
+            .post(body.toString().toRequestBody(jsonMediaType))
+            .header("Accept", "application/json")
+
+        when (provider) {
+            StudentAIKeyStore.Provider.GEMINI -> builder.header("x-goog-api-key", apiKey)
+            StudentAIKeyStore.Provider.ANTHROPIC -> builder
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+            else -> builder.header("Authorization", "Bearer $apiKey")
+        }
+        return builder.build()
+    }
+
+    internal fun parseResponse(
+        provider: StudentAIKeyStore.Provider,
+        model: String,
+        rawBody: String
+    ): StudentAITextResponse {
+        val json = try {
+            JSONObject(rawBody)
+        } catch (e: Exception) {
+            throw StudentAIProviderException(message = "The AI provider returned an unreadable response.", cause = e)
+        }
+
+        val text = when (provider) {
+            StudentAIKeyStore.Provider.GEMINI -> {
+                val candidates = json.optJSONArray("candidates")
+                val parts = candidates?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
+                collectTextParts(parts)
+            }
+            StudentAIKeyStore.Provider.ANTHROPIC -> collectTextParts(json.optJSONArray("content"))
+            StudentAIKeyStore.Provider.OPENAI,
+            StudentAIKeyStore.Provider.GROQ,
+            StudentAIKeyStore.Provider.CEREBRAS -> {
+                val choice = json.optJSONArray("choices")?.optJSONObject(0)
+                val message = choice?.optJSONObject("message")
+                message?.optString("content")?.takeIf { it.isNotBlank() }
+                    ?: collectTextParts(message?.optJSONArray("content"))
+            }
+        }?.trim().orEmpty()
+
+        if (text.isBlank()) {
+            throw StudentAIProviderException(message = "The AI provider returned no usable text.")
+        }
+
+        val usageJson = when (provider) {
+            StudentAIKeyStore.Provider.GEMINI -> json.optJSONObject("usageMetadata")
+            StudentAIKeyStore.Provider.ANTHROPIC -> json.optJSONObject("usage")
+            else -> json.optJSONObject("usage")
+        }
+        val usage = when (provider) {
+            StudentAIKeyStore.Provider.GEMINI -> StudentAIUsage(
+                inputTokens = usageJson?.longOrNull("promptTokenCount"),
+                outputTokens = usageJson?.longOrNull("candidatesTokenCount"),
+                totalTokens = usageJson?.longOrNull("totalTokenCount")
+            )
+            StudentAIKeyStore.Provider.ANTHROPIC -> StudentAIUsage(
+                inputTokens = usageJson?.longOrNull("input_tokens"),
+                outputTokens = usageJson?.longOrNull("output_tokens"),
+                totalTokens = null
+            )
+            else -> StudentAIUsage(
+                inputTokens = usageJson?.longOrNull("prompt_tokens"),
+                outputTokens = usageJson?.longOrNull("completion_tokens"),
+                totalTokens = usageJson?.longOrNull("total_tokens")
+            )
+        }
+
+        return StudentAITextResponse(provider, model, text, usage)
+    }
+
+    private fun geminiBody(prompt: String, system: String?, maxTokens: Int): JSONObject =
+        JSONObject().apply {
+            put("contents", JSONArray().put(JSONObject().apply {
+                put("role", "user")
+                put("parts", JSONArray().put(JSONObject().put("text", prompt)))
+            }))
+            if (!system.isNullOrBlank()) {
+                put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
+            }
+            put("generationConfig", JSONObject().put("maxOutputTokens", maxTokens))
+        }
+
+    private fun openAiCompatibleBody(
+        provider: StudentAIKeyStore.Provider,
+        model: String,
+        prompt: String,
+        system: String?,
+        maxTokens: Int
+    ): JSONObject = JSONObject().apply {
+        put("model", model)
+        val messages = JSONArray()
+        if (!system.isNullOrBlank()) {
+            messages.put(JSONObject().put("role", "system").put("content", system))
+        }
+        messages.put(JSONObject().put("role", "user").put("content", prompt))
+        put("messages", messages)
+        when (provider) {
+            StudentAIKeyStore.Provider.OPENAI -> put("max_completion_tokens", maxTokens)
+            else -> put("max_tokens", maxTokens)
+        }
+    }
+
+    private fun anthropicBody(prompt: String, system: String?, maxTokens: Int): JSONObject =
+        JSONObject().apply {
+            put("model", "") // Anthropic model is added by buildHttpRequest below.
+            put("max_tokens", maxTokens)
+            if (!system.isNullOrBlank()) put("system", system)
+            put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", prompt)))
+        }
+
+    private fun collectTextParts(parts: JSONArray?): String? {
+        if (parts == null) return null
+        val collected = ArrayList<String>()
+        for (index in 0 until parts.length()) {
+            val part = parts.optJSONObject(index) ?: continue
+            part.optString("text").takeIf { it.isNotBlank() }?.let(collected::add)
+        }
+        return collected.joinToString("\n").takeIf { it.isNotBlank() }
+    }
+
+    private fun JSONObject.longOrNull(key: String): Long? =
+        if (has(key) && !isNull(key)) optLong(key).takeIf { it >= 0L } else null
+
+    private fun providerErrorMessage(status: Int): String = when (status) {
+        400 -> "The provider rejected the request. Check the selected model and request settings."
+        401, 403 -> "The provider did not accept this API key or its permissions."
+        404 -> "The selected model or provider endpoint was not found."
+        408, 429 -> "The provider is busy or its rate limit/quota was reached. Try again later."
+        in 500..599 -> "The AI provider is temporarily unavailable."
+        else -> "The AI provider request failed (HTTP $status)."
+    }
+}
