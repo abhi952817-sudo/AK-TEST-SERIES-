@@ -3091,8 +3091,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _reportErrorResponse.value = null
 
             var aiAnalysisResult = ""
-            val keys = getGeminiApiKeys()
-            if (isAdmin || keys.isNotEmpty()) {
+            if (isAdmin || hasStudentAIProviderConfigured()) {
                 val prompt = """
                     You are an expert examiner. The user has reported a potential error in the following question.
                     Please analyze the question, options, and the provided correct answer. Tell me if there is any error in the question, options, or correct answer, and explain why.
@@ -3116,8 +3115,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     _reportErrorResponse.value = "AI analysis failed. Please retry after checking the provider connection."
                 }
             } else {
-                aiAnalysisResult = "AI analysis unavailable: no personal Gemini API key is configured."
-                _reportErrorResponse.value = "AI analysis unavailable. Connect a personal Gemini API key in Settings."
+                aiAnalysisResult = "AI analysis unavailable: no personal AI provider is configured."
+                _reportErrorResponse.value = "AI analysis unavailable. Connect a personal AI provider in Settings."
             }
             _reportErrorLoading.value = false
 
@@ -5261,8 +5260,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             var geminiParsed = false
             // Send extracted text to Gemini API ONLY when local parsing fails (!isQuestionsDetected), asking it to align questions and options
             if (!isQuestionsDetected) {
-                val keys = getGeminiApiKeys()
-                val hasApiKey = keys.isNotEmpty()
+                val hasApiKey = isAdmin || hasStudentAIProviderConfigured()
                 if (hasApiKey) {
                     try {
                         // For metadata analysis, send ONLY the opening page chunk (Pages 1-2 header/instructions), NEVER the whole PDF
