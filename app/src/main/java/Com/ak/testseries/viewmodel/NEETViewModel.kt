@@ -96,7 +96,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = DatabaseRepository(db)
     private val testRepository = Com.ak.testseries.data.repository.TestRepositoryImpl(repository)
     private val firestoreDb: com.google.firebase.firestore.FirebaseFirestore
-        get() = Com.ak.testseries.data.remote.FirestoreHelper.getInstance(getApplication())
+        get() = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
 
     val defaultExceptionHandler = Com.ak.testseries.crash.AppCoroutineExceptionHandler.create(
         tag = "NEETViewModel",
