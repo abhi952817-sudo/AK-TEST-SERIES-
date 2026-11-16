@@ -83,6 +83,24 @@ class StudentAIProviderClientTest {
     }
 
     @Test
+    fun modelCatalogueParsingFiltersGeminiModelsWithoutGenerationSupport() {
+        val models = StudentAIProviderClient.parseModelList(
+            StudentAIKeyStore.Provider.GEMINI,
+            """{"models":[{"name":"models/gemini-text","supportedGenerationMethods":["generateContent"]},{"name":"models/gemini-embed","supportedGenerationMethods":["embedContent"]},{"name":"models/gemini-legacy"}]}"""
+        )
+        assertEquals(listOf("gemini-legacy", "gemini-text"), models)
+    }
+
+    @Test
+    fun modelCatalogueParsingReadsOpenAiCompatibleIds() {
+        val models = StudentAIProviderClient.parseModelList(
+            StudentAIKeyStore.Provider.CEREBRAS,
+            """{"data":[{"id":"model-z"},{"id":"model-a"},{"id":"model-z"}]}"""
+        )
+        assertEquals(listOf("model-a", "model-z"), models)
+    }
+
+    @Test
     fun parsesGeminiTextAndActualUsageMetadata() {
         val result = StudentAIProviderClient.parseResponse(
             StudentAIKeyStore.Provider.GEMINI,
