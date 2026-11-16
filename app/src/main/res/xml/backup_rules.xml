@@ -21,4 +21,5 @@
     <exclude domain="sharedpref" path="ak_google_drive_backup_prefs.xml" />
     <!-- Student AI key ciphertext is device-bound; never restore without its AndroidKeyStore key. -->
     <exclude domain="sharedpref" path="student_ai_keys_v1.xml" />
+    <exclude domain="sharedpref" path="student_ai_usage_v1.xml" />
 </full-backup-content>
