@@ -12,9 +12,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: student-ai-connector-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   student-ai-android:
