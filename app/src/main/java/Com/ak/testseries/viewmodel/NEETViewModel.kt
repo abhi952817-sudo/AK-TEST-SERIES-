@@ -5440,10 +5440,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     val primaryGeminiUsage = MutableStateFlow(0)
     val secondaryGeminiUsage = MutableStateFlow(0)
     val activeGeminiKeyIndex = MutableStateFlow(0)
-    private val _studentGeminiKeyConfigured = MutableStateFlow(false)
-    val studentGeminiKeyConfigured: StateFlow<Boolean> = _studentGeminiKeyConfigured.asStateFlow()
-    private val _studentGeminiKeyRotationDue = MutableStateFlow(false)
-    val studentGeminiKeyRotationDue: StateFlow<Boolean> = _studentGeminiKeyRotationDue.asStateFlow()
     val geminiStatusMessage = MutableStateFlow("Initializing...")
     val adminGeminiConnectorStatus = MutableStateFlow("Not verified")
     val adminGeminiConnectorModels = MutableStateFlow<List<String>>(emptyList())
@@ -5462,7 +5458,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val context = getApplication<Application>()
             val prefs = context.getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
             // One-time cleanup of legacy Admin secrets previously stored on-device.
-            Com.ak.testseries.utils.StudentGeminiKeyStore.clear(context, "akts_admin_secondary_global")
+            Com.ak.testseries.utils.LegacyStudentGeminiKeyMigration.clear(context, "akts_admin_secondary_global")
             prefs.edit().remove("sec_gemini_api_key").commit()
             isPrimaryGeminiActive.value = prefs.getBoolean("is_primary_gemini_active", true)
             isSecondaryGeminiActive.value = prefs.getBoolean("is_secondary_gemini_active", true)
@@ -5504,70 +5500,50 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { e.printStackTrace() }
     }
 
-    fun refreshStudentGeminiKeyState() {
-        val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
-        _studentGeminiKeyConfigured.value = !isAdmin &&
-            Com.ak.testseries.utils.StudentGeminiKeyStore.isConfigured(getApplication(), uid)
-        _studentGeminiKeyRotationDue.value = _studentGeminiKeyConfigured.value &&
-            Com.ak.testseries.utils.StudentGeminiKeyStore.needsRotationReminder(getApplication(), uid)
-    }
-
-    suspend fun connectStudentGeminiApiKey(apiKey: String): String? = withContext(Dispatchers.IO) {
-        if (isAdmin) return@withContext "Admin accounts must use the centrally managed Admin API keys."
-        val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
-        if (uid.isBlank()) return@withContext "Please sign in before connecting your personal Gemini API key."
-        val normalizedKey = apiKey.trim()
-        if (normalizedKey.length < 20) return@withContext "The API key appears incomplete."
-        var connection: HttpURLConnection? = null
-        try {
-            connection = URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1")
-                .openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("x-goog-api-key", normalizedKey)
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-            val responseCode = connection.responseCode
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                return@withContext "Gemini rejected this key (HTTP $responseCode). Check the key and API access."
-            }
-            val response = connection.inputStream.bufferedReader().use(BufferedReader::readText)
-            if (!JSONObject(response).has("models")) {
-                return@withContext "Gemini key verification returned an unexpected response."
-            }
-            Com.ak.testseries.utils.StudentGeminiKeyStore.save(getApplication(), uid, normalizedKey)
-            _studentGeminiKeyConfigured.value = true
-            _studentGeminiKeyRotationDue.value = false
-            geminiStatusMessage.value = "Personal Gemini API key connected securely."
-            null
-        } catch (_: Exception) {
-            "Could not verify or securely store the Gemini API key. Check network access and try again."
-        } finally {
-            connection?.disconnect()
-        }
-    }
-
-    fun disconnectStudentGeminiApiKey() {
-        val uid = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() } catch (_: Exception) { "" }
-        if (uid.isNotBlank()) Com.ak.testseries.utils.StudentGeminiKeyStore.clear(getApplication(), uid)
-        _studentGeminiKeyConfigured.value = false
-        _studentGeminiKeyRotationDue.value = false
-        if (activeGeminiKeyIndex.value == 2) activeGeminiKeyIndex.value = 0
-        geminiStatusMessage.value = "Personal Gemini API key disconnected."
-    }
-
-    fun getGeminiApiKeys(): List<Pair<Int, String>> {
-        // Admin credentials are never read from BuildConfig or local preferences.
-        // Admin generation will use the authenticated server-side Connector callable.
-        if (isAdmin) return emptyList()
-
-        val uid = try {
+    private fun currentStudentAiUid(): String {
+        val authUid = try {
             com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
         } catch (_: Exception) {
             ""
         }
-        if (uid.isBlank()) return emptyList()
-        val studentKey = Com.ak.testseries.utils.StudentGeminiKeyStore.read(getApplication(), uid)
-        return if (studentKey.isNullOrBlank()) emptyList() else listOf(Pair(2, studentKey))
+        return authUid.ifBlank { currentUserId.value }
+    }
+
+    private fun hasStudentAIProviderConfigured(): Boolean {
+        if (isAdmin) return false
+        val uid = currentStudentAiUid()
+        if (uid.isBlank()) return false
+        val provider = Com.ak.testseries.utils.StudentAIKeyStore.preferredProvider(getApplication(), uid)
+            ?: return false
+        return !Com.ak.testseries.utils.StudentAIKeyStore.preferredModel(getApplication(), uid, provider).isNullOrBlank()
+    }
+
+    private suspend fun callStudentAIProvider(
+        prompt: String,
+        systemInstruction: String? = null,
+        maxOutputTokens: Int = 8192
+    ): String? = withContext(Dispatchers.IO) {
+        if (isAdmin) return@withContext null
+        val uid = currentStudentAiUid()
+        if (uid.isBlank()) return@withContext null
+        try {
+            val result = Com.ak.testseries.ai.StudentAIProviderClient.generatePreferred(
+                context = getApplication(),
+                authenticatedUid = uid,
+                prompt = prompt,
+                systemInstruction = systemInstruction,
+                maxOutputTokens = maxOutputTokens
+            )
+            activeAiModel.value = result.model
+            geminiStatusMessage.value = "Student ${result.provider.id} provider active (${result.model})."
+            result.text
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            geminiStatusMessage.value = e.localizedMessage?.take(240)
+                ?: "Student AI provider request failed."
+            null
+        }
     }
 
     fun verifyAdminGeminiConnector() {
@@ -5687,193 +5663,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             return null
         }
         if (isAdmin) return callAdminGeminiContent(prompt, systemInstruction)
-        val keys = getGeminiApiKeys()
-        if (keys.isEmpty()) {
+        if (!hasStudentAIProviderConfigured()) {
+            geminiStatusMessage.value = "Connect a personal AI provider and select a model in Settings."
             return null
         }
-        var startIndex = 0
-        val currentActiveId = activeGeminiKeyIndex.value
-        val indexOfActive = keys.indexOfFirst { it.first == currentActiveId }
-        if (indexOfActive != -1) startIndex = indexOfActive
-
-        for (i in 0 until keys.size) {
-            val currentIndex = (startIndex + i) % keys.size
-            val currentKeyPair = keys[currentIndex]
-            val keyId = currentKeyPair.first
-            val currentKey = currentKeyPair.second
-            
-            geminiStatusMessage.value = "Trying API Key ${when (keyId) { 0 -> "Primary"; 1 -> "Secondary"; else -> "Personal Student" }}..."
-            val result = callGeminiApiForQuestions(currentKey, prompt, systemInstruction)
-            if (result != null) {
-                val currentModel = activeAiModel.value
-                if (activeGeminiKeyIndex.value != keyId) {
-                    activeGeminiKeyIndex.value = keyId
-                    geminiStatusMessage.value = "Switched to ${when (keyId) { 0 -> "Primary"; 1 -> "Secondary"; else -> "Personal Student" }} Key ($currentModel)"
-                } else {
-                    geminiStatusMessage.value = "${when (keyId) { 0 -> "Primary"; 1 -> "Secondary"; else -> "Personal Student" }} Key Active ($currentModel)"
-                }
-                incrementGeminiUsage(keyId)
-                return result
-            }
-        }
-        geminiStatusMessage.value = "All Gemini API Keys exhausted (Rate limit/Quota reached)!"
-        return null
+        return callStudentAIProvider(prompt, systemInstruction, 8192)
     }
 
     suspend fun callGeminiApiTextWithFallback(prompt: String): String? {
-        if (!_isGlobalAiEnabled.value) {
-            return null
-        }
+        if (!_isGlobalAiEnabled.value) return null
         if (isAdmin) return callAdminGeminiContent(prompt, null, "text/plain")
-        val keys = getGeminiApiKeys()
-        if (keys.isEmpty()) {
+        if (!hasStudentAIProviderConfigured()) {
+            geminiStatusMessage.value = "Connect a personal AI provider and select a model in Settings."
             return null
         }
-        var startIndex = 0
-        val currentActiveId = activeGeminiKeyIndex.value
-        val indexOfActive = keys.indexOfFirst { it.first == currentActiveId }
-        if (indexOfActive != -1) startIndex = indexOfActive
-
-        for (i in 0 until keys.size) {
-            val currentIndex = (startIndex + i) % keys.size
-            val currentKeyPair = keys[currentIndex]
-            val keyId = currentKeyPair.first
-            val currentKey = currentKeyPair.second
-            
-            val result = callGeminiApiText(currentKey, prompt)
-            if (result != null) {
-                if (activeGeminiKeyIndex.value != keyId) {
-                    activeGeminiKeyIndex.value = keyId
-                }
-                incrementGeminiUsage(keyId)
-                return result
-            }
-        }
-        return null
-    }
-
-    private suspend fun callGeminiApiForQuestions(
-        apiKey: String,
-        prompt: String,
-        systemInstruction: String? = null
-    ): String? = withContext(Dispatchers.IO) {
-        val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
-        for (modelName in candidateModels) {
-            try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.setRequestProperty("x-goog-api-key", apiKey)
-                conn.connectTimeout = 60000
-                conn.readTimeout = 60000
-                conn.doOutput = true
-
-                val jsonReq = JSONObject().apply {
-                    if (!systemInstruction.isNullOrBlank()) {
-                        put("systemInstruction", JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("text", systemInstruction)
-                                })
-                            })
-                        })
-                    }
-                    put("contents", JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("text", prompt)
-                                })
-                            })
-                        })
-                    })
-                    put("generationConfig", JSONObject().apply {
-                        put("responseMimeType", "application/json")
-                    })
-                }
-
-                conn.outputStream.use { os ->
-                    os.write(jsonReq.toString().toByteArray())
-                }
-
-                if (conn.responseCode == 200) {
-                    val response = conn.inputStream.bufferedReader().use(BufferedReader::readText)
-                    val responseObj = JSONObject(response)
-                    val actualVersion = responseObj.optString("modelVersion").takeIf { it.isNotBlank() } ?: "UNAVAILABLE"
-                    activeAiModel.value = actualVersion
-                    val candidates = responseObj.optJSONArray("candidates")
-                    if (candidates != null && candidates.length() > 0) {
-                        val content = candidates.getJSONObject(0).optJSONObject("content")
-                        val parts = content?.optJSONArray("parts")
-                        if (parts != null && parts.length() > 0) {
-                            val text = parts.getJSONObject(0).optString("text", "")
-                            if (text.isNotBlank()) return@withContext text
-                        }
-                    }
-                } else {
-                    val err = conn.errorStream?.bufferedReader()?.use(BufferedReader::readText)
-                    android.util.Log.e("NEETViewModel", "Gemini ($modelName) error code ${conn.responseCode}: $err")
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-        return@withContext null
-    }
-
-    private suspend fun callGeminiApiText(apiKey: String, prompt: String): String? = withContext(Dispatchers.IO) {
-        val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
-        for (modelName in candidateModels) {
-            try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.setRequestProperty("x-goog-api-key", apiKey)
-                conn.connectTimeout = 60000
-                conn.readTimeout = 60000
-                conn.doOutput = true
-
-                val jsonReq = JSONObject().apply {
-                    put("contents", JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("text", prompt)
-                                })
-                            })
-                        })
-                    })
-                }
-
-                conn.outputStream.use { os ->
-                    os.write(jsonReq.toString().toByteArray())
-                }
-
-                if (conn.responseCode == 200) {
-                    val response = conn.inputStream.bufferedReader().use(BufferedReader::readText)
-                    val responseObj = JSONObject(response)
-                    val actualVersion = responseObj.optString("modelVersion").takeIf { it.isNotBlank() } ?: "UNAVAILABLE"
-                    activeAiModel.value = actualVersion
-                    val candidates = responseObj.optJSONArray("candidates")
-                    if (candidates != null && candidates.length() > 0) {
-                        val content = candidates.getJSONObject(0).optJSONObject("content")
-                        val parts = content?.optJSONArray("parts")
-                        if (parts != null && parts.length() > 0) {
-                            val text = parts.getJSONObject(0).optString("text", "")
-                            if (text.isNotBlank()) return@withContext text
-                        }
-                    }
-                } else {
-                    val err = conn.errorStream?.bufferedReader()?.use(BufferedReader::readText)
-                    android.util.Log.e("NEETViewModel", "Gemini text ($modelName) error code ${conn.responseCode}: $err")
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-        return@withContext null
+        return callStudentAIProvider(prompt, null, 4096)
     }
 
     /**
