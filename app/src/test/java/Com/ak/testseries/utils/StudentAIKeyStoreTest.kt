@@ -15,7 +15,7 @@ class StudentAIKeyStoreTest {
 
     @Test
     fun preferredProviderAndModelAreScopedToTheAuthenticatedUid() {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication() as Application
         StudentAIKeyStore.savePreferredModel(
             context,
             "student-account-a",
@@ -41,7 +41,7 @@ class StudentAIKeyStoreTest {
 
     @Test
     fun clearingOneProviderDoesNotClearAnotherProvidersModel() {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication() as Application
         StudentAIKeyStore.savePreferredModel(
             context,
             "student-account",
