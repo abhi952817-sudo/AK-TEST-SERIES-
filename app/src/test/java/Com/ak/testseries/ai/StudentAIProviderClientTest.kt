@@ -36,6 +36,19 @@ class StudentAIProviderClientTest {
     }
 
     @Test
+    fun modelCatalogueRequestsKeepKeysInHeaders() {
+        StudentAIKeyStore.Provider.values().forEach { provider ->
+            val request = StudentAIProviderClient.buildModelListRequest(provider, "catalogue-secret")
+            assertFalse(request.url.toString().contains("catalogue-secret"))
+            val header = if (provider == StudentAIKeyStore.Provider.GEMINI) "x-goog-api-key"
+                else if (provider == StudentAIKeyStore.Provider.ANTHROPIC) "x-api-key"
+                else "Authorization"
+            assertTrue(request.header(header).orEmpty().contains("catalogue-secret"))
+            assertEquals("GET", request.method)
+        }
+    }
+
+    @Test
     fun geminiRequestUsesNativeGenerateContentContract() {
         val request = build(StudentAIKeyStore.Provider.GEMINI)
         val body = JSONObject(bodyString(request))
