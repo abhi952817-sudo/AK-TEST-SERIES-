@@ -121,7 +121,7 @@ object StudentAIProviderClient {
             StudentAIKeyStore.Provider.OPENAI,
             StudentAIKeyStore.Provider.GROQ,
             StudentAIKeyStore.Provider.CEREBRAS -> openAiCompatibleBody(provider, model, prompt, systemInstruction, maxOutputTokens)
-            StudentAIKeyStore.Provider.ANTHROPIC -> anthropicBody(prompt, systemInstruction, maxOutputTokens)
+            StudentAIKeyStore.Provider.ANTHROPIC -> anthropicBody(model, prompt, systemInstruction, maxOutputTokens)
         }
 
         val url = when (provider) {
@@ -171,8 +171,11 @@ object StudentAIProviderClient {
             StudentAIKeyStore.Provider.CEREBRAS -> {
                 val choice = json.optJSONArray("choices")?.optJSONObject(0)
                 val message = choice?.optJSONObject("message")
-                message?.optString("content")?.takeIf { it.isNotBlank() }
-                    ?: collectTextParts(message?.optJSONArray("content"))
+                when (val content = message?.opt("content")) {
+                    is String -> content.takeIf { it.isNotBlank() }
+                    is JSONArray -> collectTextParts(content)
+                    else -> null
+                }
             }
         }?.trim().orEmpty()
 
@@ -238,9 +241,9 @@ object StudentAIProviderClient {
         }
     }
 
-    private fun anthropicBody(prompt: String, system: String?, maxTokens: Int): JSONObject =
+    private fun anthropicBody(model: String, prompt: String, system: String?, maxTokens: Int): JSONObject =
         JSONObject().apply {
-            put("model", "") // Anthropic model is added by buildHttpRequest below.
+            put("model", model)
             put("max_tokens", maxTokens)
             if (!system.isNullOrBlank()) put("system", system)
             put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", prompt)))
