@@ -937,6 +937,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 checkAdminCustomClaim()
                 listenToCurrentUserAccountStatus(uid)
                 if (previousUid != uid) {
+                    if (previousUid.isNotBlank()) {
+                        Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), previousUid)
+                    }
                     timerJob?.cancel()
                     _activeTest.value = null
                     _activeResult.value = null
@@ -6701,6 +6704,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout(authManager: Com.ak.testseries.domain.auth.AuthManager) {
         viewModelScope.launch {
+            val signingOutUid = currentUserId.value
+            if (signingOutUid.isNotBlank()) {
+                Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), signingOutUid)
+            }
             authManager.signOut()
             userAccountListener?.remove()
             userAccountListener = null
@@ -6753,6 +6760,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         viewModelScope.launch {
+            val signingOutUid = currentUserId.value
+            if (signingOutUid.isNotBlank()) {
+                Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), signingOutUid)
+            }
             try {
                 com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
             } catch (e: Exception) {
