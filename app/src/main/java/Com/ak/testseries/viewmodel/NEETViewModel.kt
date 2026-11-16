@@ -2694,7 +2694,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 """.trimIndent()
                 
-                val responseJson = callGeminiApiForQuestionsWithFallback(prompt)
+                val responseJson = generateAiForQuestions(prompt)
                 var autoFixed = false
                 
                 if (responseJson != null) {
@@ -3038,7 +3038,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 try {
-                    val resultText = callGeminiApiTextWithFallback(prompt)
+                    val resultText = generateAiText(prompt)
                     _askAiResponse.value = resultText ?: "Failed to connect to AI Mentor. Rate limit exceeded."
                 } catch (e: Exception) {
                     _askAiResponse.value = "Failed to connect to AI Mentor. Error: ${e.message}"
@@ -3121,7 +3121,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     Keep your analysis concise, clear, and strictly under 100 words.
                 """.trimIndent()
                 try {
-                    val resultText = callGeminiApiForQuestionsWithFallback(prompt)
+                    val resultText = generateAiForQuestions(prompt)
                     aiAnalysisResult = resultText ?: "AI analysis unavailable: provider request failed."
                     _reportErrorResponse.value = resultText ?: "AI analysis failed. No conclusion was generated."
                 } catch (e: Exception) {
@@ -4791,9 +4791,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 delay(800)
             }
 
-            val hasApiKey = isAdmin || hasStudentAIProviderConfigured()
+            val hasAiProvider = isAdmin || hasStudentAIProviderConfigured()
 
-            if (hasApiKey) {
+            if (hasAiProvider) {
                 try {
                     val totalQuestions = genQuestionsCount.value
                     val pages = lastExtractedPdfPages.value
@@ -4875,7 +4875,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             )
                             val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
 
-                            val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
+                            val resultJson = generateAiForQuestions(prompt, examSystemInstruction)
                             if (resultJson != null) {
                                 try {
                                     val report = Com.ak.testseries.exam.GeminiResponseValidator.parseResponse(
@@ -4962,7 +4962,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             )
                             val examSystemInstruction = Com.ak.testseries.exam.UniversalAIContext.buildSystemInstruction(examConfig)
 
-                            val resultJson = callGeminiApiForQuestionsWithFallback(prompt, examSystemInstruction)
+                            val resultJson = generateAiForQuestions(prompt, examSystemInstruction)
                             if (resultJson != null) {
                                 try {
                                     val report = Com.ak.testseries.exam.GeminiResponseValidator.parseResponse(
@@ -5019,7 +5019,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            val errorMsg = if (!hasApiKey) {
+            val errorMsg = if (!hasAiProvider) {
                 "AI generation is unavailable because no provider key is configured. No mock questions were created."
             } else {
                 "AI generation failed. No fallback questions were created; check provider status and retry."
@@ -5271,11 +5271,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val registeredExams = Com.ak.testseries.exam.UniversalExamRegistry.getAllExams()
             val examNamesList = registeredExams.map { it.examName }.joinToString(", ")
 
-            var geminiParsed = false
-            // Send extracted text to Gemini API ONLY when local parsing fails (!isQuestionsDetected), asking it to align questions and options
+            var aiParsed = false
+            // Send extracted text to AI provider ONLY when local parsing fails (!isQuestionsDetected), asking it to align questions and options
             if (!isQuestionsDetected) {
-                val hasApiKey = isAdmin || hasStudentAIProviderConfigured()
-                if (hasApiKey) {
+                val hasAiProvider = isAdmin || hasStudentAIProviderConfigured()
+                if (hasAiProvider) {
                     try {
                         // For metadata analysis, send ONLY the opening page chunk (Pages 1-2 header/instructions), NEVER the whole PDF
                         val openingPagesSnippet = if (pdfPages.isNotEmpty()) {
@@ -5290,7 +5290,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             supportedExamIds = registeredExams.associate { it.examName to it.examId }
                         )
                         
-                        val responseJson = callGeminiApiForQuestionsWithFallback(prompt)
+                        val responseJson = generateAiForQuestions(prompt)
                         if (responseJson != null) {
                             val cleanJson = responseJson.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
                             val jsonObj = JSONObject(cleanJson)
@@ -5340,7 +5340,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                 extractedDiagramPaths = diagramPaths
                             )
                             _pdfAnalysisState.value = PdfAnalysisState.Success(result)
-                            geminiParsed = true
+                            aiParsed = true
                             return@launch
                         }
                     } catch (e: Exception) {
@@ -5664,7 +5664,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    suspend fun callGeminiApiForQuestionsWithFallback(
+    suspend fun generateAiForQuestions(
         prompt: String,
         systemInstruction: String? = null
     ): String? {
@@ -5680,7 +5680,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         return callStudentAIProvider(prompt, systemInstruction, 8192)
     }
 
-    suspend fun callGeminiApiTextWithFallback(prompt: String): String? {
+    suspend fun generateAiText(prompt: String): String? {
         if (!_isGlobalAiEnabled.value) return null
         if (isAdmin) return callAdminGeminiContent(prompt, null, "text/plain")
         if (!hasStudentAIProviderConfigured()) {
