@@ -1579,7 +1579,7 @@ fun UploadAiTabScreen(viewModel: NEETViewModel) {
                                                 text = if (selectedLanguage == AppLanguage.HINDI) 
                                                     "⚡ स्ट्रक्चर्ड प्रश्न मिले! API लागत बचाने के लिए वर्कफ़्लो प्राइवेट मोड में ऑटो-रीडायरेक्ट हुआ" 
                                                 else 
-                                                    "⚡ Structured Questions Detected! Workflow auto-redirected to Private Mode (Saved Gemini API Cost)",
+                                                    "⚡ Structured Questions Detected! Workflow auto-redirected to Private Mode (Saved AI API Cost)",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF1E40AF)
