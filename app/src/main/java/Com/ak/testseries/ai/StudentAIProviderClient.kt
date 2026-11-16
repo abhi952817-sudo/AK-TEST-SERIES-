@@ -1,6 +1,7 @@
 package Com.ak.testseries.ai
 
 import Com.ak.testseries.utils.StudentAIKeyStore
+import Com.ak.testseries.utils.StudentAIUsageStore
 import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
@@ -107,7 +108,9 @@ object StudentAIProviderClient {
             throw StudentAIProviderException(message = "The AI provider request failed. Check your connection and provider settings.", cause = e)
         }
 
-        parseResponse(request.provider, request.model.trim(), rawBody)
+        val parsed = parseResponse(request.provider, request.model.trim(), rawBody)
+        StudentAIUsageStore.record(context.applicationContext, authenticatedUid, parsed)
+        parsed
     }
 
     /** Executes through the student's saved default provider and model. */
