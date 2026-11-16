@@ -269,6 +269,7 @@ object StudentAIProviderClient {
             .url(url)
             .post(body.toString().toRequestBody(jsonMediaType))
             .header("Accept", "application/json")
+            .header("Cache-Control", "no-store")
 
         when (provider) {
             StudentAIKeyStore.Provider.GEMINI -> builder.header("x-goog-api-key", apiKey)
