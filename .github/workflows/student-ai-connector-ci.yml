@@ -1,0 +1,64 @@
+name: Student AI Connector CI
+
+on:
+  push:
+    branches:
+      - feature/student-universal-ai-connectors-v1
+  pull_request:
+    branches:
+      - main
+      - feature/universal-gemini-ai-10-phase-2026-11-08
+
+permissions:
+  contents: read
+
+jobs:
+  student-ai-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Prepare environment
+        run: cp .env.example .env
+
+      - name: Generate debug signing key
+        run: |
+          keytool -genkey -v -keystore debug.keystore -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Run Android unit tests
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Assemble debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Android test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-ai-android-test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          if-no-files-found: warn
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-ai-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
