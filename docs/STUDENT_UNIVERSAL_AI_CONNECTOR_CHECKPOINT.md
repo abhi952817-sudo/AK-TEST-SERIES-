@@ -29,7 +29,7 @@
 | `StudentAIUsageStore.kt` | Stores successful request counts and the latest token usage only when returned by the provider. No fabricated token counts or cost estimates. |
 | Account lifecycle | Student key material and local usage data are cleared on logout and account switch. |
 | Tests added | Provider request/header contracts, response usage parsing, UID-scoped preferences and local usage records. |
-| CI | Dedicated Student AI workflow runs Android unit tests and debug APK assembly on each push to this branch. |
+| CI | Dedicated Student AI workflow runs Android unit tests and debug APK assembly on each push to this branch. Latest run is recorded below. |
 
 ## 3. Provider transport contract
 
@@ -80,11 +80,13 @@ These are overlapping Student responsibilities. During integration:
 |---|---|---|
 | Source changes committed and pushed | PASS | Branch contains Student-only files and Settings/ViewModel lifecycle hooks. |
 | Main changed | NO | All current changes are isolated to `feature/student-universal-ai-connectors-v1`. |
-| Android unit tests | OPEN | CI has been configured; no completed test result is recorded in this checkpoint. |
-| Debug APK build | OPEN | CI has been configured; no successful artifact is recorded in this checkpoint. |
+| Android unit tests | OPEN | Run #1 failed during test-source compilation because Robolectric's `RuntimeEnvironment.getApplication()` does not accept a type argument. Corrected in commits `28d938fb545cf3bc81e37cb6f170b527c6de9dc9` and `7cfefb6bca42b8746c4fd0d675d907962cb24762`. The latest run is still in progress; no PASS is recorded. |
+| Debug APK build | OPEN | The first run skipped APK assembly because unit tests failed. The latest run is still in progress; no successful artifact is recorded. |
 | Real provider API calls | NOT RUN | No live provider key was used. |
 | Device AndroidKeyStore behavior | NOT RUN | Requires device/emulator execution. |
 | Old AI branch integration | NOT STARTED | Must be selective and duplicate-aware. |
+
+**Latest code checkpoint before this documentation update:** `36aa741c82f87e598ab1027d716421aa6e9de636`. CI run #24: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43792046331` (in progress at inspection time). Older runs may be cancelled as newer pushes supersede them.  
 
 **Important:** A workflow starting is not a test pass. Record PASS only against the exact commit SHA and completed CI run.
 
