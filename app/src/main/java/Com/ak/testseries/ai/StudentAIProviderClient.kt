@@ -144,26 +144,26 @@ object StudentAIProviderClient {
         val models = when (provider) {
             StudentAIKeyStore.Provider.GEMINI -> {
                 val items = json.optJSONArray("models") ?: JSONArray()
-                buildList {
-                    for (index in 0 until items.length()) {
-                        val item = items.optJSONObject(index) ?: continue
-                        val methods = item.optJSONArray("supportedGenerationMethods")
-                        if (methods != null && (0 until methods.length()).none { methods.optString(it) == "generateContent" }) {
-                            continue
-                        }
-                        item.optString("name").removePrefix("models/")
-                            .takeIf { it.isNotBlank() }?.let(::add)
+                val discovered = ArrayList<String>()
+                for (index in 0 until items.length()) {
+                    val item = items.optJSONObject(index) ?: continue
+                    val methods = item.optJSONArray("supportedGenerationMethods")
+                    if (methods != null && (0 until methods.length()).none { methods.optString(it) == "generateContent" }) {
+                        continue
                     }
+                    val modelId = item.optString("name").removePrefix("models/")
+                    if (modelId.isNotBlank()) discovered.add(modelId)
                 }
+                discovered
             }
             else -> {
                 val items = json.optJSONArray("data") ?: JSONArray()
-                buildList {
-                    for (index in 0 until items.length()) {
-                        items.optJSONObject(index)?.optString("id")
-                            ?.takeIf { it.isNotBlank() }?.let(::add)
-                    }
+                val discovered = ArrayList<String>()
+                for (index in 0 until items.length()) {
+                    val modelId = items.optJSONObject(index)?.optString("id").orEmpty()
+                    if (modelId.isNotBlank()) discovered.add(modelId)
                 }
+                discovered
             }
         }.distinct().sorted()
         if (models.isEmpty()) {
