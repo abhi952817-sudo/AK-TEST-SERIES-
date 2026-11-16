@@ -59,6 +59,7 @@ The app's existing parsing, validation and approval/publish workflow remains in 
 | Existing Settings screen consolidated | Complete |
 | Student generation call sites routed to universal client | Complete for listed workflows |
 | Admin PDF route server-only | Source-level change complete; CI pending | Both Admin PDF screens pass `viewModel.generateAiForQuestions`; pipeline refuses to process without the server callback. Legacy direct Gemini transport and fallback generator removed. Question drafts are parsed and returned to the existing review UI; publication still requires Admin approval. |
+| Direct Student/legacy Gemini transport audit | Source-level scan | No direct provider HTTP transport remains in `NEETViewModel`; the retired `GeminiPdfExtractor` is fail-closed. Student generation goes through `StudentAIProviderClient`; Admin generation goes through the server connector. |
 | Admin server route preserved | Source-level check only |
 | Android unit tests on integration branch | Pending CI |
 | Debug APK build on integration branch | Pending CI |
@@ -66,7 +67,7 @@ The app's existing parsing, validation and approval/publish workflow remains in 
 | Main branch changes | None |
 | Production deployment / Firebase rules changes | None |
 
-**Current integration-branch checkpoint SHA before this documentation update:** `5acc0aeb54a20bb7ffd5e3cfd36afab0da49a8f3`. CI run #211: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793615957` (in progress); run #210: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793579769` (in progress). Older runs #207–#209 were cancelled when the workflow's cancel-in-progress setting was active; that setting has now been removed so future commits will not cancel previous runs. CI is triggered on pushes. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
+**Current integration-branch code checkpoint before this documentation update:** `ac6a7c561f387f4f053bbc6f61799ce73dffd78e`. CI run #213: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793752354` (Android unit tests and backend tests in progress). Previous runs #210–#212 are also in progress. Older runs were cancelled while cancel-in-progress was enabled; that setting has now been removed so future commits will not cancel previous runs. CI is triggered on pushes. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
 
 ## Remaining work
 
