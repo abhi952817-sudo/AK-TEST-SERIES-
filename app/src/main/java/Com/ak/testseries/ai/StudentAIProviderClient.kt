@@ -246,7 +246,7 @@ object StudentAIProviderClient {
         maxOutputTokens: Int
     ): Request {
         require(apiKey.isNotBlank())
-        require(model.matches(Regex("[A-Za-z0-9._:/-]{1,160}"))) { "Invalid model identifier." }
+        require(model.matches(Regex("[A-Za-z0-9._:-]{1,160}"))) { "Invalid model identifier." }
 
         val body = when (provider) {
             StudentAIKeyStore.Provider.GEMINI -> geminiBody(prompt, systemInstruction, maxOutputTokens)
