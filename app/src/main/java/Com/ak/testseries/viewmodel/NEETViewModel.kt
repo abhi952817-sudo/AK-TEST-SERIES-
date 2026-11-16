@@ -5508,13 +5508,17 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 maxOutputTokens = maxOutputTokens
             )
             activeAiModel.value = result.model
-            geminiStatusMessage.value = "Student ${result.provider.id} provider active (${result.model})."
+            val status = "Student ${result.provider.id} provider active (${result.model})."
+            geminiStatusMessage.value = status
+            aiGenStatusMessage.value = status
             result.text
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            geminiStatusMessage.value = e.localizedMessage?.take(240)
+            val status = e.localizedMessage?.take(240)
                 ?: "Student AI provider request failed."
+            geminiStatusMessage.value = status
+            aiGenStatusMessage.value = status
             null
         }
     }
