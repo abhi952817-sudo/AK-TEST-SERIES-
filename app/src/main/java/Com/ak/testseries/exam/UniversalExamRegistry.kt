@@ -80,12 +80,12 @@ object UniversalExamRegistry {
                                         listOf(
                                             SectionConfig("zoo_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
                                             SectionConfig("zoo_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
+                                        )
+                                    )
+                                )
                             )
                         )
                     )
-                )
-            )
-        )
                 )
             )
         )
