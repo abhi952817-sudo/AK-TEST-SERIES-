@@ -165,15 +165,19 @@ object StudentAIProviderClient {
                 cause = e
             )
         }
+        parseModelList(provider, body)
+    }
+
+    internal fun parseModelList(provider: StudentAIKeyStore.Provider, body: String): List<String> {
         val json = try {
             JSONObject(body)
         } catch (e: Exception) {
             throw StudentAIProviderException(message = "The provider returned an unreadable model list.", cause = e)
         }
-        val models = when (provider) {
+        val discovered = when (provider) {
             StudentAIKeyStore.Provider.GEMINI -> {
                 val items = json.optJSONArray("models") ?: JSONArray()
-                val discovered = ArrayList<String>()
+                val models = ArrayList<String>()
                 for (index in 0 until items.length()) {
                     val item = items.optJSONObject(index) ?: continue
                     val methods = item.optJSONArray("supportedGenerationMethods")
@@ -181,24 +185,24 @@ object StudentAIProviderClient {
                         continue
                     }
                     val modelId = item.optString("name").removePrefix("models/")
-                    if (modelId.isNotBlank()) discovered.add(modelId)
+                    if (modelId.isNotBlank()) models.add(modelId)
                 }
-                discovered
+                models
             }
             else -> {
                 val items = json.optJSONArray("data") ?: JSONArray()
-                val discovered = ArrayList<String>()
+                val models = ArrayList<String>()
                 for (index in 0 until items.length()) {
                     val modelId = items.optJSONObject(index)?.optString("id").orEmpty()
-                    if (modelId.isNotBlank()) discovered.add(modelId)
+                    if (modelId.isNotBlank()) models.add(modelId)
                 }
-                discovered
+                models
             }
         }.distinct().sorted()
-        if (models.isEmpty()) {
+        if (discovered.isEmpty()) {
             throw StudentAIProviderException(message = "The key was accepted, but no compatible text models were returned.")
         }
-        models
+        return discovered
     }
 
     internal fun buildModelListRequest(
