@@ -6768,8 +6768,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val signingOutUid = currentUserId.value
             if (signingOutUid.isNotBlank()) {
-                Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), signingOutUid)
-                Com.ak.testseries.utils.StudentAIUsageStore.clearAll(getApplication(), signingOutUid)
+                withContext(Dispatchers.IO) {
+                    Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), signingOutUid)
+                    Com.ak.testseries.utils.StudentAIUsageStore.clearAll(getApplication(), signingOutUid)
+                }
             }
             try {
                 com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
