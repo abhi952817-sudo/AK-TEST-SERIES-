@@ -66,13 +66,15 @@ object StudentAIKeyStore {
             val iv = payload.copyOfRange(0, IV_LENGTH)
             val ciphertext = payload.copyOfRange(IV_LENGTH, payload.size)
             val cipher = Cipher.getInstance(TRANSFORMATION)
+            val existingKey = getExistingSecretKey(uid, provider) ?: return null
             cipher.init(
                 Cipher.DECRYPT_MODE,
-                getOrCreateSecretKey(uid, provider),
+                existingKey,
                 GCMParameterSpec(TAG_LENGTH_BITS, iv)
             )
             cipher.doFinal(ciphertext).toString(Charsets.UTF_8).takeIf { it.isNotBlank() }
         } catch (_: Exception) {
+            clear(context, uid, provider)
             null
         }
     }
@@ -107,10 +109,14 @@ object StudentAIKeyStore {
         Provider.values().forEach { provider -> clear(context, uid, provider) }
     }
 
-    private fun getOrCreateSecretKey(uid: String, provider: Provider): SecretKey {
+    private fun getExistingSecretKey(uid: String, provider: Provider): SecretKey? {
         val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        return keyStore.getKey(alias(uid, provider), null) as? SecretKey
+    }
+
+    private fun getOrCreateSecretKey(uid: String, provider: Provider): SecretKey {
+        getExistingSecretKey(uid, provider)?.let { return it }
         val keyAlias = alias(uid, provider)
-        (keyStore.getKey(keyAlias, null) as? SecretKey)?.let { return it }
 
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
         generator.init(
