@@ -98,10 +98,11 @@ object StudentAIKeyStore {
     fun savePreferredModel(context: Context, uid: String, provider: Provider, model: String) {
         require(uid.isNotBlank()) { "Authenticated user ID is required." }
         require(model.isNotBlank() && model.length <= 160) { "A valid model ID is required." }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        val saved = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(preferredProviderKey(uid), provider.id)
             .putString(preferredModelKey(uid, provider), model.trim())
             .commit()
+        check(saved) { "Student AI preferences could not be saved." }
     }
 
     fun preferredProvider(context: Context, uid: String): Provider? {
@@ -120,12 +121,15 @@ object StudentAIKeyStore {
     @Synchronized
     fun clear(context: Context, uid: String, provider: Provider) {
         if (uid.isBlank()) return
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
+        val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val editor = preferences.edit()
             .remove(preferenceKey(uid, provider))
             .remove(savedAtKey(uid, provider))
             .remove(preferredModelKey(uid, provider))
-            .commit()
+        if (preferences.getString(preferredProviderKey(uid), null) == provider.id) {
+            editor.remove(preferredProviderKey(uid))
+        }
+        editor.commit()
         try {
             val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
             keyStore.deleteEntry(alias(uid, provider))
