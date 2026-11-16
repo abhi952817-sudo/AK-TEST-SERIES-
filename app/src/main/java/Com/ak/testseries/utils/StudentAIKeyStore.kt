@@ -62,11 +62,17 @@ object StudentAIKeyStore {
             .getString(preferenceKey(uid, provider), null) ?: return null
         return try {
             val payload = Base64.decode(encoded, Base64.NO_WRAP)
-            if (payload.size <= IV_LENGTH) return null
+            if (payload.size <= IV_LENGTH) {
+                clear(context, uid, provider)
+                return null
+            }
             val iv = payload.copyOfRange(0, IV_LENGTH)
             val ciphertext = payload.copyOfRange(IV_LENGTH, payload.size)
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            val existingKey = getExistingSecretKey(uid, provider) ?: return null
+            val existingKey = getExistingSecretKey(uid, provider) ?: run {
+                clear(context, uid, provider)
+                return null
+            }
             cipher.init(
                 Cipher.DECRYPT_MODE,
                 existingKey,
