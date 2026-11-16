@@ -6512,6 +6512,9 @@ fun AdminPanelScreen(viewModel: NEETViewModel) {
                                     UniversalExamAdminScreen(
                                         onBack = { selectedMenu = AdminMenu.DASHBOARD },
                                         isAiEnabled = viewModel.isGlobalAiEnabled.collectAsStateWithLifecycle().value,
+                                        onGenerateAi = { prompt, instruction ->
+                                            viewModel.generateAiForQuestions(prompt, instruction)
+                                        },
                                         onOpenPdfCropper = { uri: android.net.Uri, page: Int, onResult: (String) -> Unit ->
                                             viewModel.pdfCropperInitialPage.value = page
                                             viewModel.selectedPdfUri.value = uri
