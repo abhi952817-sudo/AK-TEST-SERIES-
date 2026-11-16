@@ -1090,6 +1090,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
             val initialUid = auth.currentUser?.uid ?: ""
             currentUserId.value = initialUid
+            if (initialUid.isNotBlank()) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    Com.ak.testseries.utils.LegacyStudentGeminiKeyMigration.migrate(getApplication(), initialUid)
+                }
+            }
             listenToCurrentUserAccountStatus(initialUid)
             loadUserBookmarks(initialUid)
             loadLastBackupMetadata(getApplication(), initialUid)
@@ -1100,6 +1105,15 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 checkAdminCustomClaim()
                 listenToCurrentUserAccountStatus(uid)
                 if (previousUid != uid) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        if (previousUid.isNotBlank()) {
+                            Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), previousUid)
+                            Com.ak.testseries.utils.StudentAIUsageStore.clearAll(getApplication(), previousUid)
+                        }
+                        if (uid.isNotBlank()) {
+                            Com.ak.testseries.utils.LegacyStudentGeminiKeyMigration.migrate(getApplication(), uid)
+                        }
+                    }
                     timerJob?.cancel()
                     _activeTest.value = null
                     _activeResult.value = null
@@ -6655,6 +6669,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout(authManager: Com.ak.testseries.domain.auth.AuthManager) {
         viewModelScope.launch {
+            val signingOutUid = currentUserId.value
+            if (signingOutUid.isNotBlank()) {
+                withContext(Dispatchers.IO) {
+                    Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), signingOutUid)
+                    Com.ak.testseries.utils.StudentAIUsageStore.clearAll(getApplication(), signingOutUid)
+                }
+            }
             authManager.signOut()
             userAccountListener?.remove()
             userAccountListener = null
@@ -6707,6 +6728,13 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         viewModelScope.launch {
+            val signingOutUid = currentUserId.value
+            if (signingOutUid.isNotBlank()) {
+                withContext(Dispatchers.IO) {
+                    Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), signingOutUid)
+                    Com.ak.testseries.utils.StudentAIUsageStore.clearAll(getApplication(), signingOutUid)
+                }
+            }
             try {
                 com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
             } catch (e: Exception) {
