@@ -58,6 +58,7 @@ The app's existing parsing, validation and approval/publish workflow remains in 
 | Legacy key migration helper added | Complete; device-level migration test still required |
 | Existing Settings screen consolidated | Complete |
 | Student generation call sites routed to universal client | Complete for listed workflows |
+| Admin PDF route server-only | Source-level change complete; CI pending | Admin PDF screens pass `viewModel.generateAiForQuestions`; pipeline refuses to process without the server callback. Legacy direct Gemini transport and fallback generator removed. |
 | Admin server route preserved | Source-level check only |
 | Android unit tests on integration branch | Pending CI |
 | Debug APK build on integration branch | Pending CI |
@@ -65,7 +66,7 @@ The app's existing parsing, validation and approval/publish workflow remains in 
 | Main branch changes | None |
 | Production deployment / Firebase rules changes | None |
 
-**Current integration-branch checkpoint SHA before this documentation update:** `4541e159b348508dfad027367cf309fc427e30ff`. CI run #198: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793117771` (pending at inspection time). CI is triggered on pushes by the existing AI Connector workflow. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
+**Current integration-branch checkpoint SHA before this documentation update:** `0fc5c718d4b83be8864850eac3f5384355172599`. CI run #208: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793555389` (pending at inspection time; run #207 was in progress). CI is triggered on pushes by the existing AI Connector workflow. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
 
 ## Remaining work
 
