@@ -6,6 +6,16 @@
 **Protected branch:** `main`  
 **Checkpoint date:** 2026-11-16
 
+## Branch comparison checkpoint
+
+At the time of this checkpoint:
+- `main` SHA: `dabeeaec90ddfde4fa69f4b89e71a5f2ffe1fcb4` (unchanged by this work).
+- Integration branch compared with Main: 385 commits ahead, 108 behind.
+- Student source branch compared with Main: 56 commits ahead, 0 behind.
+- Student source branch compared with the integration branch: 164 commits ahead, 385 behind.
+
+Because the branches have substantial divergence, do not merge either feature branch wholesale. Student files were ported selectively and adapted to existing AI/Admin call sites. Main has not been merged or modified.
+
 ## Integration approach
 
 The Student connector was developed separately, then its reviewed files and feature changes were selectively ported into the existing AI Connector branch. No wholesale merge of the Student branch or Main branch was performed.
@@ -67,7 +77,7 @@ The app's existing parsing, validation and approval/publish workflow remains in 
 | Main branch changes | None |
 | Production deployment / Firebase rules changes | None |
 
-**Current integration-branch code checkpoint before this documentation update:** `ccf711d22515f2ba09bb53cf866cbd6fd3f692fb`. CI run #220: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43794121818` (Android unit tests and backend tests in progress). Runs #216–#219 are also in progress. Earlier runs #212–#214 failed Android compilation due a stale `CommunityAdminUI.kt` reference to the removed `activeGeminiKeyIndex`; that UI collection was removed. Backend tests passed in run #212. The cancel-in-progress setting has been removed so future commits will not cancel previous runs. CI is triggered on pushes. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
+**Current integration-branch code checkpoint before this documentation update:** `765107b83a1068a75e7d534e876c8720323f4798`. CI run #221: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43794194960` (Android unit tests and backend tests in progress). Runs #216–#220 are also in progress. Earlier runs #212–#214 failed Android compilation due a stale `CommunityAdminUI.kt` reference to the removed `activeGeminiKeyIndex`; that UI collection was removed. Backend tests passed in run #212. The cancel-in-progress setting has been removed so future commits will not cancel previous runs. CI is triggered on pushes. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
 
 ## Remaining work
 
