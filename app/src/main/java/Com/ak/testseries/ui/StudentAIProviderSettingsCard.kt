@@ -61,13 +61,29 @@ fun StudentAIProviderSettingsCard(
     var isBusy by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
 
+    LaunchedEffect(uid) {
+        if (uid.isNotBlank()) {
+            val preferred = withContext(Dispatchers.IO) {
+                StudentAIKeyStore.preferredProvider(context, uid)
+            }
+            if (preferred != null) selectedProvider = preferred
+        }
+    }
+
     LaunchedEffect(uid, selectedProvider) {
         apiKeyInput = ""
-        modelInput = ""
         availableModels = emptyList()
         statusMessage = null
-        isConnected = if (uid.isBlank()) false else withContext(Dispatchers.IO) {
-            StudentAIKeyStore.isConfigured(context, uid, selectedProvider)
+        if (uid.isBlank()) {
+            isConnected = false
+            modelInput = ""
+        } else {
+            val stored = withContext(Dispatchers.IO) {
+                StudentAIKeyStore.isConfigured(context, uid, selectedProvider) to
+                    StudentAIKeyStore.preferredModel(context, uid, selectedProvider)
+            }
+            isConnected = stored.first
+            modelInput = stored.second.orEmpty()
         }
     }
 
@@ -148,6 +164,7 @@ fun StudentAIProviderSettingsCard(
                                 val models = StudentAIProviderClient.verifyApiKey(selectedProvider, apiKeyInput)
                                 withContext(Dispatchers.IO) {
                                     StudentAIKeyStore.save(context, uid, selectedProvider, apiKeyInput)
+                                    StudentAIKeyStore.savePreferredModel(context, uid, selectedProvider, models.first())
                                 }
                                 availableModels = models
                                 modelInput = models.firstOrNull().orEmpty()
@@ -220,6 +237,17 @@ fun StudentAIProviderSettingsCard(
                         }
                     }
                 }
+                TextButton(
+                    enabled = modelInput.isNotBlank() && !isBusy,
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                StudentAIKeyStore.savePreferredModel(context, uid, selectedProvider, modelInput)
+                            }
+                            statusMessage = if (isHindi) "डिफ़ॉल्ट मॉडल सेव हो गया।" else "Preferred model saved."
+                        }
+                    }
+                ) { Text(if (isHindi) "मॉडल सेव करें" else "Save model") }
                 Text(
                     if (isHindi)
                         "मॉडल ID अभी इस स्क्रीन में चुनी जाती है; अगला चरण इसे सभी Student AI सुविधाओं से जोड़ना है।"
