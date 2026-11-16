@@ -51,6 +51,9 @@ class StudentAIProviderException(
 ) : IOException(message, cause)
 
 object StudentAIProviderClient {
+    private const val MAX_PROMPT_CHARS = 100_000
+    private const val MAX_SYSTEM_INSTRUCTION_CHARS = 20_000
+
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -77,6 +80,10 @@ object StudentAIProviderClient {
         }
         require(request.model.isNotBlank()) { "Select a provider model first." }
         require(request.prompt.isNotBlank()) { "Prompt cannot be empty." }
+        require(request.prompt.length <= MAX_PROMPT_CHARS) { "Prompt is too large. Split the source into smaller batches." }
+        require((request.systemInstruction?.length ?: 0) <= MAX_SYSTEM_INSTRUCTION_CHARS) {
+            "System instruction is too large."
+        }
         require(request.maxOutputTokens in 1..32768) { "Output token limit is outside the supported range." }
 
         val apiKey = StudentAIKeyStore.read(context.applicationContext, authenticatedUid, request.provider)
