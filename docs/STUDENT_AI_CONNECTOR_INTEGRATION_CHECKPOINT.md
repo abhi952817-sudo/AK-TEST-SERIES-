@@ -2,7 +2,7 @@
 
 **Repository:** `abhi952817-sudo/AK-TEST-SERIES-`  
 **Integration branch:** `feature/universal-gemini-ai-10-phase-2026-11-08`  
-**Student source branch:** `feature/student-universal-ai-connectors-v1`  
+**Student source branch:** `feature/student-universal-ai-connectors-v1` (latest reviewed Student core checkpoint: `9c710af904dea246cbe79b28b30443fc05996212`)  
 **Protected branch:** `main`  
 **Checkpoint date:** 2026-11-16
 
@@ -65,8 +65,7 @@ The app's existing parsing, validation and approval/publish workflow remains in 
 | Main branch changes | None |
 | Production deployment / Firebase rules changes | None |
 
-**Current integration-branch checkpoint SHA:** `f5447564b77bf417f99cbd8caa58454c6beadd1f` before this document commit.  
-CI is triggered on pushes by the existing AI Connector workflow. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
+**Current integration-branch checkpoint SHA before this documentation update:** `4541e159b348508dfad027367cf309fc427e30ff`. CI run #198: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793117771` (pending at inspection time). CI is triggered on pushes by the existing AI Connector workflow. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
 
 ## Remaining work
 
