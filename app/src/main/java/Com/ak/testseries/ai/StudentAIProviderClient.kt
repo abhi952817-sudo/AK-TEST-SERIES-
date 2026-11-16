@@ -226,7 +226,7 @@ object StudentAIProviderClient {
             StudentAIKeyStore.Provider.CEREBRAS -> "https://api.cerebras.ai/v1/models"
             StudentAIKeyStore.Provider.ANTHROPIC -> "https://api.anthropic.com/v1/models"
         }
-        val builder = Request.Builder().url(url).get().header("Accept", "application/json")
+        val builder = Request.Builder().url(url).get().header("Accept", "application/json").header("Cache-Control", "no-store")
         when (provider) {
             StudentAIKeyStore.Provider.GEMINI -> builder.header("x-goog-api-key", apiKey)
             StudentAIKeyStore.Provider.ANTHROPIC -> builder
