@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
 fun UniversalExamAdminScreen(
     onBack: () -> Unit,
     isAiEnabled: Boolean = true,
+    onGenerateAi: (suspend (String, String?) -> String?)? = null,
     onOpenPdfCropper: (Uri, Int, (String) -> Unit) -> Unit = { _, _, _ -> },
     onPublishTest: (examName: String, questions: List<UniversalQuestionModel>, durationMinutes: Int) -> Unit = { _, _, _ -> }
 ) {
@@ -157,25 +158,28 @@ fun UniversalExamAdminScreen(
                         isProcessing = true
                         scope.launch {
                             try {
-                                val results = UniversalPdfPipeline.processPdfForExam(
+                                val result = UniversalPdfPipeline.processAdminUploadedPdf(
                                     context = context,
                                     pdfUri = pdfUri!!,
                                     examConfig = selectedExam,
-                                    subjectId = selectedSubjectId,
-                                    expectedQuestions = 20,
-                                    isAiEnabled = isAiEnabled,
-                                    onProgress = { prog ->
-                                        progressStatus = prog.statusMessage
-                                    }
+                                    selectedSubject = selectedSubjectId,
+                                    serverGenerate = onGenerateAi
                                 )
                                 extractedQuestions.clear()
-                                extractedQuestions.addAll(results)
-                                isProcessing = false
-                                selectedTab = 2 // Move to review
-                                Toast.makeText(context, "Extracted ${results.size} questions successfully!", Toast.LENGTH_SHORT).show()
+                                extractedQuestions.addAll(result.questions)
+                                progressStatus = result.error ?: "PDF route status: ${result.status}"
+                                if (result.questions.isNotEmpty()) {
+                                    selectedTab = 2 // Move only validated draft questions to review.
+                                    Toast.makeText(context, "Prepared ${result.questions.size} questions for Admin review.", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, result.error ?: "This PDF route produced no question draft.", Toast.LENGTH_LONG).show()
+                                }
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
                             } catch (e: Exception) {
-                                isProcessing = false
                                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                            } finally {
+                                isProcessing = false
                             }
                         }
                     }
