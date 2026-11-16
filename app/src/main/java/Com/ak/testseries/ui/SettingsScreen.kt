@@ -42,6 +42,7 @@ fun SettingsScreen(
     val isOfflineMode by viewModel.isOfflineMode.collectAsStateWithLifecycle()
     val userProfileData by viewModel.userProfile.collectAsStateWithLifecycle()
     val currentAuthUid by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val isAdmin by viewModel.isAdminFlow.collectAsStateWithLifecycle()
     val backupUiState by viewModel.backupUiState.collectAsStateWithLifecycle()
 
     var showThemeDialog by remember { mutableStateOf(false) }
@@ -116,7 +117,14 @@ fun SettingsScreen(
             }
             SettingsMenuItem(icon = Icons.Rounded.Star, title = if (isHindi) "मेरी सदस्यता" else "My Subscription", subtitle = if (isHindi) "प्रीमियम प्लान प्रबंधित करें" else "Manage premium plans", onClick = { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.SUBSCRIPTION) })
             SettingsMenuItem(icon = Icons.Rounded.Notifications, title = if (isHindi) "सूचनाएं" else stringRes("Notifications"), subtitle = if (isHindi) "पुश और ईमेल प्राथमिकताएं" else "Push and email preferences", onClick = { viewModel.navigateToScreen(Com.ak.testseries.viewmodel.AppScreen.USER_NOTIFICATIONS) })
-            
+
+            StudentAIProviderSettingsCard(
+                uid = currentAuthUid,
+                isHindi = isHindi,
+                isAdmin = isAdmin,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
             SettingsSectionTitle(if (isHindi) "डेटा सुरक्षा व बैकअप (Google Drive & SAF)" else "Data Safety & Backup (Google Drive & SAF)")
 
