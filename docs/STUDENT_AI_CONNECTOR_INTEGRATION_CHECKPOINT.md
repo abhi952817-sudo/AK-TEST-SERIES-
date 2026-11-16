@@ -61,13 +61,13 @@ The app's existing parsing, validation and approval/publish workflow remains in 
 | Admin PDF route server-only | Source-level change complete; CI pending | Both Admin PDF screens pass `viewModel.generateAiForQuestions`; pipeline refuses to process without the server callback. Legacy direct Gemini transport and fallback generator removed. Question drafts are parsed and returned to the existing review UI; publication still requires Admin approval. |
 | Direct Student/legacy Gemini transport audit | Source-level scan | No direct provider HTTP transport remains in `NEETViewModel`; the retired `GeminiPdfExtractor` is fail-closed. Student generation goes through `StudentAIProviderClient`; Admin generation goes through the server connector. |
 | Admin server route preserved | Source-level check only |
-| Android unit tests on integration branch | Pending CI; one compile failure diagnosed and patched | Run #212 failed only at the stale `activeGeminiKeyIndex` reference in `CommunityAdminUI.kt`; removed in the latest code checkpoint. Latest run #216 is in progress. |
-| Debug APK build on integration branch | Pending CI | Run #212 skipped APK assembly because compilation failed; latest run #216 will verify the corrected tree. |
+| Android unit tests on integration branch | Pending CI; earlier compile failure diagnosed and patched | Runs #212–#214 failed at the stale `activeGeminiKeyIndex` reference in `CommunityAdminUI.kt`; removed in later commits. Latest run #220 is in progress. |
+| Debug APK build on integration branch | Pending CI | Earlier runs skipped APK assembly after compilation failure; latest run #220 will verify the corrected tree. |
 | Real provider calls / AndroidKeyStore device test | Not run |
 | Main branch changes | None |
 | Production deployment / Firebase rules changes | None |
 
-**Current integration-branch code checkpoint before this documentation update:** `f874762f1ee88404cb2a057fdd69d8d697e10522`. CI run #216: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793953237` (in progress). Run #212 failed Android compilation because `CommunityAdminUI.kt` still collected the removed, unused `activeGeminiKeyIndex`; that stale UI line was removed in this checkpoint. Backend tests passed in run #212. Runs #213–#215 remain in progress. The cancel-in-progress setting has been removed so future commits will not cancel previous runs. CI is triggered on pushes. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
+**Current integration-branch code checkpoint before this documentation update:** `ccf711d22515f2ba09bb53cf866cbd6fd3f692fb`. CI run #220: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43794121818` (Android unit tests and backend tests in progress). Runs #216–#219 are also in progress. Earlier runs #212–#214 failed Android compilation due a stale `CommunityAdminUI.kt` reference to the removed `activeGeminiKeyIndex`; that UI collection was removed. Backend tests passed in run #212. The cancel-in-progress setting has been removed so future commits will not cancel previous runs. CI is triggered on pushes. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
 
 ## Remaining work
 
