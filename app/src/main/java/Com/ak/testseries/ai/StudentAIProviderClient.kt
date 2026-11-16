@@ -2,6 +2,7 @@ package Com.ak.testseries.ai
 
 import Com.ak.testseries.utils.StudentAIKeyStore
 import android.content.Context
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -68,6 +69,10 @@ object StudentAIProviderClient {
         request: StudentAITextRequest
     ): StudentAITextResponse = withContext(Dispatchers.IO) {
         require(authenticatedUid.isNotBlank()) { "Sign in before using a personal AI provider." }
+        val signedInUid = FirebaseAuth.getInstance().currentUser?.uid
+        if (signedInUid.isNullOrBlank() || signedInUid != authenticatedUid) {
+            throw StudentAIProviderException(message = "The signed-in account changed. Reopen provider settings and try again.")
+        }
         require(request.model.isNotBlank()) { "Select a provider model first." }
         require(request.prompt.isNotBlank()) { "Prompt cannot be empty." }
         require(request.maxOutputTokens in 1..32768) { "Output token limit is outside the supported range." }
