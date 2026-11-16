@@ -6,6 +6,28 @@
 **Protected branch:** `main`  
 **Checkpoint date:** 2026-11-16
 
+## 2026-11-16 integration audit
+
+### Universal module status
+- Confirmed integrated: Student generation uses `NEETViewModel.generateAiForQuestions()` -> `StudentAIProviderClient.generatePreferred()`; Admin generation uses the server-side callable. Prompt construction is shared through `UniversalAIContext`.
+- Confirmed universal question-generation path: `NEETViewModel` builds exam-specific prompts with `UniversalAIContext.buildDynamicGenerationPrompt()` and validates responses with `GeminiResponseValidator`. PDF exam recognition also uses the registered `UniversalExamRegistry`.
+- Student providers implemented in the connector: Gemini, OpenAI, Groq, Anthropic Claude, Cerebras. Student credentials stay on-device; Admin connector remains separate and server-side.
+- The registered exam catalogue contains 20+ exam configurations, but this does **not** mean every exam's syllabus is independently verified. `UniversalAIContext` explicitly requires an Admin-supplied, verified official syllabus for non-NEET exams and refuses to claim official scope from legacy catalogue entries.
+- Admin PDF route is server-Gemini only; it is not yet a provider-neutral Admin multi-provider connector. It currently extracts PDF text and fails to review when no readable text is available; image-only/scanned PDF OCR and image/diagram-aware extraction are not yet integrated in this Admin route.
+- Confirmed Universal Admin UI limitation: `ProcessPdfTab` currently exposes subjects from only the first stage and first paper. `UniversalPdfPipeline` also resolves sections without a selected paper and stamps the first configured paper ID. Multi-stage/multi-paper exams therefore need a selected stage/paper flow before this route can be called fully universal. Track as **UAI-001 / High / confirmed source-level**.
+- Student and Admin use the shared Universal prompt/context policy, but Student PDF workflows do not use the Admin-only `processAdminUploadedPdf()` route; they use the existing local extraction/OCR + Student provider + universal generation/validation path.
+
+### CI diagnosis and fix
+- Integration CI run #222 failed because the workflow used JDK 17 while the project compiles against Android SDK 36.1 and Robolectric reports SDK 36 requires Java 21. This was an environment/toolchain mismatch, not a Kotlin compilation error.
+- Updated `.github/workflows/universal-gemini-validation.yml` to JDK 21. Student branch CI run #39 passed Android unit tests and debug APK assembly on JDK 21.
+- Added a second authenticated-UID check immediately before sending Student provider requests, preventing a key read for one account from being sent if the signed-in account changes during the operation.
+- Integration CI reruns #223, #224 and #225 are pending/in progress at the time of this checkpoint; backend tests passed in the observed #223/#224 jobs. Do not mark integration Android tests or APK assembly passed until a full run completes successfully.
+
+### Branch / duplicate check
+- Main remains unchanged.
+- Integration branch has the Student connector classes at the same canonical paths as the Student source branch; the overlap is intentional selective porting, not a second set of duplicate classes. The retired Gemini-only store is absent; the migration helper is retained only to clear legacy credentials.
+- Branches remain substantially divergent. Continue selective integration only; do not merge either feature branch wholesale.
+
 ## Branch comparison checkpoint
 
 At the time of this checkpoint:
