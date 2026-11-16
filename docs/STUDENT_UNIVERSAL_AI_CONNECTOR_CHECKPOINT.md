@@ -86,7 +86,7 @@ These are overlapping Student responsibilities. During integration:
 | Device AndroidKeyStore behavior | NOT RUN | Requires device/emulator execution. |
 | Old AI branch integration | NOT STARTED | Must be selective and duplicate-aware. |
 
-**Latest Student branch code checkpoint before this documentation update:** `9c710af904dea246cbe79b28b30443fc05996212`. CI run #29: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793053452` (in progress at inspection time). Earlier successful run #25: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43792072896` (unit tests and debug APK assembly both passed for SHA `2d54fe2d34594e56e523efdbba4990c28626c5c1`). The integrated old AI branch checkpoint at this point is `a4a4b64120073b80b040f71fad30e780033fd8e3`; its own CI remains pending/in progress. Older runs may be cancelled as newer pushes supersede them.  
+**Latest Student branch code checkpoint before this documentation update:** `83c25745660b9eed5601909af6d00e75615adc68`. CI run #31: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793610926` (in progress). Earlier successful run #25: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43792072896` (unit tests and debug APK assembly both passed for SHA `2d54fe2d34594e56e523efdbba4990c28626c5c1`). The integrated old AI branch checkpoint at this point is `5acc0aeb54a20bb7ffd5e3cfd36afab0da49a8f3`; its CI runs #210 and #211 are in progress. The cancel-in-progress setting has been removed from both development workflows so future commits will not cancel previous runs.  
 
 **Important:** A workflow starting is not a test pass. Record PASS only against the exact commit SHA and completed CI run.
 
