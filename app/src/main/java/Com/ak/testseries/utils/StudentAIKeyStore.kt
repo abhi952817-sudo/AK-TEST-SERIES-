@@ -89,12 +89,36 @@ object StudentAIKeyStore {
     }
 
     @Synchronized
+    fun savePreferredModel(context: Context, uid: String, provider: Provider, model: String) {
+        require(uid.isNotBlank()) { "Authenticated user ID is required." }
+        require(model.isNotBlank() && model.length <= 160) { "A valid model ID is required." }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(preferredProviderKey(uid), provider.id)
+            .putString(preferredModelKey(uid, provider), model.trim())
+            .commit()
+    }
+
+    fun preferredProvider(context: Context, uid: String): Provider? {
+        if (uid.isBlank()) return null
+        val id = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(preferredProviderKey(uid), null) ?: return null
+        return Provider.values().firstOrNull { it.id == id }
+    }
+
+    fun preferredModel(context: Context, uid: String, provider: Provider): String? {
+        if (uid.isBlank()) return null
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(preferredModelKey(uid, provider), null)
+    }
+
+    @Synchronized
     fun clear(context: Context, uid: String, provider: Provider) {
         if (uid.isBlank()) return
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .remove(preferenceKey(uid, provider))
             .remove(savedAtKey(uid, provider))
+            .remove(preferredModelKey(uid, provider))
             .commit()
         try {
             val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
@@ -107,6 +131,9 @@ object StudentAIKeyStore {
     fun clearAll(context: Context, uid: String) {
         if (uid.isBlank()) return
         Provider.values().forEach { provider -> clear(context, uid, provider) }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove(preferredProviderKey(uid))
+            .commit()
     }
 
     private fun getExistingSecretKey(uid: String, provider: Provider): SecretKey? {
@@ -138,6 +165,12 @@ object StudentAIKeyStore {
 
     private fun savedAtKey(uid: String, provider: Provider): String =
         preferenceKey(uid, provider) + "_saved_at"
+
+    private fun preferredProviderKey(uid: String): String =
+        "student_ai_active_provider_" + digest(uid).take(32)
+
+    private fun preferredModelKey(uid: String, provider: Provider): String =
+        "student_ai_model_" + digest(uid + "|" + provider.id).take(40)
 
     private fun alias(uid: String, provider: Provider): String =
         "akts_student_ai_" + digest(uid + "|" + provider.id).take(40)
