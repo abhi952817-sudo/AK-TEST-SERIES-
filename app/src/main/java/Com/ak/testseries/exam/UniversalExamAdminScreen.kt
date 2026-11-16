@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
  * Universal Exam Management & Question Review Admin UI
  * Features:
  * - 20 Indian Competitive Exam Configurations
- * - PDF Upload & Controlled Batch Processing
+ * - PDF Upload & Server-Routed Draft Generation
  * - Multi-Stage Validation Badges & Quality Scores
  * - Manual Diagram Attachment Integration
  * - Question Approval / Rejection Workflow
