@@ -50,7 +50,8 @@ object UniversalPdfPipeline {
         val documentText: String,
         val routing: JSONObject?,
         val analysis: JSONObject?,
-        val error: String? = null
+        val error: String? = null,
+        val questions: List<UniversalQuestionModel> = emptyList()
     )
 
     /**
@@ -139,7 +140,22 @@ object UniversalPdfPipeline {
         }
         // Never allow model output alone to publish a syllabus or a test.
         analysisJson.put("publishAllowed", false)
-        AdminPdfRouteResult("DRAFT_REVIEW", documentText, routingJson, analysisJson)
+        val draftQuestions = if (nextRoute == "QUESTION_EXTRACTION") {
+            parseGeminiResponse(
+                jsonString = analysisJson.toString(),
+                examConfig = examConfig,
+                stageId = "",
+                subjectId = selectedSubject.ifBlank { routingJson.optString("subject", "") },
+                batchIndex = 0,
+                batchSize = 20,
+                existingHashes = emptyMap(),
+                actualModel = "ADMIN_SERVER_AI",
+                actualSource = "Admin PDF draft"
+            )
+        } else {
+            emptyList()
+        }
+        AdminPdfRouteResult("DRAFT_REVIEW", documentText, routingJson, analysisJson, questions = draftQuestions)
     }
 
     /**
