@@ -4,6 +4,7 @@ import Com.ak.testseries.utils.StudentAIKeyStore
 import Com.ak.testseries.utils.StudentAIUsageStore
 import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -102,6 +103,8 @@ object StudentAIProviderClient {
                 }
                 body
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: StudentAIProviderException) {
             throw e
         } catch (e: Exception) {
@@ -109,7 +112,11 @@ object StudentAIProviderClient {
         }
 
         val parsed = parseResponse(request.provider, request.model.trim(), rawBody)
-        StudentAIUsageStore.record(context.applicationContext, authenticatedUid, parsed)
+        try {
+            StudentAIUsageStore.record(context.applicationContext, authenticatedUid, parsed)
+        } catch (_: Exception) {
+            // Usage persistence is best-effort; it must not discard a valid provider response.
+        }
         parsed
     }
 
@@ -157,6 +164,8 @@ object StudentAIProviderClient {
                 }
                 responseBody
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: StudentAIProviderException) {
             throw e
         } catch (e: Exception) {
