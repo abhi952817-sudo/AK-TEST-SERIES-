@@ -9,10 +9,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Universal PDF Processing Pipeline
- * Handles PDF -> Text -> Question Detection -> Multi-Stage Validation -> Question Bank insertion.
- * Implements Batch Processing, Cost Control, and Retry/Resume mechanisms.
- * Dynamically injects exam-specific AI instructions, pattern rules, and difficulty ratios.
+ * Universal PDF routing and validation for Admin review.
+ * Admin generation is delegated to the server-side connector; no client-side Admin key is accepted.
+ * The retired Gemini-only batch generator is fail-closed and kept temporarily for source compatibility.
  */
 object UniversalPdfPipeline {
 
