@@ -238,6 +238,39 @@ fun StudentAIProviderSettingsCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (availableModels.isEmpty()) {
+                    TextButton(
+                        enabled = !isBusy,
+                        onClick = {
+                            scope.launch {
+                                isBusy = true
+                                try {
+                                    if (FirebaseAuth.getInstance().currentUser?.uid != uid) {
+                                        throw IllegalStateException("The signed-in account changed. Reopen Settings and try again.")
+                                    }
+                                    val savedKey = withContext(Dispatchers.IO) {
+                                        StudentAIKeyStore.read(context, uid, selectedProvider)
+                                    } ?: throw IllegalStateException("The saved provider key is unavailable. Reconnect it.")
+                                    val models = StudentAIProviderClient.verifyApiKey(selectedProvider, savedKey)
+                                    availableModels = models
+                                    if (modelInput.isBlank()) {
+                                        modelInput = models.first()
+                                        withContext(Dispatchers.IO) {
+                                            StudentAIKeyStore.savePreferredModel(context, uid, selectedProvider, modelInput)
+                                        }
+                                    }
+                                    statusMessage = if (isHindi) "मॉडल सूची अपडेट हो गई।" else "Model catalogue refreshed."
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (error: Exception) {
+                                    statusMessage = error.message ?: "Could not load provider models."
+                                } finally {
+                                    isBusy = false
+                                }
+                            }
+                        }
+                    ) { Text(if (isHindi) "सेव key से मॉडल लोड करें" else "Load models using saved key") }
+                }
                 OutlinedTextField(
                     value = modelInput,
                     onValueChange = { modelInput = it },
