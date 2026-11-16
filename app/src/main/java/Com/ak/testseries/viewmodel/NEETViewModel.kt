@@ -3039,7 +3039,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                 try {
                     val resultText = generateAiText(prompt)
-                    _askAiResponse.value = resultText ?: "Failed to connect to AI Mentor. Rate limit exceeded."
+                    _askAiResponse.value = resultText
+                        ?: "AI provider request failed. Check the saved key, selected model, quota and network connection."
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -3047,9 +3048,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } else {
                 _askAiResponse.value = if (language == AppLanguage.HINDI) {
-                    "AI समाधान उपलब्ध नहीं है। Settings में अपनी Gemini API Key जोड़ें।"
+                    "AI समाधान उपलब्ध नहीं है। Settings में अपना AI Provider और Model जोड़ें।"
                 } else {
-                    "AI solution is unavailable. Connect your personal Gemini API key in Settings."
+                    "AI solution is unavailable. Connect a personal AI provider and select a model in Settings."
                 }
             }
             
