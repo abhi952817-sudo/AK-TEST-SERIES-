@@ -110,6 +110,32 @@ object StudentAIProviderClient {
         parseResponse(request.provider, request.model.trim(), rawBody)
     }
 
+    /** Executes through the student's saved default provider and model. */
+    suspend fun generatePreferred(
+        context: Context,
+        authenticatedUid: String,
+        prompt: String,
+        systemInstruction: String? = null,
+        maxOutputTokens: Int = 2048
+    ): StudentAITextResponse {
+        val provider = StudentAIKeyStore.preferredProvider(context, authenticatedUid)
+            ?: throw StudentAIProviderException(message = "Choose a personal AI provider in Settings first.")
+        val model = StudentAIKeyStore.preferredModel(context, authenticatedUid, provider)
+            ?.takeIf { it.isNotBlank() }
+            ?: throw StudentAIProviderException(message = "Choose a model for your personal AI provider in Settings first.")
+        return generate(
+            context = context,
+            authenticatedUid = authenticatedUid,
+            request = StudentAITextRequest(
+                provider = provider,
+                model = model,
+                prompt = prompt,
+                systemInstruction = systemInstruction,
+                maxOutputTokens = maxOutputTokens
+            )
+        )
+    }
+
     /** Verifies a personal key by requesting the provider's model catalogue. */
     suspend fun verifyApiKey(
         provider: StudentAIKeyStore.Provider,
