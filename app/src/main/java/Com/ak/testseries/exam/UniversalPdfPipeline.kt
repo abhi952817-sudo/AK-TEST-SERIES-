@@ -157,38 +157,6 @@ object UniversalPdfPipeline {
         AdminPdfRouteResult("DRAFT_REVIEW", documentText, routingJson, analysisJson, questions = draftQuestions)
     }
 
-    /**
-     * Retired Gemini-only legacy pipeline. It previously made direct client-side Gemini
-     * requests and could synthesize fallback questions when generation failed.
-     * Keep a fail-closed compatibility stub until all external references are removed.
-     */
-    @Deprecated("Use the canonical Student AI provider/ViewModel flow or the Admin server PDF route.")
-    @Suppress("UNUSED_PARAMETER")
-    suspend fun processPdfForExam(
-        context: Context? = null,
-        pdfUri: Uri,
-        examConfig: ExamConfig,
-        subjectId: String,
-        stageId: String = "",
-        expectedQuestions: Int = 20,
-        batchSize: Int = 10,
-        resumeFromBatch: Int = 1,
-        existingQuestionsCache: List<UniversalQuestionModel> = emptyList(),
-        apiKey: String? = null,
-        isAiEnabled: Boolean = true,
-        onProgress: (BatchProgress) -> Unit = {}
-    ): List<UniversalQuestionModel> {
-        onProgress(
-            BatchProgress(
-                totalBatches = 0,
-                currentBatch = 0,
-                processedQuestions = existingQuestionsCache.size,
-                statusMessage = "Legacy Gemini-only PDF generation is disabled. Use the canonical AI provider workflow."
-            )
-        )
-        return emptyList()
-    }
-
     private fun parseGeminiResponse(
         jsonString: String,
         examConfig: ExamConfig,
