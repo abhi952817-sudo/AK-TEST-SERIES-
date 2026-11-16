@@ -3040,6 +3040,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val resultText = generateAiText(prompt)
                     _askAiResponse.value = resultText ?: "Failed to connect to AI Mentor. Rate limit exceeded."
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _askAiResponse.value = "Failed to connect to AI Mentor. Error: ${e.message}"
                 }
@@ -3124,6 +3126,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val resultText = generateAiForQuestions(prompt)
                     aiAnalysisResult = resultText ?: "AI analysis unavailable: provider request failed."
                     _reportErrorResponse.value = resultText ?: "AI analysis failed. No conclusion was generated."
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     aiAnalysisResult = "AI analysis unavailable: ${e.localizedMessage ?: "provider error"}"
                     _reportErrorResponse.value = "AI analysis failed. Please retry after checking the provider connection."
