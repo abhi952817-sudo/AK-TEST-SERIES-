@@ -110,6 +110,91 @@ object StudentAIProviderClient {
         parseResponse(request.provider, request.model.trim(), rawBody)
     }
 
+    /** Verifies a personal key by requesting the provider's model catalogue. */
+    suspend fun verifyApiKey(
+        provider: StudentAIKeyStore.Provider,
+        apiKey: String
+    ): List<String> = withContext(Dispatchers.IO) {
+        require(apiKey.isNotBlank()) { "Enter an API key first." }
+        val request = buildModelListRequest(provider, apiKey.trim())
+        val body = try {
+            httpClient.newCall(request).execute().use { response ->
+                val responseBody = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    throw StudentAIProviderException(
+                        httpStatus = response.code,
+                        message = providerErrorMessage(response.code)
+                    )
+                }
+                responseBody
+            }
+        } catch (e: StudentAIProviderException) {
+            throw e
+        } catch (e: Exception) {
+            throw StudentAIProviderException(
+                message = "Could not verify the provider key. Check your connection and try again.",
+                cause = e
+            )
+        }
+        val json = try {
+            JSONObject(body)
+        } catch (e: Exception) {
+            throw StudentAIProviderException(message = "The provider returned an unreadable model list.", cause = e)
+        }
+        val models = when (provider) {
+            StudentAIKeyStore.Provider.GEMINI -> {
+                val items = json.optJSONArray("models") ?: JSONArray()
+                buildList {
+                    for (index in 0 until items.length()) {
+                        val item = items.optJSONObject(index) ?: continue
+                        val methods = item.optJSONArray("supportedGenerationMethods")
+                        if (methods != null && (0 until methods.length()).none { methods.optString(it) == "generateContent" }) {
+                            continue
+                        }
+                        item.optString("name").removePrefix("models/")
+                            .takeIf { it.isNotBlank() }?.let(::add)
+                    }
+                }
+            }
+            else -> {
+                val items = json.optJSONArray("data") ?: JSONArray()
+                buildList {
+                    for (index in 0 until items.length()) {
+                        items.optJSONObject(index)?.optString("id")
+                            ?.takeIf { it.isNotBlank() }?.let(::add)
+                    }
+                }
+            }
+        }.distinct().sorted()
+        if (models.isEmpty()) {
+            throw StudentAIProviderException(message = "The key was accepted, but no compatible text models were returned.")
+        }
+        models
+    }
+
+    internal fun buildModelListRequest(
+        provider: StudentAIKeyStore.Provider,
+        apiKey: String
+    ): Request {
+        require(apiKey.isNotBlank())
+        val url = when (provider) {
+            StudentAIKeyStore.Provider.GEMINI -> "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100"
+            StudentAIKeyStore.Provider.OPENAI -> "https://api.openai.com/v1/models"
+            StudentAIKeyStore.Provider.GROQ -> "https://api.groq.com/openai/v1/models"
+            StudentAIKeyStore.Provider.CEREBRAS -> "https://api.cerebras.ai/v1/models"
+            StudentAIKeyStore.Provider.ANTHROPIC -> "https://api.anthropic.com/v1/models"
+        }
+        val builder = Request.Builder().url(url).get().header("Accept", "application/json")
+        when (provider) {
+            StudentAIKeyStore.Provider.GEMINI -> builder.header("x-goog-api-key", apiKey)
+            StudentAIKeyStore.Provider.ANTHROPIC -> builder
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+            else -> builder.header("Authorization", "Bearer $apiKey")
+        }
+        return builder.build()
+    }
+
     internal fun buildHttpRequest(
         provider: StudentAIKeyStore.Provider,
         apiKey: String,
