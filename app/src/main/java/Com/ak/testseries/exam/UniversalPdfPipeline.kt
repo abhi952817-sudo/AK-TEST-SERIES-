@@ -4,18 +4,15 @@ import android.content.Context
 import android.net.Uri
 import Com.ak.testseries.utils.CompactMarkdownFormatter
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Universal PDF Processing Pipeline
  * Handles PDF -> Text -> Question Detection -> Multi-Stage Validation -> Question Bank insertion.
  * Implements Batch Processing, Cost Control, and Retry/Resume mechanisms.
- * Dynamically injects exam-specific aiSystemInstruction, pattern rules, and difficulty ratios into the Gemini API.
+ * Dynamically injects exam-specific AI instructions, pattern rules, and difficulty ratios.
  */
 object UniversalPdfPipeline {
 
@@ -57,7 +54,7 @@ object UniversalPdfPipeline {
     )
 
     /**
-     * Admin PDF entry point. Extracts text, asks Gemini to classify the document,
+     * Admin PDF entry point. Extracts text, asks the Admin server connector to classify the document,
      * then invokes the matching syllabus or test-coverage prompt. This function
      * returns a reviewable draft only; persistence and publication require Admin UI approval.
      */
@@ -65,22 +62,15 @@ object UniversalPdfPipeline {
         context: Context,
         pdfUri: Uri,
         examConfig: ExamConfig,
-        apiKey: String? = null,
         selectedSubject: String = "",
         approvedSyllabusJson: String = "",
         serverGenerate: (suspend (String, String?) -> String?)? = null
     ): AdminPdfRouteResult = withContext(Dispatchers.IO) {
-        val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() }
-        if (effectiveApiKey.isNullOrBlank() && serverGenerate == null) {
-            return@withContext AdminPdfRouteResult("NEEDS_REVIEW", "", null, null, "No approved Gemini provider route is configured.")
+        if (serverGenerate == null) {
+            return@withContext AdminPdfRouteResult("NEEDS_REVIEW", "", null, null, "Admin server AI connector is not configured.")
         }
-        suspend fun executeGemini(prompt: String, instruction: String?): GeminiApiExecutionResult? {
-            if (serverGenerate != null) {
-                val responseText = serverGenerate.invoke(prompt, instruction) ?: return null
-                return GeminiApiExecutionResult(responseText, "server", "server")
-            }
-            return effectiveApiKey?.let { callGeminiApi(it, prompt, instruction) }
-        }
+        suspend fun executeAdminAi(prompt: String, instruction: String?): String? =
+            serverGenerate.invoke(prompt, instruction)
 
         val extractedText = try {
             val tempFile = java.io.File.createTempFile("admin_route_", ".pdf", context.cacheDir)
@@ -103,13 +93,13 @@ object UniversalPdfPipeline {
         }
         val documentText = CompactMarkdownFormatter.formatToCompactMarkdown(extractedText).take(50000)
 
-        val routingResult = executeGemini(
+        val routingResult = executeAdminAi(
             UniversalAIContext.buildPdfDocumentRoutingPrompt(examConfig, documentText),
             UniversalAIContext.buildSystemInstruction(examConfig)
-        ) ?: return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, null, null, "Gemini document classification failed.")
+        ) ?: return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, null, null, "Admin AI document classification failed.")
 
-        val routingJson = try { JSONObject(routingResult.responseText) } catch (_: Exception) {
-            return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, null, null, "Gemini returned invalid routing JSON.")
+        val routingJson = try { JSONObject(routingResult) } catch (_: Exception) {
+            return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, null, null, "Admin AI returned invalid routing JSON.")
         }
         val routeStatus = routingJson.optString("status", "NEEDS_REVIEW").uppercase()
         val nextRoute = routingJson.optString("nextRoute", "ADMIN_REVIEW").uppercase()
@@ -143,15 +133,22 @@ object UniversalPdfPipeline {
         }
 
         val analysisResult = executeGemini(analysisPrompt, UniversalAIContext.buildSystemInstruction(examConfig))
-            ?: return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Gemini document processing failed.")
-        val analysisJson = try { JSONObject(analysisResult.responseText) } catch (_: Exception) {
-            return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Gemini returned invalid analysis JSON.")
+            ?: return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Admin AI document processing failed.")
+        val analysisJson = try { JSONObject(analysisResult) } catch (_: Exception) {
+            return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Admin AI returned invalid analysis JSON.")
         }
         // Never allow model output alone to publish a syllabus or a test.
         analysisJson.put("publishAllowed", false)
         AdminPdfRouteResult("DRAFT_REVIEW", documentText, routingJson, analysisJson)
     }
 
+    /**
+     * Retired Gemini-only legacy pipeline. It previously made direct client-side Gemini
+     * requests and could synthesize fallback questions when generation failed.
+     * Keep a fail-closed compatibility stub until all external references are removed.
+     */
+    @Deprecated("Use the canonical Student AI provider/ViewModel flow or the Admin server PDF route.")
+    @Suppress("UNUSED_PARAMETER")
     suspend fun processPdfForExam(
         context: Context? = null,
         pdfUri: Uri,
@@ -165,329 +162,16 @@ object UniversalPdfPipeline {
         apiKey: String? = null,
         isAiEnabled: Boolean = true,
         onProgress: (BatchProgress) -> Unit = {}
-    ): List<UniversalQuestionModel> = withContext(Dispatchers.IO) {
-        if (!isAiEnabled) {
-            onProgress(
-                BatchProgress(
-                    totalBatches = 0,
-                    currentBatch = 0,
-                    processedQuestions = 0,
-                    statusMessage = "AI Engine is disabled by Admin (Global Killswitch active)."
-                )
+    ): List<UniversalQuestionModel> {
+        onProgress(
+            BatchProgress(
+                totalBatches = 0,
+                currentBatch = 0,
+                processedQuestions = existingQuestionsCache.size,
+                statusMessage = "Legacy Gemini-only PDF generation is disabled. Use the canonical AI provider workflow."
             )
-            return@withContext emptyList()
-        }
-        val extractedQuestions = mutableListOf<UniversalQuestionModel>()
-        extractedQuestions.addAll(existingQuestionsCache)
-        
-        // 1. Extract text from PDF URI and format into compact Markdown
-        val compactMarkdown = if (context != null) {
-            try {
-                // Try decompressed stream extraction via AdvancedPdfSmartExtractor
-                var extractedText = ""
-                try {
-                    val tempFile = java.io.File.createTempFile("pipe_pdf_", ".pdf", context.cacheDir)
-                    context.contentResolver.openInputStream(pdfUri)?.use { input ->
-                        tempFile.outputStream().use { output -> input.copyTo(output) }
-                    }
-                    val smartExtractor = com.ak.pdfextractor.AdvancedPdfSmartExtractor(context)
-                    extractedText = smartExtractor.extractAllStreamText(tempFile)
-                    tempFile.delete()
-                } catch (_: Exception) {}
-
-                if (extractedText.isNotBlank()) {
-                    CompactMarkdownFormatter.formatToCompactMarkdown(extractedText)
-                } else {
-                    context.contentResolver.openInputStream(pdfUri)?.use { stream ->
-                        val reader = java.io.BufferedReader(java.io.InputStreamReader(stream))
-                        val sb = StringBuilder()
-                        val buffer = CharArray(4096)
-                        var charsRead: Int
-                        var total = 0
-                        while (reader.read(buffer).also { charsRead = it } != -1) {
-                            for (i in 0 until charsRead) {
-                                val c = buffer[i]
-                                if (c in ' '..'~' || c == '\n' || c == '\r' || c == '\t' || c.code in 0x0900..0x097F) {
-                                    sb.append(c)
-                                    total++
-                                }
-                            }
-                            if (total > 500000) break
-                        }
-                        CompactMarkdownFormatter.formatToCompactMarkdown(sb.toString())
-                    } ?: ""
-                }
-            } catch (e: Exception) {
-                ""
-            }
-        } else ""
-
-        val totalBatches = (expectedQuestions + batchSize - 1) / batchSize
-        val existingHashes = existingQuestionsCache.associate { it.duplicateHash to it.questionText }
-        val effectiveApiKey = apiKey?.takeIf { it.isNotBlank() }
-
-        // Process in controlled batches to save API tokens and maintain reliability
-        for (batchIndex in (resumeFromBatch - 1) until totalBatches) {
-            val currentBatchNumber = batchIndex + 1
-            val questionsInThisBatch = if (currentBatchNumber == totalBatches) {
-                expectedQuestions - (batchIndex * batchSize)
-            } else {
-                batchSize
-            }
-
-            onProgress(
-                BatchProgress(
-                    totalBatches = totalBatches,
-                    currentBatch = currentBatchNumber,
-                    processedQuestions = extractedQuestions.size,
-                    statusMessage = "Processing Batch $currentBatchNumber of $totalBatches for ${examConfig.examName} ($subjectId)..."
-                )
-            )
-
-            try {
-                val startQ = (batchIndex * batchSize) + 1
-                val endQ = (batchIndex * batchSize) + questionsInThisBatch
-
-                // Dynamically build the prompt injecting aiSystemInstruction, pattern rules, and compact Markdown
-                val prompt = UniversalAIContext.buildDynamicGenerationPrompt(
-                    examConfig = examConfig,
-                    subject = subjectId.ifBlank { examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.subjectName ?: "Core Domain" },
-                    testTitle = "${examConfig.shortName} Diagnostic Paper",
-                    compactMarkdownPayload = compactMarkdown,
-                    currentChunkSize = questionsInThisBatch,
-                    startQ = startQ,
-                    endQ = endQ,
-                    totalQuestions = expectedQuestions,
-                    isExtractionMode = compactMarkdown.isNotBlank(),
-                    stageId = stageId
-                )
-                val systemInstruction = UniversalAIContext.buildSystemInstruction(examConfig)
-
-                // Call Gemini API if key is available
-                var batchModels: List<UniversalQuestionModel>? = null
-                if (!effectiveApiKey.isNullOrBlank()) {
-                    val apiResult = callGeminiApi(effectiveApiKey, prompt, systemInstruction)
-                    if (apiResult != null) {
-                        val source = if (compactMarkdown.isNotBlank()) "Extracted PDF Markdown" else "Gemini API Generation"
-                        batchModels = parseGeminiResponse(
-                            jsonString = apiResult.responseText,
-                            examConfig = examConfig,
-                            stageId = stageId,
-                            subjectId = subjectId,
-                            batchIndex = batchIndex,
-                            batchSize = batchSize,
-                            existingHashes = existingHashes,
-                            actualModel = apiResult.modelVersion,
-                            actualSource = source
-                        )
-                    }
-                }
-
-                // If API call succeeded, add parsed models; otherwise generate structured fallback
-                if (!batchModels.isNullOrEmpty()) {
-                    var finalBatch = batchModels
-                    val initialValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
-
-                    if (!initialValidation.isCompliant && !effectiveApiKey.isNullOrBlank() && initialValidation.deficientLevels.isNotEmpty()) {
-                        // Attempt targeted regeneration for deficient difficulty types
-                        val deficientLevel = initialValidation.deficientLevels.first()
-                        val neededCount = when (deficientLevel) {
-                            DifficultyLevel.EASY -> (initialValidation.targetEasyCount - initialValidation.easyCount).coerceIn(1, 3)
-                            DifficultyLevel.MEDIUM -> (initialValidation.targetMediumCount - initialValidation.mediumCount).coerceIn(1, 3)
-                            DifficultyLevel.HARD -> (initialValidation.targetHardCount - initialValidation.hardCount).coerceIn(1, 3)
-                        }
-
-                        onProgress(
-                            BatchProgress(
-                                totalBatches = totalBatches,
-                                currentBatch = currentBatchNumber,
-                                processedQuestions = extractedQuestions.size,
-                                statusMessage = "Batch $currentBatchNumber: Rebalancing difficulty (${deficientLevel.name} deficient)..."
-                            )
-                        )
-
-                        val targetedPrompt = UniversalAIContext.buildDifficultyRegenerationPrompt(
-                            examConfig = examConfig,
-                            subjectId = subjectId,
-                            neededCount = neededCount,
-                            difficulty = deficientLevel,
-                            sourceText = compactMarkdown
-                        )
-
-                        try {
-                            val regenResult = callGeminiApi(effectiveApiKey, targetedPrompt, null)
-                            if (regenResult != null) {
-                                val regenQuestions = parseGeminiResponse(
-                                    jsonString = regenResult.responseText,
-                                    examConfig = examConfig,
-                                    stageId = stageId,
-                                    subjectId = subjectId,
-                                    batchIndex = batchIndex,
-                                    batchSize = batchSize,
-                                    existingHashes = existingHashes,
-                                    actualModel = regenResult.modelVersion,
-                                    actualSource = "Gemini Difficulty Balancer (${regenResult.modelVersion})"
-                                ).filter { it.difficulty == deficientLevel }
-
-                                if (regenQuestions.isNotEmpty()) {
-                                    val excessLevel = initialValidation.excessLevels.firstOrNull()
-                                    val mutableBatch = finalBatch.toMutableList()
-                                    var replaced = 0
-                                    for (idx in mutableBatch.indices) {
-                                        if (replaced < regenQuestions.size && (excessLevel == null || mutableBatch[idx].difficulty == excessLevel)) {
-                                            mutableBatch[idx] = regenQuestions[replaced]
-                                            replaced++
-                                        }
-                                    }
-                                    finalBatch = mutableBatch
-                                }
-                            }
-                        } catch (e: Exception) {
-                            // Targeted regeneration error fallback to status tagging
-                        }
-                    }
-
-                    // Post-check: Never silently accept incorrect ratios!
-                    val postValidation = QuestionValidationEngine.validateBatchDifficulty(finalBatch, examConfig.difficultyRatio)
-                    if (!postValidation.isCompliant) {
-                        finalBatch = finalBatch.map { q ->
-                            val updatedReasons = (q.validationReasons + listOf("⚠ Ratio Mismatch: ${postValidation.issueDescription}")).distinct()
-                            q.copy(
-                                validationStatus = ValidationStatus.NEEDS_REVIEW,
-                                validationReasons = updatedReasons,
-                                qualityScore = (q.qualityScore - 15).coerceAtLeast(40)
-                            )
-                        }
-                    }
-
-                    extractedQuestions.addAll(finalBatch)
-                } else {
-                    // Real extraction from parsed markdown or authentic exam catalog (Zero dummy data)
-                    val realExtractedFromMarkdown = if (compactMarkdown.isNotBlank()) {
-                        OfflineMarkdownQuestionParser.parseMarkdownToQuestions(compactMarkdown, examConfig, subjectId, stageId)
-                    } else emptyList()
-
-                    // This is a PDF pipeline: if the supplied PDF cannot be read,
-                    // do not substitute unrelated bundled questions and imply they came from it.
-                    for (i in 1..questionsInThisBatch) {
-                        val qIndex = (batchIndex * batchSize) + i
-                        val markdownCandidate = realExtractedFromMarkdown.getOrNull(qIndex - 1)
-                        if (markdownCandidate == null) continue
-
-                        val resolvedSection = resolveSectionForIndex(examConfig, subjectId, qIndex, stageId)
-                        val qType = resolvedSection?.questionType ?: markdownCandidate?.questionType ?: continue
-                        val secId = resolvedSection?.sectionId
-                            ?: markdownCandidate?.sectionId?.takeIf { it.isNotBlank() } ?: continue
-                        val secName = resolvedSection?.sectionName
-                            ?: markdownCandidate?.sectionName?.takeIf { it.isNotBlank() } ?: continue
-                        val posMark = resolvedSection?.positiveMarks ?: markdownCandidate?.positiveMarks ?: continue
-                        val negMark = resolvedSection?.negativeMarks ?: markdownCandidate?.negativeMarks ?: continue
-
-                        val questionText = markdownCandidate.questionText.takeIf { it.isNotBlank() } ?: continue
-                        val options = markdownCandidate.options
-                        val isOptionFree = qType in setOf(QuestionType.NUMERICAL, QuestionType.NUMERICAL_VALUE, QuestionType.TITA, QuestionType.DESCRIPTIVE)
-                        if (!isOptionFree && options.size < examConfig.defaultOptionCount.coerceIn(2, 5)) continue
-                        val correctAnswer = markdownCandidate.correctAnswer.takeIf { it.isNotBlank() } ?: continue
-                        val explanation = markdownCandidate.explanation
-
-                        val hash = DuplicateDetectionEngine.generateNormalizedHash(questionText, options)
-                        val dupResult = DuplicateDetectionEngine.checkDuplicate(questionText, options, existingHashes)
-                        val validation = QuestionValidationEngine.validateQuestion(
-                            questionText = questionText,
-                            options = options,
-                            correctAnswer = correctAnswer,
-                            sourceAnswer = markdownCandidate?.sourceAnswer,
-                            explanation = explanation,
-                            hasDiagramAttached = markdownCandidate?.diagramUrl != null,
-                            duplicateResult = dupResult,
-                            questionType = qType,
-                            expectedOptionCount = resolvedSection?.optionsCount ?: examConfig.defaultOptionCount
-                        )
-                        if (validation.status == ValidationStatus.DUPLICATE || validation.status == ValidationStatus.REJECTED) continue
-
-                        extractedQuestions.add(
-                            UniversalQuestionModel(
-                                questionId = "uq_${examConfig.examId}_${System.currentTimeMillis()}_$qIndex",
-                                examId = examConfig.examId,
-                                stageId = stageId,
-                                paperId = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.paperId ?: "",
-                                sectionId = secId,
-                                sectionName = secName,
-                                subjectId = subjectId,
-                                questionText = questionText,
-                                questionTextHi = markdownCandidate?.questionTextHi,
-                                options = options,
-                                optionsHi = markdownCandidate?.optionsHi,
-                                correctAnswer = correctAnswer,
-                                sourceAnswer = markdownCandidate?.sourceAnswer,
-                                explanation = explanation,
-                                explanationHi = markdownCandidate?.explanationHi,
-                                difficulty = markdownCandidate?.difficulty ?: DifficultyLevel.MEDIUM,
-                                questionType = qType,
-                                positiveMarks = posMark,
-                                negativeMarks = negMark,
-                                difficultyScore = validation.difficultyScore,
-                                qualityScore = validation.qualityScore,
-                                qualityMetrics = validation.qualityMetrics,
-                                validationStatus = validation.status,
-                                validationReasons = validation.issues,
-                                duplicateHash = hash,
-                                diagramUrl = markdownCandidate?.diagramUrl,
-                                diagramMetadata = markdownCandidate?.diagramMetadata,
-                                sourceName = if (markdownCandidate != null) "Extracted PDF Markdown" else "${examConfig.examName} Bundled Verified Catalog",
-                                sourcePage = markdownCandidate?.sourcePage ?: 1,
-                                isOfficialPYQ = markdownCandidate?.isOfficialPYQ ?: false,
-                                questionVersion = 1,
-                                validationVersion = 1,
-                                generationModel = if (markdownCandidate != null) "pdf-real-extractor-v1" else "bundled-exam-catalog-v1",
-                                generationTimestamp = System.currentTimeMillis()
-                            )
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                onProgress(
-                    BatchProgress(
-                        totalBatches = totalBatches,
-                        currentBatch = currentBatchNumber,
-                        processedQuestions = extractedQuestions.size,
-                        statusMessage = "⚠ Batch $currentBatchNumber failed: ${e.message}. Safe to resume."
-                    )
-                )
-                break
-            }
-            delay(500)
-        }
-
-        if (extractedQuestions.size != expectedQuestions) {
-            val reason = "Expected $expectedQuestions verified questions, but only ${extractedQuestions.size} passed validation. Batch completeness requires manual review."
-            for (index in extractedQuestions.indices) {
-                val question = extractedQuestions[index]
-                extractedQuestions[index] = question.copy(
-                    validationStatus = ValidationStatus.NEEDS_REVIEW,
-                    validationReasons = (question.validationReasons + reason).distinct()
-                )
-            }
-            onProgress(
-                BatchProgress(
-                    totalBatches = totalBatches,
-                    currentBatch = totalBatches,
-                    processedQuestions = extractedQuestions.size,
-                    statusMessage = "Incomplete: ${extractedQuestions.size}/$expectedQuestions verified questions. All returned items require review."
-                )
-            )
-        } else {
-            onProgress(
-                BatchProgress(
-                    totalBatches = totalBatches,
-                    currentBatch = totalBatches,
-                    processedQuestions = extractedQuestions.size,
-                    statusMessage = "Extraction Complete! ${extractedQuestions.size} questions ready for Review."
-                )
-            )
-        }
-
-        return@withContext extractedQuestions
+        )
+        return emptyList()
     }
 
     private fun parseGeminiResponse(
@@ -637,81 +321,4 @@ object UniversalPdfPipeline {
         return resultList
     }
 
-    data class GeminiApiExecutionResult(
-        val responseText: String,
-        val modelName: String,
-        val modelVersion: String
-    )
-
-    private suspend fun callGeminiApi(
-        apiKey: String,
-        prompt: String,
-        systemInstruction: String?
-    ): GeminiApiExecutionResult? = withContext(Dispatchers.IO) {
-        val candidateModels = listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash")
-        for (modelName in candidateModels) {
-            try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.setRequestProperty("x-goog-api-key", apiKey)
-                conn.connectTimeout = 45000
-                conn.readTimeout = 45000
-                conn.doOutput = true
-
-                val jsonReq = JSONObject().apply {
-                    if (!systemInstruction.isNullOrBlank()) {
-                        put("systemInstruction", JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("text", systemInstruction)
-                                })
-                            })
-                        })
-                    }
-                    put("contents", JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("text", prompt)
-                                })
-                            })
-                        })
-                    })
-                    put("generationConfig", JSONObject().apply {
-                        put("responseMimeType", "application/json")
-                    })
-                }
-
-                conn.outputStream.use { os ->
-                    os.write(jsonReq.toString().toByteArray(Charsets.UTF_8))
-                }
-
-                if (conn.responseCode == 200) {
-                    val responseStr = conn.inputStream.bufferedReader().use { it.readText() }
-                    val respObj = JSONObject(responseStr)
-                    val returnedVersion = respObj.optString("modelVersion").takeIf { it.isNotBlank() } ?: "UNAVAILABLE"
-                    val candidates = respObj.optJSONArray("candidates")
-                    if (candidates != null && candidates.length() > 0) {
-                        val content = candidates.getJSONObject(0).optJSONObject("content")
-                        val parts = content?.optJSONArray("parts")
-                        if (parts != null && parts.length() > 0) {
-                            val text = parts.getJSONObject(0).optString("text")
-                            if (text.isNotBlank()) {
-                                return@withContext GeminiApiExecutionResult(
-                                    responseText = text,
-                                    modelName = modelName,
-                                    modelVersion = returnedVersion
-                                )
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                // try next model
-            }
-        }
-        return@withContext null
-    }
 }
