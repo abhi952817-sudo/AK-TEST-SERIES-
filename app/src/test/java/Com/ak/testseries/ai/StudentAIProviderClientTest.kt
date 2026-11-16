@@ -20,6 +20,7 @@ class StudentAIProviderClientTest {
     fun everyProviderSendsKeyInHeaderAndNeverInUrl() {
         StudentAIKeyStore.Provider.values().forEach { provider ->
             val request = build(provider)
+            assertEquals("no-store", request.header("Cache-Control"))
             assertFalse(request.url.toString().contains("test-secret-key"))
             val expectedHeader = when (provider) {
                 StudentAIKeyStore.Provider.GEMINI -> "x-goog-api-key"
@@ -39,6 +40,7 @@ class StudentAIProviderClientTest {
     fun modelCatalogueRequestsKeepKeysInHeaders() {
         StudentAIKeyStore.Provider.values().forEach { provider ->
             val request = StudentAIProviderClient.buildModelListRequest(provider, "catalogue-secret")
+            assertEquals("no-store", request.header("Cache-Control"))
             assertFalse(request.url.toString().contains("catalogue-secret"))
             val header = if (provider == StudentAIKeyStore.Provider.GEMINI) "x-goog-api-key"
                 else if (provider == StudentAIKeyStore.Provider.ANTHROPIC) "x-api-key"
