@@ -4801,7 +4801,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val pages = lastExtractedPdfPages.value
                     val pageChunkSize = 2 // Process in smaller page ranges (2 pages per chunk)
                     var successChunks = 0
-                    var rejectedGeminiQuestions = 0
+                    var rejectedAiQuestions = 0
 
                     val isPrivatePdfExtraction = !genIsPublic.value || autoRoutedWorkflow.value == "private"
                     val answerKeyPage = if (isPrivatePdfExtraction && pages.isNotEmpty()) {
@@ -4886,8 +4886,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                         expectedSubjectId = expectedSubjectId
                                     )
                                     if (report.errors.isNotEmpty() || report.questions.length() == 0) {
-                                        rejectedGeminiQuestions += report.rejectedCount.coerceAtLeast(1)
-                                        android.util.Log.w("NEETViewModel", "Gemini response rejected: ${report.errors.joinToString("; ")}")
+                                        rejectedAiQuestions += report.rejectedCount.coerceAtLeast(1)
+                                        android.util.Log.w("NEETViewModel", "AI provider response rejected: ${report.errors.joinToString("; ")}")
                                     } else {
                                         for (i in 0 until report.questions.length()) {
                                             allQuestionsList.add(report.questions.getJSONObject(i))
@@ -4973,8 +4973,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                                         expectedSubjectId = expectedSubjectId
                                     )
                                     if (report.errors.isNotEmpty() || report.questions.length() == 0) {
-                                        rejectedGeminiQuestions += report.rejectedCount.coerceAtLeast(1)
-                                        android.util.Log.w("NEETViewModel", "Gemini response rejected: ${report.errors.joinToString("; ")}")
+                                        rejectedAiQuestions += report.rejectedCount.coerceAtLeast(1)
+                                        android.util.Log.w("NEETViewModel", "AI provider response rejected: ${report.errors.joinToString("; ")}")
                                     } else {
                                         for (i in 0 until report.questions.length()) {
                                             allQuestionsList.add(report.questions.getJSONObject(i))
@@ -4990,8 +4990,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
 
-                    if (rejectedGeminiQuestions > 0) {
-                        val message = "Gemini returned $rejectedGeminiQuestions unverified, incomplete, or invalid question(s). Nothing was saved or published. Correct the source/answer key and retry."
+                    if (rejectedAiQuestions > 0) {
+                        val message = "AI provider returned $rejectedAiQuestions unverified, incomplete, or invalid question(s). Nothing was saved or published. Correct the source/answer key and retry."
                         _aiGenState.value = AiGenerationState.Error(message)
                         aiGenStatusMessage.value = message
                         return@launch
@@ -5307,7 +5307,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                             }
                             val examConfig = Com.ak.testseries.exam.UniversalExamRegistry.getExamById(targetExamId)
                                 ?: run {
-                                    val message = "Gemini ने unregistered exam ID '$targetExamId' लौटाई। कोई default exam लागू नहीं की गई।"
+                                    val message = "AI provider ने unregistered exam ID '$targetExamId' लौटाई। कोई default exam लागू नहीं की गई।"
                                     _pdfAnalysisState.value = PdfAnalysisState.Error(message)
                                     aiGenStatusMessage.value = message
                                     return@launch
@@ -5351,7 +5351,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             
-            // Fallback heuristics analysis in case Gemini API is offline/unavailable
+            // Fallback heuristics analysis in case the configured AI provider is unavailable
             val lowerText = extractedText.lowercase()
 
             // 1. Detect Target Exam from text across 20 exams
