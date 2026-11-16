@@ -1,6 +1,7 @@
 package Com.ak.testseries.utils
 
 import android.app.Application
+import android.content.Context
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -19,7 +20,7 @@ class LegacyStudentGeminiKeyMigrationTest {
         val context = RuntimeEnvironment.getApplication() as Application
         val uid = "legacy-student-account"
         val legacyPreferenceKey = "student_key_" + digest(uid).take(32)
-        val preferences = context.getSharedPreferences("student_gemini_keys_v1", Application.MODE_PRIVATE)
+        val preferences = context.getSharedPreferences("student_gemini_keys_v1", Context.MODE_PRIVATE)
         preferences.edit().putString(legacyPreferenceKey, "not-valid-base64%%%").commit()
 
         val migrated = LegacyStudentGeminiKeyMigration.migrate(context, uid)
