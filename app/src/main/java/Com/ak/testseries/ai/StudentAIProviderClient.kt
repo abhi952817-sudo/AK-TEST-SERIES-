@@ -118,6 +118,9 @@ object StudentAIProviderClient {
             throw StudentAIProviderException(message = "The AI provider request failed. Check your connection and provider settings.", cause = e)
         }
 
+        if (FirebaseAuth.getInstance().currentUser?.uid != authenticatedUid) {
+            throw StudentAIProviderException(message = "The signed-in account changed. The response was discarded.")
+        }
         val parsed = parseResponse(request.provider, request.model.trim(), rawBody)
         try {
             StudentAIUsageStore.record(context.applicationContext, authenticatedUid, parsed)
