@@ -252,6 +252,9 @@ fun StudentAIProviderSettingsCard(
                                         StudentAIKeyStore.read(context, uid, selectedProvider)
                                     } ?: throw IllegalStateException("The saved provider key is unavailable. Reconnect it.")
                                     val models = StudentAIProviderClient.verifyApiKey(selectedProvider, savedKey)
+                                    if (FirebaseAuth.getInstance().currentUser?.uid != uid) {
+                                        throw IllegalStateException("The signed-in account changed. Model settings were not saved.")
+                                    }
                                     availableModels = models
                                     if (modelInput.isBlank()) {
                                         modelInput = models.first()
