@@ -71,7 +71,7 @@ These are overlapping Student responsibilities. During integration:
 - Provider model discovery confirms catalogue access, not guaranteed permission for every generation capability. First generation must still handle provider authorization/model errors.
 - Local usage counts and last token metadata exist; a complete per-feature usage dashboard and provider-specific monetary billing are not implemented.
 - Student key-store encryption and real provider network calls still require device/emulator verification.
-- Old AI branch integration, duplicate removal, cross-branch regression testing and Main integration have not been performed.
+- The core Student connector and existing Student generation call sites have now been selectively ported into `feature/universal-gemini-ai-10-phase-2026-11-08`. The Gemini-only Student store/UI/direct transport were removed there and a one-time legacy-key migration helper was added. Full integration-branch regression and duplicate scan are still ongoing; Main has not been changed.
 - No production Firebase/Firestore/Storage change or deployment is authorized by this work.
 
 ## 6. Validation status
@@ -80,13 +80,13 @@ These are overlapping Student responsibilities. During integration:
 |---|---|---|
 | Source changes committed and pushed | PASS | Branch contains Student-only files and Settings/ViewModel lifecycle hooks. |
 | Main changed | NO | All current changes are isolated to `feature/student-universal-ai-connectors-v1`. |
-| Android unit tests | OPEN | Run #1 failed during test-source compilation because Robolectric's `RuntimeEnvironment.getApplication()` does not accept a type argument. Corrected in commits `28d938fb545cf3bc81e37cb6f170b527c6de9dc9` and `7cfefb6bca42b8746c4fd0d675d907962cb24762`. The latest run is still in progress; no PASS is recorded. |
-| Debug APK build | OPEN | The first run skipped APK assembly because unit tests failed. The latest run is still in progress; no successful artifact is recorded. |
+| Android unit tests | PASS on prior checkpoint; latest OPEN | Run #25 passed on SHA `2d54fe2d34594e56e523efdbba4990c28626c5c1` after the Robolectric accessor fix. Run #29 for the newer Student branch SHA `9c710af904dea246cbe79b28b30443fc05996212` is still in progress. |
+| Debug APK build | PASS on prior checkpoint; latest OPEN | Run #25 assembled and uploaded the debug APK successfully for SHA `2d54fe2d34594e56e523efdbba4990c28626c5c1`. Run #29 for the newer SHA is still in progress. |
 | Real provider API calls | NOT RUN | No live provider key was used. |
 | Device AndroidKeyStore behavior | NOT RUN | Requires device/emulator execution. |
 | Old AI branch integration | NOT STARTED | Must be selective and duplicate-aware. |
 
-**Latest code checkpoint before this documentation update:** `36aa741c82f87e598ab1027d716421aa6e9de636`. CI run #24: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43792046331` (in progress at inspection time). Older runs may be cancelled as newer pushes supersede them.  
+**Latest Student branch code checkpoint before this documentation update:** `9c710af904dea246cbe79b28b30443fc05996212`. CI run #29: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43793053452` (in progress at inspection time). Earlier successful run #25: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43792072896` (unit tests and debug APK assembly both passed for SHA `2d54fe2d34594e56e523efdbba4990c28626c5c1`). The integrated old AI branch checkpoint at this point is `a4a4b64120073b80b040f71fad30e780033fd8e3`; its own CI remains pending/in progress. Older runs may be cancelled as newer pushes supersede them.  
 
 **Important:** A workflow starting is not a test pass. Record PASS only against the exact commit SHA and completed CI run.
 
