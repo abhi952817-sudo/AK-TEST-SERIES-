@@ -14,14 +14,17 @@
 - Student providers implemented in the connector: Gemini, OpenAI, Groq, Anthropic Claude, Cerebras. Student credentials stay on-device; Admin connector remains separate and server-side.
 - The registered exam catalogue contains 20+ exam configurations, but this does **not** mean every exam's syllabus is independently verified. `UniversalAIContext` explicitly requires an Admin-supplied, verified official syllabus for non-NEET exams and refuses to claim official scope from legacy catalogue entries.
 - Admin PDF route is server-Gemini only; it is not yet a provider-neutral Admin multi-provider connector. It currently extracts PDF text and fails to review when no readable text is available; image-only/scanned PDF OCR and image/diagram-aware extraction are not yet integrated in this Admin route.
-- Confirmed Universal Admin UI limitation: `ProcessPdfTab` currently exposes subjects from only the first stage and first paper. `UniversalPdfPipeline` also resolves sections without a selected paper and stamps the first configured paper ID. Multi-stage/multi-paper exams therefore need a selected stage/paper flow before this route can be called fully universal. Track as **UAI-001 / High / confirmed source-level**.
-- Student and Admin use the shared Universal prompt/context policy, but Student PDF workflows do not use the Admin-only `processAdminUploadedPdf()` route; they use the existing local extraction/OCR + Student provider + universal generation/validation path.
+- Reconfirmed **UAI-001 / High / confirmed source-level**: `ProcessPdfTab` exposes subjects from only the first stage and first paper; `UniversalPdfPipeline.parseGeminiResponse()` stamps `examConfig.stages.firstOrNull()?.papers.firstOrNull()?.paperId` and the Admin route passes an empty stage ID. Multi-stage/multi-paper exams therefore need explicit stage + paper selection and selected-paper-aware validation/mapping before the Admin route is fully universal.
+- Student and Admin use the shared Universal prompt/context policy, but Student PDF workflows do not use the Admin-only `processAdminUploadedPdf()` route; they use the existing local extraction/OCR + Student text provider + universal generation/validation path. The Student provider transport is text-only: diagram/image crops are extracted locally, but image bytes are not sent to Gemini/OpenAI/Claude/Groq/Cerebras for visual reasoning yet.
+- Student PDF extraction has an offline text-first path, on-device ML Kit OCR fallback for scanned PDFs, and local diagram/image candidate extraction. The Admin PDF route currently lacks that OCR fallback.
+- The registry contains 25 exam configurations. The universal prompt builder is connected, but only NEET has the versioned official syllabus module wired in. Other exams must receive a separately Admin-verified official syllabus source; the Student PDF flow does not yet select/attach such a versioned syllabus source automatically.
 
 ### CI diagnosis and fix
 - Integration CI run #222 failed because the workflow used JDK 17 while the project compiles against Android SDK 36.1 and Robolectric reports SDK 36 requires Java 21. This was an environment/toolchain mismatch, not a Kotlin compilation error.
-- Updated `.github/workflows/universal-gemini-validation.yml` to JDK 21. Student branch CI run #39 passed Android unit tests and debug APK assembly on JDK 21.
-- Added a second authenticated-UID check immediately before sending Student provider requests, preventing a key read for one account from being sent if the signed-in account changes during the operation.
-- Integration CI reruns #223, #224 and #225 are pending/in progress at the time of this checkpoint; backend tests passed in the observed #223/#224 jobs. Do not mark integration Android tests or APK assembly passed until a full run completes successfully.
+- Updated `.github/workflows/universal-gemini-validation.yml` to JDK 21.
+- Latest integrated AI branch run #227 passed Android unit tests, backend Functions tests, and debug APK assembly for SHA `bad4cbb727f0ba116505f2c3d4f957320d45d826`: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43798213626`.
+- Student source branch run #39 passed Android unit tests and debug APK assembly for SHA `e803078e1d31d38a212deaeab324e03db217167a`: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43794251283`.
+- Aligned the Student source branch's `StudentAIProviderClient.kt` with the integrated version by adding the authenticated-UID recheck immediately before request construction. New Student CI run #40 is pending for SHA `6f0e010e347e9e394b2d9d1a757357e662c5d648`: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43803245008`.
 
 ### Branch / duplicate check
 - Main remains unchanged.
@@ -32,9 +35,9 @@
 
 At the time of this checkpoint:
 - `main` SHA: `dabeeaec90ddfde4fa69f4b89e71a5f2ffe1fcb4` (unchanged by this work).
-- Integration branch compared with Main: 385 commits ahead, 108 behind.
-- Student source branch compared with Main: 56 commits ahead, 0 behind.
-- Student source branch compared with the integration branch: 164 commits ahead, 385 behind.
+- Integration branch compared with Main: 391 commits ahead, 108 behind.
+- Student source branch compared with Main: 57 commits ahead, 0 behind.
+- Student source branch compared with the integration branch: 165 commits ahead, 391 behind.
 
 Because the branches have substantial divergence, do not merge either feature branch wholesale. Student files were ported selectively and adapted to existing AI/Admin call sites. Main has not been merged or modified.
 
@@ -90,24 +93,24 @@ The app's existing parsing, validation and approval/publish workflow remains in 
 | Legacy key migration helper added | Complete; device-level migration test still required |
 | Existing Settings screen consolidated | Complete |
 | Student generation call sites routed to universal client | Complete for listed workflows |
-| Admin PDF route server-only | Source-level change complete; CI pending | Both Admin PDF screens pass `viewModel.generateAiForQuestions`; pipeline refuses to process without the server callback. Legacy direct Gemini transport and fallback generator removed. Question drafts are parsed and returned to the existing review UI; publication still requires Admin approval. |
+| Admin PDF route server-only | Source-level change complete; CI #227 passed | Both Admin PDF screens pass `viewModel.generateAiForQuestions`; pipeline refuses to process without the server callback. Legacy direct Gemini transport and fallback generator removed. Question drafts are parsed and returned to the existing review UI; publication still requires Admin approval. |
 | Direct Student/legacy Gemini transport audit | Source-level scan | No direct provider HTTP transport remains in `NEETViewModel`; the retired `GeminiPdfExtractor` is fail-closed. Student generation goes through `StudentAIProviderClient`; Admin generation goes through the server connector. |
 | Admin server route preserved | Source-level check only |
-| Android unit tests on integration branch | Pending CI; earlier compile failure diagnosed and patched | Runs #212–#214 failed at the stale `activeGeminiKeyIndex` reference in `CommunityAdminUI.kt`; removed in later commits. Latest run #220 is in progress. |
-| Debug APK build on integration branch | Pending CI | Earlier runs skipped APK assembly after compilation failure; latest run #220 will verify the corrected tree. |
+| Android unit tests on integration branch | Passed on SHA `bad4cbb...` | Run #227 passed. |
+| Debug APK build on integration branch | Passed on SHA `bad4cbb...` | Run #227 passed `assembleDebug`. |
 | Real provider calls / AndroidKeyStore device test | Not run |
 | Main branch changes | None |
 | Production deployment / Firebase rules changes | None |
 
-**Current integration-branch code checkpoint before this documentation update:** `765107b83a1068a75e7d534e876c8720323f4798`. CI run #221: `https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43794194960` (Android unit tests and backend tests in progress). Runs #216–#220 are also in progress. Earlier runs #212–#214 failed Android compilation due a stale `CommunityAdminUI.kt` reference to the removed `activeGeminiKeyIndex`; that UI collection was removed. Backend tests passed in run #212. The cancel-in-progress setting has been removed so future commits will not cancel previous runs. CI is triggered on pushes. A workflow starting is not a pass; record the exact completed run and SHA before marking tests passed.
+**Latest verified integration code checkpoint:** `bad4cbb727f0ba116505f2c3d4f957320d45d826`; CI run #227 passed Android unit tests, backend tests and debug APK assembly. The documentation update below triggers a new CI run; do not treat it as passed until it completes.
 
 ## Remaining work
 
-1. Review the new integration diff and fix any compile/test failures reported by CI.
-2. Verify the legacy Gemini key migration on an Android device/emulator.
-3. Verify model catalogue access and one successful generation for each provider using test credentials supplied by the owner; do not commit or log keys.
-4. Add provider-specific request limits/JSON mode where supported and bounded cancellation-safe retry only where safe.
-5. Review all Student generation call sites to ensure no remaining Gemini-only transport or duplicate route exists.
-6. Complete PDF fallback/multimodal integration and feature-level usage display without bypassing Admin approval.
-7. Run the full security/regression checklist on this integration branch.
-8. Only after review and explicit approval, selectively integrate the reviewed result into Main.
+1. Fix **UAI-001**: add explicit stage/paper selection to the Admin PDF UI and make validation, section mapping and `paperId` use the selected paper.
+2. Add an Admin-verified syllabus source selector/version store for non-NEET exams; do not treat all 25 registry entries as syllabus-verified.
+3. Extend the Student provider contract with safe multimodal/image support or explicitly route diagrams to manual review; do not pretend text-only requests understand extracted images.
+4. Add OCR fallback to the Admin PDF route and retain Admin approval before publication.
+5. Verify the legacy key migration and AndroidKeyStore behavior on a real Android device/emulator.
+6. Verify one successful real request per provider using owner-supplied test credentials; do not commit or log keys.
+7. Review provider request limits/JSON mode, bounded retry, usage display and all generation call sites.
+8. Run the full security/regression checklist. Only after review and explicit approval, selectively integrate reviewed changes into Main.
