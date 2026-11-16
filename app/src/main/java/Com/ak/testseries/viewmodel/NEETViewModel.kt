@@ -939,6 +939,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 if (previousUid != uid) {
                     if (previousUid.isNotBlank()) {
                         Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), previousUid)
+                        Com.ak.testseries.utils.StudentAIUsageStore.clearAll(getApplication(), previousUid)
                     }
                     timerJob?.cancel()
                     _activeTest.value = null
@@ -6707,6 +6708,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val signingOutUid = currentUserId.value
             if (signingOutUid.isNotBlank()) {
                 Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), signingOutUid)
+                Com.ak.testseries.utils.StudentAIUsageStore.clearAll(getApplication(), signingOutUid)
             }
             authManager.signOut()
             userAccountListener?.remove()
@@ -6763,6 +6765,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             val signingOutUid = currentUserId.value
             if (signingOutUid.isNotBlank()) {
                 Com.ak.testseries.utils.StudentAIKeyStore.clearAll(getApplication(), signingOutUid)
+                Com.ak.testseries.utils.StudentAIUsageStore.clearAll(getApplication(), signingOutUid)
             }
             try {
                 com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
