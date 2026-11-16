@@ -5450,11 +5450,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    val isPrimaryGeminiActive = MutableStateFlow(true)
-    val isSecondaryGeminiActive = MutableStateFlow(true)
-    val primaryGeminiUsage = MutableStateFlow(0)
-    val secondaryGeminiUsage = MutableStateFlow(0)
-    val activeGeminiKeyIndex = MutableStateFlow(0)
     val geminiStatusMessage = MutableStateFlow("Initializing...")
     val adminGeminiConnectorStatus = MutableStateFlow("Not verified")
     val adminGeminiConnectorModels = MutableStateFlow<List<String>>(emptyList())
@@ -5475,44 +5470,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             // One-time cleanup of legacy Admin secrets previously stored on-device.
             Com.ak.testseries.utils.LegacyStudentGeminiKeyMigration.clear(context, "akts_admin_secondary_global")
             prefs.edit().remove("sec_gemini_api_key").commit()
-            isPrimaryGeminiActive.value = prefs.getBoolean("is_primary_gemini_active", true)
-            isSecondaryGeminiActive.value = prefs.getBoolean("is_secondary_gemini_active", true)
-            primaryGeminiUsage.value = prefs.getInt("primary_gemini_usage", 0)
-            secondaryGeminiUsage.value = prefs.getInt("secondary_gemini_usage", 0)
             activeAiModel.value = prefs.getString("admin_gemini_model", "UNAVAILABLE") ?: "UNAVAILABLE"
         } catch (e: Exception) {
             android.util.Log.w("NEETViewModel", "Legacy Admin Gemini key cleanup failed.", e)
         }
-    }
-
-    fun updateGeminiSettings(primaryActive: Boolean, secondaryActive: Boolean) {
-        try {
-            val prefs = getApplication<Application>().getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
-            prefs.edit()
-                .putBoolean("is_primary_gemini_active", primaryActive)
-                .putBoolean("is_secondary_gemini_active", secondaryActive)
-                .apply()
-            isPrimaryGeminiActive.value = primaryActive
-            isSecondaryGeminiActive.value = secondaryActive
-        } catch (e: Exception) { e.printStackTrace() }
-    }
-
-    private fun incrementGeminiUsage(keyIdentifier: Int) {
-        try {
-            val prefs = getApplication<Application>().getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
-            if (keyIdentifier == 0) {
-                val newCount = primaryGeminiUsage.value + 1
-                prefs.edit().putInt("primary_gemini_usage", newCount).apply()
-                primaryGeminiUsage.value = newCount
-            } else if (keyIdentifier == 1) {
-                val newCount = secondaryGeminiUsage.value + 1
-                prefs.edit().putInt("secondary_gemini_usage", newCount).apply()
-                secondaryGeminiUsage.value = newCount
-            } else {
-                // Student-owned keys are deliberately excluded from Admin quota counters.
-                return
-            }
-        } catch (e: Exception) { e.printStackTrace() }
     }
 
     private fun currentStudentAiUid(): String {
