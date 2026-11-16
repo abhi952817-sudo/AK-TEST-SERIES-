@@ -376,7 +376,7 @@ fun PushNotificationSection(viewModel: NEETViewModel? = null) {
                             )
                             if (imageUrl.isNotBlank()) notifData["imageUrl"] = imageUrl.trim()
                             if (linkUrl.isNotBlank()) notifData["linkUrl"] = linkUrl.trim()
-                            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
                                 .collection("UserNotifications")
                                 .add(notifData)
                         }
@@ -523,7 +523,7 @@ fun UserFeedbacksSection() {
     
     LaunchedEffect(Unit) {
         try {
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
             db.collection("test_feedbacks")
                 .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(20)
