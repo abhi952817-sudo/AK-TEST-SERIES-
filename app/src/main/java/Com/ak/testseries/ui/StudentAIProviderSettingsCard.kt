@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -191,6 +192,8 @@ fun StudentAIProviderSettingsCard(
                                     "Key सत्यापित और सुरक्षित रूप से सेव हो गई। उपलब्ध मॉडल: ${models.size}"
                                 else
                                     "Key verified and saved securely. Available models: ${models.size}"
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
                             } catch (error: Exception) {
                                 statusMessage = error.message ?: if (isHindi) "Key सत्यापित नहीं हुई।" else "Key verification failed."
                             } finally {
