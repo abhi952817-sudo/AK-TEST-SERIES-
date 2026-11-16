@@ -2,6 +2,8 @@ package Com.ak.testseries.ui
 
 import Com.ak.testseries.ai.StudentAIProviderClient
 import Com.ak.testseries.utils.StudentAIKeyStore
+import Com.ak.testseries.utils.StudentAIUsageStore
+import Com.ak.testseries.utils.StudentAIUsageSnapshot
 import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,6 +63,7 @@ fun StudentAIProviderSettingsCard(
     var isConnected by remember { mutableStateOf(false) }
     var isBusy by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
+    var usageSnapshot by remember { mutableStateOf(StudentAIUsageSnapshot(0L, null, null, null)) }
 
     LaunchedEffect(uid) {
         if (uid.isNotBlank()) {
@@ -80,11 +83,15 @@ fun StudentAIProviderSettingsCard(
             modelInput = ""
         } else {
             val stored = withContext(Dispatchers.IO) {
-                StudentAIKeyStore.isConfigured(context, uid, selectedProvider) to
-                    StudentAIKeyStore.preferredModel(context, uid, selectedProvider)
+                Triple(
+                    StudentAIKeyStore.isConfigured(context, uid, selectedProvider),
+                    StudentAIKeyStore.preferredModel(context, uid, selectedProvider),
+                    StudentAIUsageStore.snapshot(context, uid, selectedProvider)
+                )
             }
             isConnected = stored.first
             modelInput = stored.second.orEmpty()
+            usageSnapshot = stored.third
         }
     }
 
@@ -176,6 +183,9 @@ fun StudentAIProviderSettingsCard(
                                 availableModels = models
                                 modelInput = models.firstOrNull().orEmpty()
                                 isConnected = true
+                                usageSnapshot = withContext(Dispatchers.IO) {
+                                    StudentAIUsageStore.snapshot(context, uid, selectedProvider)
+                                }
                                 apiKeyInput = ""
                                 statusMessage = if (isHindi)
                                     "Key सत्यापित और सुरक्षित रूप से सेव हो गई। उपलब्ध मॉडल: ${models.size}"
@@ -203,6 +213,7 @@ fun StudentAIProviderSettingsCard(
                                 isConnected = false
                                 availableModels = emptyList()
                                 modelInput = ""
+                                usageSnapshot = StudentAIUsageSnapshot(0L, null, null, null)
                                 statusMessage = if (isHindi) "Provider key हटा दी गई।" else "Provider key removed."
                             }
                         }
@@ -215,6 +226,14 @@ fun StudentAIProviderSettingsCard(
                     if (isHindi) "स्थिति: सुरक्षित रूप से जुड़ा हुआ" else "Status: securely connected",
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    if (isHindi)
+                        "सफल अनुरोध: ${usageSnapshot.successfulRequests} • पिछला उपयोग: इनपुट ${usageSnapshot.lastInputTokens ?: "—"}, आउटपुट ${usageSnapshot.lastOutputTokens ?: "—"}, कुल ${usageSnapshot.lastTotalTokens ?: "—"} tokens"
+                    else
+                        "Successful requests: ${usageSnapshot.successfulRequests} • Last usage: input ${usageSnapshot.lastInputTokens ?: "—"}, output ${usageSnapshot.lastOutputTokens ?: "—"}, total ${usageSnapshot.lastTotalTokens ?: "—"} tokens",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = modelInput,
