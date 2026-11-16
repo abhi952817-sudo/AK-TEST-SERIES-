@@ -1,6 +1,5 @@
 package Com.ak.testseries.data.remote
 
-import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -16,7 +15,7 @@ object FirestoreHelper {
     @Volatile
     private var cachedInstance: FirebaseFirestore? = null
 
-    fun getInstance(context: Context? = null): FirebaseFirestore {
+    fun getInstance(): FirebaseFirestore {
         cachedInstance?.let { return it }
         synchronized(this) {
             cachedInstance?.let { return it }
