@@ -2962,8 +2962,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             _askAiResponse.value = null
             _askAiVideoLink.value = null
 
-            val keys = getGeminiApiKeys()
-            if (isAdmin || keys.isNotEmpty()) {
+            if (isAdmin || hasStudentAIProviderConfigured()) {
                 val currentExam = _userProfile.value.targetExam.takeIf { it.isNotBlank() } ?: "Competitive Examination"
                 val isHindi = language == AppLanguage.HINDI
                 val prompt = if (isHindi) {
@@ -4779,8 +4778,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 delay(800)
             }
 
-            val keys = getGeminiApiKeys()
-            val hasApiKey = keys.isNotEmpty()
+            val hasApiKey = isAdmin || hasStudentAIProviderConfigured()
 
             if (hasApiKey) {
                 try {
