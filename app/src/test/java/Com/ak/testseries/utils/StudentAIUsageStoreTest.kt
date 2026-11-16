@@ -17,7 +17,7 @@ class StudentAIUsageStoreTest {
 
     @Test
     fun recordsOnlyProviderReportedUsageForTheMatchingAccountAndProvider() {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication() as Application
         StudentAIUsageStore.record(
             context,
             "student-a",
@@ -40,7 +40,7 @@ class StudentAIUsageStoreTest {
 
     @Test
     fun missingProviderTokenMetadataIsNotInvented() {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication() as Application
         StudentAIUsageStore.record(
             context,
             "student-a",
@@ -60,7 +60,7 @@ class StudentAIUsageStoreTest {
 
     @Test
     fun clearAllRemovesOnlyTheSelectedUsersUsage() {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication() as Application
         val response = StudentAITextResponse(
             StudentAIKeyStore.Provider.GEMINI,
             "gemini-model",
