@@ -50,6 +50,18 @@ class StudentAIProviderClientTest {
         }
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun modelIdentifierCannotInjectAdditionalUrlPathSegments() {
+        StudentAIProviderClient.buildHttpRequest(
+            provider = StudentAIKeyStore.Provider.GEMINI,
+            apiKey = "test-secret-key",
+            model = "../other/path",
+            prompt = "test",
+            systemInstruction = null,
+            maxOutputTokens = 32
+        )
+    }
+
     @Test
     fun geminiRequestUsesNativeGenerateContentContract() {
         val request = build(StudentAIKeyStore.Provider.GEMINI)
