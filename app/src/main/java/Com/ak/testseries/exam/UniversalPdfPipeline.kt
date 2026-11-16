@@ -132,7 +132,7 @@ object UniversalPdfPipeline {
             else -> return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Unsupported or unsafe route: $nextRoute")
         }
 
-        val analysisResult = executeGemini(analysisPrompt, UniversalAIContext.buildSystemInstruction(examConfig))
+        val analysisResult = executeAdminAi(analysisPrompt, UniversalAIContext.buildSystemInstruction(examConfig))
             ?: return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Admin AI document processing failed.")
         val analysisJson = try { JSONObject(analysisResult) } catch (_: Exception) {
             return@withContext AdminPdfRouteResult("NEEDS_REVIEW", documentText, routingJson, null, "Admin AI returned invalid analysis JSON.")
