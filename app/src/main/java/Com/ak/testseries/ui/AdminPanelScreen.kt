@@ -200,7 +200,7 @@ fun AdminLiveTestUploadSection(viewModel: NEETViewModel) {
                                     examConfig = examConfig,
                                     selectedSubject = subject,
                                     serverGenerate = { prompt, instruction ->
-                                        viewModel.callGeminiApiForQuestionsWithFallback(prompt, instruction)
+                                        viewModel.generateAiForQuestions(prompt, instruction)
                                     }
                                 )
                                 pdfReviewSummary = buildString {
