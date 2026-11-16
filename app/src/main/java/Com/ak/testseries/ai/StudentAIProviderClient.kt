@@ -90,6 +90,10 @@ object StudentAIProviderClient {
             ?.takeIf { it.isNotBlank() }
             ?: throw StudentAIProviderException(message = "No personal API key is configured for this provider.")
 
+        if (FirebaseAuth.getInstance().currentUser?.uid != authenticatedUid) {
+            throw StudentAIProviderException(message = "The signed-in account changed. The request was not sent.")
+        }
+
         val httpRequest = buildHttpRequest(
             provider = request.provider,
             apiKey = apiKey,
