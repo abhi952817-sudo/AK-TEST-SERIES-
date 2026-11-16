@@ -79,7 +79,6 @@ fun CommunityAdminSettingsScreen(viewModel: NEETViewModel) {
     
     // Real users state from NEETViewModel
     val users by viewModel.adminUsers.collectAsStateWithLifecycle()
-    val activeGeminiKeyIndex by viewModel.activeGeminiKeyIndex.collectAsStateWithLifecycle()
     val geminiStatusMessage by viewModel.geminiStatusMessage.collectAsStateWithLifecycle()
     
     // Fetch users in real-time
