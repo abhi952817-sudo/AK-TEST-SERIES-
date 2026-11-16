@@ -2,6 +2,7 @@ package Com.ak.testseries.ui
 
 import Com.ak.testseries.ai.StudentAIProviderClient
 import Com.ak.testseries.utils.StudentAIKeyStore
+import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -161,7 +162,13 @@ fun StudentAIProviderSettingsCard(
                         statusMessage = null
                         scope.launch {
                             try {
+                                if (FirebaseAuth.getInstance().currentUser?.uid != uid) {
+                                    throw IllegalStateException("The signed-in account changed. Reopen Settings and try again.")
+                                }
                                 val models = StudentAIProviderClient.verifyApiKey(selectedProvider, apiKeyInput)
+                                if (FirebaseAuth.getInstance().currentUser?.uid != uid) {
+                                    throw IllegalStateException("The signed-in account changed. The key was not saved.")
+                                }
                                 withContext(Dispatchers.IO) {
                                     StudentAIKeyStore.save(context, uid, selectedProvider, apiKeyInput)
                                     StudentAIKeyStore.savePreferredModel(context, uid, selectedProvider, models.first())
@@ -189,6 +196,7 @@ fun StudentAIProviderSettingsCard(
                         enabled = !isBusy,
                         onClick = {
                             scope.launch {
+                                if (FirebaseAuth.getInstance().currentUser?.uid != uid) return@launch
                                 withContext(Dispatchers.IO) {
                                     StudentAIKeyStore.clear(context, uid, selectedProvider)
                                 }
@@ -241,6 +249,7 @@ fun StudentAIProviderSettingsCard(
                     enabled = modelInput.isNotBlank() && !isBusy,
                     onClick = {
                         scope.launch {
+                            if (FirebaseAuth.getInstance().currentUser?.uid != uid) return@launch
                             withContext(Dispatchers.IO) {
                                 StudentAIKeyStore.savePreferredModel(context, uid, selectedProvider, modelInput)
                             }
