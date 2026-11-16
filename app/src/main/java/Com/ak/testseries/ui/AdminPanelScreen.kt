@@ -408,7 +408,6 @@ fun PushNotificationSection(viewModel: NEETViewModel? = null) {
 fun RealtimeDataSection() {
     var liveScore by remember { mutableStateOf("") }
     var activeTestId by remember { mutableStateOf("") }
-    val coroutineScope = rememberCoroutineScope()
 
     AdminSectionCard(
         title = "Firestore Live Data Control",
