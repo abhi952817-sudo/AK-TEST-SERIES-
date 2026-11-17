@@ -12,6 +12,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -123,6 +128,50 @@ class GoogleDriveServiceTest {
         // Listing for user_3 (no backups) must return empty list
         val user3Backups = fakeClient.listBackups("dummy_token", folderId, "user_3").getOrThrow()
         assertTrue(user3Backups.isEmpty())
+    }
+
+    @Test
+    fun testProductionDriveClientFollowsEveryBackupPageAndFiltersOwner() = runBlocking {
+        var requestCount = 0
+        var secondPageToken: String? = null
+        val httpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                requestCount++
+                val pageToken = request.url.queryParameter("pageToken")
+                val payload = if (pageToken == null) {
+                    """{
+                      "nextPageToken":"next/token+page",
+                      "files":[
+                        {"id":"owned_old","name":"old.aktsbak","size":"100","createdTime":"2026-10-01T00:00:00.000Z","modifiedTime":"2026-10-01T00:00:00.000Z","appProperties":{"ownerUid":"active_uid"}},
+                        {"id":"foreign","name":"foreign.aktsbak","size":"100","createdTime":"2026-10-02T00:00:00.000Z","modifiedTime":"2026-10-02T00:00:00.000Z","appProperties":{"ownerUid":"other_uid"}}
+                      ]
+                    }"""
+                } else {
+                    secondPageToken = pageToken
+                    """{
+                      "files":[
+                        {"id":"owned_new","name":"new.aktsbak","size":"100","createdTime":"2026-10-03T00:00:00.000Z","modifiedTime":"2026-10-03T00:00:00.000Z","appProperties":{"ownerUid":"active_uid"}}
+                      ]
+                    }"""
+                }
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(payload.toResponseBody("application/json".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val client = OkHttpGoogleDriveApiClient(httpClient)
+        val result = client.listBackups("test_token", "folder_id", "active_uid").getOrThrow()
+
+        assertEquals("Both pages must be requested", 2, requestCount)
+        assertEquals("next/token+page", secondPageToken)
+        assertEquals(listOf("owned_new", "owned_old"), result.map { it.fileId })
+        assertTrue("Foreign account backup must be excluded", result.none { it.fileId == "foreign" })
     }
 
     @Test

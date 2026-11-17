@@ -206,39 +206,58 @@ class OkHttpGoogleDriveApiClient(
         try {
             val query = "'$folderId' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false"
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
-            val listUrl = "$BASE_DRIVE_API?q=$encodedQuery&fields=files(id,name,size,createdTime,modifiedTime,description,appProperties)&orderBy=createdTime desc&pageSize=50"
+            val backupList = mutableListOf<GoogleDriveRemoteBackup>()
+            val seenPageTokens = mutableSetOf<String>()
+            var pageToken: String? = null
 
-            val request = Request.Builder()
-                .url(listUrl)
-                .addHeader("Authorization", "Bearer $accessToken")
-                .get()
-                .build()
+            // Drive v3 returns at most 1000 files per page. Follow every nextPageToken
+            // so retention sees the complete backup set, not just the newest 50 files.
+            do {
+                val pageTokenParam = pageToken?.let {
+                    "&pageToken=${URLEncoder.encode(it, "UTF-8")}"
+                } ?: ""
+                val listUrl = "$BASE_DRIVE_API?q=$encodedQuery&fields=nextPageToken,files(id,name,size,createdTime,modifiedTime,description,appProperties)&orderBy=createdTime desc&pageSize=1000$pageTokenParam"
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    val errBody = response.body?.string() ?: ""
-                    return@withContext Result.failure(
-                        IOException("Google Drive list backups failed: HTTP ${response.code} $errBody")
-                    )
+                val request = Request.Builder()
+                    .url(listUrl)
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .get()
+                    .build()
+
+                val responseJson = client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        val errBody = response.body?.string() ?: ""
+                        return@withContext Result.failure(
+                            IOException("Google Drive list backups failed: HTTP ${response.code} $errBody")
+                        )
+                    }
+                    JSONObject(response.body?.string() ?: "{}")
                 }
 
-                val jsonResponse = JSONObject(response.body?.string() ?: "{}")
-                val files = jsonResponse.optJSONArray("files") ?: JSONArray()
-                val backupList = mutableListOf<GoogleDriveRemoteBackup>()
-
+                val files = responseJson.optJSONArray("files") ?: JSONArray()
                 for (i in 0 until files.length()) {
                     val fileObj = files.getJSONObject(i)
                     val backup = GoogleDriveRemoteBackup.fromDriveFileJson(fileObj)
-                    // Strict zero-trust filter: only include backups owned by active user
-                    if (backup != null && (backup.ownerUid == safeUid || backup.name.contains(safeUid))) {
-                        backupList.add(backup.copy(driveFolderId = folderId, ownerUid = safeUid))
+                    // Only trusted appProperties/manifest metadata can establish ownership.
+                    if (backup != null && backup.ownerUid == safeUid) {
+                        backupList.add(backup.copy(driveFolderId = folderId))
                     }
                 }
 
-                // Sort newest first
-                backupList.sortByDescending { if (it.modifiedTimeMillis > 0) it.modifiedTimeMillis else it.createdTimeMillis }
-                Result.success(backupList)
+                val nextToken = responseJson.optString("nextPageToken", "").takeIf { it.isNotBlank() }
+                if (nextToken != null && !seenPageTokens.add(nextToken)) {
+                    return@withContext Result.failure(
+                        IOException("Google Drive returned a repeated page token; refusing an incomplete backup listing.")
+                    )
+                }
+                pageToken = nextToken
+            } while (pageToken != null)
+
+            // Sort newest first before retention decides which backups to preserve.
+            backupList.sortByDescending {
+                if (it.modifiedTimeMillis > 0) it.modifiedTimeMillis else it.createdTimeMillis
             }
+            Result.success(backupList)
         } catch (e: Exception) {
             Result.failure(e)
         }

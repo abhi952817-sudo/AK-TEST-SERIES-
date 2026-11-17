@@ -5,41 +5,48 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 
+/**
+ * Uploads app media to Firebase Storage.
+ *
+ * A local content/cache URI is never returned as a successful cloud URL:
+ * such a URI is not accessible to other users or devices. Upload failures
+ * therefore return null and callers must keep the media pending/retryable.
+ */
 object FileUploaderUtil {
 
     private val storage by lazy {
         try {
             FirebaseStorage.getInstance()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
 
     /**
-     * Compress bitmap image (charts, figures, diagrams) to max width/height of 1280px
-     * and WEBP/JPEG format with 75% quality for optimal size and clarity.
+     * Compresses a chart/diagram and uploads it to chart_images/.
+     * Returns a Firebase download URL only after the upload is confirmed.
      */
     suspend fun uploadImage(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
+        var originalBitmap: Bitmap? = null
+        var scaledBitmap: Bitmap? = null
         try {
-            val inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext null
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: return@withContext null
+            val decodedBitmap = inputStream.use { BitmapFactory.decodeStream(it) }
+                ?: return@withContext null
+            originalBitmap = decodedBitmap
 
-            if (originalBitmap == null) return@withContext null
-
-            // Resize bitmap maintaining aspect ratio (max dimension 1280px for high chart clarity)
             val maxDimension = 1280
-            val width = originalBitmap.width
-            val height = originalBitmap.height
-            val scaledBitmap = if (width > maxDimension || height > maxDimension) {
+            val width = decodedBitmap.width
+            val height = decodedBitmap.height
+            val outputBitmap = if (width > maxDimension || height > maxDimension) {
                 val ratio = width.toFloat() / height.toFloat()
                 val targetWidth: Int
                 val targetHeight: Int
@@ -50,60 +57,57 @@ object FileUploaderUtil {
                     targetHeight = maxDimension
                     targetWidth = (maxDimension * ratio).toInt()
                 }
-                Bitmap.createScaledBitmap(originalBitmap, targetWidth, targetHeight, true)
+                Bitmap.createScaledBitmap(decodedBitmap, targetWidth, targetHeight, true)
             } else {
-                originalBitmap
+                decodedBitmap
             }
+            scaledBitmap = outputBitmap
 
             val baos = ByteArrayOutputStream()
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                scaledBitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 75, baos)
+                outputBitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 75, baos)
             } else {
                 @Suppress("DEPRECATION")
-                scaledBitmap.compress(Bitmap.CompressFormat.WEBP, 75, baos)
+                outputBitmap.compress(Bitmap.CompressFormat.WEBP, 75, baos)
             }
             val compressedBytes = baos.toByteArray()
+            if (compressedBytes.isEmpty()) return@withContext null
 
-            val fileName = "chart_images/${UUID.randomUUID()}.webp"
-            
-            // Try uploading to Firebase Storage if available
-            val firebaseRef = storage?.reference?.child(fileName)
-            if (firebaseRef != null) {
-                try {
-                    firebaseRef.putBytes(compressedBytes).await()
-                    val downloadUrl = firebaseRef.downloadUrl.await()
-                    return@withContext downloadUrl.toString()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
+            val firebaseRef = storage?.reference?.child("chart_images/${UUID.randomUUID()}.webp")
+                ?: return@withContext null
 
-            // Local compressed fallback file if Firebase Storage fails or offline
-            val localDir = File(context.cacheDir, "compressed_charts").apply { mkdirs() }
-            val localFile = File(localDir, "chart_${UUID.randomUUID()}.webp")
-            FileOutputStream(localFile).use { fos ->
-                fos.write(compressedBytes)
+            val imageMetadata = StorageMetadata.Builder()
+                .setContentType("image/webp")
+                .build()
+            firebaseRef.putBytes(compressedBytes, imageMetadata).await()
+            firebaseRef.downloadUrl.await().toString()
+        } catch (_: Exception) {
+            null
+        } finally {
+            if (scaledBitmap != null && scaledBitmap !== originalBitmap && !scaledBitmap.isRecycled) {
+                scaledBitmap.recycle()
             }
-            return@withContext Uri.fromFile(localFile).toString()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext null
+            if (originalBitmap != null && !originalBitmap.isRecycled) {
+                originalBitmap.recycle()
+            }
         }
     }
 
+    /**
+     * Uploads a PDF to pdfs/. Returns null when cloud upload is unavailable
+     * or fails; the original device URI is not a shareable cloud reference.
+     */
     suspend fun uploadPdf(uri: Uri): String? = withContext(Dispatchers.IO) {
         try {
-            val fileName = "pdfs/${UUID.randomUUID()}.pdf"
-            val ref = storage?.reference?.child(fileName)
-            if (ref != null) {
-                ref.putFile(uri).await()
-                val downloadUrl = ref.downloadUrl.await()
-                return@withContext downloadUrl.toString()
-            }
-            return@withContext uri.toString()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext uri.toString()
+            val ref = storage?.reference?.child("pdfs/${UUID.randomUUID()}.pdf")
+                ?: return@withContext null
+            val pdfMetadata = StorageMetadata.Builder()
+                .setContentType("application/pdf")
+                .build()
+            ref.putFile(uri, pdfMetadata).await()
+            ref.downloadUrl.await().toString()
+        } catch (_: Exception) {
+            null
         }
     }
 }

@@ -13,26 +13,16 @@ object FirestoreHelper {
         cachedInstance?.let { return it }
         synchronized(this) {
             cachedInstance?.let { return it }
-            val dbId = try {
-                context?.getString(R.string.firestore_database_id)
-            } catch (e: Exception) {
-                null
-            } ?: "ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf"
 
-            val instance = try {
-                val app = FirebaseApp.getInstance()
-                if (dbId.isNotBlank() && dbId != "(default)") {
-                    FirebaseFirestore.getInstance(app, dbId)
-                } else {
-                    FirebaseFirestore.getInstance(app)
-                }
-            } catch (e: Exception) {
-                try {
-                    FirebaseFirestore.getInstance()
-                } catch (e2: Exception) {
-                    throw e2
-                }
+            // This app intentionally uses only the Firebase project's (default) database.
+            // Fail closed if a resource is accidentally changed to a named database.
+            val configuredDatabaseId = context?.getString(R.string.firestore_database_id) ?: "(default)"
+            check(configuredDatabaseId == "(default)") {
+                "Unexpected Firestore database ID: $configuredDatabaseId. Only (default) is allowed."
             }
+
+            val app = FirebaseApp.getInstance()
+            val instance = FirebaseFirestore.getInstance(app)
             cachedInstance = instance
             return instance
         }
