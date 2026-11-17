@@ -19,20 +19,8 @@ object FirestoreHelper {
                 null
             } ?: "ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf"
 
-            val instance = try {
-                val app = FirebaseApp.getInstance()
-                if (dbId.isNotBlank() && dbId != "(default)") {
-                    FirebaseFirestore.getInstance(app, dbId)
-                } else {
-                    FirebaseFirestore.getInstance(app)
-                }
-            } catch (e: Exception) {
-                try {
-                    FirebaseFirestore.getInstance()
-                } catch (e2: Exception) {
-                    throw e2
-                }
-            }
+            val app = FirebaseApp.getInstance()
+            val instance = FirebaseFirestore.getInstance(app, dbId)
             cachedInstance = instance
             return instance
         }

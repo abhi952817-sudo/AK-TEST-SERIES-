@@ -678,7 +678,7 @@ suspend fun compressAndUploadToFirebase(
                     
                     // Update Firestore document with downloaded image URL
                                         try {
-                        FirebaseFirestore.getInstance()
+                        Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
                             .collection("questions")
                             .document(questionId)
                             .update("imageUrl", downloadUrl)

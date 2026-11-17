@@ -7,7 +7,7 @@ class AnalyticsManager {
 
     private val firestore by lazy {
         try {
-            FirebaseFirestore.getInstance()
+            Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         } catch (e: Exception) {
             null
         }

@@ -242,7 +242,7 @@ fun CommunityScreen(
             likedPostIds.clear()
             return@DisposableEffect onDispose {}
         }
-        val db = FirebaseFirestore.getInstance()
+        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         val bookmarkListener = db.collection("Users_Data").document(currentUid)
             .collection("Bookmarked_Posts")
             .addSnapshotListener { snapshot, error ->
@@ -266,7 +266,7 @@ fun CommunityScreen(
     }
 
     DisposableEffect(targetExam) {
-        val db = FirebaseFirestore.getInstance()
+        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
 
         fun parseDocument(doc: com.google.firebase.firestore.DocumentSnapshot): CommunityPost? {
             return try {
@@ -374,7 +374,7 @@ fun CommunityScreen(
     val toggleBookmark: (CommunityPost) -> Unit = { post ->
         val uid = currentUid
         if (!uid.isNullOrBlank()) {
-            val db = FirebaseFirestore.getInstance()
+            val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
             val bookmarkDoc = db.collection("Users_Data").document(uid).collection("Bookmarked_Posts").document(post.id)
             if (bookmarkedPostIds.contains(post.id)) {
                 bookmarkedPostIds.remove(post.id)
@@ -389,7 +389,7 @@ fun CommunityScreen(
     val toggleLikePost: (CommunityPost) -> Unit = { post ->
         val uid = currentUid
         if (!uid.isNullOrBlank()) {
-            val db = FirebaseFirestore.getInstance()
+            val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
             val likeDoc = db.collection("Users_Data").document(uid).collection("Liked_Posts").document(post.id)
             val isLiked = likedPostIds.contains(post.id)
             if (isLiked) {
@@ -405,7 +405,7 @@ fun CommunityScreen(
     val addCommentToPost: (CommunityPost, CommunityComment) -> Unit = { targetPost, newComment ->
         val uid = currentUid
         if (!uid.isNullOrBlank() && newComment.content.isNotBlank()) {
-            FirebaseFirestore.getInstance()
+            Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
                 .collection("Community_Posts").document(targetPost.id)
                 .collection("Comments").document(newComment.id)
                 .set(commentToMap(newComment.copy(creatorId = uid)))
@@ -413,12 +413,12 @@ fun CommunityScreen(
     }
 
     val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
-        val db = FirebaseFirestore.getInstance()
+        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         db.collection("Community_Posts").document(newPost.id).set(communityPostToMap(newPost))
     }
 
     val updatePostInFirebase: (CommunityPost) -> Unit = { updatedPost ->
-        val db = FirebaseFirestore.getInstance()
+        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         if (currentUid == updatedPost.creatorId || isAdmin) {
             db.collection("Community_Posts").document(updatedPost.id).update(
                 mapOf(
@@ -431,7 +431,7 @@ fun CommunityScreen(
     }
 
     fun deletePostInFirebase(post: CommunityPost) {
-        val db = FirebaseFirestore.getInstance()
+        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         db.collection("Community_Posts").document(post.id).delete()
     }
 
@@ -1192,7 +1192,7 @@ fun PostDetailScreen(
     val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
 
     DisposableEffect(post.id) {
-        val registration = FirebaseFirestore.getInstance()
+        val registration = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
             .collection("Community_Posts").document(post.id)
             .collection("Comments")
             .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.ASCENDING)
@@ -1300,7 +1300,7 @@ fun PostDetailScreen(
                     comment = comment,
                     canDelete = isAdmin || comment.creatorId == currentUid,
                     onDelete = {
-                        FirebaseFirestore.getInstance()
+                        Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
                             .collection("Community_Posts").document(post.id)
                             .collection("Comments").document(comment.id).delete()
                     }

@@ -86,7 +86,7 @@ fun CommunityAdminSettingsScreen(viewModel: NEETViewModel) {
     LaunchedEffect(Unit) {
         viewModel.fetchAdminUsers()
         
-        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         db.collection("Config").document("community_settings").get()
             .addOnSuccessListener { snapshot ->
                 if (snapshot != null && snapshot.exists()) {
@@ -103,7 +103,7 @@ fun CommunityAdminSettingsScreen(viewModel: NEETViewModel) {
     
     fun saveCommunitySettings(key: String, value: Any) {
         if (!viewModel.isAdmin) return
-        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         db.collection("Config").document("community_settings")
             .set(mapOf(key to value), com.google.firebase.firestore.SetOptions.merge())
     }
