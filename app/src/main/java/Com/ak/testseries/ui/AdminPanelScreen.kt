@@ -23,8 +23,6 @@ import androidx.compose.ui.unit.sp
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import com.google.firebase.Firebase
-import com.google.firebase.database.database
 import kotlinx.coroutines.launch
 import Com.ak.testseries.viewmodel.NEETViewModel
 
@@ -376,7 +374,7 @@ fun PushNotificationSection(viewModel: NEETViewModel? = null) {
                             )
                             if (imageUrl.isNotBlank()) notifData["imageUrl"] = imageUrl.trim()
                             if (linkUrl.isNotBlank()) notifData["linkUrl"] = linkUrl.trim()
-                            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
                                 .collection("UserNotifications")
                                 .add(notifData)
                         }
@@ -410,12 +408,11 @@ fun PushNotificationSection(viewModel: NEETViewModel? = null) {
 fun RealtimeDataSection() {
     var liveScore by remember { mutableStateOf("") }
     var activeTestId by remember { mutableStateOf("") }
-    val coroutineScope = rememberCoroutineScope()
 
     AdminSectionCard(
-        title = "Realtime Database Control",
+        title = "Firestore Live Data Control",
         icon = Icons.Rounded.Speed,
-        description = "Manage live test scores or instantly changing data."
+        description = "Manage live test scores and status in the app’s single Firestore database."
     ) {
         OutlinedTextField(
             value = activeTestId,
@@ -434,9 +431,16 @@ fun RealtimeDataSection() {
         Button(
             onClick = {
                 if (activeTestId.isNotEmpty()) {
-                    val database = Firebase.database
-                    val ref = database.getReference("live_tests").child(activeTestId)
-                    ref.child("liveScore").setValue(liveScore)
+                    Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
+                        .collection("LiveTests")
+                        .document(activeTestId.trim())
+                        .set(
+                            mapOf(
+                                "liveScore" to liveScore,
+                                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                            ),
+                            com.google.firebase.firestore.SetOptions.merge()
+                        )
                 }
             },
             modifier = Modifier.align(Alignment.End)
@@ -523,7 +527,7 @@ fun UserFeedbacksSection() {
     
     LaunchedEffect(Unit) {
         try {
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
             db.collection("test_feedbacks")
                 .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(20)

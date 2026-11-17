@@ -2,11 +2,8 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 admin.initializeApp();
 
-// The Android app is configured against this named Firestore database.
-// Never let privileged Cloud Functions silently operate on the unrelated (default) database.
-const FIRESTORE_DATABASE_ID =
-  process.env.FIRESTORE_DATABASE_ID || "ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612";
-const db = admin.firestore(FIRESTORE_DATABASE_ID);
+// Use the existing (default) Firestore database, which contains the app's current data.
+const db = admin.firestore();
 const {
   evaluateTestAttempt,
   calculatePopulationPercentile,

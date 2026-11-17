@@ -1,13 +1,12 @@
 package Com.ak.testseries.data.analytics
 
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 
 class AnalyticsManager {
 
     private val firestore by lazy {
         try {
-            FirebaseFirestore.getInstance()
+            Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
         } catch (e: Exception) {
             null
         }

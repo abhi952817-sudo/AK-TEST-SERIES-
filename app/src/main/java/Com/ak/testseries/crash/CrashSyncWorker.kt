@@ -83,7 +83,7 @@ class CrashSyncWorker(
      */
     private suspend fun dispatchToFirestore(report: CrashSanitizer.SanitizedCrash): Boolean {
         return try {
-            val db = FirestoreHelper.getInstance(applicationContext)
+            val db = FirestoreHelper.getInstance()
             val payload = hashMapOf<String, Any>(
                 "incidentId" to report.incidentId,
                 "category" to report.category,
