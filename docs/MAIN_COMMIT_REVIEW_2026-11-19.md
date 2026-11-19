@@ -130,3 +130,18 @@ Continue the branch-by-branch Markdown and implementation inventory. Do not merg
 ### M-002 clarification — Gemini helper has limited current call sites
 - Current code search finds `FirebaseAiService` references in `UniversalPdfPipeline.kt` and `GeminiPdfExtractor.kt` in addition to its own declaration.
 - This establishes limited Gemini-service adoption, not a five-provider router. No dispatch across Groq, Mistral, Cloudflare and Hugging Face was found in the reviewed registry/service additions.
+
+
+## Small remediation executed — F-004 numerical equivalence edge case (2026-11-19)
+
+- New fix branch: `fix/strict-numerical-equivalence-2026-11-19`.
+- Base: current main `724defaa487bfc64863402992474b1044198ae98`.
+- Commits: scoring fix `d534d590fe58b7c8e3dad86809730730f6e4b3c3`; regression tests `0cf3a3e4339573d358dc9c6e11986f80369ab4db`.
+- PR #15: https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/15 (open, draft, targets main).
+- Root cause: numerical comparison checked exact string equality before strict numeric parsing, so identical invalid inputs such as `NaN`, `Infinity`, or `12abc` could compare as correct.
+- Change: for numerical questions, parse both operands first and require finite strict-decimal values before comparing; preserve ordinary option/index matching for non-numerical questions.
+- Added regression cases: valid signed decimals, malformed strings, non-finite strings, blanks and scientific notation (currently rejected by the strict decimal contract).
+- Local focused Node verification of the exact patched comparison logic: **11/11 cases passed**.
+- GitHub Android CI for PR head: run `44530440435`, still in progress at this update. The repository currently has no dedicated Node/Cloud Functions test workflow in `.github/workflows`; Android CI alone does not prove `examScoring.test.js` was executed.
+- Merge gate: inspect final PR checks and, before merge, ensure the full backend test file is executed in a Node 18 environment. Do not mark merged until checks prove it.
+- No main code, Firebase deployment, production data, or other branches changed by this remediation.
