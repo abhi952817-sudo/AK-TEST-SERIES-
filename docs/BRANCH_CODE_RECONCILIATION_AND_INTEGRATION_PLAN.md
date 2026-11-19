@@ -337,3 +337,12 @@ A grouped comparison of all Firestore candidate branches confirms they are not i
 5. For Community/Analytics composite branches, port isolated reviewed server-validation and UI/test components only after test ownership, answer-key privacy, Storage paths and Firestore target gates pass.
 6. Recheck every branch head before creating any PR/merge. Update this register after each accepted slice.
 
+
+
+### Golden scoring fixture audit — additional blocker
+- Static review of `audit/all-exam-scoring-ranking-2026-11-13` confirms the shared policy file declares `DRAFT_NOT_RUNTIME_WIRED` and explicitly disables scoring/ranking for the listed exams until adapters and parity tests exist. This is a useful fail-closed design and should be preserved.
+- The same branch's fixture JSON labels vectors `SOURCE_BACKED_POLICY_VECTOR` and includes official-source URLs, but the source PDFs/notices and exact marking rules have not yet been independently fetched/reviewed in this integration pass. Do not treat those labels as verified evidence.
+- The NEET policy entry itself says the 2026 pattern is 180 compulsory questions and notes the old Section A/B optional scheme is obsolete, while the policy object still carries old-style Section A/B section IDs and the sample vector is only a synthetic four-question scoring example. These can be test mechanics, but must not be mistaken for a complete exam-pattern proof.
+- Before porting the shared golden-vector suite, verify each fixture against the matching exam-year official notice, identify whether each is a synthetic unit vector or official pattern fixture, correct inconsistent metadata, and add explicit tests for MSQ exact-set, numerical parsing/tolerance, optional sections, dropped questions, partial marking and rounding. Then wire the same JSON fixture file into Kotlin and Node without creating parallel fixture sources.
+- Current disposition: preserve as a candidate; no fixture or scoring policy file has been copied into Main yet.
+
