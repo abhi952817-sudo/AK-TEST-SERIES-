@@ -364,8 +364,8 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
  * Returns null when the query result is missing, malformed or inconsistent.
  */
 function createRankingSnapshot(higherCount, existingCount) {
-  const higher = Number(higherCount);
-  const existing = Number(existingCount);
+  const higher = higherCount;
+  const existing = existingCount;
   if (!Number.isSafeInteger(higher) || higher < 0 ||
       !Number.isSafeInteger(existing) || existing < 0 ||
       higher > existing) {
