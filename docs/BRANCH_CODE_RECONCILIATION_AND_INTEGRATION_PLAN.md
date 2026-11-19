@@ -254,7 +254,7 @@ Both were squash-merged after checking exact PR heads, clean mergeability and su
 8. **Final regression and release gate:** exact-head Android unit/UI/build; backend tests; Firestore/Storage emulator rules; secret scan; migrations/backup restore; no fake data; full student path smoke test. Report PASS/FAIL/NOT RUN separately.
 
 ### Current blockers and non-negotiable dependencies
-- Ranking V2 run `44531380449`: backend unit tests PASS, Firestore rules tests PASS, Android validation FAIL. The Android job's test/build step failed; root cause must be extracted from its job log before remediation. This branch is not merge-ready.
+- Ranking V2 run `44531380449`: backend unit tests PASS, Firestore rules tests PASS, Android validation FAIL. The Android job built the Debug APK successfully, then `app:testDebugUnitTest` failed: **293 tests completed, 1 failed**, specifically `CrashResilienceTest > classMethod`, with `UnsupportedOperationException at DefaultSdkProvider.java:170`. The same `CrashResilienceTest.kt` source is present unchanged in main and the ranking branch. This does not yet prove a ranking regression; compare/re-run the same test on the current main baseline and inspect the Robolectric/SDK dependency stack before changing the test or code. This branch is not merge-ready.
 - Community full-branch merge blocked by client-bypassable test/question verification and conflicting Firestore database target.
 - Firestore consolidation blocked until live database identity and recoverability are verified; source code alone cannot establish which production DB contains canonical records.
 - Student connector branch is not the approved provider set and does not yet complete PDF/multimodal/approval workflow.
@@ -271,3 +271,13 @@ Both were squash-merged after checking exact PR heads, clean mergeability and su
 
 ### Completion definition
 This consolidation is complete only when every live branch has a final recorded classification (merged selectively / duplicate / obsolete with evidence / preserved as incomplete with dependency plan), all unique useful work is either in main or explicitly scheduled, the main branch builds and passes its required tests, and no unresolved merge conflict, duplicate implementation, secret exposure, data migration or answer-key privacy issue remains. Branch deletion is a separate later decision and is not part of this task.
+
+
+### Ranking V2 Android failure — log review detail (2026-11-19)
+- Workflow run: `44531380449`; job: `android-validation` (`135585295170`).
+- Debug APK assembly completed successfully (`assembleDebug` PASS).
+- Unit test task failed: `293 tests completed, 1 failed`.
+- Failure: `CrashResilienceTest > classMethod`; reported exception: `UnsupportedOperationException at DefaultSdkProvider.java:170`.
+- The corresponding `CrashResilienceTest.kt` content fetched from `main` and `feature/ranking-engine-v2-2026-11-06` is identical. Therefore do **not** label this as a ranking-engine code defect without further evidence.
+- Next diagnostic: identify the exact failing method/stack trace and SDK/Robolectric dependency source; run this same test on current main and ranking branch with the same JDK/Gradle/dependency lock. If main also fails, record as baseline CI/test-environment defect; if only branch fails, isolate the dependency or source delta. Do not delete/skip/weaken the test to get a green workflow.
+- Backend unit tests and Firestore rules tests in the same run passed; overall workflow remains FAIL until Android suite passes.
