@@ -51,3 +51,8 @@ The earlier recorded exact-head CI run for this branch was `44535036938` and pas
 - [ ] Exact-head backend, rules and Android CI green.
 - [ ] Main student UI distinguishes unavailable ranking from a real rank.
 - [ ] No production backfill/deployment without separate approval.
+
+
+## Android compatibility gate discovered 2026-11-19
+
+Main `NEETViewModel.kt` reads missing server percentile as `0.0` in multiple submission/result paths (approximately lines 468, 4623, 6645 and 6682 in the reviewed blob). Therefore the backend null-state proposal in PR #18 must not be merged until the Android result model/UI distinguishes unavailable ranking from a real percentile value. Review the relevant Attempt/Result data model and UI before changing it; this may require more than the 2–4-file safe-fix limit and should then be documented as a separate work item. PR #18 exact-head CI was not yet available at this checkpoint.
