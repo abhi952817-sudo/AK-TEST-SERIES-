@@ -56,3 +56,16 @@ The earlier recorded exact-head CI run for this branch was `44535036938` and pas
 ## Android compatibility gate discovered 2026-11-19
 
 Main `NEETViewModel.kt` reads missing server percentile as `0.0` in multiple submission/result paths (approximately lines 468, 4623, 6645 and 6682 in the reviewed blob). Therefore the backend null-state proposal in PR #18 must not be merged until the Android result model/UI distinguishes unavailable ranking from a real percentile value. Review the relevant Attempt/Result data model and UI before changing it; this may require more than the 2–4-file safe-fix limit and should then be documented as a separate work item. PR #18 exact-head CI was not yet available at this checkpoint.
+
+
+## Refreshed comparison against Main — 2026-11-19 latest checkpoint
+
+- Main HEAD: `c8eee7a56ce409695c93585815c276fc85687c18`.
+- Ranking V2 branch HEAD remains `59d45f61051ff11e0234075eafd74c88f0bc75fd`.
+- Latest compare: **110 commits ahead / 139 behind**, 14 changed files; status `diverged`. The branch is now seven commits further behind than the prior recorded snapshot. It remains unsuitable for wholesale merge.
+- PR #18 exact head: `fda2d304cad601d43d50eb6fdb8f3068662f4615`. GitHub currently reports PR #18 open, `mergeable=false`; do not merge or assume the PR's backend proposal is integrated.
+- Exact-head workflow run `44541619345` (Android CI) is currently in progress. Backend syntax and Backend Scoring Tests steps have completed successfully; Android Unit Tests are still running; Gradle build and APK upload are pending. This is **not a completed CI pass**.
+- Main consumer review confirms null percentile is converted to `0.0` in the direct rank-details fetch and in pending-attempt sync / cloud-attempt hydration. The normal submission path falls back to the local attempt percentile, which can also be a fabricated/default value. This is a data-contract issue, not a safe one-line backend-only fix.
+- Required next design: make rank availability explicit in the persisted attempt/result contract (for example nullable rank fields plus a status enum), propagate it through Room entity/migration, Firestore serialization/hydration, ViewModel and result UI, and distinguish “not applicable”, “pending”, and “query unavailable”. Audit all readers before choosing the representation. This exceeds the 2–4-file small-fix boundary; document and plan it before code changes.
+- The latest compare also confirms broad overlap remains in `MainActivity.kt`, `NEETViewModel.kt`, `backend_functions/index.js`, Firestore rules/indexes and tests. Keep PR #1 and the branch as evidence only.
+
