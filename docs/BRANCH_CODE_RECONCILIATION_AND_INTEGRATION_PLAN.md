@@ -609,3 +609,13 @@ Workflow run [44541619345](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/ac
 Expanded [Community branch family handoff](branches/community-branch-family-overlap-HANDOFF.md) after inspecting four Main call sites. The helper returns Unit and swallows image-upload / Firestore failures; callers around lines 1530, 1680, 6035 and 6318 cannot distinguish cloud publication from local Room save. The generator's Tests_Data, LiveTests, private answer-key, notification and Community-share operations can fail independently. This is an outcome-propagation defect; a specific false-success toast is not yet proven. The handoff now lists the distinct outcomes, UI-state boundary, retry/idempotency requirements and acceptance tests. Scope exceeds 2–4 files; no application code changed.
 
 Latest documentation commits: Community handoff `4b544cb564d5d12d294173a03229cab0bbd8e9d7`; Ranking handoff `876f2fc25c036df2c3b32015aa096b35fc0fad11`; this Master Plan update follows. PR #18 exact-head CI is green (run `44541619345`), but PR remains unmerged pending ranking availability persistence/migration compatibility.
+
+
+### Ranking persistence dependency expansion — 2026-11-19
+
+The Attempt availability contract has additional backup/restore consumers beyond Room and NEETViewModel. Main source review confirmed:
+- `AccountDataBackupAdapter.kt` serializes Attempt percentile and restores missing values as 0.0; new state fields must be backward-compatible with old archives and round-trip in new archives.
+- `FirebaseUserRepositoryImpl.kt` writes AttemptEntity into the user's Firestore backup collection and reconstructs it during restore, also defaulting absent percentile to 0.0; extend both directions only after defining legacy semantics.
+- `AppDatabase.kt` is schema v20, includes migrations 15→16 through 19→20, and still enables `.fallbackToDestructiveMigration()`. Preserve all attempts across supported upgrades; do not use destructive fallback as a migration strategy.
+
+This expands the ranking work item to include Room migration, ViewModel/result UI, Firestore backup/restore, account archive export/import, legacy compatibility and corresponding tests. The ranking handoff now records the source blobs and acceptance criteria. No application code/schema change was made. PR #18 remains held until this end-to-end contract is implemented and tested.
