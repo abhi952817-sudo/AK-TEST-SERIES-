@@ -98,3 +98,28 @@ This crosses backend response, Firestore serialization, Room schema/migration, V
 - All steps completed successfully: Firebase Functions JavaScript syntax, Backend Scoring Tests, Android Unit Tests, Gradle Build and APK artifact upload.
 - This closes the CI gate for that exact PR head only. It does not close the Android ranking-status contract, Room migration/backward-compatibility, profile privacy or population concurrency gates.
 - PR #18 remains open and unmerged. Even though GitHub now reports mergeable, do not merge until Android consumers no longer turn unavailable ranking into a displayed zero and the persistence contract is resolved. The safe decision is to hold this backend-only proposal until its client contract is ready.
+
+
+### Extended Attempt contract dependency audit — 2026-11-19
+
+Re-read the following Main blobs while tracing every persistence/restore boundary:
+- `AppDatabase.kt`: `3b15596cffea2600a2dda518196739be4f44a7a0`.
+- `AccountDataBackupAdapter.kt`: `e362b0fd35d5df5f0cb9c43cd20aa41fc331b73e`.
+- `FirebaseUserRepositoryImpl.kt`: `be15cb3070a50e341751f0d15b48974452f443dc`.
+
+Additional confirmed dependencies:
+- `AccountDataBackupAdapter.attemptEntityToJson` exports percentile as a scalar; `jsonToAttemptEntity` defaults a missing percentile to 0.0. Any new status/rank fields must be optional/version-compatible so older backup archives still import, and new backups must round-trip the explicit state.
+- `FirebaseUserRepositoryImpl.backupUserData` serializes AttemptEntity to a Firestore user-backup document; restore reads percentile with a 0.0 fallback and reconstructs AttemptEntity. New fields must be included in both directions, with legacy documents interpreted conservatively rather than fabricating AVAILABLE.
+- Room schema remains v20. The 18→19 migration rebuilds attempts and copies legacy percentile; 19→20 creates PDF sessions. The builder registers migrations 15→16 through 19→20 and still enables `.fallbackToDestructiveMigration()`. A ranking migration must preserve existing attempts and must not silently rely on destructive fallback.
+- Attempt persistence therefore crosses at least Room schema/DAO, domain/entity, ViewModel, Firestore user backup, account backup archive, restore, result presentation and migration/backup tests. This is materially broader than a small backend-only PR.
+
+Required acceptance tests before implementation is considered complete:
+1. Upgrade every supported Room schema path through v20→v21 while preserving all attempt columns/rows and session-token idempotency.
+2. Export/import a new attempt with each ranking state and verify exact round-trip.
+3. Import a legacy backup with no ranking-state fields; preserve its percentile and assign a documented legacy-compatible state without treating 0.0 as proof of failure or success.
+4. Firestore backup/restore round-trip for all states and legacy documents.
+5. Verify offline/practice/private attempts remain NOT_APPLICABLE and cannot accidentally appear ranked.
+6. Verify unavailable server rank never becomes rank 0 or percentile 0.0 presented as a real result.
+7. Verify existing attempt ownership isolation and duplicate-session behavior remain unchanged.
+
+No source code or schema was changed in this audit. Design the state semantics and migration/backward-compatibility matrix before implementation; preserve the canonical Firestore database ID and all existing user data.
