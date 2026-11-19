@@ -543,3 +543,7 @@ Main HEAD at review: `213d1c7aa547159ad8ec1ffa8c78b74a3f5732b0`. The branch inve
 - Recent safe Main integrations remain PR #15 (strict numeric scoring), PR #16 (client AI metadata cleanup) and PR #17 (fail-closed community answer sanitization). PR #17 merge commit: `422f5849fc39de469ecc3f597e243e6142f5271c`.
 
 This refresh is documentation-only. No source branch was deleted, no divergent branch was merged, and no Firebase/Firestore production data, rules deployment or schema migration was changed. Historical CI passes are not current integration proof; every new code port must pass exact-head CI.
+
+### Community publication outcome follow-up (source-confirmed, not yet fixed)
+
+Main `NEETViewModel.kt` blob `1e2620e9bfb80fc600191ceda3020b4f10b26406` shows `uploadTestToFirestore` returns `Unit` and catches both image-upload and Firestore/sanitization failures internally. Its callers therefore cannot distinguish cloud success from failure. `saveGeneratedTest` additionally performs a separate LiveTests write with an independent catch after the helper call. This confirms an outcome-propagation defect, but a user-visible false-success message is not yet proven. The full call-graph evidence and required correction/tests are recorded in [Community branch family handoff](branches/community-branch-family-overlap-HANDOFF.md). Do not make a helper-only change: trace all callers and UI state, then return explicit publication outcomes and test partial failure.
