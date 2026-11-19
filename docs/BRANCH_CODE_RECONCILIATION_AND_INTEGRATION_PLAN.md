@@ -509,3 +509,24 @@ Consequences:
 - Exact-head CI run `44538491694`: build job in progress at checkpoint; JDK 21 setup, Firebase Functions syntax check and Backend Scoring Tests passed; Android unit tests/build still running.
 - PR #17 is a narrow one-file change, base Main SHA `8b9002b5335e3c3c32336ca4285c2e172c1d2e90`. Do not merge until exact-head Android CI completes successfully and the PR head/base are rechecked.
 - No Firestore rules, selected database ID, schema, production data, or deployment changed.
+
+
+### 2026-11-19 user-approved selective consolidation workflow and PR #17 result
+
+The user clarified the integration policy:
+- Small, isolated, clearly correct fixes affecting approximately 2–4 files may be implemented on a Main-based branch, validated, and merged into Main through a focused PR.
+- Large, divergent, overlapping, incomplete or currently incorrect branch work must not be wholesale-merged. Instead, add one or two Markdown handoff documents on Main named for the source branch/workstream. Record useful work, incorrect/incomplete behavior, affected files, dependencies, required corrections and recommended order so it can be completed later.
+- Preserve all source branches. Do not delete branches or lose unfinished work. Keep the existing master plan as the central register and add branch-specific handoffs only where needed.
+- Preserve the selected Firestore database ID exactly: `ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`.
+
+PR #17 security fix result:
+- PR #17 (`fix/community-answer-key-fail-closed-2026-11-19`) changed one file: `NEETViewModel.kt`.
+- Exact PR head `221b678dac0a88ed3596cb2a044f1b32b86bcd9c).
+- Exact-head workflow run `44538491694`: build job SUCCESS; Backend Scoring Tests SUCCESS; Android Unit Tests SUCCESS; Gradle Build SUCCESS; APK artifact upload SUCCESS.
+- PR was mergeable and merged using squash. Merge commit: `422f5849fc39de469ecc3f597e243e6142f5271c`.
+- This closes the fail-open public question sanitizer issue at source level for the merged Main code. It is not a production deployment or live Firestore security test.
+- No database ID, rules, schema, production data, or deployment was changed.
+
+Additional review note:
+- `uploadTestToFirestore` catches and logs publication exceptions internally. Review its callers and UI status handling in a separate small functional-integrity task so local save success is not misrepresented as cloud publication success. Do not change call contracts until all call sites are mapped.
+- Main's AI generation path already states that Gemini is the only permitted generation source and creates no fallback questions on invalid/unavailable generation. Do not repeat this fix unless a distinct active call path is proven.
