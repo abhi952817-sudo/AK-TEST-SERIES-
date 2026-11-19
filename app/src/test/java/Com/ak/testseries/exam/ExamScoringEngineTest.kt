@@ -97,6 +97,40 @@ class ExamScoringEngineTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
+    fun calculateScoreRejectsRepeatedSectionIdWithConflictingMarks() {
+        val baseConfig = createConfiguredScoringExam()
+        val stage = baseConfig.stages.single()
+        val paper = stage.papers.single()
+        val conflictingSubject = SubjectConfig(
+            subjectId = "SUBJECT_2",
+            subjectName = "Chemistry",
+            sections = listOf(SectionConfig(
+                sectionId = "SECTION_A",
+                sectionName = "Section A",
+                totalQuestions = 1,
+                positiveMarks = 5.0,
+                negativeMarks = 1.0
+            ))
+        )
+        val conflictingConfig = baseConfig.copy(
+            stages = listOf(stage.copy(
+                papers = listOf(paper.copy(subjects = paper.subjects + conflictingSubject))
+            ))
+        )
+
+        ExamScoringEngine.calculateScore(
+            examConfig = conflictingConfig,
+            stageId = "STAGE_1",
+            paperId = "PAPER_1",
+            totalQuestions = 1,
+            userAnswers = mapOf("q_a" to "A"),
+            correctAnswers = mapOf("q_a" to "A"),
+            questionSections = mapOf("q_a" to "SECTION_A"),
+            timeSpentSeconds = 10
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
     fun calculateScoreRejectsMissingQuestionSectionInsteadOfUsingDefaultMarks() {
         ExamScoringEngine.calculateScore(
             examConfig = createConfiguredScoringExam(),
