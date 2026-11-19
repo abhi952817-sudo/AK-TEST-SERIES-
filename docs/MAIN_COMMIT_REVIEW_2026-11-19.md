@@ -94,3 +94,29 @@
 - Treat the F-023 and strict numeric parser changes as present on main, subject to tests.
 - Keep M-001 through M-007 in the pending remediation list.
 - Do not delete either public text artifact until it is confirmed unnecessary and its information is safely preserved.
+
+
+## Re-review update — 2026-11-19 (after main CI completed)
+
+### Verified current main
+- Current main SHA: `724defaa487bfc64863402992474b1044198ae98`.
+- Android CI run `44528426052` completed with conclusion `success`: https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/44528426052
+- This is CI evidence for that exact SHA only; it is not Firebase Emulator, live API, device QA, or production verification.
+
+### M-006 / F-016 — ordinary submission response rechecked
+- Current `backend_functions/index.js`: `submitTestAttemptServerSide` builds `solutionKeys` internally for scoring, but both the idempotent-existing-attempt response and the new-attempt transaction response return score/rank/count fields only; neither returns `solutionKeys`.
+- A separate `getTestAttemptSolutions` callable exists and returns solution keys after its own authenticated attempt/review checks.
+- Status: **RESOLVED by current static source review for the ordinary submit response**. Runtime authorization tests for the dedicated review callable remain required; do not infer production behavior from static review alone.
+
+### Other findings status
+- M-001: Still pending. Registry writes to `ConnectorMetadata/ProviderRegistry/Providers`; current rules have no explicit allow rule for this path. Prefer local static registry or trusted server path; do not broaden rules.
+- M-002: Still pending. `FirebaseAiService` is Gemini-only and does not dispatch through the five-provider registry.
+- M-003: Still pending. Client-published metadata includes `adminSecretName`; remove this server-only identifier from client payload.
+- M-004: Still pending. Public AI Studio transcript artifacts remain under `public/assets`; provenance and complete secret scan are outstanding. Do not delete before preservation/review.
+- M-005: Still pending. Existing scoring tests cover many scoring cases but do not add focused parser-format regression coverage for malformed numeric strings and accepted decimal formats.
+- M-007: Still pending repository-wide. New AI files do not prove the promised Keystore/AES-GCM student credential path, Secret Manager server adapter, or five real provider transports. Inventory all call sites before declaring absent or complete.
+- F-009: The reviewed current ViewModel explicitly forces the offline mock fallback flag to false and deprecates the setter; no `generateMockAiTest` function was found in the reviewed current file. Treat the old mock-fallback finding as **mitigated in reviewed path**, while continuing to verify all AI/PDF failure paths return errors and publish zero questions.
+- F-023: The reviewed current Community public-copy path strips `correctAnswer` and `explanation`; retain as a positive static mitigation, with rules/backend tests still needed.
+
+### Current next action
+Continue the branch-by-branch Markdown and implementation inventory. Do not merge feature branches or change main code until the relevant branch docs, unique code deltas, call sites and tests have been reviewed.
