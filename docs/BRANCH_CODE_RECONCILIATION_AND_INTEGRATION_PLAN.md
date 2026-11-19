@@ -530,3 +530,16 @@ PR #17 security fix result:
 Additional review note:
 - `uploadTestToFirestore` catches and logs publication exceptions internally. Review its callers and UI status handling in a separate small functional-integrity task so local save success is not misrepresented as cloud publication success. Do not change call contracts until all call sites are mapped.
 - Main's AI generation path already states that Gemini is the only permitted generation source and creates no fallback questions on invalid/unavailable generation. Do not repeat this fix unless a distinct active call path is proven.
+
+
+## 2026-11-19 refreshed branch topology and handoffs
+
+Main HEAD at review: `213d1c7aa547159ad8ec1ffa8c78b74a3f5732b0`. The branch inventory now includes 29 visible branches. Refreshed comparisons show substantial divergence and overlap; branch-by-branch integration must remain selective. Main remains the only integration base.
+
+- Ranking V2 handoff: [feature-ranking-engine-v2-2026-11-06](branches/feature-ranking-engine-v2-2026-11-06-HANDOFF.md). It is 110 ahead /132 behind Main with 14 changed files; rank-failure fabrication, retry fallback fabrication, profile visibility and concurrency semantics remain blockers. Keep PR #1 unmerged.
+- Community family handoff: [Community branch family overlap](branches/community-branch-family-overlap-HANDOFF.md). Five related branches overlap heavily in UI, ViewModel, backend, rules and Storage; no whole-branch merge. Keep one canonical Community contract and selectively port only after callable authorization, answer-key separation, publish-state and named-database gates.
+- Additional refreshed compare snapshots: Ranking Universal Integration 477/132 (44 files); Universal Scoring 148/132 (22); PDF Prompt Contract 143/125 (46); Universal Gemini AI 392/132 (69); Real Questions Only 196/132 (53). These remain divergent and are not wholesale merge candidates. Student AI Connectors 60/24 (13 files) remains selective-port only.
+- Firestore-default branches are competing proposals, not independent features. Keep only the selected Main database ID `ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`; do not merge any branch that changes it without explicit architecture proof and approval.
+- Recent safe Main integrations remain PR #15 (strict numeric scoring), PR #16 (client AI metadata cleanup) and PR #17 (fail-closed community answer sanitization). PR #17 merge commit: `422f5849fc39de469ecc3f597e243e6142f5271c`.
+
+This refresh is documentation-only. No source branch was deleted, no divergent branch was merged, and no Firebase/Firestore production data, rules deployment or schema migration was changed. Historical CI passes are not current integration proof; every new code port must pass exact-head CI.
