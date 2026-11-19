@@ -394,3 +394,9 @@ Compared the Community-related branches against Main as one family:
 - `fix/remaining-firebase-analytics-2026-11-15`: 201 ahead / 15 behind; near-duplicate composite of Community + analytics + backup + Firestore + Storage work. It must not be merged alongside the integration branch or PR #8.
 - Community code lineage therefore needs one canonical implementation, not five parallel merges. Current preferred source for further review is latest PR #8 head `a3bcc1...`; older branches remain references for missing tests and independent UI pieces.
 - Immediate safe candidates for later extraction: Community rules CI workflow, Storage rules tests, pure subject/MCQ validators and text-highlight component/tests. Each must be rebased against current Main and run in Main's exact test harness. No Firestore/Storage rules or database target should be changed without an emulator pass and the separate database decision gate.
+
+
+### Correction from direct Main-vs-Community-development file comparison
+- The Community Firebase Rules CI workflow `.github/workflows/community-rules.yml` already exists on Main and is identical to the version inspected on `feature/community-development-plan-2026-11-13`; no workflow port is needed.
+- Main `storage.rules` and `storage.test.js` already contain the UID-scoped Community image and private report-evidence rules/tests reviewed in that branch; no duplicate copy should be merged.
+- Therefore the remaining candidate comparison is limited to any genuinely unique Firestore test cases, Community UI pieces, and server-side validators. Do not count already-present workflow/Storage work as outstanding branch integration.
