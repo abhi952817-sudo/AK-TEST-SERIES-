@@ -281,3 +281,11 @@ This consolidation is complete only when every live branch has a final recorded 
 - The corresponding `CrashResilienceTest.kt` content fetched from `main` and `feature/ranking-engine-v2-2026-11-06` is identical. Therefore do **not** label this as a ranking-engine code defect without further evidence.
 - Next diagnostic: identify the exact failing method/stack trace and SDK/Robolectric dependency source; run this same test on current main and ranking branch with the same JDK/Gradle/dependency lock. If main also fails, record as baseline CI/test-environment defect; if only branch fails, isolate the dependency or source delta. Do not delete/skip/weaken the test to get a green workflow.
 - Backend unit tests and Firestore rules tests in the same run passed; overall workflow remains FAIL until Android suite passes.
+
+
+### Ranking V2 CI environment mismatch correction (2026-11-19)
+- Main Android CI run `44528426052` ran `gradle testDebugUnitTest` successfully under JDK 21.
+- Ranking V2 validation run `44531380449` used JDK 17 for Android validation and failed the same unchanged `CrashResilienceTest` class with `UnsupportedOperationException at DefaultSdkProvider.java:170`; Debug APK assembly itself passed.
+- Diff review confirmed main `.github/workflows/android.yml` uses JDK 21 and Ranking V2 `.github/workflows/ranking-v2-validation.yml` used JDK 17. This establishes a workflow environment mismatch, although only a successful exact-head rerun can confirm the failure is resolved.
+- Changed Ranking V2 validation Android job to JDK 21 (no test weakening or application-code change). Workflow commit `8561e176272599e501e8d4ac7d169544772a22f8`; branch documentation commit `59d45f61051ff11e0234075eafd74c88f0bc75fd`.
+- Exact latest branch head `59d45f61051ff11e0234075eafd74c88f0bc75fd`; validation run `44535036938` queued at update time (workflow-only commit run `44535005393` also in progress). Merge remains blocked until all backend, Firestore rules and Android jobs pass on the latest exact head.
