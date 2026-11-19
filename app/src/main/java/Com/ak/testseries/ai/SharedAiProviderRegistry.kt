@@ -1,8 +1,5 @@
 package Com.ak.testseries.ai
 
-import Com.ak.testseries.data.remote.FirestoreHelper
-import android.content.Context
-import kotlinx.coroutines.tasks.await
 
 /**
  * Single Shared Registry of the 5 Free AI Providers available to both Admin and Student panels.
@@ -18,7 +15,6 @@ object SharedAiProviderRegistry {
         AiProviderSpec(
             connectorId = AiConnectorId.C01_GEMINI,
             displayName = "Google Gemini API",
-            adminSecretName = "ADMIN_GEMINI_API_KEY",
             requiresAccountId = false,
             baseUrl = "https://generativelanguage.googleapis.com/v1beta",
             docsUrl = "https://aistudio.google.com/docs/rate-limits",
@@ -49,7 +45,6 @@ object SharedAiProviderRegistry {
         AiProviderSpec(
             connectorId = AiConnectorId.C02_GROQ,
             displayName = "GroqCloud",
-            adminSecretName = "ADMIN_GROQ_API_KEY",
             requiresAccountId = false,
             baseUrl = "https://api.groq.com/openai/v1",
             docsUrl = "https://console.groq.com/docs/rate-limits",
@@ -80,7 +75,6 @@ object SharedAiProviderRegistry {
         AiProviderSpec(
             connectorId = AiConnectorId.C03_MISTRAL,
             displayName = "Mistral API",
-            adminSecretName = "ADMIN_MISTRAL_API_KEY",
             requiresAccountId = false,
             baseUrl = "https://api.mistral.ai/v1",
             docsUrl = "https://docs.mistral.ai/admin/billing-usage/usage-limits",
@@ -111,7 +105,6 @@ object SharedAiProviderRegistry {
         AiProviderSpec(
             connectorId = AiConnectorId.C04_CLOUDFLARE,
             displayName = "Cloudflare Workers AI",
-            adminSecretName = "ADMIN_CLOUDFLARE_API_TOKEN",
             requiresAccountId = true,
             baseUrl = "https://api.cloudflare.com/client/v4/accounts",
             docsUrl = "https://developers.cloudflare.com/workers-ai/platform/pricing/",
@@ -142,7 +135,6 @@ object SharedAiProviderRegistry {
         AiProviderSpec(
             connectorId = AiConnectorId.C05_HUGGINGFACE,
             displayName = "Hugging Face Inference Providers",
-            adminSecretName = "ADMIN_HUGGINGFACE_TOKEN",
             requiresAccountId = false,
             baseUrl = "https://router.huggingface.co/v1",
             docsUrl = "https://huggingface.co/docs/inference-providers/en/pricing",
@@ -178,33 +170,4 @@ object SharedAiProviderRegistry {
     fun getByCode(code: String): AiProviderSpec? =
         AiConnectorId.fromCode(code)?.let { getById(it) }
 
-    /**
-     * Publishes non-sensitive provider registry metadata (NO API keys) to the single
-     * real-time Firestore database under ConnectorMetadata/ProviderRegistry.
-     */
-    suspend fun syncProviderRegistryMetadata(context: Context) {
-        val db = FirestoreHelper.getInstance(context)
-        val batch = db.batch()
-        providers.forEach { spec ->
-            val docRef = db.collection("ConnectorMetadata")
-                .document("ProviderRegistry")
-                .collection("Providers")
-                .document(spec.connectorId.code)
-            val payload = mapOf(
-                "connectorId" to spec.connectorId.code,
-                "displayName" to spec.displayName,
-                "adminSecretName" to spec.adminSecretName,
-                "requiresAccountId" to spec.requiresAccountId,
-                "freeQuotaType" to spec.freeQuotaType.name,
-                "freeQuotaSummary" to spec.freeQuotaSummary,
-                "supportsJsonMode" to spec.supportsJsonMode,
-                "supportsVisionOrPdf" to spec.supportsVisionOrPdf,
-                "defaultModelId" to spec.defaultModelId,
-                "docsUrl" to spec.docsUrl,
-                "updatedAtMs" to System.currentTimeMillis()
-            )
-            batch.set(docRef, payload)
-        }
-        batch.commit().await()
-    }
 }
