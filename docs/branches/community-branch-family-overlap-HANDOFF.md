@@ -97,3 +97,34 @@ The inspected generator flow updates `previewQuestions` after Room insertion and
 - Tests: private local-only; image upload failure; fail-closed sanitizer exception; Tests_Data write failure; LiveTests write failure after Tests_Data succeeds; private answer-key write failure; notification failure; Community share failure; retry/idempotency; local Room save remains intact.
 
 **Scope decision:** this spans the helper, four call sites, generator UI/state, and tests. It exceeds the 2–4-file small-fix boundary. No source code was changed; implement only after the full UI state/callback call graph and retry semantics are mapped. No Firestore rules relaxation or database-ID change is required or permitted for this outcome-propagation work.
+
+
+### Community publication call-graph re-audit — 2026-11-19
+
+Main source re-read: `NEETViewModel.kt` blob `1e2620e9bfb80fc600191ceda3020b4f10b26406`. Confirmed direct call-sites and behavior:
+
+1. Around line 1526, the admin test creation path inserts TestEntity and QuestionEntity records into Room, then calls `uploadTestToFirestore`. The caller receives no publication outcome.
+2. Around line 1687, scheduled Live Test creation inserts Room records and calls the same helper. The helper's swallowed upload failures are not surfaced to this caller.
+3. Around line 6035, `saveGeneratedTest` inserts the test/questions into Room and updates `previewQuestions`. For public tests it calls `uploadTestToFirestore`; Live Test publication then separately writes the `LiveTests` document and private answer keys. Notification broadcast is separately caught. Folder placement and optional Community auto-share continue after these cloud operations, so the outcomes are independent.
+4. Around line 6318, `adminCreateTest` validates input, inserts local records, and calls the helper without an observable cloud result.
+5. Around line 5724, `uploadTestToFirestore` returns Unit. Private tests intentionally skip Firestore. Image sanitization failure returns normally; the outer Firestore/sanitization catch also logs and returns normally. Thus public upload failure is indistinguishable to callers from success or private skip.
+6. Around line 4889, the Gemini generation flow calls `saveGeneratedTest`, then unconditionally calls `recordDailyGeneration()`, sets status text to successful generation, and sets `AiGenerationState.Success`. However, `saveGeneratedTest` can return early when exam/stage/paper or subject configuration is invalid. This confirms a generation-state propagation defect: the outer flow can report Success even when the save routine rejected before persisting the test. This is a separate, directly actionable finding from cloud publication outcome propagation.
+
+Required correction design (do not make a helper-only patch):
+- Make local validation/persistence return an explicit result; generation caller must only set AiGenerationState.Success and record quota after a verified local save.
+- Model publication independently from local save: e.g. PRIVATE_LOCAL_ONLY, PUBLISHED, PARTIALLY_PUBLISHED, FAILED, with structured error/retry context. Do not conflate successful Room save with successful cloud publication.
+- For Live Tests, separately track Tests_Data document, private answer-key write, LiveTests document, LiveTests private answer-key write, notification, and Community auto-share. Do not announce a Live Test or notify students until its required publish/key writes are confirmed.
+- Keep notifications and optional Community share as independent best-effort outcomes, but surface them in admin status/logging.
+- Preserve local test data on cloud failure; add idempotent retry so retries do not create duplicate docs/notifications or overwrite private answer data incorrectly.
+
+Required regression tests:
+1. Invalid exam/stage/paper and invalid subject: no test created, no quota increment, AI state Error (never Success).
+2. Valid private test: Room save succeeds, cloud is explicitly skipped, UI reports local-only/private (not published).
+3. Public Tests_Data success and failure, including image upload/sanitizer failure and Firestore failure.
+4. LiveTests document success with private-key failure: report partial failure and do not send notification.
+5. Notification failure after successful publication: retain Published status while reporting notification failure separately.
+6. Community auto-share failure must not roll back the valid test or misstate primary publication status.
+7. Retry each failed stage and verify idempotency and no duplicate notification.
+8. All four direct call-sites above consume the explicit outcome; no caller silently treats Unit return as publication success.
+
+No application code was changed in this audit. The generation Success/quota defect and cloud publication result defect are confirmed from source, but exact UI text presented to users still needs tracing in UI collectors/screens. This work spans ViewModel, state model, UI/admin status, repository/cloud operations and tests; do not rush a partial helper-only fix.
