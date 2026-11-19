@@ -5687,9 +5687,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun separatePublicAndSecretQuestions(questionsJsonString: String): Pair<String, List<Map<String, Any>>> {
-        if (questionsJsonString.isBlank()) return Pair(questionsJsonString, emptyList())
+        // Fail closed: never upload an unparsed/raw question payload to a public Firestore document.
+        require(questionsJsonString.isNotBlank()) { "Cannot publish an empty question payload." }
         return try {
             val jsonArray = org.json.JSONArray(questionsJsonString)
+            require(jsonArray.length() > 0) { "Cannot publish a test with no questions." }
             val publicArray = org.json.JSONArray()
             val answerKeys = mutableListOf<Map<String, Any>>()
             
@@ -5713,7 +5715,9 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
             Pair(publicArray.toString(), answerKeys)
         } catch (e: Exception) {
-            Pair(questionsJsonString, emptyList())
+            // Returning the original payload here would fail open and could expose
+            // correctAnswer/explanation fields in a public document.
+            throw IllegalArgumentException("Question payload could not be safely separated into public questions and private answer keys.", e)
         }
     }
 
