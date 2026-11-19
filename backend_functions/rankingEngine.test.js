@@ -93,3 +93,15 @@ test("class cohort ranking status is not mislabeled as AIR", () => {
   assert.equal(getCohortRankingStatus(999, "12th").status, "Provisional Class Rank");
   assert.equal(getCohortRankingStatus(1000, "11th").isOfficialAkAir, false);
 });
+
+test("ranking score rejects missing, blank and boolean score values", () => {
+  for (const invalid of [null, undefined, "", "   ", true, false]) {
+    assert.throws(
+      () => calculateWeightedRankingScore(invalid, 100, 1),
+      { code: "invalid-argument" }
+    );
+  }
+  // Numeric strings remain supported for legacy Firestore values.
+  assert.equal(calculateWeightedRankingScore("50", "100", "1"), 5000);
+});
+
