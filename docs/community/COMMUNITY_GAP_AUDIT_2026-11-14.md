@@ -98,3 +98,16 @@ Before any Community Functions deployment or merge, reconcile both PRs to one co
 ## Safety boundary
 
 No merge, deployment, production data write, migration, export, import, or cleanup is authorized by this audit. Preserve Main and all existing student data.
+
+
+## Re-review against current Main — 2026-11-19
+
+- Current Community branch head: `ed032e111d375813fa90fde9b2486ad635f1e3fd`.
+- Current Main head: `724defaa487bfc64863402992474b1044198ae98`.
+- Git comparison: Community branch is 183 commits ahead and 4 commits behind current Main (ancestry count only; not a merge-safety verdict).
+- PR #8 remains Draft and open; current PR diff reports 22 files, 4,637 additions and 312 deletions.
+- GitHub check-runs on the exact Community branch head `ed032e111d375813fa90fde9b2486ad635f1e3fd`: Community rules tests **success**, Android build **success** (two build entries reported). These checks do not close the documented trusted subject-verification gap or prove production deployment/device QA.
+- PR #12 remains a separate composite integration proposal. Do not stack PR #8 and PR #12 or merge both; first resolve duplicate Community code and Firestore target conflicts.
+- Release blocker COM-SHARE-003 remains: client-side question/subject verification can be bypassed. The trusted callable must validate test ownership, question set, exam/stage/paper, question count, duration and subject distribution before creating public shared-test documents.
+- Database blocker remains: Community PR history points Cloud Functions at named database `ai-studio-android-aktestse-4a0dbfd1-96e9-481f-b66c-2984491d0612`, while current Main and competing PRs contain conflicting/default database choices. No live project inventory, backup or restore proof is available in this review.
+- Integration decision: preserve PR #8's implementation and tests as a candidate, but **do not merge** until the callable security gate, database decision gate, refreshed base, full regression and final exact-head CI are satisfied.
