@@ -189,3 +189,85 @@ On isolated branch `audit/all-exam-scoring-ranking-2026-11-13`, added a Kotlin t
 ### 2026-11-13 typed ranking handoff contract
 
 The audit branch's `shared/scoring/scoring-policy.v1.json` now includes a draft `rankingContract`: server-authoritative verified score input, 10,000-point normalization, strict Full=1.0/Part=0.2 weights, competition rank, percentile formula, null-on-error, first valid attempt, canonical answer hash and transactional concurrency. This is a contract draft only; no ranking runtime call site or transaction was changed and no ranking tests passed.
+
+
+---
+
+## 2026-11-19 — Live branch consolidation register (authoritative update)
+
+### Current baseline and rules
+- Current `main` after verified merges: `9a472bfd0de70fd6277be8b67bad8236bf6a5911`.
+- This section supersedes the older nine-branch inventory above for current branch-head tracking; historical audit entries remain evidence, not current status.
+- Live GitHub branch inventory at this check: **25 branches total (main + 24 non-main)**.
+- Branch heads below are exact refs observed during this inventory. Re-fetch before any later merge because branch heads can move.
+- No branch is to be deleted as part of consolidation. Preserve all heads until the final reconciliation and explicit cleanup decision.
+- Target is one coherent `main`, not a forced merge of every divergent history. Unique, safe code is selectively ported; unfinished work and dependencies stay documented here.
+
+### Verified merges into main
+| PR | Branch | Change | Exact CI evidence | Merge commit | Status |
+|---|---|---|---|---|---|
+| #15 | `fix/strict-numerical-equivalence-2026-11-19` | Reject malformed/non-finite numerical operands before equality; add regression cases and run backend scoring tests in CI | Run `44530788784`: success; backend scoring test step passed | `d56229eff58b53bc8e7ea60ca017195b60aa5bb1` | MERGED |
+| #16 | `fix/remove-client-ai-secret-metadata-2026-11-19` | Remove unused client Firestore registry sync and server Secret Manager resource names from Android client model | Run `44530905224`: success | `9a472bfd0de70fd6277be8b67bad8236bf6a5911` | MERGED |
+
+Both were squash-merged after checking exact PR heads, clean mergeability and successful CI. No Firestore rules were loosened and no production secrets/data were changed.
+
+### Complete live branch inventory and disposition
+| Branch | Observed HEAD | Current disposition / next action |
+|---|---|---|
+| `audit/all-exam-scoring-ranking-2026-11-13` | `a89fb90e3f5d28c3c4f2be9b032c4654c4031a54` | Audit evidence and draft scoring contract; compare latest findings, port only tested compatible fixtures/contracts. |
+| `audit/default-firestore-consolidation-2026-11-15` | `c7f5d6b8f5c17eac2411954a1ec604e529c6177a` | Preserve DB inventory/backup evidence; reconcile with live Firestore gate; no database cutover without verified inventory and restore. |
+| `copilot/firestore-default-clean` | `dabeeaec90ddfde4fa69f4b89e71a5f2ffe1fcb4` | Compare exact diff against other Firestore fixes; deduplicate, then test default-database consistency. |
+| `copilot/standardize-firestore-default` | `412d44070ee76393644ca9106ac9f685d3803d41` | Compare exact diff against other Firestore fixes; do not merge overlapping DB edits blindly. |
+| `feature/community-completion-2026-11-13` | `a3bcc1ae6658e19872b63eb5bc416ce2aa8919f9` | Selective port only; server-authoritative shared-test validation and database target gate block whole-branch merge. |
+| `feature/community-development-plan-2026-11-13` | `f9b8c2fe1102be3d3a703c7dfc25bcd83f10be11` | Read existing docs and compare overlap with Community completion/MVP; consolidate docs, not duplicate features. |
+| `feature/community-mvp-completion-2026-11-13` | `c2a0fd5d682d927c28362ef9107eefb25e329458` | Compare against Community completion branch; preserve unique MVP code only after security/schema checks. |
+| `feature/ranking-engine-v2-2026-11-06` | `36574191c50b5d5e241ace8a723d7f160011e681` | Backend ranking tests and Firestore rules tests PASS; Android validation FAIL in run `44531380449`. Diagnose exact failing test/build output, fix on branch, rerun full workflow; no merge yet. |
+| `feature/ranking-universal-integration-v1` | `703ea68b28f9e45623e800f7a434cc445daa1e07` | Composite integration workspace; blocked by ranking, scoring, Room migration and Firestore contract reconciliation. Never merge whole branch. |
+| `feature/secure-user-owned-ai-connectors` | `dabeeaec90ddfde4fa69f4b89e71a5f2ffe1fcb4` | Same HEAD as Copilot Firestore cleanup branch; verify whether true alias/duplicate before classifying; preserve branch. |
+| `feature/student-universal-ai-connectors-v1` | `ac5eda2a485684871f6f448759fa2b8ebe01c696` | Preserve Android Keystore/AES-GCM and UID isolation as selective-port reference; provider set, coroutine cancellation, key lifecycle and multimodal/PDF integration remain incomplete. Refresh exact-head CI and docs before port. |
+| `feature/universal-exam-scoring-v1-2026-11-06` | `6b99fb1dbb9b20bb1deb51b1c14d279e2bc3d227` | Selectively reconcile policy contract, exact-set MSQ, finite numeric validation and Room migration; run Kotlin/Node golden parity. |
+| `feature/universal-gemini-ai-10-phase-2026-11-08` | `a2dd36c6997fa779745d5a0bd8c8c5acd34d04df` | Keep phase tracker; audit secure key store, real provider transports, quota, validation and approval dependencies before port. |
+| `feature/universal-pdf-prompt-contract-v1` | `fbafd0c9376dd3d5bc0ac85a75a26447d9692311` | Preserve source-backed prompt/route contract; reconcile with main planner and real PDF/OCR pipeline; no duplicate planner/transport. |
+| `fix/community-ci-recovery-2026-11-13` | `944b5f79808d467eac3cec7e524786a291d84b70` | CI recovery branch; compare workflow-only changes against current main workflows and validate exact diff before port. |
+| `fix/firestore-default-database-2026-11-17` | `c82c61b6efbff2e415b202466d00cb96ef3934f3` | Candidate database consistency fix; blocked by production DB identity/region/data inventory and backup-restore proof. |
+| `fix/phase1-real-questions-only` | `e75003b3dddbedfbe686bd6801ee4e20eaa40ac0` | Large divergent branch; selectively port fail-closed validation/extraction after callsite and numeric-format contract review. No whole-branch merge. |
+| `fix/remaining-firebase-analytics-2026-11-15` | `6e5b1921108db04236196ce0e7ee3b9471c08af9` | Review analytics event privacy, consent, duplication and Firebase target; port only tested changes. |
+| `fix/remove-client-ai-secret-metadata-2026-11-19` | `9293f723c088f4a575fbacf6ad5aca8f47d037ec` | PR #16 merged; retain source branch until final cleanup decision. |
+| `fix/retain-single-firestore-db-9fa` | `e12bdbefb4d2f2b586ee85499061e8df8c1c87a2` | Candidate DB-target fix; compare with all other DB branches; blocked pending live project inventory and restore rehearsal. |
+| `fix/strict-numerical-equivalence-2026-11-19` | `764078eef2da6a51e707c692adc75fb0e745b028` | PR #15 merged; retain source branch until final cleanup decision. |
+| `fix/unify-firestore-database` | `828dfa2e5d1214842dd734612102872fdd37d945` | Candidate DB consolidation; compare all paths/IDs and ensure no accidental production data split. |
+| `fix/use-default-firestore-everywhere` | `faa5fb9d033d3bb6bd060b56d054445127a60a60` | Candidate DB consolidation; compare against competing named DB branches; do not merge independently. |
+| `integration/community-firestore-default-2026-11-15` | `ba45c04bbee78b7a11b72ef146f7707d8bc7b5ea` | Composite Community + Firestore integration; do not merge wholesale; split reviewed changes after database gate. |
+| `integration/root-to-fruit-master-2026-11-13` | `e91120dbdc4a17382bcd66c0d5524641bfa08995` | Historical composite integration; inspect unique diffs and provenance, avoid re-importing already-present commits. |
+| `integration/verified-branch-consolidation-2026-11-19` | `d00c028c20ec5e5d3eabe69eb47c2a78c8b8b549` | Audit workspace; transfer reviewed current findings into this main-branch register; no app feature code assumed merged. |
+| `restore-files/removed-env-gitignore-2026-10-19` | `3614f1cdf9d17627169cf485427ba1f2d37e7b89` | Historical evidence only; check secret history and ignore rules; do not restore stale app code. |
+| `usi` | `81a09ee158d56efd671a3dab0141e4b0588696af` | CBT/UX requirements reference; rebuild only missing behavior on current player after regression and navigation review. |
+
+### Priority order for remaining consolidation
+1. **Finish safe small fixes:** ranking V2 Android CI failure; inspect and repair exact failing test/build cause, rerun all jobs. Then selectively test other isolated low-risk fixes.
+2. **Firestore single-database decision:** compare all five candidate DB branches as one change set; inspect Android, Functions, rules, indexes, Storage references; obtain live project IDs/regions/collections and verified backup + staging restore. No cutover until the same target is proven end-to-end.
+3. **Scoring contract:** compare universal scoring branch and audit branch; settle one versioned exam/stage/paper/section policy, strict numeric format, MSQ exact-set behavior, decimal/rounding and optional sections; Kotlin/Node golden tests; Room migration upgrade paths.
+4. **Ranking:** port one engine only; server transaction/idempotency, first qualifying attempt, normalized score, tie/percentile/privacy rules, no rank-zero fallback; migration dry-run and concurrency tests.
+5. **AI connector:** retain one shared Universal AI Router/provider adapter contract; one Student encrypted UID-scoped key store; Admin Secret Manager only on backend; provider support must match approved Gemini/Groq/Mistral/Cloudflare Workers AI/Hugging Face list; test request auth, quotas, cancellation, account switching, key deletion and error mapping.
+6. **PDF/question pipeline:** preserve original PDF; layout-aware extraction of text, images, diagrams, tables, equations, page order and provenance; offline extraction then AI fallback; fail closed with zero questions on extraction/validation failure; checkpoint/resume; Admin approval before publish.
+7. **Community + CBT:** validate shared-test ownership/question sets server-side; enforce answer-key privacy; reconcile test/player schemas; verify timer, answer save, submit, result and recovery without duplicate screens.
+8. **Final regression and release gate:** exact-head Android unit/UI/build; backend tests; Firestore/Storage emulator rules; secret scan; migrations/backup restore; no fake data; full student path smoke test. Report PASS/FAIL/NOT RUN separately.
+
+### Current blockers and non-negotiable dependencies
+- Ranking V2 run `44531380449`: backend unit tests PASS, Firestore rules tests PASS, Android validation FAIL. The Android job's test/build step failed; root cause must be extracted from its job log before remediation. This branch is not merge-ready.
+- Community full-branch merge blocked by client-bypassable test/question verification and conflicting Firestore database target.
+- Firestore consolidation blocked until live database identity and recoverability are verified; source code alone cannot establish which production DB contains canonical records.
+- Student connector branch is not the approved provider set and does not yet complete PDF/multimodal/approval workflow.
+- Real-question-only and PDF prompt branches require proof of zero generated/published questions on all extraction/model failure paths.
+- Composite integration branches may contain overlapping changes; never merge them together or on top of their source branches without per-file duplicate analysis.
+- Build success does not close failed unit tests. Static review is not runtime proof. Unrun tests remain NOT RUN, not PASS.
+
+### Change log — 2026-11-19
+| Date | Branch / PR | Before / after SHA | Files / behavior | Verification | Result |
+|---|---|---|---|---|---|
+| 2026-11-19 | PR #15 | `764078eef2da6a51e707c692adc75fb0e745b028` → merge `d56229eff58b53bc8e7ea60ca017195b60aa5bb1` | Strict numerical comparison + regression tests + backend scoring CI step | Run `44530788784` success | MERGED |
+| 2026-11-19 | PR #16 | `9293f723c088f4a575fbacf6ad5aca8f47d037ec` → merge `9a472bfd0de70fd6277be8b67bad8236bf6a5911` | Remove unused client metadata sync + Admin secret-name field | Run `44530905224` success | MERGED |
+| 2026-11-19 | Ranking V2 | `36574191c50b5d5e241ace8a723d7f160011e681` | Numeric null/blank/boolean coercion fix + tests + docs | Run `44531380449`: backend PASS, rules PASS, Android FAIL | BLOCKED |
+
+### Completion definition
+This consolidation is complete only when every live branch has a final recorded classification (merged selectively / duplicate / obsolete with evidence / preserved as incomplete with dependency plan), all unique useful work is either in main or explicitly scheduled, the main branch builds and passes its required tests, and no unresolved merge conflict, duplicate implementation, secret exposure, data migration or answer-key privacy issue remains. Branch deletion is a separate later decision and is not part of this task.
