@@ -22,6 +22,12 @@ const RANKING_CONFIG = Object.freeze({
 });
 
 function finiteNumber(value, fallback = 0) {
+  // Avoid JavaScript coercion turning null, blank strings and booleans into
+  // plausible ranking values (for example Number(null) === 0).
+  if (typeof value !== "number" &&
+      !(typeof value === "string" && value.trim().length > 0)) {
+    return fallback;
+  }
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }
