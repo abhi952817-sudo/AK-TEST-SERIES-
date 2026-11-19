@@ -346,3 +346,17 @@ A grouped comparison of all Firestore candidate branches confirms they are not i
 - Before porting the shared golden-vector suite, verify each fixture against the matching exam-year official notice, identify whether each is a synthetic unit vector or official pattern fixture, correct inconsistent metadata, and add explicit tests for MSQ exact-set, numerical parsing/tolerance, optional sections, dropped questions, partial marking and rounding. Then wire the same JSON fixture file into Kotlin and Node without creating parallel fixture sources.
 - Current disposition: preserve as a candidate; no fixture or scoring policy file has been copied into Main yet.
 
+
+
+### Student-owned AI connector branch — selective-port review
+- Current branch head `feature/student-universal-ai-connectors-v1`: `ac5eda2a485684871f6f448759fa2b8ebe01c696`; compare to Main: 60 ahead / 10 behind, 13 changed files.
+- Candidate value: AES-GCM ciphertext in app-private preferences with non-exportable AndroidKeyStore AES key; UID/provider-derived aliases; provider keys placed in request headers rather than URLs; request/response UID rechecks; backup exclusion entries; local provider usage metadata.
+- **Do not port the branch wholesale.** Its provider enum is Gemini/OpenAI/Groq/Anthropic/Cerebras, which conflicts with the approved provider set (Gemini/Groq/Mistral/Cloudflare Workers AI/Hugging Face Inference Providers). Provider transport supports text only; it is not the shared Universal AI Router or the PDF/image extraction pipeline.
+- Security-test gap: `StudentAIKeyStoreTest` verifies UID-scoped preferred provider/model metadata and clearing behavior, but does not exercise real AndroidKeyStore AES-GCM save/read round-trip, tamper detection, key invalidation, account switch, reinstall/restore, or device backup/transfer behavior. CI success alone does not prove hardware/device keystore behavior.
+- Cancellation gap: synchronous OkHttp `execute()` inside `withContext(Dispatchers.IO)` rethrows CancellationException but does not explicitly cancel the underlying OkHttp Call when coroutine cancellation occurs.
+- Selective-port candidate: refactor the encrypted local key-store mechanism behind the approved provider IDs (or a provider-neutral stable ID), then add Robolectric contract tests plus instrumentation/device tests for encryption round-trip, tampering, key loss, UID isolation, sign-out/account-switch clearing and backup exclusions. Only after those pass should the approved provider adapters be connected.
+- Current disposition: preserve as a security reference; no Student connector app code merged into Main.
+
+### AI connector CI evidence
+- Student connector branch exact head has a dedicated CI workflow; prior checkpoint reported a passing run on an earlier exact head, but current head `ac5eda2a...` must be revalidated before any selective port.
+- Universal Gemini AI branch head `a2dd36c6997fa779745d5a0bd8c8c5acd34d04df` has a successful dedicated workflow run `43803398049`; that verifies only the workflow's declared checks, not compatibility with current Main or completion of the approved five-provider architecture. Keep the branch as a component reference, not a whole-branch merge candidate.
