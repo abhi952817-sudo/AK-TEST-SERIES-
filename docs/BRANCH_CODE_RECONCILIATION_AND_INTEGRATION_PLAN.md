@@ -487,3 +487,14 @@ Decision: preserve this exact ID across future code ports. Do not replace it wit
 - Next safe action: compare Ranking V2 and integration-branch candidate files one at a time against Main; first prioritize rank-unavailable semantics and privacy-at-creation. For each candidate, map callers/data contracts and add focused regression tests on a Main-based integration branch. Do not merge the broad PR or alter the selected database ID.
 
 | 2026-11-19 | Universal Scoring / Ranking integration | `a686861eea49bf15ddb7d8d350201e464ef721fe` / `703ea68b28f9e45623e800f7a434cc445daa1e07` | Main plan only | No tests executed in this documentation update; recorded exact-head CI run 44536565354 (3/3 jobs PASS) | Run 44536565354 | Scoring branch CI PASS; integration PR BLOCKED | Ranking correctness/privacy blockers; selective port review |
+
+
+### Additional critical finding — Ranking / Scoring branch Firestore target mismatch
+A direct source check of `feature/ranking-engine-v2-2026-11-06` at HEAD `59d45f61051ff11e0234075eafd74c88f0bc75fd` shows `backend_functions/index.js` initializes `const db = admin.firestore();` (default database). The current Main backend explicitly opens the selected named database `ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`.
+Consequences:
+- The green CI run for Universal Scoring (which is based on the Ranking branch) validates tests against its current default-database code/configuration; it does not prove compatibility with Main's selected named database.
+- Do not port Ranking/Scoring `index.js` or deploy its Functions unchanged. Before any backend port, replace the implicit default with the exact Main database selection using the existing `FIRESTORE_DATABASE_ID` environment override and the same canonical fallback, then add a test/static assertion that the Functions database target is the selected ID.
+- Check every new Firestore access, including Gemini rate limits, Community share records, leaderboard, attempt and admin collections, for consistent use of the same database instance. No module may silently use `admin.firestore()` default while the rest uses the named database.
+- This does not authorize changing Main's database ID; it is a branch-integration defect to correct on a Main-based integration branch.
+
+**Integration gate:** Universal Scoring CI is green on its own exact SHA, but its backend implementation is not Main-ready until the named-database contract, scoring parity, and ranking blockers are reconciled. Keep PR #2 Draft and unmerged.
