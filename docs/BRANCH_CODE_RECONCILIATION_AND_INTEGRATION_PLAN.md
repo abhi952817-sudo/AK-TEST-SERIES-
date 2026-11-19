@@ -498,3 +498,14 @@ Consequences:
 - This does not authorize changing Main's database ID; it is a branch-integration defect to correct on a Main-based integration branch.
 
 **Integration gate:** Universal Scoring CI is green on its own exact SHA, but its backend implementation is not Main-ready until the named-database contract, scoring parity, and ranking blockers are reconciled. Keep PR #2 Draft and unmerged.
+
+
+### Main security fix candidate — fail-open public question sanitization (PR #17)
+- Confirmed Main source issue at `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt`, helper `separatePublicAndSecretQuestions`: valid JSON strips `correctAnswer` and `explanation`, but the catch block returned the original raw JSON with an empty answer-key list. A parse failure could therefore bypass sanitization and publish private answer fields.
+- The helper also accepted blank/empty question arrays as a successful public payload.
+- Created Main-based branch `fix/community-answer-key-fail-closed-2026-11-19`, commit `221b678dac0a88ed3596cb2a044f1b32b86bcd9c`.
+- PR #17: https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/17
+- Change: reject blank/empty question payloads; on any parsing/separation error throw an exception instead of returning the original raw payload. Existing publication call paths wrap errors and should stop the affected public write.
+- Exact-head CI run `44538491694`: build job in progress at checkpoint; JDK 21 setup, Firebase Functions syntax check and Backend Scoring Tests passed; Android unit tests/build still running.
+- PR #17 is a narrow one-file change, base Main SHA `8b9002b5335e3c3c32336ca4285c2e172c1d2e90`. Do not merge until exact-head Android CI completes successfully and the PR head/base are rechecked.
+- No Firestore rules, selected database ID, schema, production data, or deployment changed.
