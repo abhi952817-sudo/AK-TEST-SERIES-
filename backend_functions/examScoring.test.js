@@ -8,6 +8,7 @@ const {
   getMarkingSchemeForQuestion,
   evaluateTestAttempt,
   calculatePopulationPercentile,
+  createRankingSnapshot,
   calculateScorePercentileFromCounts,
   normalizeExamKey,
 } = require("./examScoring.js");
@@ -374,3 +375,21 @@ test("Strict numerical equivalence rejects malformed and non-finite values", () 
   assert.strictEqual(areOptionsEquivalent("1e3", "1000", true), false);
 });
 
+
+
+test("Ranking snapshot rejects unavailable and inconsistent counts instead of fabricating rank zero", () => {
+  assert.strictEqual(createRankingSnapshot(NaN, 4), null);
+  assert.strictEqual(createRankingSnapshot(0, NaN), null);
+  assert.strictEqual(createRankingSnapshot(-1, 4), null);
+  assert.strictEqual(createRankingSnapshot(5, 4), null);
+  assert.deepStrictEqual(createRankingSnapshot(0, 0), {
+    testRank: 1,
+    testTotalCandidates: 1,
+    percentile: 100,
+  });
+  assert.deepStrictEqual(createRankingSnapshot(2, 9), {
+    testRank: 3,
+    testTotalCandidates: 10,
+    percentile: 80,
+  });
+});
