@@ -120,3 +120,13 @@
 
 ### Current next action
 Continue the branch-by-branch Markdown and implementation inventory. Do not merge feature branches or change main code until the relevant branch docs, unique code deltas, call sites and tests have been reviewed.
+
+
+### M-001 clarification — registry sync has no external call site
+- GitHub code search at current main SHA finds `syncProviderRegistryMetadata` only in its declaration inside `SharedAiProviderRegistry.kt`; no caller was found.
+- Therefore the Firestore rules mismatch is a **dormant integration defect**, not evidence that an active app flow is currently failing.
+- Keep the method disabled/unreferenced until a decision is made. Preferred options remain local static metadata or a trusted server-managed path. Do not add broad Firestore permissions merely to activate it.
+
+### M-002 clarification — Gemini helper has limited current call sites
+- Current code search finds `FirebaseAiService` references in `UniversalPdfPipeline.kt` and `GeminiPdfExtractor.kt` in addition to its own declaration.
+- This establishes limited Gemini-service adoption, not a five-provider router. No dispatch across Groq, Mistral, Cloudflare and Hugging Face was found in the reviewed registry/service additions.
