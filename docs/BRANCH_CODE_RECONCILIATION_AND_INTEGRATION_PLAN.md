@@ -619,3 +619,13 @@ The Attempt availability contract has additional backup/restore consumers beyond
 - `AppDatabase.kt` is schema v20, includes migrations 15→16 through 19→20, and still enables `.fallbackToDestructiveMigration()`. Preserve all attempts across supported upgrades; do not use destructive fallback as a migration strategy.
 
 This expands the ranking work item to include Room migration, ViewModel/result UI, Firestore backup/restore, account archive export/import, legacy compatibility and corresponding tests. The ranking handoff now records the source blobs and acceptance criteria. No application code/schema change was made. PR #18 remains held until this end-to-end contract is implemented and tested.
+
+
+### Community outcome propagation + AI generation state audit — 2026-11-19
+
+Re-audited Main `NEETViewModel.kt` blob `1e2620e9bfb80fc600191ceda3020b4f10b26406` and confirmed:
+- Four direct `uploadTestToFirestore` call-sites (admin create, scheduled Live Test, generated test, adminCreateTest) cannot observe cloud outcome because helper returns Unit and swallows image/sanitization/Firestore failures; private tests also return normally by design.
+- Generated test path writes Room and preview state, then separately publishes Tests_Data/private keys and LiveTests/private keys, sends notification, and optionally auto-shares Community. These are separate outcomes and require separate state.
+- Additional confirmed bug: Gemini generation caller invokes `saveGeneratedTest`, then unconditionally records daily generation and sets AI state Success. The save function has early-return validation paths (exam/stage/paper/subject), so the outer caller can report Success and consume quota even when no test was saved.
+
+Disposition: no helper-only fix. Implement explicit local-save result and gate Success/quota on verified persistence. Independently model public/private/cloud/LiveTests/private-key/notification/community-share outcomes, preserve local data on cloud failure, and add idempotent retry. Tests must cover all four direct call-sites, validation early returns, each partial cloud failure and notification/share retry. Exact user-visible UI wording still requires tracing screen collectors. Detailed evidence and test matrix are in [Community handoff](branches/community-branch-family-overlap-HANDOFF.md). No application code changed in this audit.
