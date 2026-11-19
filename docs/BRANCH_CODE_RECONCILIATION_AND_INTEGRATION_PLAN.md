@@ -590,3 +590,10 @@ The branch comparisons are current GitHub compare metadata, not proof that every
 4. Preserve every source branch and the selected Firestore database ID exactly: `ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`.
 
 This checkpoint changes documentation only. No application code, branch source, Firestore rules, database ID, schema, production data or deployment was changed.
+
+
+### Ranking persistence audit extension — 2026-11-19
+
+Main's current Attempt contract is not nullable: `AttemptEntity.percentile` is `Double = 0.0`, with no rank, total-candidate or ranking-status field. Room is schema v20; migration 18→19 rebuilds attempts with `percentile REAL NOT NULL`; 19→20 adds PDF session storage. The database builder still has `.fallbackToDestructiveMigration()`. ViewModel uses zero as fallback in direct rank details, submission merge and cloud hydration, while offline/practice attempts also intentionally use zero. Thus zero currently has multiple meanings and cannot safely be converted to “unavailable” without a migration and reader audit.
+
+Decision: keep PR #18 unmerged until a backward-compatible status contract is designed across backend response, Firestore, Room migration, ViewModel and result UI. Distinguish NOT_APPLICABLE, PENDING, AVAILABLE and UNAVAILABLE; preserve historical attempt records and legacy zero values. This is larger than the user's 2–4-file safe-fix boundary. See [Ranking V2 handoff](branches/feature-ranking-engine-v2-2026-11-06-HANDOFF.md). No code or database migration was changed.
