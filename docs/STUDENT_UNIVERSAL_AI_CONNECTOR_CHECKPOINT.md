@@ -99,3 +99,25 @@ These are overlapping Student responsibilities. During integration:
 5. Reconcile this branch with the old AI branch; remove the Gemini-only duplicate Student implementation.
 6. Run Android/backend/security/regression validation on the integrated old AI branch.
 7. Only after integration review, prepare a selective PR to Main.
+
+
+## 8. Independent review against current Main — 2026-11-19
+
+Reviewed branch head `5dc2955d27e28a61f5e06b49caff09cf9da1d6ae` against current Main `724defaa487bfc64863402992474b1044198ae98`.
+
+### Verified
+- Dedicated Student AI Connector CI run `43803404969` completed successfully for the exact branch head SHA `5dc2955d27e28a61f5e06b49caff09cf9da1d6ae`: https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/43803404969
+- Branch contains AES-GCM encryption using AndroidKeyStore, UID/provider-scoped aliases, local encrypted preferences, key clearing helpers and backup exclusions.
+- Provider HTTP requests place credentials in headers rather than URL query parameters; the client rechecks Firebase UID before sending and before accepting a response.
+- Tests cover request contracts, parsing and UID-scoped preference/usage behavior, but do not establish physical-device AndroidKeyStore behavior.
+- No PR currently targets Main from this branch; no merge performed.
+
+### Blocking integration mismatches
+- **B-01 — Provider set conflicts with approved project architecture (High):** this branch implements Gemini, OpenAI, Groq, Anthropic and Cerebras. The current project requirement is Gemini, Groq, Mistral, Cloudflare Workers AI and Hugging Face Inference Providers. Do not merge the provider enum/UI/client wholesale. Adapt provider contracts and credential handling to the approved five slots first.
+- **B-02 — Feature scope incomplete (High):** transport supports text requests only. PDF/image/multimodal, offline-first extraction fallback, generation pipeline integration, approval/publish gates and all existing Student feature call sites are not complete.
+- **B-03 — Crypto/device verification pending (Medium):** current Robolectric tests verify UID-scoped preferences and provider selection; they do not prove AES-GCM encryption/decryption, AndroidKeyStore invalidation/reinstall behavior, or account-switch cleanup on physical devices/emulators.
+- **B-04 — Network cancellation/retry controls pending (Medium):** synchronous OkHttp execution inside Dispatchers.IO does not demonstrate coroutine cancellation propagation; bounded retries/backoff and provider-specific request-size/timeout behavior remain incomplete.
+- **B-05 — Model discovery is not capability verification (Medium):** listing a model does not prove generation access, quota, JSON mode or multimodal support; generation-time provider errors must remain explicit and never silently fall back to mock output.
+
+### Integration decision
+**Do not merge this branch wholesale into Main.** Retain its AES-GCM/UID isolation patterns as reference material. A future selective port must first align the provider set with the five approved slots, add encryption/device tests and integrate through the single Universal AI Router/PDF pipeline without duplicating existing Gemini paths.
