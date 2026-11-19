@@ -71,3 +71,29 @@ Main source file `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt
 - Therefore the confirmed defect is **loss of publication outcome at the helper contract**. A user-visible false-success message has not yet been proven from this call graph alone; inspect the generation UI/state consumers before claiming that specific symptom.
 
 **Recommended next change:** trace every caller's UI/state contract, then change the helper to return an explicit result (e.g. Published / SkippedPrivate / Failed with safe message) and make each caller report local-save and cloud-publish outcomes separately. Include the separate LiveTests result in the generator flow. This likely crosses more than a simple isolated one-file fix; do not patch only the helper and leave callers ignoring the result. Add unit/instrumentation coverage for image failure, sanitizer failure, Firestore write failure, private local-only save and LiveTests partial failure. No rules changes are needed for this outcome-reporting correction.
+
+
+## Refreshed publication call-site and UI-state audit — 2026-11-19
+
+Re-read Main `NEETViewModel.kt` at blob `1e2620e9bfb80fc600191ceda3020b4f10b26406`. Four active call sites were inspected:
+
+1. Around line 1530: an admin test creation path inserts the test and questions into Room, then calls `uploadTestToFirestore`; no publication result is returned to the caller.
+2. Around line 1680: scheduled Live Test creation inserts Room records, calls the helper, and the enclosing coroutine only catches/prints exceptions. The helper swallows its own upload errors.
+3. Around line 6035: `saveGeneratedTest` inserts the local test and questions, updates preview state, then calls the helper for public tests. For Live Tests it separately writes `LiveTests`, then private answer keys; that block has its own catch. Notification broadcast has another independent catch. The method proceeds to folder placement and optional Community auto-share even if an earlier cloud write failed. Therefore Tests_Data publication, LiveTests publication, private-key write, notification and Community share are distinct outcomes and must not be represented as one generic “saved/published” result.
+4. Around line 6318: another admin creation path inserts local records and calls the helper with no observable publication result.
+
+The helper itself (around line 5724) returns `Unit`; private tests return normally by design, image-upload failure returns normally, and the outer catch prints/logs errors and returns normally. Public sanitization remains fail-closed after PR #17, but failure is not propagated to these callers.
+
+### UI/state evidence and limits
+
+The inspected generator flow updates `previewQuestions` after Room insertion and proceeds with local folder placement. In the inspected range there is no explicit state result from `uploadTestToFirestore` to gate a “published” UI state. This proves missing outcome propagation, but does not by itself prove the exact text of any user-visible success toast/message. Search and trace all UI collectors/callbacks before claiming a specific false-success notification.
+
+### Required correction and acceptance tests
+
+- Return a typed outcome from the helper, distinguishing at least PRIVATE_LOCAL_ONLY, PUBLISHED, IMAGE_UPLOAD_FAILED, SANITIZATION_FAILED and FIRESTORE_WRITE_FAILED; avoid leaking internal exception details to students.
+- For generator Live Tests, separately track Tests_Data, LiveTests document, private answer-key write, notification and Community-share outcomes. Do not report overall Live Test publication as successful unless all required durable writes succeed; notification may be a separately reported best-effort side effect.
+- Preserve local Room save even if cloud publication fails, but display “saved locally / cloud publish failed” rather than implying cloud publication.
+- Ensure callers either surface the result or explicitly record a retryable state. Avoid automatic duplicate writes on retry; use stable IDs/idempotent writes.
+- Tests: private local-only; image upload failure; fail-closed sanitizer exception; Tests_Data write failure; LiveTests write failure after Tests_Data succeeds; private answer-key write failure; notification failure; Community share failure; retry/idempotency; local Room save remains intact.
+
+**Scope decision:** this spans the helper, four call sites, generator UI/state, and tests. It exceeds the 2–4-file small-fix boundary. No source code was changed; implement only after the full UI state/callback call graph and retry semantics are mapped. No Firestore rules relaxation or database-ID change is required or permitted for this outcome-propagation work.
