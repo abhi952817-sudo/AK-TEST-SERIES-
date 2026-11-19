@@ -89,3 +89,12 @@ Introduce an explicit ranking state at the domain boundary that distinguishes at
 
 ### Scope / decision
 This crosses backend response, Firestore serialization, Room schema/migration, ViewModel hydration and result UI, so it is **not** a 2–4-file safe patch. No code was changed. PR #18 must remain unmerged until the full contract and migration tests are designed. Preserve existing attempt records; no destructive migration, production backfill or deployment is authorized.
+
+
+### PR #18 exact-head CI terminal result — 2026-11-19
+
+- Exact head: `fda2d304cad601d43d50eb6fdb8f3068662f4615`.
+- Android CI run: [44541619345](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/44541619345), conclusion **SUCCESS**.
+- All steps completed successfully: Firebase Functions JavaScript syntax, Backend Scoring Tests, Android Unit Tests, Gradle Build and APK artifact upload.
+- This closes the CI gate for that exact PR head only. It does not close the Android ranking-status contract, Room migration/backward-compatibility, profile privacy or population concurrency gates.
+- PR #18 remains open and unmerged. Even though GitHub now reports mergeable, do not merge until Android consumers no longer turn unavailable ranking into a displayed zero and the persistence contract is resolved. The safe decision is to hold this backend-only proposal until its client contract is ready.
