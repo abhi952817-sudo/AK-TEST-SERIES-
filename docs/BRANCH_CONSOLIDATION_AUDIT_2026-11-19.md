@@ -124,3 +124,17 @@ Repeated high-conflict paths include:
 - `INTEGRATED`: safely present in integration branch and verified.
 - `MERGED`: PR merged to main and main re-verified.
 - `OBSOLETE`: unique work proven unnecessary or superseded; preserve audit evidence before branch cleanup.
+
+
+## Recheck update — 2026-11-19 (current repository snapshot)
+
+- Current `main`: `724defaa487bfc64863402992474b1044198ae98` (commit `refactor: improve security and AI provider management`).
+- Current branch count: **27 total** (main + 26 non-main, including this audit integration branch). The earlier baseline count of 25 was the earlier snapshot and is superseded for current inventory.
+- Current open PR count: **11**. Firestore PRs #9, #10, #12, #13 and #14 are overlapping/competing database-target proposals; they must not be stacked or merged together.
+- Android CI run `44528426052` for current main completed **success**. This does not replace emulator/device/live Firebase tests.
+- F-016 recheck: ordinary `submitTestAttemptServerSide` success and idempotent responses do not return `solutionKeys`; separate `getTestAttemptSolutions` callable returns them behind attempt/review authorization. Mark ordinary-response leak resolved by static review; test dedicated callable authorization at runtime.
+- F-009 recheck: current ViewModel forces offline mock fallback false and deprecates the setter; named `generateMockAiTest` function was not found in current file. Keep failure-path audit open until every PDF/AI failure path is shown to stop without publishing questions.
+- F-023 recheck: current Community public-copy code removes `correctAnswer` and `explanation`; maintain test coverage as a gate.
+- M-001 through M-005 and M-007 remain open as recorded in `MAIN_COMMIT_REVIEW_2026-11-19.md`.
+- Markdown policy: update existing branch-specific plan/audit files where available; do not create one report per branch. If a branch has no relevant Markdown file, record its status in this master tracker.
+- No feature code merged, no branch deleted, no Firestore target changed, and no production data touched in this recheck.
