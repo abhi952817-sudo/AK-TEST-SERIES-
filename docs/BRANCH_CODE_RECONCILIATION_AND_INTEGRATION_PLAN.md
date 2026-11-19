@@ -289,3 +289,51 @@ This consolidation is complete only when every live branch has a final recorded 
 - Diff review confirmed main `.github/workflows/android.yml` uses JDK 21 and Ranking V2 `.github/workflows/ranking-v2-validation.yml` used JDK 17. This establishes a workflow environment mismatch, although only a successful exact-head rerun can confirm the failure is resolved.
 - Changed Ranking V2 validation Android job to JDK 21 (no test weakening or application-code change). Workflow commit `8561e176272599e501e8d4ac7d169544772a22f8`; branch documentation commit `59d45f61051ff11e0234075eafd74c88f0bc75fd`.
 - Exact latest branch head `59d45f61051ff11e0234075eafd74c88f0bc75fd`; validation run `44535036938` queued at update time (workflow-only commit run `44535005393` also in progress). Merge remains blocked until all backend, Firestore rules and Android jobs pass on the latest exact head.
+
+
+## 2026-11-19 follow-up — overlap and dependency analysis
+
+### Current main and branch state
+- Main at this update: `67d655de8c5cbadc04d9118bb9fd112f8bb25549`.
+- Live branches rechecked: 29 total (main + 28 non-main).
+- Open PRs rechecked: #1–#5, #8–#14 are open; PR #15 and #16 are merged and not in the open list.
+- Two branch names are exact HEAD aliases: `copilot/firestore-default-clean` and `feature/secure-user-owned-ai-connectors`, both at `dabeeaec90ddfde4fa69f4b89e71a5f2ffe1fcb4`. Treat them as one content lineage for deduplication; preserve both refs until final cleanup decision.
+- `copilot/firestore-default-clean` is behind main with no unique diff; do not merge it.
+
+### Firestore consolidation — exact conflict evidence
+A grouped comparison of all Firestore candidate branches confirms they are not interchangeable:
+- Main Android resource + helper selects named DB `ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`.
+- Main Cloud Functions `backend_functions/index.js` also explicitly selects `...9fa19369...` through `FIRESTORE_DATABASE_ID`.
+- Main `firebase.json` targets `...9fa19369...` for Firestore rules/index deployment.
+- `fix/firestore-default-database-2026-11-17` changes Android, Functions and `firebase.json` to `(default)`.
+- `fix/use-default-firestore-everywhere` also chooses `(default)`, but its diff is much wider: Android backup, upload, TestReview, Storage rules/tests, workflow and extra integration-test changes are bundled with database edits.
+- `fix/retain-single-firestore-db-9fa` selects a different named DB `...4a0dbfd1...`; it conflicts with both current Main and default-database candidates.
+- `copilot/standardize-firestore-default` and `fix/unify-firestore-database` remove named database selection in app/backend; the latter bundles additional unrelated app/analytics/community edits.
+- `integration/community-firestore-default-2026-11-15` combines Community + Firebase/Storage + workflow + schema/rules changes (over 200 commits ahead); it is not a safe atomic merge.
+- The `audit/default-firestore-consolidation` branch is documentation-only relative to Main in its current file diff; preserve the audit findings but do not create duplicate audit documents on Main.
+
+**Decision remains BLOCKED:** source diffs prove which database each branch targets, but do not prove which live Firebase database contains canonical production data. Do not merge any database-ID cutover or change rules/index deployment target until project ID, database IDs/regions, collections and record counts, Functions target, Android target, backup/export, and a successful staging restore are verified together. No production database is to be deleted or silently redirected.
+
+### Scoring, PDF and AI overlap — merge policy
+- `feature/universal-exam-scoring-v1-2026-11-06` is 147 commits ahead / 116 behind Main and changes shared scoring, MainActivity, NEETViewModel, backend Functions, Firestore rules/indexes and Room schema version 21. PR #2 targets the Ranking V2 branch, not Main. Do not merge its whole branch or PR #2 directly to Main. First isolate the versioned scoring contract, MSQ exact-set behavior, numeric format/rounding policy, backend/Kotlin parity vectors and Room migration; then port/test as one compatible slice.
+- `audit/all-exam-scoring-ranking-2026-11-13` adds golden vectors and versioned scoring-policy JSON/schema. This is useful audit/test material but overlaps scoring policy work; compare policy semantics before selecting one canonical contract. Do not create duplicate policy documents or competing vector suites.
+- `feature/universal-pdf-prompt-contract-v1` changes core pipeline, NEETViewModel, MainActivity and removes/replaces existing parser/extractor components. It is 143 ahead / 109 behind Main. Preserve its route/prompt contract and tests as candidates, but no whole-branch merge until extractor behavior, source provenance, image/layout extraction, failure handling and admin approval integration are verified.
+- `feature/universal-gemini-ai-10-phase-2026-11-08` is a broad 392-ahead / 116-behind branch touching scoring, PDF, AI context, Student key storage, UI, schema and workflow. It overlaps both scoring and PDF branches. Use as reference/source for selective components only; do not merge whole.
+- `fix/phase1-real-questions-only` is 196 ahead / 116 behind Main and overlaps scoring, PDF pipeline, NEETViewModel, AI policy and Student key storage. Preserve fail-closed validation/extractor candidates, but resolve scientific-notation vs strict decimal policy and verify callsites/tests before port.
+- `fix/remaining-firebase-analytics-2026-11-15` is a broad Community + Firestore + Storage + Analytics composite (201 ahead / 10 behind); it is not an isolated analytics fix. Split by file/behavior and inspect consent/privacy and duplicate event handling before any port.
+
+### Ranking V2 — latest CI gate
+- Latest Ranking V2 head observed: `59d45f61051ff11e0234075eafd74c88f0bc75fd`.
+- JDK mismatch correction was applied to the branch's validation workflow: JDK 21 now matches Main Android CI (which uses JDK 21). No app code or test was weakened.
+- Exact-head run `44535036938`: backend unit tests PASS, Firestore rules tests PASS, Android validation still IN PROGRESS at this check. Older run `44535005393` for workflow-only head also had backend/rules PASS and Android IN PROGRESS.
+- Do not merge Ranking V2 or PR #1 until the exact latest-head run completes with all jobs PASS. If Android still fails, inspect the full stack trace and test XML before any code/test changes.
+- PR #2 remains based on Ranking V2, so it must be reconciled after Ranking V2 is validated, then re-targeted/rebased through a reviewed integration branch; never merge it straight to Main in its current state.
+
+### Immediate next sequence
+1. Wait for exact-head Ranking V2 run `44535036938`; if green, inspect PR #1 complete file diff and merge only after reviewing its Room migration, server-side ranking writes, privacy, idempotency, rules and compatibility with current Main.
+2. Keep all Firestore ID branches blocked pending real Firebase inventory/backup/restore evidence. The minimal default candidate and the wider default candidate must not be conflated.
+3. Reconcile scoring policy from audit branch + Universal Scoring PR #2 + Ranking V2 as a single canonical contract. Keep one golden-vector source and test Kotlin/Node parity.
+4. Reconcile PDF prompt contract + real-questions-only + AI 10-phase work by components and tests; one pipeline, one provider router, one validation chain. Do not keep parallel competing implementations.
+5. For Community/Analytics composite branches, port isolated reviewed server-validation and UI/test components only after test ownership, answer-key privacy, Storage paths and Firestore target gates pass.
+6. Recheck every branch head before creating any PR/merge. Update this register after each accepted slice.
+
