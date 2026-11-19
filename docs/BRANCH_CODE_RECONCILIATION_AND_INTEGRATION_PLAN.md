@@ -198,7 +198,7 @@ The audit branch's `shared/scoring/scoring-policy.v1.json` now includes a draft 
 ### Current baseline and rules
 - Current `main` after verified merges: `9a472bfd0de70fd6277be8b67bad8236bf6a5911`.
 - This section supersedes the older nine-branch inventory above for current branch-head tracking; historical audit entries remain evidence, not current status.
-- Live GitHub branch inventory at this check: **25 branches total (main + 24 non-main)**.
+- Live GitHub branch inventory at this check: **29 branches total (main + 28 non-main)**.
 - Branch heads below are exact refs observed during this inventory. Re-fetch before any later merge because branch heads can move.
 - No branch is to be deleted as part of consolidation. Preserve all heads until the final reconciliation and explicit cleanup decision.
 - Target is one coherent `main`, not a forced merge of every divergent history. Unique, safe code is selectively ported; unfinished work and dependencies stay documented here.
