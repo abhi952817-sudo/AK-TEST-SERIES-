@@ -555,3 +555,38 @@ Main `NEETViewModel.kt` blob `1e2620e9bfb80fc600191ceda3020b4f10b26406` shows `u
 Created Main-based branch `fix/ranking-unavailable-state-2026-11-19` and PR [#18](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/18), head `fda2d304cad601d43d50eb6fdb8f3068662f4615`. The three-file backend proposal validates population counts, uses null for unavailable/non-applicable per-test rank fields, and preserves null on idempotent retry instead of substituting rank 1 / percentile 0. Regression cases cover null, NaN, negative and inconsistent counts.
 
 **Do not merge yet.** The workflow-run lookup returned no PR-triggered run for this exact SHA at the time of review. Also, Android consumers currently coerce a missing percentile to 0.0 in the submission-result paths; the UI/model contract must be checked so unavailable ranking is not presented as a genuine 0 percentile. The PR is open and mergeable, but exact-head CI and Android consumer compatibility are still required. Profile-visibility enforcement and population-query concurrency semantics remain separate ranking blockers.
+
+
+## 2026-11-19 latest refresh — branch divergence and PR #18 CI
+
+Main HEAD before this documentation refresh: `c8eee7a56ce409695c93585815c276fc85687c18`. Ranking handoff was refreshed in commit `eebd9b7191940d96174db313b4c428d6f269b75e`.
+
+### Current compare snapshots (base = current Main)
+
+| Branch | Ahead | Behind | Changed files | Decision |
+|---|---:|---:|---:|---|
+| `feature/ranking-engine-v2-2026-11-06` | 110 | 139 | 14 | Keep unmerged; ranking handoff refreshed |
+| `feature/community-completion-2026-11-13` | 184 | 33 | 22 | Keep unmerged; Community handoff |
+| `integration/community-firestore-default-2026-11-15` | 207 | 33 | 36 | Keep unmerged; changes Firestore config/helper and overlaps Community |
+| `feature/universal-exam-scoring-v1-2026-11-06` | 148 | 139 | 22 | Keep unmerged; scoring/ranking/Room overlap |
+| `feature/universal-pdf-prompt-contract-v1` | 143 | 132 | 46 | Keep unmerged; PDF/AI/keys/ViewModel overlap |
+| `fix/phase1-real-questions-only` | 196 | 139 | 53 | Keep unmerged; broad PDF/scoring/security/ViewModel changes |
+| `feature/student-universal-ai-connectors-v1` | 60 | 31 | 13 | Selective port only; secure-key and provider tests require device validation |
+
+The branch comparisons are current GitHub compare metadata, not proof that every commit is useful or correct. Do not merge these divergent branches wholesale. The community and Firestore-default branch families overlap substantially; preserve the Main database target and reconcile their common contracts before selective ports.
+
+### PR #18 latest exact-head validation state
+
+- PR #18 head remains `fda2d304cad601d43d50eb6fdb8f3068662f4615`; GitHub currently reports it open and `mergeable=false`.
+- Exact-head Android workflow run `44541619345` is **in progress**. Backend syntax and Backend Scoring Tests steps completed successfully; Android Unit Tests were still in progress at the last poll; Gradle build and APK upload had not started. No overall CI PASS is claimed.
+- Android source review confirms missing ranking percentile can be coerced to `0.0` in rank-details fetch and pending/cloud attempt hydration. The persisted Attempt model and result UI need an end-to-end availability contract. This likely exceeds the user's small 2–4-file fix threshold, so do not rush a partial patch or merge PR #18 until the data contract is mapped.
+- PR #18 also does not resolve leaderboard profile visibility or population-query concurrency semantics.
+
+### Next actions
+
+1. Poll exact-head PR #18 CI to terminal status; if green, it still remains blocked on Android rank-availability compatibility and the other ranking gates.
+2. Map the complete AttemptEntity/Room/Firestore/result UI read-write path and design an explicit unavailable/pending/not-applicable ranking status before touching code.
+3. Continue Community caller/UI publication outcome mapping; expected scope is larger than a helper-only 2–4-file fix, so update the existing handoff instead of merging broad branch code.
+4. Preserve every source branch and the selected Firestore database ID exactly: `ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`.
+
+This checkpoint changes documentation only. No application code, branch source, Firestore rules, database ID, schema, production data or deployment was changed.
