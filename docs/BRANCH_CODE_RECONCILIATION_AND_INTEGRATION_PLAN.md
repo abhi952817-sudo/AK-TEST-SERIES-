@@ -400,3 +400,18 @@ Compared the Community-related branches against Main as one family:
 - The Community Firebase Rules CI workflow `.github/workflows/community-rules.yml` already exists on Main and is identical to the version inspected on `feature/community-development-plan-2026-11-13`; no workflow port is needed.
 - Main `storage.rules` and `storage.test.js` already contain the UID-scoped Community image and private report-evidence rules/tests reviewed in that branch; no duplicate copy should be merged.
 - Therefore the remaining candidate comparison is limited to any genuinely unique Firestore test cases, Community UI pieces, and server-side validators. Do not count already-present workflow/Storage work as outstanding branch integration.
+
+
+### Current-head CI and PR topology refresh — 2026-11-19
+Exact commit check-runs were refreshed for several high-priority feature branches:
+- `feature/student-universal-ai-connectors-v1` at `ac5eda2a...`: Student AI Android CI SUCCESS. This is a useful green branch baseline, but its provider set/security gaps remain; selective port only.
+- `feature/universal-gemini-ai-10-phase-2026-11-08` at `a2dd36c...`: backend Functions tests and Android unit tests SUCCESS. The branch is still a broad overlapping implementation; no wholesale merge.
+- `fix/phase1-real-questions-only` at `e75003b...`: backend unit test and Android build/unit test SUCCESS. This does not resolve scientific-notation policy parity or prove PDF visual/layout extraction; selective fail-closed components only.
+- `feature/universal-exam-scoring-v1-2026-11-06` at `6b99fb1...`: backend unit tests and Firestore rules tests SUCCESS; Android validation FAILURE. PR #2 is open and targets Ranking V2, not Main. Do not merge it directly to Main or into Main until the Android failure is diagnosed and the scoring contract is reconciled.
+- `feature/universal-pdf-prompt-contract-v1` at `fbafd0c...`: no GitHub check-runs reported for the exact head; no CI pass may be claimed.
+- PR #3 (Ranking Universal Integration) is Draft and also targets Ranking V2, not Main. Its work must be reconciled after the ranking/scoring contract is settled.
+- PR #4 (PDF prompt contract) and PR #5 (all-exam scoring audit) target Main but remain Draft; the former has no exact-head checks, and the latter is audit/policy evidence, not a ready runtime feature.
+- PR #6 was merged into Main at `1e236d099522d63ec89ab0d11287b48315efc48c`; current Main is a descendant (17 commits ahead, 0 behind). Its work is already part of Main and must not be re-merged.
+- PR #7 was merged into `feature/community-completion-2026-11-13`, not Main. It is part of the Community branch lineage; do not count it as a Main merge.
+
+**Next safe ordering:** resolve the Universal Scoring Android CI failure first, then reconcile scoring contract + ranking as one integration unit. In parallel, extract and test PDF prompt/parser contract components against Main without replacing working extractor behavior. Keep AI provider adapters aligned to the approved five-provider registry rather than copying the Gemini branch wholesale.
