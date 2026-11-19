@@ -59,7 +59,6 @@ data class AiModelSpec(
 data class AiProviderSpec(
     val connectorId: AiConnectorId,
     val displayName: String,
-    val adminSecretName: String,
     val requiresAccountId: Boolean,
     val baseUrl: String,
     val docsUrl: String,
