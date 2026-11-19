@@ -215,19 +215,37 @@ object ExamScoringEngine {
         var totalNegativePenalty = 0.0
         var totalMaxPossible = 0.0
 
-        val paperConfig = examConfig.stages.find { it.stageId == stageId }?.papers?.find { it.paperId == paperId }
-        val sectionConfigMap = paperConfig?.subjects?.flatMap { it.sections }?.associateBy { it.sectionId } ?: emptyMap()
+        val selectedStage = examConfig.stages.firstOrNull { it.stageId == stageId }
+            ?: throw IllegalArgumentException("Scoring stage '$stageId' is not configured for exam '${examConfig.examId}'.")
+        val paperConfig = selectedStage.papers.firstOrNull { it.paperId == paperId }
+            ?: throw IllegalArgumentException("Scoring paper '$paperId' is not configured for stage '$stageId'.")
+        val configuredSections = paperConfig.subjects.flatMap { it.sections }
+        require(configuredSections.isNotEmpty()) {
+            "No marking sections are configured for exam '${examConfig.examId}', stage '$stageId', paper '$paperId'."
+        }
+        val sectionConfigMap = configuredSections.associateBy { it.sectionId }
+        require(sectionConfigMap.size == configuredSections.size) {
+            "Duplicate section IDs exist in the selected paper's scoring configuration."
+        }
 
-        val defaultPos = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.positiveMarks ?: 4.0
-        val defaultNeg = examConfig.stages.firstOrNull()?.papers?.firstOrNull()?.subjects?.firstOrNull()?.sections?.firstOrNull()?.negativeMarks ?: 1.0
+        // Legacy scalar summary fields use the selected paper's first section only.
+        // Every question below is scored using its own exact configured section.
+        val summarySection = configuredSections.first()
+        val summaryPosMarks = summarySection.positiveMarks
+        val summaryNegMarks = summarySection.negativeMarks
 
         correctAnswers.forEach { (qid, correctOpt) ->
             val userOpt = userAnswers[qid]?.trim()?.uppercase()
             val cleanCorrect = correctOpt.trim().uppercase()
             val isKeyVerified = isAnswerKeyVerified(cleanCorrect)
-            val sectionId = questionSections[qid] ?: ""
-            val posMarks = sectionConfigMap[sectionId]?.positiveMarks ?: defaultPos
-            val negMarks = sectionConfigMap[sectionId]?.negativeMarks ?: defaultNeg
+            val sectionId = questionSections[qid]?.trim().orEmpty()
+            require(sectionId.isNotEmpty()) {
+                "Question '$qid' has no section ID; scoring cannot safely select a marking scheme."
+            }
+            val sectionConfig = sectionConfigMap[sectionId]
+                ?: throw IllegalArgumentException("Question '$qid' references unconfigured section '$sectionId'.")
+            val posMarks = sectionConfig.positiveMarks
+            val negMarks = sectionConfig.negativeMarks
             
             totalMaxPossible += posMarks
 
@@ -263,8 +281,8 @@ object ExamScoringEngine {
             maxScore = totalMaxPossible,
             accuracyPercent = Math.round(accuracy * 100.0) / 100.0,
             timeSpentSeconds = timeSpentSeconds,
-            correctMarksPerQuestion = defaultPos,
-            negativeMarksPerQuestion = defaultNeg,
+            correctMarksPerQuestion = summaryPosMarks,
+            negativeMarksPerQuestion = summaryNegMarks,
             rawScore = rawScore
         )
     }
