@@ -36,6 +36,9 @@ jobs:
         node --check backend_functions/index.js
         node --check backend_functions/examScoring.js
 
+    - name: Run Backend Scoring Tests
+      run: node --test backend_functions/examScoring.test.js
+
     - name: Run Unit Tests
       run: gradle testDebugUnitTest
 

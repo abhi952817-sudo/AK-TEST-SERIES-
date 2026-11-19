@@ -353,3 +353,24 @@ test("Phase 8.1: Regression test for existing NEET, JEE Main, and UPSC marking s
   assert.strictEqual(upsc.pos, 2.0);
   assert.strictEqual(upsc.neg, 0.66);
 });
+
+test("Strict numerical equivalence rejects malformed and non-finite values", () => {
+  // Valid finite decimal representations remain equivalent.
+  assert.strictEqual(areOptionsEquivalent("10.0", "10.000", true), true);
+  assert.strictEqual(areOptionsEquivalent("+1.25", "1.25", true), true);
+  assert.strictEqual(areOptionsEquivalent("-.5", "-0.5", true), true);
+
+  // Identical malformed strings must not pass via the exact-string shortcut.
+  for (const value of ["12abc", "1.2.3", "Infinity", "-Infinity", "NaN", ""]) {
+    assert.strictEqual(
+      areOptionsEquivalent(value, value, true),
+      false,
+      `Expected invalid numerical value "${value}" to be rejected`
+    );
+  }
+
+  // Malformed values must not compare equal to an otherwise valid number.
+  assert.strictEqual(areOptionsEquivalent("12abc", "12", true), false);
+  assert.strictEqual(areOptionsEquivalent("1e3", "1000", true), false);
+});
+

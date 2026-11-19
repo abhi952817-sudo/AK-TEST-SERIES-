@@ -33,12 +33,20 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
   if (!ans1 || !ans2) return false;
   const a = String(ans1).trim().toUpperCase();
   const b = String(ans2).trim().toUpperCase();
+  // Numerical answers must be finite, strictly formatted numbers even when the
+  // input strings are identical (for example, "NaN" must never equal "NaN").
+  if (isNumerical) {
+    const num1 = parseStrictFiniteNumber(a);
+    const num2 = parseStrictFiniteNumber(b);
+    return !Number.isNaN(num1)
+      && !Number.isNaN(num2)
+      && Math.abs(num1 - num2) < 0.0001;
+  }
+
   if (a === b) return true;
 
-  if (!isNumerical) {
-    const mapIndex = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
-    if (mapIndex[a] === b || mapIndex[b] === a) return true;
-  }
+  const mapIndex = { "1": "A", "2": "B", "3": "C", "4": "D", "5": "E" };
+  if (mapIndex[a] === b || mapIndex[b] === a) return true;
 
   const num1 = parseStrictFiniteNumber(a);
   const num2 = parseStrictFiniteNumber(b);
