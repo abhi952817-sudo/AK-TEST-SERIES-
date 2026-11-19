@@ -415,3 +415,13 @@ Exact commit check-runs were refreshed for several high-priority feature branche
 - PR #7 was merged into `feature/community-completion-2026-11-13`, not Main. It is part of the Community branch lineage; do not count it as a Main merge.
 
 **Next safe ordering:** resolve the Universal Scoring Android CI failure first, then reconcile scoring contract + ranking as one integration unit. In parallel, extract and test PDF prompt/parser contract components against Main without replacing working extractor behavior. Keep AI provider adapters aligned to the approved five-provider registry rather than copying the Gemini branch wholesale.
+
+
+### Universal Scoring Android CI failure — diagnosis and safe workflow correction
+- Failed exact-head run `43330776622` had backend unit tests PASS and Firestore rules tests PASS; Android failed after APK assembly at `CrashResilienceTest > classMethod` with `UnsupportedOperationException at DefaultSdkProvider.java:170` (299 tests, 1 failed).
+- The failure is not yet attributed to scoring code: the same `CrashResilienceTest.kt` source was verified identical between Main and the Universal Scoring branch.
+- Main Android CI uses JDK 21. The scoring branch's shared Ranking V2 Validation Android job used JDK 17. This matches the environment mismatch previously corrected on Ranking V2.
+- Applied a narrow CI-only correction on `feature/universal-exam-scoring-v1-2026-11-06`: JDK 17 -> JDK 21. No app code, tests, scoring logic, or test thresholds were changed.
+- New exact-head commit: `a686861eea49bf15ddb7d8d350201e464ef721fe`.
+- New validation run `44536565354` is QUEUED at this check. Do not mark the scoring branch green or merge until backend tests, Firestore rules tests and Android validation all complete successfully on this exact head.
+- PR #2 still targets Ranking V2; this workflow fix is not permission to merge it into Main. Resolve scoring contract and ranking integration after the exact-head CI result.
