@@ -437,3 +437,18 @@ Current branch head `fbafd0c9376dd3d5bc0ac85a75a26447d9692311` remains without e
 - **Prompt contract quality:** the prompt builders have useful fail-closed rules (untrusted PDF content, exact IDs, source evidence, draft-only publication, separate syllabus/pattern classification). Keep the contract and its unit tests as candidate assets, but do not wire it into production until the extraction and credential architecture is corrected.
 - **Deployment workflow:** branch adds `deploy-gemini-proxy.yml`; review deployment trigger, secret binding, project/database targeting and least-privilege permissions separately. No production deploy is authorized by this branch.
 - Integration disposition: **KEEP PROMPT CONTRACT AS REFERENCE / REBUILD PIPELINE BOUNDARY**. Do not merge PR #4 wholesale or accept its BYOK proxy path. First split a provider-neutral prompt contract from transport, restore/retain robust PDF extraction, implement page-aware image/OCR handling and add fixtures for text PDFs, scanned PDFs, mixed pages, diagrams, tables, formulas, malformed files and prompt-injection text.
+
+
+### Canonical Firestore database decision reaffirmed — 2026-11-19
+- User explicitly reaffirmed that the database ID already selected, updated and checked for Main is the one to retain. Continue using exactly:
+  `ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`.
+- Direct Main `firebase.json` recheck confirms the Firestore deployment target is this exact named database, with `firestore.rules` and `firestore.indexes.json`. Earlier verified Main Android `FirestoreHelper` reads the configured database ID and opens that named database; preserve that single-ID design.
+- Do not switch Main or any incoming branch to `(default)`, `...4a0dbfd1...`, `...b6ff3593...`, or another ID. Treat those branch variants as conflicting/stale until a separate user-directed database decision with live inventory and backup/restore evidence. No database cutover, deletion, or migration is authorized.
+- The user asks that all further code and documentation changes preserve the complete prior architecture/security requirements and avoid overlap. Branch consolidation remains selective: keep useful unique work, do not merge divergent branch histories wholesale, preserve source branches, and record incomplete work/dependencies here.
+
+### Repository and Universal Scoring exact-head refresh — 2026-11-19
+- Branch inventory refresh returned 29 branches total (Main + 28 non-main). Exact current Main SHA at this refresh: `08be0198b2f85861e4f3cf1b9a15cc2914e70c3d`.
+- Universal Scoring branch exact HEAD remains `a686861eea49bf15ddb7d8d350201e464ef721fe`; workflow run `44536565354` is still IN_PROGRESS at refresh. Backend unit tests = SUCCESS; Firestore rules tests = SUCCESS; Android validation = IN_PROGRESS (JDK 21 setup succeeded; Android unit tests/build step still running). Therefore this branch is NOT yet fully green and must not be merged on this evidence.
+- PR #2 still targets Ranking V2, not Main. Keep the scoring branch isolated until Android exact-head validation completes and the scoring/ranking contracts are reconciled against Main.
+- PR #3 (Ranking Universal Integration) is Draft/open and targets Ranking V2, with 385 commits and a dirty mergeability state at refresh. It is an integration workspace, not a clean merge candidate. Do not merge its broad 42-file/7,528-addition change set into Main. Review individual changes only after the Ranking V2 blockers and shared Firestore target are resolved.
+- No application code, database configuration, Firebase rules, deployment, or production data was changed in this checkpoint; this entry records the canonical database decision and refreshed audit evidence only.
