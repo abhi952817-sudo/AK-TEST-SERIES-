@@ -2242,8 +2242,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     val qType = qObj.optString("questionType", "MCQ")
                     qClean.put("questionType", qType)
 
-                    val correctAns = qObj.optString("correctAnswer", "").trim()
-                    qClean.put("correctAnswer", correctAns)
+                    // F-023: Never expose private correctAnswer in public shared question payloads
 
                     val secId = qObj.optString("section", "SECTION_A")
                     val secName = qObj.optString("sectionName", "Section A")
@@ -2330,12 +2329,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         "optionC" to q.optString("optionC", ""),
                         "optionD" to q.optString("optionD", ""),
                         "questionType" to q.optString("questionType", "MCQ"),
-                        "correctAnswer" to q.optString("correctAnswer", ""),
+                        // F-023: Private answer keys and explanations are excluded from public shared tests
                         "positiveMarks" to q.optDouble("positiveMarks", defaultPosMark),
                         "negativeMarks" to q.optDouble("negativeMarks", defaultNegMark),
                         "section" to q.optString("section", "SECTION_A"),
                         "sectionName" to q.optString("sectionName", "Section A"),
-                        "explanation" to q.optString("explanation", ""),
                         "subject" to q.optString("subject", test.subject),
                         "chapter" to q.optString("chapter", test.chapter),
                         "topic" to q.optString("topic", test.topic),

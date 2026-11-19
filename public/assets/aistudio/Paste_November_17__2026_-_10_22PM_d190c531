@@ -1,0 +1,1444 @@
+MASTER DEVELOPMENT, INTEGRATION, SECURITY & COMPLETE VERIFICATION PROMPT
+
+Project: AK-TEST-SERIES
+
+Universal AI-Powered Multi-Exam Test Series Platform
+
+---
+
+1. YOUR ROLE
+
+Act as a Senior Software Architect, Android Developer, Backend Developer, Firebase Engineer, AI Integration Engineer, QA Automation Engineer, Security Auditor, Database Architect and Release Manager.
+
+Your responsibility is to audit, develop, integrate, test, verify and prepare the existing AK-TEST-SERIES application for production.
+
+This is an existing project. Do not treat it as a new application.
+
+Repository:
+https://github.com/abhi952817-sudo/AK-TEST-SERIES-
+
+Primary branch:
+main
+
+Previously reported checkpoint SHA:
+eb7b022250f12396122a6e3b21c14389cbb0191f
+
+IMPORTANT: Verify the current branch and latest commit before doing any work. The SHA above is a historical checkpoint, not proof of the current repository state.
+
+Mandatory rules
+
+1. First inspect the existing application and architecture.
+2. Do not modify, delete, rename or overwrite any file without explicit authorization.
+3. Do not remove existing working features.
+4. Do not replace real functionality with mock, demo or hardcoded data.
+5. Do not claim a test passed unless it was actually executed.
+6. Do not claim Firebase integration is complete merely because configuration files exist.
+7. Do not expose private API keys, answer keys, student information or administrative credentials.
+8. Preserve existing functionality, database compatibility and user data.
+9. Every issue must have an ID, file path, evidence, severity and verification status.
+10. If a test cannot be executed, mark it BLOCKED or NOT TESTED, not PASSED.
+11. Never invent missing features, exam configurations, database IDs or test results.
+12. Do not begin implementation until the initial audit and proposed changes have been presented and approved.
+
+---
+
+2. MAIN PROJECT OBJECTIVE
+
+Build one integrated, reliable and secure examination platform.
+
+The complete student journey must work:
+
+Login → Student Dashboard → Exam Selection → Test List → Start Test → Load Questions → Select Answers → Timer → Save Answers → Submit Test → Calculate Result → Show Solutions When Authorized → Ranking.
+
+The system must support all existing configured examinations, approximately 24–25 exam configurations, through one universal architecture.
+
+Do not create a separate AI architecture, PDF pipeline, scoring engine or prompt system for every examination.
+
+Use configurable exam-specific settings with shared engines.
+
+---
+
+3. SYSTEM ARCHITECTURE
+
+Maintain a unified architecture with:
+
+1. One Android application.
+2. One Student Panel.
+3. One Admin Panel.
+4. One Firebase project/database strategy based on the existing verified configuration.
+5. One Universal Exam Registry.
+6. One Universal AI Router.
+7. Five shared AI provider slots.
+8. One Universal Prompt Catalog.
+9. One PDF and OCR Processing Pipeline.
+10. One Question Generation Planner.
+11. One Question Validation Engine.
+12. One Duplicate Detection Engine.
+13. One Test and Exam Engine.
+14. One Scoring and Result Engine.
+15. One Ranking Engine.
+16. One secure storage and synchronization architecture.
+
+Inspect the existing implementation before introducing new modules. Reuse working components wherever possible.
+
+---
+
+4. FIVE SHARED AI CONNECTORS
+
+Implement five shared AI provider slots usable by both Admin and Student Panels.
+
+The five slots are shared across the system, not five separate slots for each panel.
+
+Potential providers to evaluate:
+
+1. Google Gemini
+2. Groq
+3. Mistral
+4. Cloudflare Workers AI
+5. Hugging Face Inference Providers
+
+These are candidate providers. Verify their current APIs, supported models, free-tier eligibility, quotas, rate limits and commercial terms using official documentation before finalizing the provider list.
+
+Never promise that a provider will remain free permanently.
+
+Two credential-management paths
+
+A. Admin AI credentials
+
+- Admin configures official provider credentials.
+- Use GitHub Actions Secrets only where required for deployment.
+- Use Google Secret Manager or an equivalent secure server-side secret store for runtime credentials.
+- Cloud Functions access secrets through authorized server-side mechanisms.
+- Do not place Admin keys inside the APK, public frontend, source code or Firestore public documents.
+- Never print secret values in logs.
+
+B. Student personal AI credentials
+
+- Student may enter their own provider API key through the Student Panel.
+- Store the key locally using Android Keystore-backed encryption, such as AES-GCM.
+- Do not upload personal keys to Firebase, GitHub or Admin databases.
+- Do not expose a student's personal key to another student or administrator.
+- Explain local-storage limitations and device-compromise risks honestly.
+- Provide key replacement and removal functionality.
+
+Shared connector architecture
+
+Admin and Student use the same logical provider slots but have separate credential ownership and permissions.
+
+Implement:
+
+- Provider adapters.
+- Capability detection.
+- Model availability checks.
+- Timeout handling.
+- Rate-limit handling.
+- Retry policy.
+- Error classification.
+- Usage tracking without exposing secrets.
+- Provider health checks.
+- Fallback routing.
+- Cost and quota awareness.
+
+Never switch providers silently if doing so could change the user's billing, privacy or data-sharing expectations.
+
+---
+
+5. ONE UNIVERSAL AI ROUTER
+
+All AI-powered modules must use one common routing architecture.
+
+Expected flow:
+
+User Request → Permission Check → Exam Context → Prompt Selection → Provider Selection → Model Request → Response Parsing → Validation → Result.
+
+The router must support:
+
+- Admin credentials.
+- Student personal credentials.
+- Provider availability.
+- Model capabilities.
+- Request size limits.
+- Context limits.
+- Token limits.
+- Retry and timeout handling.
+- Provider fallback.
+- Structured JSON responses.
+- Invalid-response detection.
+- Logging without secrets or unnecessary personal data.
+
+Never duplicate provider-specific request logic throughout the application.
+
+---
+
+6. UNIVERSAL PROMPT CATALOG
+
+Create one centralized prompt catalog with reusable logical modules.
+
+The following 25 modules are the proposed complete prompt categories:
+
+P-01 Universal Exam Context
+P-02 Syllabus Understanding
+P-03 PDF Classification
+P-04 Text Extraction
+P-05 Image Understanding
+P-06 OCR Correction
+P-07 Table and Formula Extraction
+P-08 Question Extraction
+P-09 Question Generation
+P-10 MCQ Generation
+P-11 Numerical Question Generation
+P-12 Assertion-Reason Generation
+P-13 Answer Generation
+P-14 Answer Verification
+P-15 Explanation Generation
+P-16 Source Attribution
+P-17 Subject Classification
+P-18 Chapter and Topic Mapping
+P-19 Difficulty Classification
+P-20 Exam Pattern Validation
+P-21 Duplicate Detection
+P-22 Quality Validation
+P-23 Language and Translation
+P-24 Doubt and Concept Solving
+P-25 Final Review and Formatting
+
+These are logical prompt modules, not 25 independent AI systems.
+
+Requirements:
+
+- Reusable across all configured examinations.
+- Exam-specific context must come from the Universal Exam Registry.
+- Centralized prompt versioning.
+- Consistent input/output contracts.
+- Structured output validation.
+- No hardcoded exam-specific assumptions.
+- No fabricated syllabus, chapter, page or source references.
+- Prompt changes must have regression tests.
+- Store prompt versions and generation metadata where appropriate.
+
+---
+
+7. UNIVERSAL EXAM REGISTRY
+
+Build or improve one central exam registry.
+
+First inspect all existing exam configurations and identify the actual number of supported examinations.
+
+Do not invent missing examinations.
+
+Each exam configuration should support:
+
+- Exam ID.
+- Official exam name.
+- Exam category.
+- Subjects.
+- Syllabus.
+- Chapters and topics.
+- Question types.
+- Exam pattern.
+- Total questions.
+- Total marks.
+- Positive marking.
+- Negative marking.
+- Section rules.
+- Language.
+- Difficulty distribution.
+- Per-question or total-test timer.
+- Solution availability rules.
+- Ranking eligibility.
+- Source attribution requirements.
+
+Example: NEET UG may use its own verified syllabus, question distribution, marking rules and timer settings.
+
+Other examinations must use their own verified configurations.
+
+Changing an exam configuration must not require duplicating the entire AI system.
+
+---
+
+8. UNIVERSAL PDF, OCR AND IMAGE PROCESSING
+
+Create one reusable PDF processing pipeline.
+
+Required workflow:
+
+PDF Upload → File Validation → Classification → Page Inspection → Text Extraction → Image Extraction → OCR → Table Extraction → Formula Extraction → AI Fallback if needed → Extraction Validation → Structured Output.
+
+Requirements:
+
+- Support text-based PDFs.
+- Support scanned PDFs.
+- Support image-heavy PDFs.
+- Support mixed text and image pages.
+- Preserve page numbers.
+- Preserve tables and units.
+- Preserve mathematical notation as accurately as possible.
+- Detect unreadable or missing pages.
+- Identify uncertain extraction.
+- Avoid silently dropping content.
+- Record extraction confidence and errors.
+
+If offline extraction fails, use an authorized AI fallback.
+
+If extraction fails or the source is insufficient, stop question generation and report the actual error.
+
+Never generate fake questions to hide extraction failure.
+
+Do not invent NCERT chapters, page numbers, quotations or source attribution.
+
+Use UNKNOWN when the source cannot be verified.
+
+---
+
+9. UNIVERSAL QUESTION GENERATION PLANNER
+
+Build one generation planner for all examinations.
+
+Example:
+
+Requested questions: 200
+Batch size: 10
+Total batches: 20
+
+The batch size must be configurable.
+
+Requirements:
+
+- Generate in controlled batches.
+- Persist completed batches.
+- Track current batch.
+- Save progress checkpoints.
+- Support pause and resume.
+- Handle app closure and network interruption.
+- Avoid duplicate generation after retry.
+- Maintain generation job IDs.
+- Track provider/model and prompt version.
+- Track source PDF and page references.
+- Record failures and retry attempts.
+- Prevent partial or invalid batches from being published.
+
+Use reliable persistence and recovery. A fixed five- or ten-second backup interval is not mandatory if a better event-based or transactional strategy is safer.
+
+---
+
+10. QUESTION VALIDATION AND ADMIN APPROVAL
+
+Every generated question must pass validation before publication.
+
+Check:
+
+1. Question text is present.
+2. Options are complete where required.
+3. Correct answer is valid.
+4. Explanation is consistent.
+5. Subject is correct.
+6. Chapter/topic mapping is supported.
+7. Difficulty is valid.
+8. Exam pattern is compatible.
+9. Duplicate detection passes.
+10. Source attribution is valid or explicitly UNKNOWN.
+11. Numerical values and units are checked.
+12. Assertion-reason structure is valid where applicable.
+13. Question is not malformed or truncated.
+14. No unsupported answer key is exposed.
+15. Quality threshold is met.
+
+Use independent verification where appropriate, including deterministic checks and a second validation process.
+
+AI confidence alone must never be treated as proof of correctness.
+
+Publication workflow
+
+Generated Draft → Automated Validation → Admin Review → Approval → Publication.
+
+Only authorized Admin actions can publish official questions.
+
+Maintain an audit trail for edits, approval, rejection and publication.
+
+---
+
+11. SECURE DATABASE AND STORAGE ARCHITECTURE
+
+First inspect all existing Firestore database IDs and determine which database is already the intended/default database.
+
+The project owner prefers the existing default database, but this must be verified against actual application configuration and deployment.
+
+Do not create a new database or migrate all files blindly.
+
+Inspect only relevant files and dependencies.
+
+Proposed logical data separation:
+
+- Users
+- UserProfiles
+- ExamRegistry
+- ExamConfigurations
+- TestMetadata
+- PublicQuestions
+- PrivateAnswerKeys
+- TestAttempts
+- TestResults
+- Rankings
+- AdminDrafts
+- PDFProcessingJobs
+- AIUsage
+- AuditLogs
+
+These are logical categories. Map them onto the existing schema after inspection.
+
+Security requirements
+
+- Student cannot read private answer keys before authorized release.
+- Student cannot modify official questions.
+- Student cannot publish questions.
+- Admin permissions must be verified server-side.
+- Firestore rules must enforce ownership and role checks.
+- Cloud Functions must validate authorization.
+- No secret credentials in public documents.
+- No unrestricted database access.
+- No cross-student private data exposure.
+- Validate all uploaded files.
+- Apply least-privilege access.
+
+Keep public questions separate from private answer keys.
+
+Never return solutionKeys in a normal test-submission response.
+
+A student's attempt record should contain only the necessary question IDs, submitted answers, timing and attempt metadata.
+
+Solutions should be returned only through a separately authorized review flow.
+
+---
+
+12. COMMON TEST, RESULT AND RANKING ENGINE
+
+One shared engine must serve all configured examinations.
+
+Test flow:
+
+1. Student selects examination.
+2. Student selects available test.
+3. Backend validates eligibility.
+4. Test starts.
+5. Questions load securely.
+6. Timer starts.
+7. Student answers are saved.
+8. Network interruptions are handled.
+9. Attempt submission is validated.
+10. Scoring is calculated server-side.
+11. Result is persisted.
+12. Ranking eligibility is evaluated.
+13. Authorized solutions are displayed.
+
+Requirements:
+
+- Reliable timer behavior.
+- Safe answer persistence.
+- Duplicate submission protection.
+- Idempotent submission handling.
+- Server-side scoring.
+- Correct negative marking.
+- Correct section-wise scoring.
+- Correct unanswered-question treatment.
+- Attempt eligibility rules.
+- Ranking integrity.
+- Reconnection and recovery.
+- Clear submission status.
+
+Never trust client-side score calculations for official results.
+
+---
+
+13. COMPLETE SYSTEM VERIFICATION PROTOCOL
+
+THIS SECTION IS MANDATORY.
+
+The entire application must be verified in defined phases.
+
+A feature is not verified merely because its code exists or its screen opens.
+
+Every test must have:
+
+- Test ID.
+- Module.
+- Preconditions.
+- Test steps.
+- Expected result.
+- Actual result.
+- Evidence.
+- Status.
+- Defect ID if failed.
+- Environment and commit SHA.
+
+Use these statuses:
+
+PASS = Test actually executed and all expected results matched.
+
+FAIL = Test executed and one or more expected results did not match.
+
+BLOCKED = Test could not be executed due to missing access, environment or dependency.
+
+NOT TESTED = No execution evidence exists.
+
+NOT APPLICABLE = The test does not apply, with a written reason.
+
+Do not convert BLOCKED or NOT TESTED into PASS.
+
+---
+
+PHASE 0 — BASELINE AND ENVIRONMENT VERIFICATION
+
+Before development:
+
+1. Verify repository URL.
+2. Verify current branch.
+3. Verify latest commit SHA.
+4. Identify uncommitted changes if repository access permits.
+5. Identify Android project structure.
+6. Identify Admin Panel structure.
+7. Identify Student Panel structure.
+8. Identify backend and Cloud Functions.
+9. Identify Firebase project and database configuration.
+10. Identify existing AI connectors.
+11. Identify PDF processing modules.
+12. Identify test frameworks.
+13. Identify build tools and versions.
+14. Identify deployment environments.
+15. Identify existing known bugs and previous audit findings.
+
+Output:
+
+- Architecture inventory.
+- Module inventory.
+- Dependency inventory.
+- Environment inventory.
+- Existing feature status.
+- Known issues.
+- Missing access and tools.
+- Baseline commit SHA.
+
+Do not modify files during this phase.
+
+---
+
+PHASE 1 — STATIC CODE VERIFICATION
+
+Inspect the relevant source files and their callers.
+
+Verify:
+
+- Correct imports and dependencies.
+- No unresolved symbols.
+- No invalid configuration references.
+- No hardcoded secrets.
+- No mock data in production paths.
+- No duplicate business logic.
+- No unsafe exception handling.
+- No swallowed errors.
+- No accidental data exposure.
+- No incorrect database references.
+- No dead or unreachable functionality.
+- No unintended destructive operations.
+- No inconsistent model fields.
+- No incorrect null handling.
+- No insecure client-side authorization assumptions.
+
+For every finding, include file path, line range and evidence where available.
+
+Static inspection is not runtime proof.
+
+---
+
+PHASE 2 — BUILD AND COMPILATION VERIFICATION
+
+Run available build checks separately for each component.
+
+Android:
+
+- Gradle configuration.
+- Kotlin compilation.
+- Resource processing.
+- Manifest validation.
+- Dependency resolution.
+- Debug build.
+- Release build where possible.
+
+Admin Panel:
+
+- Dependency installation.
+- Type checking.
+- Linting.
+- Production build.
+- Route validation.
+
+Backend:
+
+- Dependency validation.
+- JavaScript/TypeScript syntax.
+- Cloud Functions build.
+- Unit test execution.
+- Deployment configuration checks.
+
+Record exact commands, exit codes, errors and environment.
+
+A successful compilation does not prove that runtime behavior is correct.
+
+---
+
+PHASE 3 — AI CONNECTOR VERIFICATION
+
+Test all five provider slots independently.
+
+For every provider:
+
+1. Credential configuration.
+2. Credential authorization.
+3. Valid request.
+4. Invalid credential.
+5. Unsupported model.
+6. Rate-limit response.
+7. Timeout.
+8. Network interruption.
+9. Malformed response.
+10. Structured JSON response.
+11. Usage tracking.
+12. Secret redaction in logs.
+13. Provider failure handling.
+14. Fallback behavior.
+15. Provider selection policy.
+
+Verify Admin credentials and Student credentials separately.
+
+Verify that:
+
+- Admin keys never reach Student clients.
+- Student keys never reach Admin or Firebase.
+- Keys are never logged.
+- A Student cannot use another Student's credentials.
+- Provider fallback respects privacy and cost policies.
+
+Test all five providers only where valid credentials and permitted test environments are available.
+
+---
+
+PHASE 4 — UNIVERSAL PROMPT VERIFICATION
+
+Verify all 25 prompt modules.
+
+For each module:
+
+- Correct input schema.
+- Correct exam context.
+- Correct prompt version.
+- Correct provider routing.
+- Correct output schema.
+- Valid response parsing.
+- Invalid response rejection.
+- Missing-field handling.
+- Hallucination checks.
+- Language consistency.
+- Regression tests.
+
+Run representative tests across multiple exam configurations.
+
+Verify that changing exam context changes the relevant configuration without duplicating prompt logic.
+
+---
+
+PHASE 5 — EXAM REGISTRY VERIFICATION
+
+Read every existing exam configuration.
+
+For each exam, verify:
+
+- Exam ID uniqueness.
+- Exam name.
+- Subjects.
+- Syllabus mapping.
+- Chapter/topic mapping.
+- Question types.
+- Marks.
+- Negative marking.
+- Timer.
+- Exam pattern.
+- Result calculation.
+- Ranking rules.
+- Language support.
+
+Run configuration validation for every registered exam.
+
+Report the actual number of verified examinations.
+
+Do not claim all 24–25 examinations work if only a subset was tested.
+
+---
+
+PHASE 6 — PDF AND EXTRACTION VERIFICATION
+
+Create a representative test corpus containing:
+
+- Text-based PDF.
+- Scanned PDF.
+- Image-heavy PDF.
+- Mixed PDF.
+- Table-based PDF.
+- Formula-heavy PDF.
+- Low-quality scanned PDF.
+- Multi-page PDF.
+- Unsupported or corrupted PDF.
+
+For every file, verify:
+
+1. Upload.
+2. File validation.
+3. Page count.
+4. Text extraction.
+5. Image extraction.
+6. OCR.
+7. Table extraction.
+8. Formula extraction.
+9. Page-number preservation.
+10. AI fallback.
+11. Extraction confidence.
+12. Error reporting.
+13. Retry.
+14. Checkpoint recovery.
+
+Compare extracted results with the source PDF.
+
+Record uncertain values and missing content.
+
+If extraction fails, verify that question generation is stopped and an accurate error is displayed.
+
+---
+
+PHASE 7 — QUESTION GENERATION VERIFICATION
+
+Test:
+
+- Small generation batch.
+- Large generation job.
+- Multiple batches.
+- Interrupted generation.
+- App restart.
+- Network loss.
+- Provider failure.
+- Invalid AI response.
+- Duplicate questions.
+- Incorrect answer.
+- Missing explanation.
+- Unsupported source attribution.
+- Resume from checkpoint.
+- Partial batch recovery.
+
+Verify that the system does not lose completed batches or publish incomplete data.
+
+Test a complete workflow using an approved sample PDF.
+
+---
+
+PHASE 8 — QUESTION QUALITY VERIFICATION
+
+Use a reviewed sample set.
+
+For every question verify:
+
+- Factual correctness.
+- Correct answer.
+- Explanation correctness.
+- Exam relevance.
+- Syllabus relevance.
+- Chapter mapping.
+- Difficulty.
+- Duplicate status.
+- Language quality.
+- Option quality.
+- Numerical correctness.
+- Unit consistency.
+- Source attribution.
+
+Use subject-matter review where required.
+
+A model's own claim that its answer is correct is not independent verification.
+
+Report both automated and human-reviewed quality separately.
+
+---
+
+PHASE 9 — FIREBASE INTEGRATION VERIFICATION
+
+Verify the complete database connection.
+
+Do not rely only on Firebase configuration files.
+
+Check:
+
+- Correct Firebase project.
+- Correct Firestore database ID.
+- Android configuration.
+- Admin configuration.
+- Student configuration.
+- Cloud Functions configuration.
+- Authentication.
+- Firestore reads.
+- Firestore writes.
+- Updates.
+- Deletes.
+- Queries.
+- Transactions.
+- Security rules.
+- Realtime listeners.
+- Offline behavior.
+- Reconnection.
+- Error handling.
+- Data consistency.
+
+Test the same logical record across:
+
+Android App ↔ Firestore ↔ Admin Panel ↔ Student Panel ↔ Cloud Functions.
+
+Verify that changes appear in the correct panels.
+
+Use Firebase Emulator Suite for controlled tests where possible.
+
+Use a separate test environment and test data. Never run destructive tests against production student data.
+
+Do not report realtime synchronization as verified unless actual listener and cross-client tests have been executed.
+
+---
+
+PHASE 10 — FIRESTORE SECURITY RULES AND ACCESS TESTS
+
+Run positive and negative permission tests.
+
+Examples:
+
+- Authorized Admin can perform permitted operations.
+- Unauthorized user cannot access Admin functions.
+- Student can read permitted public questions.
+- Student cannot read private answer keys.
+- Student cannot modify official questions.
+- Student cannot modify another student's attempt.
+- Student cannot change official results.
+- Unauthenticated user cannot access protected records.
+- Malformed input is rejected.
+- Unauthorized Cloud Function calls are rejected.
+
+Check both Firestore rules and backend authorization.
+
+A successful Admin operation is not enough. Unauthorized access must also be tested.
+
+---
+
+PHASE 11 — ANDROID APPLICATION VERIFICATION
+
+Test:
+
+- Fresh installation.
+- Existing installation upgrade.
+- Login.
+- Logout.
+- Session expiry.
+- Student dashboard.
+- Exam selection.
+- Test list.
+- Test start.
+- Question navigation.
+- Answer selection.
+- Answer persistence.
+- Timer.
+- Background and foreground.
+- Screen rotation where supported.
+- Network disconnection.
+- Reconnection.
+- App restart.
+- Test submission.
+- Result display.
+- Solution review authorization.
+- Ranking.
+- Error messages.
+- Loading states.
+- Empty states.
+- Accessibility and UI responsiveness.
+
+Use real devices or emulators where available.
+
+Record device model, Android version and app build.
+
+---
+
+PHASE 12 — ADMIN PANEL VERIFICATION
+
+Test:
+
+- Admin login.
+- Role verification.
+- Dashboard.
+- Exam configuration.
+- AI provider configuration.
+- PDF upload.
+- PDF processing.
+- Question generation.
+- Draft management.
+- Question review.
+- Answer verification.
+- Approval and rejection.
+- Publication.
+- Question editing.
+- Audit logs.
+- User management permissions.
+- Test creation.
+- Test publication.
+- Result monitoring.
+- Ranking management.
+- Error reporting.
+
+Verify that unauthorized users cannot access Admin operations by changing frontend routes or requests.
+
+---
+
+PHASE 13 — STUDENT PANEL VERIFICATION
+
+Test:
+
+- Registration and login.
+- Student profile.
+- Exam selection.
+- Test discovery.
+- Test eligibility.
+- Test start.
+- Test attempt.
+- Answer saving.
+- Timer.
+- Submission.
+- Result.
+- Authorized solutions.
+- Ranking.
+- Personal AI key configuration.
+- Key replacement and removal.
+- Doubt-solving interface.
+- Network failure.
+- Session recovery.
+
+Verify that one Student cannot access another Student's private data.
+
+---
+
+PHASE 14 — COMPLETE END-TO-END EXAM TEST
+
+Execute the full student journey using a controlled test account and test examination.
+
+1. Admin creates or selects an approved test.
+2. Admin publishes the test.
+3. Student logs in.
+4. Student selects the examination.
+5. Student opens the test.
+6. Backend validates access.
+7. Questions load.
+8. Timer starts.
+9. Student answers questions.
+10. Answers persist.
+11. Network interruption is simulated.
+12. Connection is restored.
+13. Student resumes or completes the attempt according to policy.
+14. Student submits.
+15. Backend validates submission.
+16. Server calculates score.
+17. Result is saved.
+18. Student sees the correct result.
+19. Ranking is updated according to eligibility.
+20. Authorized solutions become available according to release policy.
+21. Another Student cannot access private attempt or solution data.
+
+Verify the final result independently using a known answer set and expected score.
+
+This phase is a critical launch requirement.
+
+---
+
+PHASE 15 — SCORING AND RANKING VERIFICATION
+
+Create known-answer test cases.
+
+Test:
+
+- All correct answers.
+- All incorrect answers.
+- Unanswered questions.
+- Negative marking.
+- Zero marks.
+- Section-wise marking.
+- Different marking schemes.
+- Invalid answer values.
+- Duplicate submission.
+- Repeated submission.
+- Concurrent submission.
+- Ranking tie.
+- Ineligible attempts.
+- Cancelled attempts.
+- Result recalculation policy.
+
+Compare backend score with independently calculated expected score.
+
+The backend must be the authoritative source for official scores and rankings.
+
+Verify that duplicate requests cannot create duplicate attempts or ranking entries.
+
+---
+
+PHASE 16 — SECURITY AND PRIVACY AUDIT
+
+Perform a dedicated security review.
+
+Check:
+
+- API key exposure.
+- Authentication.
+- Authorization.
+- Firestore rules.
+- Cloud Functions validation.
+- Private answer-key exposure.
+- Student data leakage.
+- Admin role escalation.
+- Insecure file upload.
+- Path traversal risks.
+- Input validation.
+- Injection risks.
+- Sensitive logs.
+- Session management.
+- Local key storage.
+- Data deletion and retention.
+- Dependency vulnerabilities.
+- Backup and restore.
+- Abuse and rate limiting.
+
+Include abuse-case testing and negative tests.
+
+Never use real student personal information in test environments.
+
+Do not claim a system is completely secure. Report the scope and limitations of the audit.
+
+---
+
+PHASE 17 — PERFORMANCE AND RELIABILITY VERIFICATION
+
+Measure where tools permit:
+
+- App startup.
+- Login response.
+- Dashboard load.
+- Test question loading.
+- Answer saving.
+- Submission processing.
+- Result calculation.
+- Realtime synchronization.
+- PDF extraction time.
+- AI generation latency.
+- Memory usage.
+- Backend errors.
+- Provider failure rate.
+- Recovery after network interruption.
+
+Test reasonable concurrent usage in a controlled environment.
+
+Check:
+
+- Duplicate background jobs.
+- Memory leaks.
+- Unbounded retries.
+- Excessive database reads.
+- Excessive writes.
+- Large PDF handling.
+- Request timeouts.
+- Queue recovery.
+
+Do not invent performance numbers. Report actual measurements and test conditions.
+
+---
+
+PHASE 18 — REGRESSION VERIFICATION
+
+After every approved code change:
+
+1. Identify affected modules.
+2. Run targeted tests.
+3. Run relevant integration tests.
+4. Run security tests affected by the change.
+5. Run build checks.
+6. Run previously failing test cases.
+7. Compare behavior against baseline.
+8. Verify unrelated features still work.
+
+Maintain a regression suite.
+
+A fix is not complete merely because the original bug disappears. Existing functionality must remain intact.
+
+---
+
+PHASE 19 — DATA BACKUP, MIGRATION AND RECOVERY
+
+Verify:
+
+- Database backup strategy.
+- Backup permissions.
+- Restore procedure.
+- Schema compatibility.
+- Old Room database migrations.
+- Firestore schema changes.
+- Interrupted writes.
+- Partial job recovery.
+- PDF processing recovery.
+- Generation job recovery.
+- Test attempt recovery.
+- Duplicate recovery operations.
+
+Use test data and a separate environment.
+
+Never test destructive recovery procedures on production data without explicit authorization and a verified backup.
+
+---
+
+PHASE 20 — RELEASE AND LAUNCH READINESS
+
+Before release, verify:
+
+- Release build succeeds.
+- Production configuration is correct.
+- No development secrets are included.
+- No test or mock data is exposed.
+- Firebase production permissions are correct.
+- Cloud Functions are deployed to the intended environment.
+- Admin access is restricted.
+- Student access is correct.
+- Database backups exist.
+- Monitoring is configured.
+- Crash and error reporting works.
+- Privacy disclosures are accurate.
+- Required app permissions are justified.
+- Upgrade compatibility is checked.
+- Critical end-to-end tests pass.
+
+Create a final Launch Readiness Report.
+
+Do not recommend launch if critical security, data integrity or exam-submission issues remain unresolved.
+
+---
+
+14. REQUIRED TEST MATRIX
+
+Create a traceability matrix linking every feature to its tests.
+
+Minimum columns:
+
+Test ID| Module| Scenario| Expected Result| Actual Result| Status| Evidence| Defect ID
+
+Every critical requirement must have at least one test.
+
+Security-sensitive requirements must have both positive and negative tests.
+
+For example, private answer-key protection must test both authorized review access and unauthorized pre-release access.
+
+---
+
+15. BUG AND DEFECT MANAGEMENT
+
+Every defect must have:
+
+- Unique ID.
+- Title.
+- File path.
+- Line range where available.
+- Module.
+- Description.
+- Reproduction steps.
+- Expected behavior.
+- Actual behavior.
+- Severity.
+- Evidence.
+- Root cause if confirmed.
+- Proposed fix.
+- Regression test.
+- Verification status.
+
+Severity:
+
+CRITICAL — Data breach, answer-key exposure, unauthorized access, incorrect official scores, data loss or critical exam failure.
+
+HIGH — Major feature unavailable or important workflow broken.
+
+MEDIUM — Partial functionality or significant usability/reliability problem.
+
+LOW — Minor issue with limited impact.
+
+Do not classify a suspected issue as confirmed without evidence.
+
+---
+
+16. PREVIOUSLY REPORTED FINDINGS TO RECHECK
+
+These are historical audit findings. Reinspect the current code before treating them as confirmed.
+
+F-016:
+Reported issue: "backend_functions/index.js", around line 460, submission response may expose "solutionKeys".
+
+Desired behavior: remove solution keys from normal submission responses and expose them only through authorized review functionality.
+
+F-004:
+Reported issue: "backend_functions/examScoring.js", around lines 33–37, numerical parsing may use permissive "parseFloat".
+
+Desired behavior: strict numeric validation and regression tests.
+
+F-023:
+Reported issue: "NEETViewModel.kt", around lines 2094–2095, community sharing may include "correctAnswer".
+
+Desired behavior: public shared questions must not expose private answer keys or explanations.
+
+F-009:
+Reported issue: "NEETViewModel.kt", around lines 4670 and 5722, AI generation failure may produce mock questions.
+
+Desired behavior: show a real error state and never present fake questions as generated results.
+
+Recheck all historical findings against the current commit.
+
+Do not assume old line numbers remain valid.
+
+---
+
+17. AUTOMATION AND CONTINUOUS VERIFICATION
+
+Where supported, establish:
+
+- Unit test automation.
+- Backend integration tests.
+- Firestore Emulator tests.
+- Security rules tests.
+- Android build verification.
+- Admin build verification.
+- API contract tests.
+- Prompt regression tests.
+- PDF extraction regression tests.
+- Scoring regression tests.
+- End-to-end tests.
+- Dependency vulnerability checks.
+
+Run automated tests on relevant pull requests.
+
+A green CI pipeline is useful evidence but does not replace manual verification of workflows that automation cannot cover.
+
+---
+
+18. VERIFICATION EVIDENCE REQUIREMENTS
+
+For every completed test, record appropriate evidence:
+
+- Test command.
+- Test output.
+- Exit code.
+- Test report.
+- Relevant logs with secrets redacted.
+- Screenshots where useful.
+- Test data identifiers.
+- Commit SHA.
+- Environment.
+- Timestamp.
+- Actual observed result.
+
+Do not fabricate screenshots, logs or test reports.
+
+If a tool is unavailable, explicitly record that the test could not be performed.
+
+Clearly distinguish:
+
+1. Static code inspection.
+2. Successful compilation.
+3. Unit testing.
+4. Integration testing.
+5. Emulator testing.
+6. Real-device testing.
+7. Production verification.
+
+These are different levels of evidence.
+
+---
+
+19. FINAL ACCEPTANCE CRITERIA
+
+The system can be considered ready for launch only when:
+
+1. All critical requirements have traceable tests.
+2. Critical and high-severity defects are resolved or formally accepted with documented risk.
+3. The Android application builds successfully.
+4. Admin Panel builds successfully.
+5. Backend tests pass.
+6. Firebase connectivity is verified.
+7. Firestore security tests pass.
+8. AI provider credential boundaries are verified.
+9. Universal prompt modules pass their applicable tests.
+10. Every registered exam configuration passes validation.
+11. PDF processing has passed representative test cases.
+12. Question validation and approval work.
+13. Private answer keys remain protected.
+14. The complete student test journey passes.
+15. Scoring matches independently calculated expected results.
+16. Ranking integrity is verified.
+17. Data backup and recovery are tested.
+18. Regression tests pass.
+19. No unresolved critical data integrity or privacy issue remains.
+20. All blocked and untested items are explicitly disclosed.
+
+Do not claim 100% verification if any mandatory test remains blocked or untested.
+
+---
+
+20. REQUIRED FINAL REPORTS
+
+Produce these reports:
+
+REPORT A — Initial Repository and Architecture Audit
+
+REPORT B — Existing Feature Inventory
+
+REPORT C — Database and Firebase Integration Audit
+
+REPORT D — AI Connector and Credential Security Audit
+
+REPORT E — Universal Prompt Catalog Verification
+
+REPORT F — Exam Registry Verification
+
+REPORT G — PDF and OCR Pipeline Verification
+
+REPORT H — Question Quality and Validation Report
+
+REPORT I — Android Application Test Report
+
+REPORT J — Admin Panel Test Report
+
+REPORT K — Student Panel Test Report
+
+REPORT L — Security and Privacy Audit
+
+REPORT M — End-to-End Exam Workflow Report
+
+REPORT N — Scoring and Ranking Verification
+
+REPORT O — Performance and Reliability Report
+
+REPORT P — Regression Test Report
+
+REPORT Q — Backup and Recovery Report
+
+REPORT R — Final Launch Readiness Report
+
+For each report, include:
+
+- Scope.
+- Test environment.
+- Commit SHA.
+- Tests executed.
+- Passed tests.
+- Failed tests.
+- Blocked tests.
+- Untested requirements.
+- Defects.
+- Evidence references.
+- Remaining risks.
+- Recommended next action.
+
+---
+
+21. DEVELOPMENT PHASES
+
+Follow this sequence:
+
+PHASE A — Repository and Architecture Audit.
+
+PHASE B — Existing Database and Firebase Integration Audit.
+
+PHASE C — Security and Data Safety Audit.
+
+PHASE D — Existing Feature and Dependency Audit.
+
+PHASE E — Proposed Architecture and Change Plan.
+
+PHASE F — Owner Approval.
+
+PHASE G — Approved Implementation.
+
+PHASE H — Unit and Component Tests.
+
+PHASE I — Integration and Security Tests.
+
+PHASE J — End-to-End Verification.
+
+PHASE K — Regression and Recovery Tests.
+
+PHASE L — Launch Readiness Review.
+
+Do not skip approval between audit and implementation.
+
+---
+
+22. FIRST RESPONSE REQUIRED FROM THE DEVELOPER
+
+Do not start coding immediately.
+
+First provide:
+
+1. Confirmed repository URL.
+2. Current branch.
+3. Current commit SHA.
+4. Existing architecture.
+5. Existing Android modules.
+6. Existing Admin and Student Panel modules.
+7. Existing Firebase project and database IDs, where accessible.
+8. Existing AI integrations.
+9. Existing PDF pipeline.
+10. Existing test frameworks.
+11. Existing security rules.
+12. Historical findings that remain confirmed.
+13. New findings with evidence.
+14. Files that actually need modification.
+15. Files that must not be changed.
+16. Required external access or test environment.
+17. Proposed implementation plan.
+18. Proposed verification plan.
+19. Risks and blockers.
+
+Then STOP and wait for explicit owner approval before changing code.
+
+If repository access is read-only, say so clearly.
+
+If Android devices, Firebase emulators, API credentials or production access are unavailable, list the tests that cannot yet be executed.
+
+---
+
+23. FINAL OPERATING PRINCIPLE
+
+The goal is not merely to create an application that looks complete.
+
+The goal is to build a system whose complete functionality can be demonstrated, tested, reproduced and verified with evidence.
+
+Use:
+
+- One integrated application.
+- One Student Panel.
+- One Admin Panel.
+- One verified database strategy.
+- Five shared AI connector slots.
+- Two separate credential-management paths.
+- One Universal AI Router.
+- One Universal Prompt Catalog with 25 logical modules.
+- One Universal Exam Registry for all existing supported exams.
+- One shared PDF and OCR pipeline.
+- One question generation planner.
+- One validation and approval workflow.
+- One secure data architecture.
+- One common test, result and ranking engine.
+- One complete verification and regression framework.
+
+FINAL RULE: NO ASSUMPTIONS, NO FAKE DATA, NO UNAUTHORIZED CHANGES, NO UNVERIFIED SUCCESS CLAIMS.
+
+Every important feature must have a test. Every passed test must have evidence. Every failure must have a defect record. Every blocked test must be disclosed.
+
+The system is ready only when its critical workflows have been successfully verified end to end.

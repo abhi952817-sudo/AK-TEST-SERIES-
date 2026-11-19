@@ -19,6 +19,16 @@ function isAnswerKeyVerified(key) {
   return false;
 }
 
+const STRICT_NUMBER_REGEX = /^[+-]?(\d+(\.\d+)?|\.\d+)$/;
+
+function parseStrictFiniteNumber(value) {
+  if (value === null || value === undefined) return NaN;
+  const trimmed = String(value).trim();
+  if (!STRICT_NUMBER_REGEX.test(trimmed)) return NaN;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
   if (!ans1 || !ans2) return false;
   const a = String(ans1).trim().toUpperCase();
@@ -30,9 +40,9 @@ function areOptionsEquivalent(ans1, ans2, isNumerical = false) {
     if (mapIndex[a] === b || mapIndex[b] === a) return true;
   }
 
-  const num1 = parseFloat(a);
-  const num2 = parseFloat(b);
-  if (!isNaN(num1) && !isNaN(num2)) {
+  const num1 = parseStrictFiniteNumber(a);
+  const num2 = parseStrictFiniteNumber(b);
+  if (!Number.isNaN(num1) && !Number.isNaN(num2)) {
     return Math.abs(num1 - num2) < 0.0001;
   }
   return false;

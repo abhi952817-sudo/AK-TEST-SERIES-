@@ -1,0 +1,1058 @@
+Worked for 43s
+
+अब पिछली बात की गलती स्पष्ट हो गई है। आप पाँच Admin + पाँच Student अलग-अलग Providers नहीं चाहते। आप पाँच ही Free AI Connectors चाहते हैं, जिन्हें Admin और Student दोनों इस्तेमाल कर सकें। अंतर केवल API Key जोड़ने, रखने और चलाने के तरीके में होगा।
+
+मैंने पिछली बातचीत का संदर्भ दोबारा खोजा है। उसमें ये महत्वपूर्ण निर्णय मिले हैं:
+
+1. Admin की API Keys का रास्ता GitHub Secrets से होकर सुरक्षित Server-side Secret Manager तक होगा।
+2. Student अपनी API Key ऐप के UI से जोड़ेगा और वह Android के स्थानीय encrypted storage तथा Android Keystore से सुरक्षित होगी।
+3. Student की API Key Firebase, GitHub या Admin Backend में अपलोड नहीं होगी।
+4. Admin और Student दोनों के लिए वही पाँच Providers और वही Universal Prompt System होगा।
+5. पहले केवल वास्तविक Free-Quota Providers पर ध्यान देना है। OpenAI और Claude को अभी Free Connector सूची में शामिल नहीं करना है।
+6. पहले चर्चा में 180–200 या उससे अधिक प्रश्न प्रतिदिन बनाने की क्षमता और Provider के quota-reset नियम भी जाँचने थे।
+
+इसलिए सही Architecture 5 साझा Free Providers + 2 अलग Credential Paths + 1 Universal AI Engine है। दस अलग-अलग Providers नहीं।
+
+एक जरूरी सुधार: GitHub Secrets को Cloud Functions का Runtime Secret Store नहीं मानना चाहिए। GitHub Actions में रखे Deployment Secrets से सुरक्षित तरीके से Firebase/Google Secret Manager में Runtime Secrets पहुँचाए जाएँगे। Cloud Functions Runtime में API Key Secret Manager से ही पढ़ेगी।
+
+1. सही Connector Architecture: पाँच ही Providers, दोनों Panels के लिए साझा
+
+एक साझा Free AI Provider Registry
+
+5 Providers
+
+हर Provider Admin और Student दोनों के लिए उपलब्ध
+
+Admin Panel
+
+GitHub Secrets → GitHub Actions → Google Secret Manager → Backend AI Router
+
+(Server-side)
+
+Student Panel
+
+UI → Android Keystore → Encrypted Local Storage → On-device AI Router
+
+(Device-side)
+
+एक Universal Prompt Catalog
+
+25
+
+एक जैसे Prompt IDs, Instructions, Context Rules और Output Schema
+
+एक Universal AI Processing Contract
+
+Request → Provider Adapter → Response Parser → Validation → Result
+
+इसका सीधा मतलब:
+
+- पाँच Providers की सूची दोनों Panels में समान होगी।
+- Admin के पास अपनी पाँच API Keys होंगी।
+- Student अपनी पाँच API Keys अलग से जोड़ सकेगा।
+- Admin की Key Student को नहीं मिलेगी।
+- Student की Key Admin को नहीं मिलेगी।
+- दोनों एक ही Prompt IDs और एक ही Prompt Versions इस्तेमाल करेंगे।
+- दोनों का Output एक ही Standard Schema के अनुसार होगा।
+- Provider बदलने से Exam Configuration या Prompt बदलने की जरूरत नहीं होगी।
+
+पाँच Free Providers की चयन सूची
+
+पिछली बातचीत में Gemini, Groq और Cerebras के नाम आए थे, लेकिन Cerebras के वर्तमान आधिकारिक दस्तावेज़ में Free Trial को $5 के सीमित Trial Credits और 30 दिन की अवधि वाला बताया गया है। इसलिए इसे स्थायी Free Connector मानना सही नहीं होगा।
+
+अभी उपलब्ध आधिकारिक जानकारी के आधार पर यह चयन सूची रखी जा सकती है:
+
+Connector	Provider	Free Usage का स्वरूप
+
+C-01	entity["software","Google Gemini API","AI model API"]	कुछ Models पर Free Tier
+C-02	entity["software","GroqCloud","AI inference API"]	Model के अनुसार Free Rate Limits
+C-03	entity["software","Mistral API","AI model API"]	Free Experimentation Mode और सीमाएँ
+C-04	entity["software","Cloudflare Workers AI","AI inference platform"]	10,000 Neurons प्रतिदिन Free Allocation
+C-05	entity["software","Hugging Face Inference Providers","AI model inference API"]	Free Account में सीमित Monthly Included Credits
+
+
+आधिकारिक जानकारी:
+
+- Gemini API Pricing (https://aistudio.google.com/docs/pricing) और Gemini Rate Limits (https://aistudio.google.com/docs/rate-limits)
+- Groq Rate Limits (https://console.groq.com/docs/rate-limits)
+- Mistral Usage and Limits (https://docs.mistral.ai/admin/billing-usage/usage-limits)
+- Cloudflare Workers AI Pricing (https://developers.cloudflare.com/workers-ai/platform/pricing/)
+- Hugging Face Inference Pricing (https://huggingface.co/docs/inference-providers/en/pricing)
+- Cerebras Rate Limits and Free Trial (https://inference-docs.cerebras.ai/support/rate-limits)
+
+(महत्वपूर्ण अंतर)
+
+इन पाँचों को एक जैसा, हमेशा मुफ्त या समान क्षमता वाला नहीं मानना चाहिए। Free Tier की पात्रता, Models, Token Limits, Requests, दैनिक/मासिक Reset और Terms बदल सकते हैं। Hugging Face का Monthly Credit और Cloudflare का Neurons Allocation अलग-अलग प्रकार के Free Usage हैं।
+
+इसलिए सिस्टम में पाँच Connector Slots स्थायी होंगे, लेकिन हर Provider को FREE_VERIFIED तभी मिलेगा जब उसके वर्तमान आधिकारिक नियम और वास्तविक API Test पास हों। OpenAI और Claude को अभी इस Free Connector सूची में शामिल नहीं किया जाएगा।
+
+
+---
+
+2. Admin API Key का पूरा रास्ता
+
+1. Admin GitHub Secrets
+
+   पाँच Provider API Keys GitHub Repository/Environment Secrets में रखी जाएँगी।
+
+2. GitHub Actions
+
+   Authorized Deployment Workflow Secrets को सुरक्षित तरीके से Google Secret Manager में Configure/Update करेगा।
+
+3. Google Secret Manager
+
+   Runtime API Keys यहाँ रहेंगी। हर Provider की अलग Secret और Version होगी।
+
+4. Cloud Functions / Backend
+
+   Admin के अधिकृत Backend Function को केवल आवश्यक Secret पढ़ने की Permission मिलेगी।
+
+5. Admin AI Router
+
+   Backend चुने हुए Provider को Universal Prompt के अनुसार Request भेजेगा।
+
+उदाहरण Secret Names:
+
+ADMIN_GEMINI_API_KEY
+ADMIN_GROQ_API_KEY
+ADMIN_MISTRAL_API_KEY
+ADMIN_CLOUDFLARE_API_TOKEN
+ADMIN_HUGGINGFACE_TOKEN
+
+नियम:
+
+- GitHub Secrets को Client APK में नहीं डालना।
+- Firestore Documents में Plain API Keys नहीं रखना।
+- Android App में Admin Keys नहीं रखना।
+- API Keys को Logs में नहीं दिखाना।
+- Secret पढ़ने की Permission केवल संबंधित Backend Service को देना।
+- GitHub Actions के Logs में Secret Masking रखना।
+- Secret Rotation और Revocation का प्रबंध रखना।
+- Admin की सभी AI Requests Backend से गुजरेंगी।
+
+यहाँ GitHub Secrets Deployment के लिए हैं; Runtime पर Cloud Functions Google Secret Manager से Key पढ़ेंगी।
+
+
+---
+
+3. Student API Key का पूरा रास्ता
+
+Student के लिए कोई GitHub या Admin Secret वाला रास्ता नहीं होगा।
+
+1. Student Panel UI
+
+   Student Provider चुनकर अपनी API Key जोड़ेगा।
+
+2. Key Validation
+
+   ऐप सुरक्षित Connection Test करके जाँचेगा कि Key काम कर रही है या नहीं।
+
+3. Android Keystore
+
+   Encryption Key Android Keystore में बनेगी और वहीं सुरक्षित रहेगी।
+
+4. Encrypted Local Storage
+
+   Student की Provider API Key AES-GCM जैसे Authenticated Encryption के साथ स्थानीय encrypted storage में रखी जाएगी।
+
+5. Local Universal AI Router
+
+   Student का AI Request सीधे Provider API तक जाएगा। Key को Firebase या Admin Backend पर भेजने की आवश्यकता नहीं होगी।
+
+Student Key Storage के नियम
+
+चीज	व्यवस्था
+
+API Key Input	Student UI
+Encryption Key	Android Keystore
+Encrypted API Key	Local Encrypted Storage
+Firebase Backup	नहीं
+GitHub Backup	नहीं
+Admin Access	नहीं
+Cloud Functions पर Upload	नहीं
+Logout / Remove Key	Local Key Delete
+Android Backup	API Key Excluded
+
+
+Android में केवल Encrypted Key रखी जाएगी। Keystore की Encryption Key को Export करके कहीं और नहीं रखा जाएगा।
+
+एक वास्तविक सीमा भी समझनी जरूरी है: Android Keystore और Encryption सुरक्षा बढ़ाते हैं, लेकिन Rooted या Compromised Device पर चल रहे App को पूरी तरह अभेद्य नहीं बना सकते। इसलिए Student API Key का जोखिम कम किया जाएगा, शून्य होने का दावा नहीं किया जाएगा।
+
+
+---
+
+4. दोनों Panels में समान Connector Interface
+
+Provider एक ही होगा, लेकिन उसके दो स्वतंत्र Execution Paths होंगे।
+
+Feature	Admin	Student
+
+Provider List	वही पाँच	वही पाँच
+API Key	GitHub Secrets → Secret Manager	UI → Android Keystore
+AI Router	Server-side	Device-side
+Prompt Catalog	Shared	Shared
+Prompt Version	समान	समान
+Output Schema	समान	समान
+API Usage	Admin Usage	Student Local Usage
+Key Ownership	App Owner/Admin	Individual Student
+Backend Access	अधिकृत Backend	Student Key के लिए नहीं
+Data Destination	Admin Drafts/Approved Storage	Student Private Vault/Local Storage
+
+
+किसी Connector का Model बदलने पर उसका Adapter बदलेगा, Universal Prompt नहीं।
+
+5. Universal AI Prompting System — सभी परीक्षाओं के लिए एक ही
+
+आपके सिस्टम में 24–25 परीक्षाओं के लिए 24–25 अलग Prompt Systems नहीं बनने चाहिए।
+
+एक ही Prompt Library होगी। उसमें 25 Universal Prompt Modules रखे जाएँगे। हर Prompt परीक्षा के अनुसार Dynamic Context प्राप्त करेगा।
+
+प्रस्तावित 25 Universal Prompts
+
+ID	Prompt Module	जिम्मेदारी
+
+P-01	Universal Exam Context	परीक्षा की पहचान और Context
+P-02	Syllabus Understanding	Syllabus समझना
+P-03	PDF Classification	PDF का प्रकार पहचानना
+P-04	Text Extraction	PDF से Text निकालना
+P-05	Image Understanding	Diagram, Graph और Images
+P-06	OCR Correction	OCR की गलतियाँ सुधारना
+P-07	Table & Formula Extraction	Tables, Equations और Formulas
+P-08	Question Extraction	PDF में मौजूद प्रश्न निकालना
+P-09	Question Generation	नए प्रश्न तैयार करना
+P-10	MCQ Generation	MCQ प्रश्न बनाना
+P-11	Numerical Generation	Numerical Questions
+P-12	Assertion-Reason Generation	Assertion और Reason
+P-13	Answer Generation	उत्तर तैयार करना
+P-14	Answer Verification	उत्तर की शुद्धता जाँचना
+P-15	Explanation Generation	विस्तृत Solution
+P-16	Source Attribution	किताब, अध्याय, पेज और स्रोत
+P-17	Subject Classification	Subject पहचानना
+P-18	Chapter & Topic Mapping	Chapter और Topic Mapping
+P-19	Difficulty Classification	Easy, Medium, Hard
+P-20	Exam Pattern Validation	परीक्षा के नियमों की जाँच
+P-21	Duplicate Detection	Duplicate प्रश्न रोकना
+P-22	Quality Validation	प्रश्न की गुणवत्ता
+P-23	Language & Translation	भाषा और अनुवाद
+P-24	Doubt & Concept Solving	Student Doubt Solving
+P-25	Final Review & Formatting	अंतिम जाँच और Output Format
+
+
+ये 25 Modules एक ही Catalog का हिस्सा होंगे। यदि Repository Audit में कोई मौजूदा Prompt इनमें से किसी काम को पहले से सही ढंग से करता मिलता है, तो उसे दोबारा नहीं बनाना है।
+
+Universal Prompt में Dynamic Context
+
+उदाहरण के लिए P-09 को देखिए:
+
+PROMPT_ID: P-09
+PROMPT_VERSION: 1.0
+
+COMMON INSTRUCTIONS:
+Follow the Universal Question Generation Rules.
+
+DYNAMIC EXAM CONTEXT:
+Exam ID
+Exam Name
+Exam Configuration Version
+Stage
+Paper
+Subject
+Chapter
+Topic
+Syllabus
+Question Type
+Difficulty
+Language
+Marks
+Negative Marking
+
+SOURCE CONTEXT:
+Source Document
+Page Number
+Extracted Text
+Extracted Images
+Source Confidence
+
+GENERATION SETTINGS:
+Question Count
+Question Distribution
+Options Count
+Answer Requirement
+Explanation Requirement
+
+OUTPUT:
+Question ID
+Question
+Options
+Correct Answer
+Explanation
+Subject
+Chapter
+Topic
+Difficulty
+Source Reference
+Validation Status
+
+Gemini और Groq से एक ही Prompt चलने का उदाहरण
+
+Admin: Gemini (Backend)
+
+P-09 + NEET Configuration + Biology
+
+
+---
+
+Student: Groq (Android Local)
+
+P-09 + NEET Configuration + Biology
+
+
+---
+
+दोनों का साझा नियम
+
+- Prompt ID समान।
+- Prompt Version समान।
+- Exam Context समान।
+- Output JSON Schema समान।
+- Validation Rules समान।
+- Provider Adapter अलग।
+
+ध्यान दें कि Provider का अपना System Message या API Format आवश्यक हो सकता है। उसे Adapter में संभाला जाएगा। इससे Universal Prompt की मूल Instructions नहीं बदलेंगी।
+
+
+---
+
+6. Universal Exam Registry — सभी 24–25 परीक्षाएँ
+
+इसका काम केवल Exam Names रखना नहीं, बल्कि हर परीक्षा की पूरी Configuration संभालना है।
+
+एक Registry, अनेक Exam Types
+
+समूह	Exam Structure
+
+Medical	Exam → Stage → Paper → Subject → Section
+Engineering	Exam → Paper → Subject → Section
+Government	Exam → Stage → Paper → Subject
+Banking	Exam → Phase → Paper → Section
+Railway	Exam → Stage → Subject → Section
+University	University → Course → Semester → Subject → Unit
+School	Board → Class → Subject → Chapter
+
+
+हर परीक्षा में अलग-अलग Configuration होगी, लेकिन AI Engine और Prompt Engine एक ही रहेंगे।
+
+Exam Configuration में आवश्यक Fields
+
+- examId
+- examName
+- examType
+- examCategory
+- stageId
+- paperId
+- subjectId
+- sectionId
+- syllabusVersion
+- academicYear
+- questionTypes
+- totalQuestions
+- totalMarks
+- negativeMarking
+- duration
+- perQuestionTimer
+- difficultyDistribution
+- languageOptions
+- sourcePolicy
+- answerReviewPolicy
+- rankingEligibility
+- configurationVersion
+- approvalStatus
+
+एक महत्वपूर्ण बात
+
+NEET का Marking System और University Examination का Marking System एक जैसा नहीं होगा। लेकिन दोनों को चलाने वाला Test Engine एक ही होगा।
+
+इसलिए Exam Configuration अलग और Execution Engine साझा रखना है।
+
+आपकी अंतिम 24–25 परीक्षाओं के नाम Repository की वास्तविक Registry और आपके निर्धारित Exam List से लेने होंगे। अभी बिना प्रमाण के कोई अंतिम सूची घोषित करना सही नहीं होगा।
+
+
+---
+
+7. Universal AI Router — पाँचों Providers के लिए एक
+
+Router दोनों Panels में एक समान Interface इस्तेमाल करेगा, लेकिन अलग Execution Environment होगा।
+
+Router के मुख्य Modules
+
+Module	जिम्मेदारी
+
+Provider Registry	पाँच Providers
+Model Registry	उपलब्ध Models
+Provider Adapter	प्रत्येक API का Format
+Prompt Resolver	सही Prompt चुनना
+Context Builder	Exam और Syllabus Context
+Request Builder	API Request तैयार करना
+Response Parser	AI Response समझना
+JSON Validator	Output Schema जाँचना
+Retry Manager	असफल Request दोबारा चलाना
+Rate Limit Manager	Free Quota संभालना
+Fallback Manager	दूसरे Provider पर जाना
+Usage Tracker	Requests और Tokens
+Cost Tracker	खर्च/Free Usage
+Error Manager	API Errors
+Prompt Version Manager	Prompt Version
+Security Manager	Key और Permissions
+
+
+Fallback का नियम
+
+उदाहरण:
+
+1. Gemini API ने Rate Limit Error दिया।
+2. Router Error Type पहचानेगा।
+3. Groq उपलब्ध है या नहीं, जाँचेगा।
+4. वही Universal Prompt और Context Groq Adapter को देगा।
+5. Groq का Output उसी Standard Validator से जाँचेगा।
+6. सफल होने पर Result आगे भेजेगा।
+
+लेकिन Fallback से पहले यह जाँचना जरूरी है कि:
+
+- दूसरा Provider उसी काम के लिए सक्षम हो।
+- उसका Free Quota बचा हो।
+- Student ने उस Provider की अपनी API Key जोड़ी हो।
+- Admin के लिए Server-side Connector अधिकृत हो।
+- Data Privacy और Model Terms उस काम की अनुमति देते हों।
+
+एक Panel दूसरे Panel की API Key को Fallback के रूप में इस्तेमाल नहीं करेगा।
+
+
+---
+
+8. Shared PDF और AI Processing Engine
+
+Admin और Student दोनों के Upload अलग-अलग UI में रहेंगे। Processing Engine साझा होगा।
+
+Admin Upload
+
+Official PDFs, Syllabus, Question Papers, Answer Keys
+
+Student Upload
+
+Personal Notes, PDFs, Images, Question Papers
+
+One Shared Upload Pipeline
+
+1. File Type Detection
+2. File Integrity Check
+3. Duplicate Hash Check
+4. Native PDF Text Extraction
+5. Image Extraction
+6. OCR
+7. Table and Formula Extraction
+8. Image/Diagram Understanding
+9. Extraction Quality Check
+10. AI Fallback
+11. Manual Review
+12. Processing Completion
+
+Admin Drafts
+
+Approval के लिए
+
+Student Private Vault
+
+केवल Student के लिए
+
+PDF Processing के अनिवार्य नियम
+
+- Scanned PDF में OCR का उपयोग।
+- Embedded Images अलग से निकालना।
+- Page Number सुरक्षित रखना।
+- Source Reference को प्रश्न से जोड़ना।
+- Extraction Confidence रिकॉर्ड करना।
+- OCR की Uncertain सामग्री को Review में भेजना।
+- AI Extraction असफल हो तो वास्तविक Error दिखाना।
+- Fake या Mock Questions नहीं बनाना।
+- अधूरी Processing को Resume कर पाना।
+
+Admin के Official Documents और Student के Personal Documents एक-दूसरे के Storage में नहीं जाने चाहिए।
+
+
+---
+
+9. Universal Question Generation Planner
+
+यह एक ही Planner होगा। Admin और Student दोनों इसका उपयोग कर सकेंगे, लेकिन उनकी Permissions और Storage अलग होंगी।
+
+उदाहरण:
+
+Generation Job: JOB-001
+
+उदाहरण Configuration (Demo Layout)
+
+200 Questions
+
+Batch Size
+
+10 Questions
+
+Total Batches
+
+20 Batches
+
+Prompt
+
+P-09
+
+Exam
+
+Selected Exam
+
+
+---
+
+हर Batch के साथ
+
+- Batch ID
+- Question IDs
+- Provider और Model
+- Prompt Version
+- Source Page References
+- Validation Status
+- Usage और Cost
+- Retry Count
+- Checkpoint
+- Completion Status
+
+180–200 प्रश्न प्रतिदिन का लक्ष्य
+
+यह आपका पहले से चर्चा किया हुआ लक्ष्य है। इसे केवल API Request Count देखकर पूरा हुआ नहीं मानेंगे।
+
+सिस्टम को मापना होगा:
+
+- प्रति प्रश्न औसत Input Tokens।
+- प्रति प्रश्न Output Tokens।
+- प्रति Batch API Requests।
+- प्रति Provider दैनिक Quota।
+- TPM और RPM।
+- Free Tier की दैनिक/मासिक सीमाएँ।
+- Model के अनुसार उपलब्ध Context Window।
+- Failed Request और Retry।
+- उत्तर की Validation लागत।
+
+यदि 200 प्रश्न एक दिन में बनाने हैं, तो केवल पाँच API Keys जोड़ देना पर्याप्त नहीं होगा। वास्तविक क्षमता का परीक्षण समान Prompt, समान Source और समान Output Size के साथ किया जाएगा।
+
+
+---
+
+10. Universal Validation और Approval Engine
+
+सभी Providers से आए प्रश्न एक ही Validation System से गुजरेंगे।
+
+Validation Pipeline
+
+1. Question Structure Validation
+2. Required Fields Check
+3. Option Count Check
+4. Correct Answer Check
+5. Explanation Check
+6. Numerical Answer Verification
+7. Subject Mapping
+8. Chapter Mapping
+9. Syllabus Mapping
+10. Exam Pattern Check
+11. Duplicate Detection
+12. Source Attribution Check
+13. Language Quality Check
+14. Difficulty Check
+15. Final Review
+
+तीन Status होंगे:
+
+- APPROVED
+- NEEDS_REVIEW
+- REJECTED
+
+AI ने उत्तर दिया, इसका अर्थ यह नहीं कि उत्तर सही है। उत्तर और Explanation को स्वतंत्र रूप से जाँचना जरूरी है।
+
+Admin द्वारा Approved Questions ही Public Question Bank में जाएँगे।
+
+Student के Personal Questions निजी रहेंगे।
+
+
+---
+
+11. Secure Storage — Admin और Student Data अलग
+
+यहाँ एक साझा Storage Policy होगी, लेकिन Permissions अलग होंगी।
+
+Storage Area	उपयोग
+
+Exam Registry	सभी Exams और Configurations
+Admin Drafts	Admin के Pending Questions
+Public Question Bank	Approved Questions
+Private Answer Keys	Correct Answers और Solutions
+Student Vault	Student के निजी Questions और Notes
+Test Attempts	Student Attempts
+Test Results	परिणाम
+Rankings	पात्रता के अनुसार Ranking
+AI Metadata	Prompt, Model और Job Details
+Audit Logs	Security और Change History
+
+
+Answer Key की सुरक्षा
+
+आपके NEET App के लिए यह विशेष रूप से जरूरी है।
+
+- Student को Test शुरू करते समय Correct Answer नहीं मिलेगा।
+- Scoring Backend पर होगी।
+- Submission Response में solutionKeys नहीं भेजे जाएँगे।
+- Answers केवल Authorized Review Mode में मिलेंगे।
+- Public Question Documents में Correct Answers नहीं रखे जाएँगे।
+- Admin Approval के बाद भी Answer Key अलग Private Storage में रहेगी।
+
+आपके पहले के Audit में F-016 और F-023 इसी तरह के जोखिमों से संबंधित थे। इन्हें पहले सुरक्षा चरण में फिर से जाँचना होगा।
+
+
+---
+
+12. Common Test & Result Engine
+
+सभी परीक्षाओं के लिए एक ही Engine:
+
+Student Login
+    |
+Exam Selection
+    |
+Subject / Chapter Selection
+    |
+Test List
+    |
+Start Test
+    |
+Question Delivery
+    |
+Timer + Autosave
+    |
+Answer Selection
+    |
+Submit Test
+    |
+Server-side Scoring
+    |
+Result Generation
+    |
+Authorized Review
+    |
+Eligible Ranking
+
+परीक्षा के अनुसार अलग Configuration
+
+उदाहरण के लिए:
+
+- NEET: अपना Marking और Negative Marking नियम।
+- JEE: अलग परीक्षा और Paper Configuration।
+- University: अलग Marks Distribution।
+- School: अलग Subject और Chapter Structure।
+
+लेकिन Test Delivery, Timer, Autosave, Submission और Result Engine एक ही होगा।
+
+आवश्यक सुरक्षा
+
+- Server-side deadline।
+- Duplicate Submission Prevention।
+- Idempotent Scoring।
+- Network Reconnection।
+- Autosave।
+- Attempt Ownership Verification।
+- Authorized Solution Review।
+- Ranking Eligibility Rules।
+
+
+---
+
+13. Admin और Student के लिए अलग Workflow
+
+Admin Workflow
+
+Admin Login
+    |
+Exam Registry
+    |
+Exam / Subject / Syllabus
+    |
+Official PDF Upload
+    |
+Shared PDF Engine
+    |
+Admin AI Router
+    |
+5 Shared Providers में चयन
+    |
+Universal Prompt
+    |
+Question Generation Planner
+    |
+Batch Generation
+    |
+Validation
+    |
+Admin Review
+    |
+Approval
+    |
+Public Questions + Private Answer Keys
+    |
+Test Creation
+    |
+Publish
+
+Student Workflow
+
+Student Login
+    |
+Exam Selection
+    |
+Subject / Chapter
+    |
+Student PDF Upload
+    |
+Shared PDF Engine
+    |
+Student Local AI Router
+    |
+5 Shared Providers में चयन
+    |
+Universal Prompt
+    |
+Private Question Generation
+    |
+Validation
+    |
+Student Private Vault
+    |
+Practice Test
+    |
+Result
+    |
+Authorized Review
+
+Student अपने Personal Connector से बने प्रश्नों को निजी रख सकता है। Public Question Bank में डालने के लिए Admin Approval की अलग प्रक्रिया होगी।
+
+
+---
+
+14. Firebase और Backend का प्रस्तावित Structure
+
+यह मौजूदा Database को देखकर ही लागू किया जाएगा। नीचे Logical Structure है, इसे नई Collections बनाने का आदेश न समझें।
+
+Firestore
+│
+├── EducationCatalog
+│   ├── Exams
+│   ├── Stages
+│   ├── Papers
+│   ├── Subjects
+│   └── Syllabus
+│
+├── PromptCatalog
+│   ├── PromptDefinitions
+│   ├── PromptVersions
+│   └── PromptPolicies
+│
+├── ConnectorMetadata
+│   ├── ProviderRegistry
+│   ├── ModelRegistry
+│   └── AdminConnectorStatus
+│
+├── AdminContent
+│   ├── DraftQuestions
+│   └── ApprovedContent
+│
+├── PrivateAnswerKeys
+│
+├── StudentPrivate
+│   ├── Uploads
+│   ├── GeneratedQuestions
+│   └── PersonalTests
+│
+├── GenerationJobs
+│   ├── Jobs
+│   ├── Batches
+│   └── Checkpoints
+│
+├── TestAttempts
+├── TestResults
+├── Rankings
+└── AuditLogs
+
+Student API Keys इस Firestore Structure में नहीं आएँगी। वे केवल Android के स्थानीय encrypted storage में रहेंगी।
+
+Admin API Keys भी Firestore में Plain Text के रूप में नहीं रखी जाएँगी।
+
+
+---
+
+15. पूरा Module Structure — Duplicate बनाए बिना
+
+Module	काम
+
+M01	Universal Exam Registry
+M02	Exam Configuration
+M03	Syllabus Registry
+M04	Shared Provider Registry
+M05	Admin Secret Manager Integration
+M06	Student Local KeyStore
+M07	Provider Adapters
+M08	Admin AI Router
+M09	Student AI Router
+M10	Universal Prompt Catalog
+M11	Prompt Version Manager
+M12	Prompt Context Builder
+M13	Shared PDF Engine
+M14	OCR Engine
+M15	Image Extraction
+M16	AI PDF Fallback
+M17	Question Extraction
+M18	Question Generation Planner
+M19	Batch Manager
+M20	Checkpoint and Resume
+M21	Question Validation
+M22	Answer Verification
+M23	Duplicate Detection
+M24	Source Attribution
+M25	Approval Manager
+M26	Secure Question Storage
+M27	Private Answer Key Storage
+M28	Student Private Vault
+M29	Test Builder
+M30	Question Delivery
+M31	Timer and Autosave
+M32	Test Submission
+M33	Exam Scoring
+M34	Result Engine
+M35	Review Engine
+M36	Ranking Engine
+M37	Usage Tracker
+M38	Free Quota Manager
+M39	Error and Retry Manager
+M40	Audit and Security Logs
+
+
+ये Logical Responsibilities हैं, 40 नई Files बनाने का निर्देश नहीं। Repository में यदि इनमें से कोई Module पहले से मौजूद है, तो उसी को Reuse या Modify करना है।
+
+
+---
+
+16. Implementation Roadmap — किस क्रम में काम होगा?
+
+Phase	काम	प्राथमिकता
+
+0	Existing Repository Audit	सबसे पहले
+1	पाँच Free Providers की Official Verification	बहुत उच्च
+2	Shared Connector Registry	उच्च
+3	Admin GitHub Secrets → Secret Manager	उच्च
+4	Student Android Keystore Integration	उच्च
+5	Universal Prompt Catalog	उच्च
+6	दोनों AI Routers	उच्च
+7	Exam Registry और 24–25 Exam Configurations	उच्च
+8	Shared PDF/OCR/Image Engine	उच्च
+9	Generation Planner और Batch Recovery	उच्च
+10	Validation और Approval	उच्च
+11	Secure Storage	उच्च
+12	Common Test & Result Engine	उच्च
+13	Firebase Integration Tests	उच्च
+14	Security और Regression Tests	Release से पहले
+15	Production Release	अंतिम
+
+
+Phase 0 में क्या होगा?
+
+सबसे पहले मौजूदा AK-TEST-SERIES Repository को जाँचना है:
+
+- कौन-से पाँच Providers पहले से जुड़े हैं?
+- कौन-से वास्तविक Free Tier पर चलते हैं?
+- क्या Admin और Student Connector Code मौजूद है?
+- Student KeyStore कितना पूरा है?
+- क्या Universal Prompt Catalog पहले से है?
+- क्या सभी Provider Adapters उसी Prompt Contract का उपयोग करते हैं?
+- क्या Exam Registry में 24–25 परीक्षाओं की Configuration मौजूद है?
+- क्या PDF Processing Engine पहले से साझा है?
+- क्या Question Generation और Validation Duplicate हैं?
+- क्या Firebase Default Database ID सभी संबंधित सेवाओं में समान है?
+
+हर Finding को File Path, Code Evidence, Severity और Test Status के साथ दर्ज करना होगा।
+
+
+---
+
+17. परीक्षण योजना — गलती रोकने के लिए
+
+कोई Feature केवल इसलिए Complete नहीं माना जाएगा कि उसका UI दिखाई दे रहा है।
+
+Connector Tests
+
+- पाँचों Providers के Connection Tests।
+- Admin Key का Backend से उपयोग।
+- Student Key का केवल Local से उपयोग।
+- Invalid API Key।
+- Expired/Revoked API Key।
+- Free Quota Exhausted।
+- Rate Limit।
+- Provider Timeout।
+- Provider Failure।
+- Fallback।
+- API Key Leak Check।
+
+Prompt Tests
+
+- सभी 25 Prompt IDs उपलब्ध हों।
+- सभी के Version हों।
+- Admin और Student समान Prompt Definitions इस्तेमाल करें।
+- हर Provider समान Output Schema दे।
+- Provider बदलने पर Prompt Version न बदले।
+- Invalid Output पर Validation Failure हो।
+
+Exam Tests
+
+- सभी 24–25 Configurations।
+- Subject और Chapter Mapping।
+- Syllabus Version।
+- Marking Scheme।
+- Timer।
+- Exam-Specific Question Type।
+- Exam Configuration Regression।
+
+PDF और Generation Tests
+
+- Text PDF।
+- Scanned PDF।
+- Image PDF।
+- Tables।
+- Mathematical Formulas।
+- OCR Failure।
+- AI Fallback।
+- Duplicate PDF।
+- 200 Questions का Batch Generation।
+- 10-Question Batch Checkpoint।
+- Resume और Retry।
+- Fake Question Prevention।
+
+Security Tests
+
+- Student Admin Secret नहीं पढ़ सकता।
+- Admin Student की Private Key नहीं पढ़ सकता।
+- Public API से Answer Key नहीं निकलती।
+- Student API Key Firestore में नहीं जाती।
+- Student API Key GitHub पर नहीं जाती।
+- Unauthorized User दूसरे Student का Vault नहीं पढ़ सकता।
+- Duplicate Submission से Duplicate Result नहीं बनता।
+
+
+---
+
+18. पाँच Free Providers के लिए Acceptance Rules
+
+आपका उद्देश्य सिर्फ पाँच APIs जोड़ना नहीं है। वे सभी वास्तव में उपयोगी और Free Usage वाले होने चाहिए।
+
+इसलिए प्रत्येक Provider के लिए यह जाँच अनिवार्य होगी:
+
+जाँच	पास होने की शर्त
+
+Free Access	वास्तविक API Free Usage उपलब्ध
+API Key	सामान्य Developer Account से मिल सके
+Model Access	आवश्यक Text/JSON कार्य संभव
+Daily Limit	आधिकारिक सीमा दर्ज
+Monthly Limit	आधिकारिक सीमा दर्ज
+Reset Policy	सही Reset समय दर्ज
+Rate Limit	RPM और TPM दर्ज
+Terms	App में उपयोग की अनुमति
+Android	Student Direct API Call संभव
+Backend	Admin Server-side Call संभव
+Output	Universal JSON Schema पास
+Stability	वास्तविक Test पास
+
+
+यदि किसी Provider का Free Tier केवल सीमित Trial Credits है, तो उसे स्थायी Free Provider के रूप में नहीं दिखाना चाहिए।
+
+Cerebras को इस समय पाँच स्थायी Free Connectors में शामिल करने की पुष्टि नहीं है। उसका वर्तमान आधिकारिक दस्तावेज़ Trial Credits और उनकी समय सीमा बताता है। इसलिए पाँचवाँ Connector केवल संख्या पूरी करने के लिए Cerebras नहीं होना चाहिए।
+
+
+---
+
+19. अंतिम Architecture — अब यही सही आधार रहेगा
+
+AK-TEST-SERIES Universal AI System
+
+5
+
+Shared Free Providers
+
+Admin और Student दोनों
+
+25
+
+Universal Prompts
+
+सभी परीक्षाओं के लिए
+
+2
+
+Credential Paths
+
+Admin Server / Student Local
+
+24–25
+
+Exam Configurations
+
+एक Universal Registry
+
+1
+
+Shared PDF Engine
+
+एक Processing Pipeline
+
+1
+
+Common Test Engine
+
+एक Result और Ranking Framework
+
+
+---
+
+स्थायी नियम
+
+- Admin और Student की Keys कभी आपस में साझा नहीं होंगी।
+- पाँचों Providers दोनों Panels में उपलब्ध होंगे।
+- सभी Providers Universal Prompts पर चलेंगे।
+- सभी परीक्षाएँ Universal Exam Registry से चलेंगी।
+- एक ही PDF और Validation Engine होगा।
+- Answer Keys सुरक्षित रहेंगी।
+- मौजूदा UI और Modules को प्राथमिकता मिलेगी।
+- बिना अनुमति कोई Repository बदलाव नहीं होगा।
+
+20. अभी क्या निश्चित है और क्या सत्यापन बाकी है?
+
+यह सबसे महत्वपूर्ण अंतर है ताकि बाद में गलत Implementation न हो।
+
+विषय	स्थिति
+
+पाँच साझा Free Connectors	(आपका निश्चित निर्णय)
+Admin GitHub Secrets वाला रास्ता	(आपका निश्चित निर्णय)
+Student UI + Local Encrypted Android Key	(आपका निश्चित निर्णय)
+Student Key Firebase/Backend पर नहीं	(आपका निश्चित निर्णय)
+एक Universal Prompt System	(आपका निश्चित निर्णय)
+24–25 Exam Configurations	(आपका लक्ष्य)
+25 Prompt Modules	(प्रस्तावित Catalog)
+पाँचों Provider की स्थायी Free Eligibility	(अंतिम सत्यापन बाकी)
+180–200+ Questions/Day	(वास्तविक Quota Test बाकी)
+मौजूदा Repository में सभी Modules मौजूद हैं	(Code Audit बाकी)
+
+
+एक बात का मैं दावा नहीं करूँगा: कोई भी तकनीकी योजना यह गारंटी नहीं दे सकती कि उसमें एक प्रतिशत भी गलती नहीं होगी। सही तरीका है कि हर महत्वपूर्ण निर्णय के पीछे Code Evidence, Official Documentation और Test Result हो। जहाँ प्रमाण नहीं होगा, वहाँ उसे Verified नहीं लिखेंगे।
+
+मेरी अगली कार्यवाही का सही क्रम होगा: पहले AK-TEST-SERIES के मौजूदा Connector Branches और Main को जाँचना, फिर पाँच Free Providers की वास्तविक स्थिति, फिर Universal Prompt और दोनों Credential Paths की जाँच। इसके बाद ही फाइलों की KEEP / MODIFY / MERGE / REPLACE सूची बनेगी। Repository में अभी कोई बदलाव नहीं किया गया है।
