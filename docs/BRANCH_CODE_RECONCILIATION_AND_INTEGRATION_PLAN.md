@@ -629,3 +629,12 @@ Re-audited Main `NEETViewModel.kt` blob `1e2620e9bfb80fc600191ceda3020b4f10b2640
 - Additional confirmed bug: Gemini generation caller invokes `saveGeneratedTest`, then unconditionally records daily generation and sets AI state Success. The save function has early-return validation paths (exam/stage/paper/subject), so the outer caller can report Success and consume quota even when no test was saved.
 
 Disposition: no helper-only fix. Implement explicit local-save result and gate Success/quota on verified persistence. Independently model public/private/cloud/LiveTests/private-key/notification/community-share outcomes, preserve local data on cloud failure, and add idempotent retry. Tests must cover all four direct call-sites, validation early returns, each partial cloud failure and notification/share retry. Exact user-visible UI wording still requires tracing screen collectors. Detailed evidence and test matrix are in [Community handoff](branches/community-branch-family-overlap-HANDOFF.md). No application code changed in this audit.
+
+
+### Universal Scoring branch re-audit — 2026-11-19
+
+Refreshed compare against Main: `feature/universal-exam-scoring-v1-2026-11-06` HEAD `a686861eea49bf15ddb7d8d350201e464ef721fe`, 148 commits ahead / 151 behind, 22 changed files, diverged. Do not wholesale merge.
+
+Confirmed candidate work: finite numeric validation, exact-set MSQ handling, explicit ungraded count, Room 20→21 migration, pure ranking helpers and added tests. Confirmed blockers: branch backend initializes default `admin.firestore()` rather than Main's canonical named DB; its 20→21 migration adds only `ungradedCount` and does not implement ranking availability/status; `.fallbackToDestructiveMigration()` remains; Android configured scoring still has first-section +4/-1 fallback; backend still fabricates rank/total/percentile zero on cohort query failure and retry uses truthy fallbacks; Android/backend decimal rounding and official year/stage/paper policy proof remain incomplete. Branch modifies 22 overlapping files including scoring, ranking, backend, Room, ViewModel and Firestore rules/indexes.
+
+Created [Universal Scoring branch handoff](branches/feature-universal-exam-scoring-v1-2026-11-06-HANDOFF.md) with source evidence, selective-port plan and acceptance tests. Preserve useful pure scoring behavior only after comparing against Main's strict numeric fix and shared contract. No application code, Firestore rules, database ID, production data or migrations were changed.
