@@ -179,3 +179,16 @@ Inventory coverage is **partial**, not all 27 branch Markdown trees yet. Continu
 
 ### Next work
 Proceed with small independent PRs only where the change is safe and tested. For large branch deltas (Community, Ranking, Universal PDF, Universal AI), inspect existing branch plans and unique code, record blockers in those existing docs, then port cohesive slices with CI rather than wholesale merging.
+
+
+### Ranking V2 focused correction
+- Updated existing `feature/ranking-engine-v2-2026-11-06` branch, not Main, to reject JavaScript coercion of `null`, `undefined`, blank strings and booleans into plausible ranking numbers. Numeric strings remain accepted for legacy Firestore values.
+- Added regression tests to `backend_functions/rankingEngine.test.js`.
+- Latest branch head: `36574191c50b5d5e241ace8a723d7f160011e681`.
+- Ranking V2 validation run `44531380449`: backend syntax + scoring/callable/ranking tests **success**; Firestore rules emulator and Android validation were still running at last poll.
+- Existing Ranking V2 PR #1 remains Draft and has a very large divergent diff. This localized fix does not justify merging the full branch.
+- Existing plan `docs/RANKING_ENGINE_V2_REMAINING_WORK_PLAN.md` was updated on that branch with this correction.
+
+### Community branch refreshed
+- Existing `docs/community/COMMUNITY_GAP_AUDIT_2026-11-14.md` on the Community branch now records exact-head CI success for branch head `ed032e111d375813fa90fde9b2486ad635f1e3fd`, current Main divergence, and the still-blocking server-side subject verification/database target gates.
+- PR #8 remains Draft; no Community code merged.
