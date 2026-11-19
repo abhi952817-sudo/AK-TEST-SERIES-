@@ -602,3 +602,10 @@ Decision: keep PR #18 unmerged until a backward-compatible status contract is de
 ### PR #18 exact-head CI completion — 2026-11-19
 
 Workflow run [44541619345](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/44541619345) for exact head `fda2d304cad601d43d50eb6fdb8f3068662f4615` completed **SUCCESS**: Firebase Functions syntax, Backend Scoring Tests, Android Unit Tests, Gradle Build and APK upload all passed. This is exact-head CI evidence, not a release or runtime/device test. PR #18 remains unmerged despite mergeability because Android/Room currently conflates zero percentile with unavailable ranking; its data contract and backward-compatible migration must be fixed first. Profile visibility and population concurrency also remain separate gates.
+
+
+### Community publication call-graph refresh — 2026-11-19
+
+Expanded [Community branch family handoff](branches/community-branch-family-overlap-HANDOFF.md) after inspecting four Main call sites. The helper returns Unit and swallows image-upload / Firestore failures; callers around lines 1530, 1680, 6035 and 6318 cannot distinguish cloud publication from local Room save. The generator's Tests_Data, LiveTests, private answer-key, notification and Community-share operations can fail independently. This is an outcome-propagation defect; a specific false-success toast is not yet proven. The handoff now lists the distinct outcomes, UI-state boundary, retry/idempotency requirements and acceptance tests. Scope exceeds 2–4 files; no application code changed.
+
+Latest documentation commits: Community handoff `4b544cb564d5d12d294173a03229cab0bbd8e9d7`; Ranking handoff `876f2fc25c036df2c3b32015aa096b35fc0fad11`; this Master Plan update follows. PR #18 exact-head CI is green (run `44541619345`), but PR remains unmerged pending ranking availability persistence/migration compatibility.
