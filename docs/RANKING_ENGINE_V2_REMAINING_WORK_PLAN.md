@@ -196,3 +196,13 @@ The main-based audit has 19 official source sets located, 6 exams still unverifi
 ### 2026-11-13 canonical score handoff contract
 
 The isolated audit branch now defines a draft `rankingContract` inside `shared/scoring/scoring-policy.v1.json`: 10,000 normalized score, strict 1.0/0.2 weights, competition rank/tie rule, percentile formula, null on unavailable/error, first qualifying attempt, canonical answer hash and Firestore transaction. It is not runtime wired and does not close any ranking test gate.
+
+
+## Focused correction — invalid numeric coercion (2026-11-19)
+
+- Updated `finiteNumber` so `null`, `undefined`, blank strings and booleans use the caller's fallback rather than being coerced by JavaScript `Number()` into 0/1.
+- Numeric strings remain supported for legacy Firestore compatibility.
+- Added regression cases through `calculateWeightedRankingScore` for missing/blank/boolean scores and valid numeric strings.
+- Commits: `2b770526129d47683e9a166060653301ca951998`, `3491e9ec1fbe53c4afb19a51060e75ca646fcff9`.
+- This is a localized correction on the existing Ranking V2 branch; it does not resolve the branch's large divergence from Main or the broader server-authoritative ranking release gates.
+- Awaiting exact-head Ranking V2 validation workflow. Do not merge PR #1 to Main until full branch reconciliation and all ranking security/migration/policy gates pass.
