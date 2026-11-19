@@ -223,10 +223,15 @@ object ExamScoringEngine {
         require(configuredSections.isNotEmpty()) {
             "No marking sections are configured for exam '${examConfig.examId}', stage '$stageId', paper '$paperId'."
         }
-        val sectionConfigMap = configuredSections.associateBy { it.sectionId }
-        require(sectionConfigMap.size == configuredSections.size) {
-            "Duplicate section IDs exist in the selected paper's scoring configuration."
+        val sectionsById = configuredSections.groupBy { it.sectionId }
+        require(sectionsById.values.all { sections ->
+            sections.map { it.positiveMarks to it.negativeMarks }.distinct().size == 1
+        }) {
+            "A section ID has conflicting marking values in the selected paper's scoring configuration."
         }
+        // The legacy input supplies only sectionId (not subjectId), so repeated IDs are
+        // safe only when every occurrence has identical scoring values.
+        val sectionConfigMap = sectionsById.mapValues { (_, sections) -> sections.first() }
 
         // Legacy scalar summary fields use the selected paper's first section only.
         // Every question below is scored using its own exact configured section.
