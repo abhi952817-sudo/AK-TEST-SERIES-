@@ -145,3 +145,24 @@ Continue the branch-by-branch Markdown and implementation inventory. Do not merg
 - GitHub Android CI for PR head: run `44530440435`, still in progress at this update. The repository currently has no dedicated Node/Cloud Functions test workflow in `.github/workflows`; Android CI alone does not prove `examScoring.test.js` was executed.
 - Merge gate: inspect final PR checks and, before merge, ensure the full backend test file is executed in a Node 18 environment. Do not mark merged until checks prove it.
 - No main code, Firebase deployment, production data, or other branches changed by this remediation.
+
+
+## Follow-on small fixes opened — 2026-11-19
+
+### PR #15 — F-004 numerical comparison
+- Branch: `fix/strict-numerical-equivalence-2026-11-19`.
+- Latest head: `764078eef2da6a51e707c692adc75fb0e745b028`.
+- Added a CI step to execute `node --test backend_functions/examScoring.test.js`; prior Android workflow only syntax-checked the scoring source and did not execute this test file.
+- Run `44530788784` for the latest head was in progress at last check. Do not merge until it completes successfully and the backend scoring test step passes.
+- PR: https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/15
+
+### PR #16 — M-001/M-003 client metadata cleanup
+- Branch: `fix/remove-client-ai-secret-metadata-2026-11-19`.
+- Head: `9293f723c088f4a575fbacf6ad5aca8f47d037ec`.
+- Removed the unused Android Firestore metadata sync function (no caller found) and removed Admin Secret Manager resource-name identifiers from the Android provider model.
+- No Firestore rules were broadened; no API keys or server secrets changed.
+- Android CI run `44530905224` was queued at last check. Merge only after successful build/test.
+- PR: https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/16
+
+### Merge policy
+Both are intentionally separate draft PRs against main. Neither has been merged. The current main remains unchanged. Continue with other small, independently reviewable fixes while CI runs; defer larger router, Firestore cutover, and provider adapter work to dedicated implementation plans.
