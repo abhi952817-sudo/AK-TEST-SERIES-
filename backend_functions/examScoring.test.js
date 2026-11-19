@@ -378,6 +378,8 @@ test("Strict numerical equivalence rejects malformed and non-finite values", () 
 
 
 test("Ranking snapshot rejects unavailable and inconsistent counts instead of fabricating rank zero", () => {
+  assert.strictEqual(createRankingSnapshot(null, 4), null);
+  assert.strictEqual(createRankingSnapshot(0, null), null);
   assert.strictEqual(createRankingSnapshot(NaN, 4), null);
   assert.strictEqual(createRankingSnapshot(0, NaN), null);
   assert.strictEqual(createRankingSnapshot(-1, 4), null);
