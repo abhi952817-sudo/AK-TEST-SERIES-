@@ -547,3 +547,11 @@ This refresh is documentation-only. No source branch was deleted, no divergent b
 ### Community publication outcome follow-up (source-confirmed, not yet fixed)
 
 Main `NEETViewModel.kt` blob `1e2620e9bfb80fc600191ceda3020b4f10b26406` shows `uploadTestToFirestore` returns `Unit` and catches both image-upload and Firestore/sanitization failures internally. Its callers therefore cannot distinguish cloud success from failure. `saveGeneratedTest` additionally performs a separate LiveTests write with an independent catch after the helper call. This confirms an outcome-propagation defect, but a user-visible false-success message is not yet proven. The full call-graph evidence and required correction/tests are recorded in [Community branch family handoff](branches/community-branch-family-overlap-HANDOFF.md). Do not make a helper-only change: trace all callers and UI state, then return explicit publication outcomes and test partial failure.
+
+
+
+## Ranking unavailable-state fix proposal — PR #18 (2026-11-19)
+
+Created Main-based branch `fix/ranking-unavailable-state-2026-11-19` and PR [#18](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/18), head `fda2d304cad601d43d50eb6fdb8f3068662f4615`. The three-file backend proposal validates population counts, uses null for unavailable/non-applicable per-test rank fields, and preserves null on idempotent retry instead of substituting rank 1 / percentile 0. Regression cases cover null, NaN, negative and inconsistent counts.
+
+**Do not merge yet.** The workflow-run lookup returned no PR-triggered run for this exact SHA at the time of review. Also, Android consumers currently coerce a missing percentile to 0.0 in the submission-result paths; the UI/model contract must be checked so unavailable ranking is not presented as a genuine 0 percentile. The PR is open and mergeable, but exact-head CI and Android consumer compatibility are still required. Profile-visibility enforcement and population-query concurrency semantics remain separate ranking blockers.
