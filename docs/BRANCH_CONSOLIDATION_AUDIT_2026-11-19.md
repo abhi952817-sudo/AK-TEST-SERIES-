@@ -158,3 +158,24 @@ The branch Markdown inventory is being done in topic batches. Existing files are
 | Real-questions-only | `docs/REAL_QUESTIONS_ONLY_REMAINING_WORK_PLAN.md` | Fail-closed extraction/generation and remaining reliability work | Preserve; verify actual failure paths and zero-publication behavior. |
 
 Inventory coverage is **partial**, not all 27 branch Markdown trees yet. Continue remaining branches in batches and update this table rather than creating more files. Current main/CI/F-016/F-009/F-023 and AI registry findings are recorded in `MAIN_COMMIT_REVIEW_2026-11-19.md`.
+
+
+## Active implementation progress — 2026-11-19
+
+### Small fixes in review
+- PR #15: strict numerical scoring equivalence and backend Node test CI step — https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/15
+  - Latest reviewed head: `764078eef2da6a51e707c692adc75fb0e745b028`.
+  - Android CI run `44530788784` was still in progress at last poll. Merge gate: require successful workflow and visible pass of `node --test backend_functions/examScoring.test.js`.
+- PR #16: remove unused client-side Firestore provider metadata sync and Admin secret resource identifiers — https://github.com/abhi952817-sudo/AK-TEST-SERIES-/pull/16
+  - Head: `9293f723c088f4a575fbacf6ad5aca8f47d037ec`.
+  - Android CI run `44530905224` was still in progress at last poll. Merge gate: successful Android build/unit tests.
+- Neither PR has been merged; main remains at `724defaa487bfc64863402992474b1044198ae98`.
+
+### Student AI connector branch review
+- Branch head `5dc2955d27e28a61f5e06b49caff09cf9da1d6ae`; dedicated CI run `43803404969` passed on that exact SHA.
+- Existing branch checkpoint was updated with the review findings.
+- Do not merge wholesale: its providers are Gemini/OpenAI/Groq/Anthropic/Cerebras, which conflicts with the required Gemini/Groq/Mistral/Cloudflare/Hugging Face set. PDF/multimodal pipeline integration and physical-device AndroidKeyStore verification also remain incomplete.
+- Preserve its AES-GCM and UID-isolation implementation as a reference for a later selective port into the one approved Universal AI Router.
+
+### Next work
+Proceed with small independent PRs only where the change is safe and tested. For large branch deltas (Community, Ranking, Universal PDF, Universal AI), inspect existing branch plans and unique code, record blockers in those existing docs, then port cohesive slices with CI rather than wholesale merging.
