@@ -59,3 +59,15 @@ These branches overlap in Community UI, moderation/admin UI, ViewModel, backend 
 - [ ] Firestore and Storage emulator suites pass on exact SHA.
 - [ ] Canonical named database ID verified in Android and backend.
 - [ ] One canonical Community flow remains; duplicate branch implementations are not merged.
+
+## Main call-graph evidence added 2026-11-19
+
+Main source file `app/src/main/java/Com/ak/testseries/viewmodel/NEETViewModel.kt` was re-read at blob `1e2620e9bfb80fc600191ceda3020b4f10b26406`.
+
+- `uploadTestToFirestore` is a private suspend function at approximately line 5724 and returns `Unit`.
+- It catches image-upload errors and returns normally; its outer Firestore/sanitization catch logs/prints the exception and also returns normally.
+- Five call sites were found (approximately lines 1526, 1687, 5724 is definition, 6035 and 6318; actual call sites: 1526, 1687, 6035, 6318, plus source line 5724 is the definition). Each caller cannot distinguish a successful cloud write from a swallowed failure through the return value.
+- In `saveGeneratedTest`, the public-test path calls this helper and then separately attempts a LiveTests write. The LiveTests block has its own catch and can also fail independently. Local Room insertion occurs before cloud publication.
+- Therefore the confirmed defect is **loss of publication outcome at the helper contract**. A user-visible false-success message has not yet been proven from this call graph alone; inspect the generation UI/state consumers before claiming that specific symptom.
+
+**Recommended next change:** trace every caller's UI/state contract, then change the helper to return an explicit result (e.g. Published / SkippedPrivate / Failed with safe message) and make each caller report local-save and cloud-publish outcomes separately. Include the separate LiveTests result in the generator flow. This likely crosses more than a simple isolated one-file fix; do not patch only the helper and leave callers ignoring the result. Add unit/instrumentation coverage for image failure, sanitizer failure, Firestore write failure, private local-only save and LiveTests partial failure. No rules changes are needed for this outcome-reporting correction.
