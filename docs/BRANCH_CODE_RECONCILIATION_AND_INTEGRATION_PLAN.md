@@ -452,3 +452,38 @@ Current branch head `fbafd0c9376dd3d5bc0ac85a75a26447d9692311` remains without e
 - PR #2 still targets Ranking V2, not Main. Keep the scoring branch isolated until Android exact-head validation completes and the scoring/ranking contracts are reconciled against Main.
 - PR #3 (Ranking Universal Integration) is Draft/open and targets Ranking V2, with 385 commits and a dirty mergeability state at refresh. It is an integration workspace, not a clean merge candidate. Do not merge its broad 42-file/7,528-addition change set into Main. Review individual changes only after the Ranking V2 blockers and shared Firestore target are resolved.
 - No application code, database configuration, Firebase rules, deployment, or production data was changed in this checkpoint; this entry records the canonical database decision and refreshed audit evidence only.
+
+
+## 2026-11-19 evening exact-head correction and next integration gate
+
+### Main Firestore ID — independently rechecked on Main
+The user's selected Main database remains the only approved target:
+`ai-studio-android-aktestse-9fa19369-81c5-4d42-bf79-ab4f9f40d4bf`.
+Exact Main source checks at this checkpoint:
+- `firebase.json` blob `c854d7233ce6684b85ca0b06d48413cf4802d06c`: Firestore deployment target is the selected named database.
+- `app/src/main/java/Com/ak/testseries/data/remote/FirestoreHelper.kt` blob `58295d597261089c102f09ddfdd8746a4189d92b`: Android fallback database ID matches exactly.
+- `backend_functions/index.js` blob `0700a030a8975a507fbf0381fa00d1622878b65f`: backend resolves `FIRESTORE_DATABASE_ID` or the same selected ID and calls `admin.firestore(FIRESTORE_DATABASE_ID)`.
+Decision: preserve this exact ID across future code ports. Do not replace it with `(default)` or another branch's ID. This is a source/configuration verification; it is not a live production database inventory or deployment test.
+
+### Universal Exam Scoring — exact-head CI result corrected
+- Branch: `feature/universal-exam-scoring-v1-2026-11-06`
+- Exact tested HEAD: `a686861eea49bf15ddb7d8d350201e464ef721fe`
+- Workflow run: [44536565354](https://github.com/abhi952817-sudo/AK-TEST-SERIES-/actions/runs/44536565354)
+- Run conclusion: SUCCESS. Jobs: backend-unit-tests SUCCESS; firestore-rules-tests SUCCESS; android-validation SUCCESS.
+- This closes the previous JDK 21 Android CI blocker for this exact branch SHA. It does not establish scoring policy correctness, full official exam coverage, PDF integration, or merge readiness.
+- PR #2 remains Draft/open and targets `feature/ranking-engine-v2-2026-11-06`, not Main. Keep it unmerged until its scoring contract is reconciled with Main and the Ranking V2 blockers are fixed. Do not merge PR #2 into Ranking simply because its CI is green.
+
+### Ranking Universal Integration — refreshed divergence gate
+- Branch HEAD: `703ea68b28f9e45623e800f7a434cc445daa1e07`.
+- PR #3 remains Draft/open, base `feature/ranking-engine-v2-2026-11-06`, head `feature/ranking-universal-integration-v1`; GitHub reports `mergeable=false`.
+- Current compare against Main reports 477 commits ahead and 127 behind. It changes core shared files including `MainActivity.kt`, `AppDatabase.kt`, `DatabaseRepository.kt`, `Entities.kt`, `FirebaseUserRepositoryImpl.kt`, `ExamFormatStandardizer.kt`, `ExamScoringEngine.kt`, `UniversalExamRegistry.kt`, `UniversalPdfPipeline.kt`, `NEETViewModel.kt`, `backend_functions/index.js`, and `backend_functions/examScoring.js`.
+- This is a highly divergent integration branch, not a safe Main merge. Its valuable concepts (transactional local attempt writes, no destructive Room fallback, explicit unverified defaults, secure answer payload sanitizer) require file-by-file comparison and focused tests against Main before any selective port. Do not copy its broad MainActivity/ViewModel/index.js/registry rewrites.
+- Existing Ranking V2 defects remain open: fabricated rank-zero fallback on query failure, public displayName exposure before profile-visibility filtering, retry fallback values, and non-transactional rank population snapshot. Green CI does not close these static-review findings.
+
+### Inventory and checkpoint status
+- Current GitHub branch list contains 29 branches total: Main plus 28 non-Main branches. No branch was deleted.
+- Main HEAD at this checkpoint: `4f3f76a3615d2c6a093e4e7f225fb02e057520ef`.
+- Application source, Firestore rules, database target, user data and deployment were not changed in this checkpoint; only this master plan is being updated.
+- Next safe action: compare Ranking V2 and integration-branch candidate files one at a time against Main; first prioritize rank-unavailable semantics and privacy-at-creation. For each candidate, map callers/data contracts and add focused regression tests on a Main-based integration branch. Do not merge the broad PR or alter the selected database ID.
+
+| 2026-11-19 | Universal Scoring / Ranking integration | `a686861eea49bf15ddb7d8d350201e464ef721fe` / `703ea68b28f9e45623e800f7a434cc445daa1e07` | Main plan only | No tests executed in this documentation update; recorded exact-head CI run 44536565354 (3/3 jobs PASS) | Run 44536565354 | Scoring branch CI PASS; integration PR BLOCKED | Ranking correctness/privacy blockers; selective port review |
