@@ -138,3 +138,23 @@ Repeated high-conflict paths include:
 - M-001 through M-005 and M-007 remain open as recorded in `MAIN_COMMIT_REVIEW_2026-11-19.md`.
 - Markdown policy: update existing branch-specific plan/audit files where available; do not create one report per branch. If a branch has no relevant Markdown file, record its status in this master tracker.
 - No feature code merged, no branch deleted, no Firestore target changed, and no production data touched in this recheck.
+
+
+## Markdown review inventory — first pass (2026-11-19)
+
+The branch Markdown inventory is being done in topic batches. Existing files are being read and retained as the source of truth; this is not a reason to create one report per branch.
+
+| Branch/workstream | Existing Markdown reviewed | What it contains | Current audit note |
+|---|---|---|---|
+| Community completion | `docs/community/COMMUNITY_GAP_AUDIT_2026-11-14.md` | Community composer, verification card, moderation, server validation and release gaps | Useful detailed audit; stale branch-head/CI references must be refreshed before relying on its pass claims. |
+| Ranking V2 | `docs/RANKING_ENGINE_V2_REMAINING_WORK_PLAN.md` | Branch purpose, safety rules, remaining work, ranking release gates | Keep separate from universal scoring and composite integration; branch SHA in document is historical. |
+| Universal scoring | `docs/UNIVERSAL_EXAM_SCORING_REMAINING_WORK_PLAN.md` | Scoring contract, migration and parity checklist | Preserve as scoring-specific checklist; compare current branch head and tests before porting. |
+| Universal Gemini | `docs/UNIVERSAL_GEMINI_AI_10_PHASE_TRACKER.md` | Ten-phase AI plan: prompt engine, student key path, PDF, exam recognition, question generation, approval and reliability | Useful phase tracker; status dated 2026-11-08 and needs current evidence refresh. |
+| PDF prompt contract | `docs/EXAM_SYLLABUS_READINESS_MATRIX.md` | Exam-wise syllabus readiness and source-verification requirements | Important warning: registry config does not prove authoritative syllabus coverage; verify claims against current official sources before implementation. |
+| Scoring/ranking audit | `docs/ALL_EXAM_SCORING_RANKING_AUDIT_2026-11-13.md` | Combined scoring/ranking findings and integration gates | Retain as audit evidence; refresh against current main and current branch heads. |
+| Firestore consolidation | `docs/DATABASE_CONSOLIDATION_AUDIT_2026-11-15.md`, `docs/FIRESTORE_DEFAULT_CONSOLIDATION_EXECUTION_PLAN.md` | Competing database targets, inventory/backup/restore and cutover steps | Keep all DB choices blocked until read-only live project inventory and restore rehearsal. |
+| Firestore default candidate | `docs/PRODUCTION_FIREBASE_QA_CHECKLIST.md`, `docs/PRODUCTION_FIRESTORE_BACKUP_RESTORE_RUNBOOK.md` | Production QA and backup/restore gates | Useful runbooks; not proof that those operations have been performed. |
+| Student AI connectors | `docs/STUDENT_UNIVERSAL_AI_CONNECTOR_CHECKPOINT.md` and branch checkpoint README | Student-owned connector/key work and checkpoint state | Must verify current encryption implementation, UID isolation, key deletion/replacement and tests. |
+| Real-questions-only | `docs/REAL_QUESTIONS_ONLY_REMAINING_WORK_PLAN.md` | Fail-closed extraction/generation and remaining reliability work | Preserve; verify actual failure paths and zero-publication behavior. |
+
+Inventory coverage is **partial**, not all 27 branch Markdown trees yet. Continue remaining branches in batches and update this table rather than creating more files. Current main/CI/F-016/F-009/F-023 and AI registry findings are recorded in `MAIN_COMMIT_REVIEW_2026-11-19.md`.
