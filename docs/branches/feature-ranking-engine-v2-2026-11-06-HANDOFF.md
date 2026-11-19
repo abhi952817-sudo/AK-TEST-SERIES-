@@ -69,3 +69,23 @@ Main `NEETViewModel.kt` reads missing server percentile as `0.0` in multiple sub
 - Required next design: make rank availability explicit in the persisted attempt/result contract (for example nullable rank fields plus a status enum), propagate it through Room entity/migration, Firestore serialization/hydration, ViewModel and result UI, and distinguish “not applicable”, “pending”, and “query unavailable”. Audit all readers before choosing the representation. This exceeds the 2–4-file small-fix boundary; document and plan it before code changes.
 - The latest compare also confirms broad overlap remains in `MainActivity.kt`, `NEETViewModel.kt`, `backend_functions/index.js`, Firestore rules/indexes and tests. Keep PR #1 and the branch as evidence only.
 
+
+
+## Main Attempt persistence contract audit — 2026-11-19
+
+Inspected Main source blobs at this checkpoint:
+- `Entities.kt` blob `2a78d4e5b7f7953b7f93a18b069a52717084cd8e`.
+- `AppDatabase.kt` blob `3b15596cffea2600a2dda518196739be4f44a7a0`.
+- `NEETViewModel.kt` blob `1e2620e9bfb80fc600191ceda3020b4f10b26406`.
+
+### Confirmed persistence mismatch
+- `AttemptEntity.percentile` is a non-null `Double` with default `0.0`; the entity has no `testRank`, `testTotalCandidates` or explicit ranking availability/status field.
+- Room schema is version 20. Migration 18→19 rebuilds the attempts table and declares `percentile REAL NOT NULL`; Migration 19→20 adds PDF sessions only.
+- `AppDatabase.getDatabase` still calls `.fallbackToDestructiveMigration()`. Do not add a ranking migration or alter the attempt entity until all supported upgrade paths and the destructive fallback policy are addressed with tests; existing attempt history must not be discarded to accommodate a new nullable field.
+- ViewModel reads percentile with zero fallbacks in direct rank details (around line 468), pending/server submission merge (around 4623), cloud attempt hydration (around 6645) and document hydration (around 6682). Offline/practice attempts also intentionally use 0.0 (around 4334). These meanings are currently conflated.
+
+### Required design before implementation
+Introduce an explicit ranking state at the domain boundary that distinguishes at least `NOT_APPLICABLE` (practice/private/non-eligible), `PENDING` (submission accepted but authoritative ranking not yet computed), `AVAILABLE` (valid rank/percentile), and `UNAVAILABLE` (ranking query failed). Preserve legacy percentile values as historical data; never reinterpret every existing zero as a ranking failure. Decide whether rank/total belong in the local Attempt entity or a separate result model, then define backward-compatible Firestore serialization and Room migration. Update every reader and UI label to show the correct state.
+
+### Scope / decision
+This crosses backend response, Firestore serialization, Room schema/migration, ViewModel hydration and result UI, so it is **not** a 2–4-file safe patch. No code was changed. PR #18 must remain unmerged until the full contract and migration tests are designed. Preserve existing attempt records; no destructive migration, production backfill or deployment is authorized.
