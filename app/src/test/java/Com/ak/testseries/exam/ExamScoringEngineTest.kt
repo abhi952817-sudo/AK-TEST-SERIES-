@@ -30,6 +30,86 @@ class ExamScoringEngineTest {
         )
     }
 
+    private fun createConfiguredScoringExam(): ExamConfig = ExamConfig(
+        examId = "TEST_EXAM",
+        examName = "Test Exam",
+        shortName = "TEST",
+        category = "TEST",
+        stages = listOf(
+            StageConfig(
+                stageId = "STAGE_1",
+                stageName = "Stage 1",
+                papers = listOf(
+                    PaperConfig(
+                        paperId = "PAPER_1",
+                        paperName = "Paper 1",
+                        subjects = listOf(
+                            SubjectConfig(
+                                subjectId = "SUBJECT_1",
+                                subjectName = "Physics",
+                                sections = listOf(
+                                    SectionConfig("SECTION_A", "Section A", 1, positiveMarks = 4.0, negativeMarks = 1.0),
+                                    SectionConfig("SECTION_B", "Section B", 1, positiveMarks = 2.0, negativeMarks = 0.5)
+                                )
+                            )
+                        ),
+                        durationMinutes = 60,
+                        totalMarks = 6.0
+                    )
+                )
+            )
+        )
+    )
+
+    @Test
+    fun calculateScoreUsesEachQuestionConfiguredSectionMarks() {
+        val breakdown = ExamScoringEngine.calculateScore(
+            examConfig = createConfiguredScoringExam(),
+            stageId = "STAGE_1",
+            paperId = "PAPER_1",
+            totalQuestions = 2,
+            userAnswers = mapOf("q_a" to "A", "q_b" to "C"),
+            correctAnswers = mapOf("q_a" to "A", "q_b" to "B"),
+            questionSections = mapOf("q_a" to "SECTION_A", "q_b" to "SECTION_B"),
+            timeSpentSeconds = 30
+        )
+
+        assertEquals(1, breakdown.correctCount)
+        assertEquals(1, breakdown.wrongCount)
+        assertEquals(4.0, breakdown.positiveMarksEarned, 0.001)
+        assertEquals(0.5, breakdown.negativeMarksPenalty, 0.001)
+        assertEquals(3.5, breakdown.finalScore, 0.001)
+        assertEquals(6.0, breakdown.maxScore, 0.001)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun calculateScoreRejectsUnknownQuestionSectionInsteadOfUsingDefaultMarks() {
+        ExamScoringEngine.calculateScore(
+            examConfig = createConfiguredScoringExam(),
+            stageId = "STAGE_1",
+            paperId = "PAPER_1",
+            totalQuestions = 1,
+            userAnswers = mapOf("q_unknown" to "A"),
+            correctAnswers = mapOf("q_unknown" to "A"),
+            questionSections = mapOf("q_unknown" to "SECTION_NOT_CONFIGURED"),
+            timeSpentSeconds = 10
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun calculateScoreRejectsMissingQuestionSectionInsteadOfUsingDefaultMarks() {
+        ExamScoringEngine.calculateScore(
+            examConfig = createConfiguredScoringExam(),
+            stageId = "STAGE_1",
+            paperId = "PAPER_1",
+            totalQuestions = 1,
+            userAnswers = mapOf("q_missing" to "A"),
+            correctAnswers = mapOf("q_missing" to "A"),
+            questionSections = emptyMap(),
+            timeSpentSeconds = 10
+        )
+    }
+
     @Test
     fun testNeetScoringStandardPlusMinus() {
         val q1 = createQuestion("q1", "A") // Correct (+4)
