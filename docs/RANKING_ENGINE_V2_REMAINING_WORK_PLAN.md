@@ -206,3 +206,12 @@ The isolated audit branch now defines a draft `rankingContract` inside `shared/s
 - Commits: `2b770526129d47683e9a166060653301ca951998`, `3491e9ec1fbe53c4afb19a51060e75ca646fcff9`.
 - This is a localized correction on the existing Ranking V2 branch; it does not resolve the branch's large divergence from Main or the broader server-authoritative ranking release gates.
 - Awaiting exact-head Ranking V2 validation workflow. Do not merge PR #1 to Main until full branch reconciliation and all ranking security/migration/policy gates pass.
+
+
+## CI environment correction — 2026-11-19
+- Ranking V2 validation run `44531380449` failed after Debug APK assembly succeeded: 293 tests completed, one `CrashResilienceTest > classMethod` failure reported `UnsupportedOperationException at DefaultSdkProvider.java:170`.
+- The same test source exists unchanged in `main`; current main Android CI run `44528426052` passed `gradle testDebugUnitTest` on JDK 21.
+- Workflow comparison found `.github/workflows/android.yml` on main uses JDK 21, while this branch's `.github/workflows/ranking-v2-validation.yml` Android job used JDK 17. This is a concrete environment mismatch; it is the leading explanation, but must be confirmed by rerun.
+- Updated only the Ranking V2 Android validation workflow to JDK 21, matching main. Commit: `8561e176272599e501e8d4ac7d169544772a22f8`.
+- New exact-head workflow run: `44535005393` (queued at documentation update). Do not merge until all three jobs pass on the new exact SHA.
+- No test was deleted, skipped or weakened. No ranking application code changed in this CI correction.
