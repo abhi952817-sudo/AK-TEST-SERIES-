@@ -84,6 +84,13 @@ The example is a test fixture only. Do not seed it or copy its marks into produc
 - No legacy test score or rank was recalculated.
 - No Firebase deployment or production data mutation was performed.
 
+
+## Additional audit finding: legacy path is not time-bounded
+
+The current submission function routes every non-Community test with a non-empty `scoringVersion` through the new exact policy resolver. A test with no `scoringVersion` still enters the legacy scoring engine. The code does not currently prove that an unversioned test is genuinely historical; therefore the legacy path is not limited to old saved tests by a creation-date cutoff or an explicit approved legacy allowlist.
+
+**Release guard:** New test creation and publication paths must write a valid exam/year/scoring version, and server submission must distinguish explicitly grandfathered historical tests from newly created unversioned tests. Until that gate exists, do not treat an unversioned test as official year-verified scoring or allow it to become a new competitive ranking source merely because the legacy evaluator returns a score. Preserve existing stored scores; do not bulk-recalculate them in this phase.
+
 ## Additional audit finding: JEE Advanced requires a richer scoring model
 
 The official JEE (Advanced) 2026 Information Brochure states that both 180-minute papers are compulsory, and that negative marks may apply to some questions; the exact marking scheme is supplied in the instructions for each question paper:
