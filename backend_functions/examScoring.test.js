@@ -395,3 +395,47 @@ test("Ranking snapshot rejects unavailable and inconsistent counts instead of fa
     percentile: 80,
   });
 });
+
+test("Trusted Community grading uses verified per-question marking metadata", () => {
+  const questions = [
+    {
+      id: "community_q1",
+      correctAnswer: "A",
+      section: "SECTION_A",
+      subject: "Physics",
+      questionType: "MCQ_SINGLE",
+      positiveMarks: 3,
+      negativeMarks: 0.5
+    },
+    {
+      id: "community_q2",
+      correctAnswer: "B",
+      section: "SECTION_A",
+      subject: "Physics",
+      questionType: "MCQ_SINGLE",
+      positiveMarks: 5,
+      negativeMarks: 1
+    }
+  ];
+  const result = evaluateTestAttempt(
+    "NEET UG",
+    questions,
+    { community_q1: { ans: "C" }, community_q2: { ans: "B" } },
+    60,
+    { useQuestionLevelMarks: true }
+  );
+  assert.strictEqual(result.positiveMarksEarned, 5);
+  assert.strictEqual(result.negativeMarksPenalty, 0.5);
+  assert.strictEqual(result.finalScore, 4.5);
+  assert.strictEqual(result.maxScore, 8);
+});
+
+test("Trusted Community grading fails closed when question-level marks are missing", () => {
+  assert.throws(() => evaluateTestAttempt(
+    "NEET UG",
+    [{ id: "community_q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" }],
+    { community_q1: { ans: "A" } },
+    60,
+    { useQuestionLevelMarks: true }
+  ), /invalid verified marking metadata/i);
+});
