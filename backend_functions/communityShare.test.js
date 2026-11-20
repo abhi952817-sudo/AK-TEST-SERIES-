@@ -198,6 +198,7 @@ test("accepts finite numeric answer keys for numerical question types", () => {
       ...baseQuestion,
       questionType: "NUMERICAL",
       options: [],
+      negativeMarks: 0,
       correctAnswer: 3.5
     }])
   });
