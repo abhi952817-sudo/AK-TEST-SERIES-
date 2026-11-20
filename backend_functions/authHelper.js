@@ -1,20 +1,21 @@
 /**
- * Shared Authorization Helper
- * Enforces strict authorization policies across production callables and unit test suites.
+ * Shared Authorization Helper.
+ * Administrative authority is held by one verified primary owner account only.
  */
+const PRIMARY_ADMIN_EMAIL = "abhi952817@gmail.com";
+
+function isPrimaryAdminToken(token) {
+  return Boolean(
+    token &&
+    typeof token.email === "string" &&
+    token.email.trim().toLowerCase() === PRIMARY_ADMIN_EMAIL &&
+    token.email_verified === true
+  );
+}
 
 /**
- * Validates caller authorization to assign or modify administrative roles.
- * Restricted to:
- * 1) Callers with custom claim `admin: true`
- * 2) Primary verified owner `abhi952817@gmail.com` with `email_verified: true`
- *
- * Throws structured Error with `.code` matching Firebase Functions HttpsError codes:
- * - "unauthenticated": When caller is unauthenticated
- * - "permission-denied": When authenticated caller lacks required privilege
- *
- * @param {object} context Firebase Functions callable context
- * @returns {boolean} true if caller is authorized
+ * Only the verified primary owner may bootstrap/refresh their own admin claim.
+ * An admin claim on any other account is deliberately insufficient.
  */
 function validateSetAdminRoleAuth(context) {
   if (!context || !context.auth || !context.auth.uid) {
@@ -23,11 +24,8 @@ function validateSetAdminRoleAuth(context) {
     throw err;
   }
 
-  const isCallerAdmin = context.auth.token && context.auth.token.admin === true;
-  const isOwnerEmail = context.auth.token && context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true;
-
-  if (!isCallerAdmin && !isOwnerEmail) {
-    const err = new Error("Only authorized super administrators with verified credentials can assign admin roles.");
+  if (!isPrimaryAdminToken(context.auth.token)) {
+    const err = new Error("Only the verified primary owner can manage the single administrator account.");
     err.code = "permission-denied";
     throw err;
   }
@@ -35,16 +33,43 @@ function validateSetAdminRoleAuth(context) {
 }
 
 /**
+ * Resolves setAdminRole to the caller's own UID. Promotion by email or to
+ * another UID is rejected, and the sole primary admin cannot self-demote
+ * through this bootstrap callable.
+ */
+function resolveAdminRoleTarget(context, data) {
+  if (!context || !context.auth || !context.auth.uid) {
+    const err = new Error("User must be authenticated.");
+    err.code = "unauthenticated";
+    throw err;
+  }
+
+  const payload = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (Object.prototype.hasOwnProperty.call(payload, "email")) {
+    const err = new Error("Email-based administrator promotion is disabled.");
+    err.code = "invalid-argument";
+    throw err;
+  }
+  if (payload.targetUid != null && payload.targetUid !== context.auth.uid) {
+    const err = new Error("The single administrator may only provision their own account.");
+    err.code = "permission-denied";
+    throw err;
+  }
+  if (payload.isAdmin === false) {
+    const err = new Error("The primary administrator cannot be demoted through this callable.");
+    err.code = "permission-denied";
+    throw err;
+  }
+  if (payload.isAdmin != null && payload.isAdmin !== true) {
+    const err = new Error("isAdmin must be true when supplied.");
+    err.code = "invalid-argument";
+    throw err;
+  }
+  return context.auth.uid;
+}
+
+/**
  * Asserts that the authenticated caller has an active, non-suspended account status.
- *
- * Rules:
- * - If user record does not exist -> fails closed (code 'not-found').
- * - If user record indicates isBanned === true -> fails closed (code 'permission-denied').
- * - Any status verification failure fails closed.
- *
- * @param {object|null|undefined} userData The authoritative snapshot data from Users_Data/{userId}
- * @param {string} userId The verified authenticated user ID
- * @returns {boolean} true if active
  */
 function assertActiveUserStatus(userData, userId) {
   if (!userData) {
@@ -61,6 +86,9 @@ function assertActiveUserStatus(userData, userId) {
 }
 
 module.exports = {
+  PRIMARY_ADMIN_EMAIL,
+  isPrimaryAdminToken,
   validateSetAdminRoleAuth,
+  resolveAdminRoleTarget,
   assertActiveUserStatus,
 };
