@@ -5426,7 +5426,6 @@ fun FullScreenSolutionPage(
                 
                 val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
                 var expanded by remember { mutableStateOf(false) }
-                var showCommunityShareDialog by remember { mutableStateOf(false) }
                 
                 Box {
                     IconButton(onClick = { expanded = true }) {
