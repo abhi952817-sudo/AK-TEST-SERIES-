@@ -44,7 +44,7 @@ fun CommunityShareSubjectDialog(
     val stage = remember(exam, test.stageId) {
         when {
             exam == null -> null
-            !test.stageId.isNullOrBlank() -> exam.findStage(test.stageId)
+            !test.stageId.isNullOrBlank() -> exam.stages.firstOrNull { it.stageId == test.stageId }
             exam.stages.size == 1 -> exam.stages.single()
             else -> null
         }
