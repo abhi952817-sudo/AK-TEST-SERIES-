@@ -74,10 +74,14 @@ object ScoringPolicyResolver {
     }
 
     fun resolve(
+        registrySchemaVersion: Int,
         registryStatus: String,
         policies: List<ScoringPolicy>,
         key: ScoringPolicyKey
     ): ScoringPolicy {
+        require(registrySchemaVersion == 1) {
+            "The versioned scoring registry schema is unsupported."
+        }
         require(registryStatus == "ACTIVE") {
             "The versioned scoring registry is missing or inactive."
         }
