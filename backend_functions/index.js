@@ -528,7 +528,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   // 5. Authoritatively evaluate score on the server
-  const evalResult = evaluateTestAttempt(canonicalExam, questions, answers, cleanTimeSpent);
+  const evalResult = evaluateTestAttempt(
+    canonicalExam,
+    questions,
+    answers,
+    cleanTimeSpent,
+    { useQuestionLevelMarks: testDoc.ref.parent.id === "Shared_Community_Tests" }
+  );
 
   const attemptDocId = attemptSessionToken.trim();
   const attemptsRef = userRef.collection("Attempts");
