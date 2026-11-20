@@ -1133,7 +1133,6 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
   let solutionKeys = {};
   try {
-    const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
     const keyValidationData = isTrustedCommunityTest
       ? { ...testData, countsTowardRanking: true, isOfficial: true }
       : testData;
