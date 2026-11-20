@@ -400,12 +400,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
   // 2. Fetch test document from Tests_Data or Tests
   const cleanTestId = testId.trim();
-  let testDoc = await db.collection("Tests_Data").doc(cleanTestId).get();
+  // Prefer the verified Community projection when the same source test has been shared.
+  let testDoc = await db.collection("Shared_Community_Tests").doc(cleanTestId).get();
   if (!testDoc.exists) {
-    testDoc = await db.collection("Tests").doc(cleanTestId).get();
+    testDoc = await db.collection("Tests_Data").doc(cleanTestId).get();
   }
   if (!testDoc.exists) {
-    testDoc = await db.collection("Shared_Community_Tests").doc(cleanTestId).get();
+    testDoc = await db.collection("Tests").doc(cleanTestId).get();
   }
   if (!testDoc.exists) {
     testDoc = await db.collection("LiveTests").doc(cleanTestId).get();
@@ -1039,12 +1040,13 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
 
   // 5. Verify Test Document and Review Permissions
-  let testDoc = await db.collection("Tests_Data").doc(cleanTestId).get();
+  // Use the exact shared projection and its private key vault for Community attempts.
+  let testDoc = await db.collection("Shared_Community_Tests").doc(cleanTestId).get();
   if (!testDoc.exists) {
-    testDoc = await db.collection("Tests").doc(cleanTestId).get();
+    testDoc = await db.collection("Tests_Data").doc(cleanTestId).get();
   }
   if (!testDoc.exists) {
-    testDoc = await db.collection("Shared_Community_Tests").doc(cleanTestId).get();
+    testDoc = await db.collection("Tests").doc(cleanTestId).get();
   }
   if (!testDoc.exists) {
     testDoc = await db.collection("LiveTests").doc(cleanTestId).get();
