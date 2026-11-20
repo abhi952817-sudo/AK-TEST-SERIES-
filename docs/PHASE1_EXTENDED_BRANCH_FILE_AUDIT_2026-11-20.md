@@ -104,3 +104,35 @@ Before deletion, verify no open PR head/base, workflow reference, deployment env
 - Reconcile open PR heads/bases and verify no unreviewed unique commits are lost.
 - Produce a final branch cleanup list with dependency checks.
 - Keep Phase 1 open until all gates are satisfied.
+
+
+## Targeted semantic review notes (exact changed-file patches)
+
+### PR #5 shared scoring contract
+- The JSON explicitly declares status DRAFT_NOT_RUNTIME_WIRED and disables scoring/ranking for listed exams. Keep this as a design/test candidate, not live runtime policy.
+- The policy contains conflicting or stale pattern descriptions in the same exam record. Example: NEET registryPatternRules still describes the old optional Section A/B scheme while officialRules describes 180 compulsory questions. These fields must be normalized before any policy is enabled.
+- Several exam records are UNVERIFIED or have only partial stage/paper coverage. A registry verified flag must not be treated as official policy evidence.
+- Golden vectors are useful only after the schema, exact exam-year-stage-paper-section-question-type resolution, and Kotlin/Node implementations agree. No broad import into runtime yet.
+- Exclude cleanup-completed-actions-history workflow entirely; it is destructive and unrelated to scoring correctness.
+
+### PR #8 Community rules and validation
+- Positive: server-side exam/subject mapping, bounded text/highlight payloads, no PDF fields, report evidence path scoping, admin-only answer-key reads, and server-mediated answer/comment deletion are security-oriented improvements.
+- Required follow-up: inspect callable implementations to prove student create/reply/report flows use trusted server writes; rules alone do not prove the callable validates ownership, rate limits, image ownership, parent counters, or moderation state atomically.
+- Rule changes overlap PR #12 and the Community completion branches. Do not merge the same rules/indexes twice or mix their backend index.js revisions.
+- User-facing constraints still need UI tests: choose subject first, one image only for doubt, no PDF, quiz is exactly one question with 4 or 5 options and no timer.
+
+### PR #10 and #14 Firestore helper alternatives
+- PR #10 fails closed when the resource is not (default), while PR #14 unconditionally uses the default database and removes resource checks. Both choose (default), but neither establishes that production data currently lives there.
+- Do not combine both implementations. Select one only after verifying Firebase project ID, all database IDs, actual app/backend configuration, indexes, rules, backup and restore rehearsal.
+- PR #10's backup tests and runbooks are useful independent candidates; its Firestore target change remains blocked.
+
+### PR #4 AI/PDF route and extraction
+- Positive: exact exam/subject/stage/paper routing; reject ambiguous subject matches; stop when extracted PDF text is empty; no placeholder offline questions; preserve private-draft status.
+- Critical design concern: UniversalPdfPipeline sets isExtractionMode = true unconditionally in the inspected patch. That forces the pipeline into extraction behavior even where a generation route may be intended. Split extraction and generation modes explicitly at the call boundary and test both before adoption.
+- The pipeline now fails closed when PDF text extraction is empty, which is correct for extraction, but the caller must not label generated content as PDF extraction or invent source provenance.
+- VersionedSyllabusResolver stores snapshots in process memory only. It is not a persistent, server-authoritative approval workflow; approved status must be stored and authorized on the backend before production use.
+- JEE Main 2027 unit index is explicitly NOT APPROVED and headings-only. It is not a completed syllabus.
+- Deployment workflow provisions Firebase secrets and deploys a callable. Keep it unexecuted pending explicit production deployment approval.
+
+### CI and integration status
+The integration commit that added this report is b999f7f96c174fdec3416e8614cb7a150ab8fd51. It changes documentation only. The previous Android CI run 44714010245 was still running at the last poll; its Android unit-test step had succeeded, while Gradle build/APK upload were pending. A new commit may cause another PR workflow run; check the exact latest PR head before declaring CI green.
