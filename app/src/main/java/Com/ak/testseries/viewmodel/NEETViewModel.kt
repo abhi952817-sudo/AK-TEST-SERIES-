@@ -2173,7 +2173,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 val callResult = callable.call(payload).await()
                 val result = callResult.data as? Map<*, *>
-                if (result?.get("success") != true || result["verifiedServerSide"] != true) {
+                if (result == null || result["success"] != true || result["verifiedServerSide"] != true) {
                     throw IllegalStateException("The server did not confirm Community verification.")
                 }
                 val message = if (result["alreadyShared"] == true) {
