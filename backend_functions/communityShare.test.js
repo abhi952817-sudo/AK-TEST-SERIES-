@@ -165,3 +165,13 @@ test("copies the registry's optional section attempt limit into the public quest
   });
   assert.equal(result.publicQuestions[0].maxAttemptQuestions, 1);
 });
+
+test("rejects source total marks that do not equal the verified question marks", () => {
+  assert.throws(() => validateCommunityShareSource({
+    testId: "test-1",
+    ownerUid: "student-1",
+    testData: sourceTest({ totalMarks: 720 }),
+    registry,
+    selectedSubject: "Physics"
+  }), /total-marks/i);
+});
