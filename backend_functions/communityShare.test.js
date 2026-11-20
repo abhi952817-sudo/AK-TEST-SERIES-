@@ -220,3 +220,13 @@ test("rejects conflicting owner identifiers on the source test record", () => {
     selectedSubject: "Physics"
   }), /owner/i);
 });
+
+test("rejects a display exam name that conflicts with the canonical exam ID", () => {
+  assert.throws(() => validateCommunityShareSource({
+    testId: "test-1",
+    ownerUid: "student-1",
+    testData: sourceTest({ targetExam: "JEE Main" }),
+    registry,
+    selectedSubject: "Physics"
+  }), /display exam name/i);
+});
