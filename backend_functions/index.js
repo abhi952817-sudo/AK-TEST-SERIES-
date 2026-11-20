@@ -231,11 +231,17 @@ exports.shareTestToCommunity = functions.https.onCall(async (data, context) => {
   for (const question of validated.publicQuestions) {
     batch.set(sharedRef.collection("questions").doc(question.id), question);
   }
-  batch.set(sharedRef.collection("private_keys").doc("answerKey"), {
-    testId,
-    questions: validated.privateKeys,
-    updatedAt: now
-  });
+  // Chunk private keys to stay below Firestore's 1 MiB document limit while
+  // keeping the complete publication under the 500-write batch ceiling.
+  const PRIVATE_KEY_CHUNK_SIZE = 50;
+  for (let offset = 0; offset < validated.privateKeys.length; offset += PRIVATE_KEY_CHUNK_SIZE) {
+    const chunkIndex = String(Math.floor(offset / PRIVATE_KEY_CHUNK_SIZE)).padStart(3, "0");
+    batch.set(sharedRef.collection("private_keys").doc("chunk_" + chunkIndex), {
+      testId,
+      questions: validated.privateKeys.slice(offset, offset + PRIVATE_KEY_CHUNK_SIZE),
+      updatedAt: now
+    });
+  }
   batch.set(postRef, postData);
   await batch.commit();
 
