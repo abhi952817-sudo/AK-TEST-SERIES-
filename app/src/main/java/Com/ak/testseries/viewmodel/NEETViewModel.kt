@@ -2139,28 +2139,25 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun shareTestToCommunity(test: TestEntity) {
+    fun shareTestToCommunity(test: TestEntity, selectedSubject: String = test.subject) {
         viewModelScope.launch(Dispatchers.IO) {
-            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-            val currentUser = auth.currentUser
+            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
             val currentUid = currentUser?.uid
-
-            if (currentUid.isNullOrEmpty()) {
+            if (currentUid.isNullOrBlank()) {
                 withContext(Dispatchers.Main) {
                     android.widget.Toast.makeText(getApplication(), "Please sign in to share tests", android.widget.Toast.LENGTH_SHORT).show()
                 }
                 return@launch
             }
-
-            if (isCurrentUserBanned.value) {
+            if (selectedSubject.isBlank()) {
                 withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(getApplication(), "Your account has been suspended by administration. Community sharing is disabled.", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(getApplication(), "Select a subject before sharing this test.", android.widget.Toast.LENGTH_LONG).show()
                 }
                 return@launch
             }
-
-            // Owner check: Only the authenticated owner may share the test
-            if (test.uploaderId != currentUid || !Com.ak.testseries.ui.CommunityShareManager.isEligibleToShare(test.uploaderId, currentUid)) {
+            if (test.uploaderId != currentUid ||
+                !Com.ak.testseries.ui.CommunityShareManager.isEligibleToShare(test.uploaderId, currentUid)
+            ) {
                 withContext(Dispatchers.Main) {
                     android.widget.Toast.makeText(getApplication(), "Only the test owner can share this test", android.widget.Toast.LENGTH_SHORT).show()
                 }
@@ -2168,375 +2165,33 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             try {
-                // Retrieve questions for this test (from test entity, Room database, or local storage fallback)
-                var questionsJsonString = test.questionsJson ?: ""
-                if (questionsJsonString.isBlank()) {
-                    val dbQuestions = repository.getQuestionsForTestList(test.id)
-                    if (dbQuestions.isNotEmpty()) {
-                        questionsJsonString = serializeQuestionsToJson(dbQuestions)
-                    } else {
-                        try {
-                            val file = java.io.File(getApplication<Application>().filesDir, "test_questions_${test.id}.json")
-                            if (file.exists() && file.canRead()) {
-                                questionsJsonString = file.readText()
-                            }
-                        } catch (e: Exception) {
-                            // ignore fallback error
-                        }
-                    }
-                }
-
-                val targetExam = test.targetExam.takeIf { it.isNotBlank() }
-                    ?: _userProfile.value.targetExam.takeIf { it.isNotBlank() }
-                    ?: "NEET"
-
-                val (defaultPosMark, defaultNegMark) = try {
-                    Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForExam(targetExam)
-                } catch (e: Exception) {
-                    Pair(4.0, 1.0)
-                }
-
-                // Standardize question data ensuring all required fields are present while excluding private user data
-                val rawArray = try {
-                    if (questionsJsonString.isNotBlank()) org.json.JSONArray(questionsJsonString) else org.json.JSONArray()
-                } catch (e: Exception) {
-                    org.json.JSONArray()
-                }
-
-                val standardizedArray = org.json.JSONArray()
-                for (i in 0 until rawArray.length()) {
-                    val qObj = rawArray.optJSONObject(i) ?: continue
-                    val qClean = org.json.JSONObject()
-
-                    val qId = qObj.optString("id", "${test.id}_q$i")
-                    qClean.put("id", qId)
-                    qClean.put("testId", test.id)
-
-                    val qText = qObj.optString("questionText", qObj.optString("questionTextEn", "")).trim()
-                    qClean.put("questionText", qText)
-
-                    val optA = qObj.optString("optionA", qObj.optString("optionAEn", "")).trim()
-                    val optB = qObj.optString("optionB", qObj.optString("optionBEn", "")).trim()
-                    val optC = qObj.optString("optionC", qObj.optString("optionCEn", "")).trim()
-                    val optD = qObj.optString("optionD", qObj.optString("optionDEn", "")).trim()
-
-                    qClean.put("optionA", optA)
-                    qClean.put("optionB", optB)
-                    qClean.put("optionC", optC)
-                    qClean.put("optionD", optD)
-
-                    val optsList = org.json.JSONArray()
-                    val existingOpts = qObj.optJSONArray("options")
-                    if (existingOpts != null && existingOpts.length() > 0) {
-                        for (j in 0 until existingOpts.length()) {
-                            optsList.put(existingOpts.getString(j))
-                        }
-                    } else {
-                        if (optA.isNotEmpty()) optsList.put(optA)
-                        if (optB.isNotEmpty()) optsList.put(optB)
-                        if (optC.isNotEmpty()) optsList.put(optC)
-                        if (optD.isNotEmpty()) optsList.put(optD)
-                    }
-                    qClean.put("options", optsList)
-
-                    val qType = qObj.optString("questionType", "MCQ")
-                    qClean.put("questionType", qType)
-
-                    // F-023: Never expose private correctAnswer in public shared question payloads
-
-                    val secId = qObj.optString("section", "SECTION_A")
-                    val secName = qObj.optString("sectionName", "Section A")
-                    qClean.put("section", secId)
-                    qClean.put("sectionName", secName)
-
-                    val (calcPos, calcNeg) = try {
-                        if (Com.ak.testseries.exam.UniversalExamRegistry.hasMultipleMarkingSchemes(targetExam)) {
-                            Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(targetExam, secId, qObj.optString("subject", test.subject), qType)
-                        } else {
-                            Pair(defaultPosMark, defaultNegMark)
-                        }
-                    } catch (e: Exception) {
-                        Pair(defaultPosMark, defaultNegMark)
-                    }
-
-                    val finalPos = if (qObj.has("positiveMarks") && qObj.optDouble("positiveMarks", 0.0) > 0.0) {
-                        qObj.optDouble("positiveMarks", calcPos)
-                    } else {
-                        calcPos
-                    }
-                    val finalNeg = if (qObj.has("negativeMarks")) {
-                        qObj.optDouble("negativeMarks", calcNeg)
-                    } else {
-                        calcNeg
-                    }
-                    qClean.put("positiveMarks", finalPos)
-                    qClean.put("negativeMarks", finalNeg)
-
-                    val exp = qObj.optString("explanation", qObj.optString("explanationEn", "")).trim()
-                    qClean.put("explanation", exp)
-
-                    qClean.put("subject", qObj.optString("subject", test.subject))
-                    qClean.put("chapter", qObj.optString("chapter", test.chapter))
-                    qClean.put("topic", qObj.optString("topic", test.topic))
-                    qClean.put("difficulty", qObj.optString("difficulty", test.difficulty))
-
-                    val rawImg = qObj.optString("imageUrl", "").trim()
-                    qClean.put("imageUrl", rawImg)
-                    if (qObj.optBoolean("needsImage", false)) {
-                        qClean.put("needsImage", true)
-                    }
-
-                    qObj.optString("questionTextHi").takeIf { it.isNotBlank() }?.let { qClean.put("questionTextHi", it) }
-                    qObj.optString("explanationHi").takeIf { it.isNotBlank() }?.let { qClean.put("explanationHi", it) }
-                    qObj.optString("optionAHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionAHi", it) }
-                    qObj.optString("optionBHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionBHi", it) }
-                    qObj.optString("optionCHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionCHi", it) }
-                    qObj.optString("optionDHi").takeIf { it.isNotBlank() }?.let { qClean.put("optionDHi", it) }
-
-                    standardizedArray.put(qClean)
-                }
-
-                // Reuse existing image sanitization & upload logic to ensure no local paths are published
-                val sanitizedQuestionsJson = try {
-                    sanitizeAndUploadQuestionImages(test.id, standardizedArray.toString())
-                } catch (uploadEx: Exception) {
-                    android.util.Log.e("NEETViewModel", "Aborting community sharing due to image upload failure in test ${test.id}", uploadEx)
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(getApplication(), "Failed to upload question diagrams to cloud storage: ${uploadEx.localizedMessage ?: "Upload failed"}. Test not shared.", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                    return@launch
-                }
-
-                // Strict validation: verify no unuploaded local paths remain in question diagrams
-                val finalJsonArray = org.json.JSONArray(sanitizedQuestionsJson)
-                val questionsList = mutableListOf<Map<String, Any>>()
-                for (i in 0 until finalJsonArray.length()) {
-                    val q = finalJsonArray.getJSONObject(i)
-                    val img = q.optString("imageUrl", "").trim()
-                    if (img.startsWith("/") || img.startsWith("file:", ignoreCase = true) || img.contains("/cache/") || img.contains("/extracted_cropped_images/")) {
-                        android.util.Log.e("NEETViewModel", "Blocked sharing test with unuploaded local image path: $img")
-                        withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(getApplication(), "Local diagram image could not be uploaded. Test not shared.", android.widget.Toast.LENGTH_LONG).show()
-                        }
-                        return@launch
-                    }
-
-                    val qMap = mutableMapOf<String, Any>(
-                        "id" to q.optString("id", "${test.id}_q$i"),
-                        "questionText" to q.optString("questionText", ""),
-                        "optionA" to q.optString("optionA", ""),
-                        "optionB" to q.optString("optionB", ""),
-                        "optionC" to q.optString("optionC", ""),
-                        "optionD" to q.optString("optionD", ""),
-                        "questionType" to q.optString("questionType", "MCQ"),
-                        // F-023: Private answer keys and explanations are excluded from public shared tests
-                        "positiveMarks" to q.optDouble("positiveMarks", defaultPosMark),
-                        "negativeMarks" to q.optDouble("negativeMarks", defaultNegMark),
-                        "section" to q.optString("section", "SECTION_A"),
-                        "sectionName" to q.optString("sectionName", "Section A"),
-                        "subject" to q.optString("subject", test.subject),
-                        "chapter" to q.optString("chapter", test.chapter),
-                        "topic" to q.optString("topic", test.topic),
-                        "difficulty" to q.optString("difficulty", test.difficulty),
-                        "imageUrl" to img
-                    )
-
-                    val opts = mutableListOf<String>()
-                    val optsArray = q.optJSONArray("options")
-                    if (optsArray != null && optsArray.length() > 0) {
-                        for (j in 0 until optsArray.length()) {
-                            opts.add(optsArray.getString(j))
-                        }
-                    } else {
-                        val oA = q.optString("optionA", "")
-                        val oB = q.optString("optionB", "")
-                        val oC = q.optString("optionC", "")
-                        val oD = q.optString("optionD", "")
-                        if (oA.isNotEmpty()) opts.add(oA)
-                        if (oB.isNotEmpty()) opts.add(oB)
-                        if (oC.isNotEmpty()) opts.add(oC)
-                        if (oD.isNotEmpty()) opts.add(oD)
-                    }
-                    qMap["options"] = opts
-
-                    if (q.has("questionTextHi") && q.getString("questionTextHi").isNotBlank()) {
-                        qMap["questionTextHi"] = q.getString("questionTextHi")
-                    }
-                    if (q.has("explanationHi") && q.getString("explanationHi").isNotBlank()) {
-                        qMap["explanationHi"] = q.getString("explanationHi")
-                    }
-                    if (q.has("optionAHi") && q.getString("optionAHi").isNotBlank()) {
-                        qMap["optionAHi"] = q.getString("optionAHi")
-                    }
-                    if (q.has("optionBHi") && q.getString("optionBHi").isNotBlank()) {
-                        qMap["optionBHi"] = q.getString("optionBHi")
-                    }
-                    if (q.has("optionCHi") && q.getString("optionCHi").isNotBlank()) {
-                        qMap["optionCHi"] = q.getString("optionCHi")
-                    }
-                    if (q.has("optionDHi") && q.getString("optionDHi").isNotBlank()) {
-                        qMap["optionDHi"] = q.getString("optionDHi")
-                    }
-                    questionsList.add(qMap)
-                }
-
-                val calculatedTotalMarks = if (questionsList.isNotEmpty()) {
-                    questionsList.sumOf { (it["positiveMarks"] as? Double) ?: (it["positiveMarks"] as? Number)?.toDouble() ?: defaultPosMark }
-                } else {
-                    try {
-                        val examConf = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
-                        examConf?.stages?.firstOrNull()?.papers?.firstOrNull()?.totalMarks ?: 720.0
-                    } catch (e: Exception) {
-                        720.0
-                    }
-                }
-
-                val durationMinutes = if (test.durationMinutes > 0) {
-                    test.durationMinutes
-                } else {
-                    try {
-                        val examConf = Com.ak.testseries.exam.UniversalExamRegistry.findExamByNameOrShortName(targetExam)
-                        examConf?.stages?.firstOrNull()?.papers?.firstOrNull()?.durationMinutes ?: 180
-                    } catch (e: Exception) {
-                        180
-                    }
-                }
-
-                val testSource = test.institute.takeIf { it.isNotBlank() } ?: "Private Upload"
-
-                val authorName = _userProfile.value.name.takeIf { it.isNotBlank() }
-                    ?: currentUser.displayName?.takeIf { it.isNotBlank() }
-                    ?: currentUser.email?.substringBefore("@")?.takeIf { it.isNotBlank() }
-                    ?: "Student"
-
-                val finalQuestionCount = if (questionsList.isNotEmpty()) questionsList.size else test.questionsCount
-
-                // Canonical shared document in Shared_Community_Tests/{testId}
-                val sharedCommunityTestData = hashMapOf<String, Any>(
+                val callable = com.google.firebase.functions.FirebaseFunctions.getInstance()
+                    .getHttpsCallable("shareTestToCommunity")
+                val payload = hashMapOf<String, Any>(
                     "testId" to test.id,
-                    "title" to test.title,
-                    "description" to test.description,
-                    "targetExam" to targetExam,
-                    "subject" to test.subject,
-                    "classLevel" to test.classLevel,
-                    "chapter" to test.chapter,
-                    "topic" to test.topic,
-                    "difficulty" to test.difficulty,
-                    "questionCount" to finalQuestionCount,
-                    "questionsCount" to finalQuestionCount,
-                    "durationMinutes" to durationMinutes,
-                    "totalMarks" to calculatedTotalMarks,
-                    "source" to testSource,
-                    "creatorId" to currentUid,
-                    "creatorDisplayName" to authorName,
-                    "creatorName" to authorName,
-                    "sharedAt" to System.currentTimeMillis(),
-                    "version" to 1,
-                    "sharingState" to "COMMUNITY_SHARED",
-                    "questions" to questionsList,
-                    "questionsJson" to sanitizedQuestionsJson
+                    "selectedSubject" to selectedSubject.trim()
                 )
-
-                val db = firestoreDb
-
-                // Create or update canonical copy: Shared_Community_Tests/{testId}
-                // CRITICAL: Original local test remains isPublic = false and untouched!
-                db.collection("Shared_Community_Tests")
-                    .document(test.id)
-                    .set(sharedCommunityTestData)
-                    .await()
-
-                val authorSubtitle = "$targetExam Aspirant"
-
-                // Deterministic Document ID ensures same creator + same test can NEVER create duplicate documents
-                val deterministicPostId = "TEST_SHARE_${currentUid}_${test.id}"
-
-                // Duplicate share protection:
-                // Check direct deterministic document first, and also check existing Community_Posts matching (testId, creatorId, TEST_SHARE)
-                val deterministicDocRef = db.collection("Community_Posts").document(deterministicPostId)
-                val deterministicDoc = deterministicDocRef.get().await()
-
-                val querySnapshot = db.collection("Community_Posts")
-                    .whereEqualTo("testId", test.id)
-                    .get()
-                    .await()
-
-                val legacyMatches = querySnapshot.documents.filter { doc ->
-                    doc.getString("postType") == "TEST_SHARE" &&
-                    doc.getString("creatorId") == currentUid &&
-                    doc.id != deterministicPostId
+                val callResult = callable.call(payload).await()
+                val result = callResult.data as? Map<*, *>
+                if (result?.get("success") != true || result["verifiedServerSide"] != true) {
+                    throw IllegalStateException("The server did not confirm Community verification.")
                 }
-
-                val targetPostId = if (deterministicDoc.exists()) {
-                    deterministicPostId
-                } else if (legacyMatches.isNotEmpty()) {
-                    legacyMatches.first().id
+                val message = if (result["alreadyShared"] == true) {
+                    "This verified test is already shared in Community."
                 } else {
-                    deterministicPostId
+                    "Test verified and shared to Community."
                 }
-
-                val alreadyShared = deterministicDoc.exists() || legacyMatches.isNotEmpty()
-
-                val updatedOrNewPost = Com.ak.testseries.ui.CommunityShareManager.buildTestSharePost(
-                    test = test,
-                    currentUid = currentUid,
-                    authorName = authorName,
-                    authorSubtitle = authorSubtitle,
-                    targetExam = targetExam,
-                    totalMarks = calculatedTotalMarks,
-                    questionCount = finalQuestionCount,
-                    durationMinutes = durationMinutes,
-                    postId = targetPostId
-                )
-
-                // CRITICAL VISIBILITY RULE:
-                // Sharing to Community must NOT change test.isPublic.
-                // Do NOT set isPublic = true. The test remains a user-owned private test.
-                // Write/update the single authoritative post
-                db.collection("Community_Posts")
-                    .document(targetPostId)
-                    .set(Com.ak.testseries.ui.communityPostToMap(updatedOrNewPost))
-                    .await()
-
-                // Clean up any extra legacy duplicates safely if more than one existed
-                val duplicatesToDelete = if (targetPostId == deterministicPostId) {
-                    legacyMatches
-                } else {
-                    legacyMatches.drop(1)
-                }
-                for (dupDoc in duplicatesToDelete) {
-                    try {
-                        dupDoc.reference.delete().await()
-                        android.util.Log.d("NEETViewModel", "Cleaned up legacy duplicate CommunityPost: ${dupDoc.id}")
-                    } catch (e: Exception) {
-                        android.util.Log.w("NEETViewModel", "Could not delete legacy duplicate ${dupDoc.id}: ${e.message}")
-                    }
-                }
-
-                if (!alreadyShared) {
-                    try {
-                        val notifMap = hashMapOf<String, Any>(
-                            "title" to "📝 नया कम्युनिटी टेस्ट: $targetExam",
-                            "message" to "$authorName ने नया टेस्ट '${test.title}' कम्युनिटी में शेयर किया है ($finalQuestionCount प्रश्न • $durationMinutes मिनट)। अभी हल करें!",
-                            "timestamp" to System.currentTimeMillis(),
-                            "targetGroup" to targetExam,
-                            "linkUrl" to "app://test/${test.id}",
-                            "isPinned" to false
-                        )
-                        db.collection("UserNotifications").add(notifMap).await()
-                    } catch (ne: Exception) {
-                        android.util.Log.e("NEETViewModel", "Error broadcasting community test notification: ${ne.message}")
-                    }
-                }
-
                 withContext(Dispatchers.Main) {
-                    val msg = if (alreadyShared) "Shared test updated in Community" else "Test shared to Community"
-                    android.widget.Toast.makeText(getApplication(), msg, android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(getApplication(), message, android.widget.Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+            } catch (error: Exception) {
+                android.util.Log.e("NEETViewModel", "Server-authoritative Community share failed for ${test.id}", error)
                 withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(getApplication(), "Failed to share test: ${e.localizedMessage ?: "Unknown error"}", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(
+                        getApplication(),
+                        "Test not shared: ${error.localizedMessage ?: "Server verification failed."}",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
@@ -6100,23 +5755,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             moveTestToFolder(testId, folderId)
         }
 
-        // Auto-share to Community if enabled (failure isolated, preserves isPublic, reuses shareTestToCommunity)
-        try {
-            val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: authenticatedUid
-            if (Com.ak.testseries.ui.CommunityShareManager.shouldAutoShareNewTests(
-                    autoShareEnabled = autoShareToCommunity.value,
-                    isLiveTest = isLiveTest,
-                    uploaderId = newTest.uploaderId,
-                    currentUid = currentUid,
-                    isPublic = newTest.isPublic
-                )
-            ) {
-                shareTestToCommunity(newTest)
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("NEETViewModel", "Automatic community share failed (test preserved): ${e.localizedMessage}", e)
-        }
-    }
+        // Community publication requires a separate, explicit user action.\n    }
 
     private fun saveQuestionsJsonToInternalStorage(testId: String, questionsJsonString: String) {
         try {
