@@ -36,10 +36,11 @@ Example shape (illustrative test fixture only; NOT an approved NEET or other exa
   "version": 1,
   "exams": {
     "example_exam": {
-      "examName": "Example Exam",\n      "aliases": ["Example", "Example Exam 2026"],
-      "years": {
-        "2026": {
-          "scoringVersion": 1,
+      "examName": "Example Exam",
+      "aliases": ["Example", "Example Exam 2026"],
+      "scoringVersions": {
+        "1": {
+          "examYear": "2026",
           "syllabusVersion": "example-2026-v1",
           "stages": {
             "example_stage": {
