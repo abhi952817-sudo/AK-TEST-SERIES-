@@ -1,10 +1,10 @@
 package Com.ak.testseries.exam
 
 /**
- * Universal Exam Registry containing configuration for 20+ major Indian competitive exams.
- * Enriched with authentic difficulty ratios (Easy/Medium/Hard), supported QuestionTypes,
- * exam-specific AI system instructions, and pattern rules.
- * Dynamically configurable without rewriting code.
+ * Universal Exam Registry containing baseline configurations for 25 Indian competitive exams.
+ * Only year-specific entries with authoritative source metadata are marked verified.
+ * Unverified legacy entries remain available as draft configuration but must not be treated
+ * as official scoring policy until their year, source and complete pattern are audited.
  */
 object UniversalExamRegistry {
 
