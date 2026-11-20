@@ -249,7 +249,9 @@ function validateCommunityShareSource({
       fail("Question marking metadata does not match the approved exam-year section policy.");
     }
 
-    const answer = cleanString(source.correctAnswer);
+    const answer = typeof source.correctAnswer === "number" && Number.isFinite(source.correctAnswer)
+      ? String(source.correctAnswer)
+      : cleanString(source.correctAnswer);
     const numeric = ["NUMERICAL", "NUMERICAL_VALUE", "NAT", "TITA"].includes(questionType);
     const options = getOptions(source);
     if (numeric) {
