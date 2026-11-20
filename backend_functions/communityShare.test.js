@@ -184,3 +184,29 @@ test("rejects a question that requires an image but has no hosted image URL", ()
     testId: "test-1", ownerUid: "student-1", testData: data, registry, selectedSubject: "Physics"
   }), /requires an image/i);
 });
+
+test("accepts finite numeric answer keys for numerical question types", () => {
+  const numericRegistry = JSON.parse(JSON.stringify(registry));
+  numericRegistry.exams.neet_ug.scoringVersions["2"].stages.neet_main
+    .papers.neet_paper_1.subjects[0].sections[0].questionTypes = {
+      NUMERICAL: { positiveMarks: 4, negativeMarks: 0 }
+    };
+  const baseQuestion = JSON.parse(sourceTest().questionsJson)[0];
+  const data = sourceTest({
+    totalMarks: 4,
+    questionsJson: JSON.stringify([{
+      ...baseQuestion,
+      questionType: "NUMERICAL",
+      options: [],
+      correctAnswer: 3.5
+    }])
+  });
+  const result = validateCommunityShareSource({
+    testId: "test-1",
+    ownerUid: "student-1",
+    testData: data,
+    registry: numericRegistry,
+    selectedSubject: "Physics"
+  });
+  assert.equal(result.privateKeys[0].correctAnswer, "3.5");
+});
