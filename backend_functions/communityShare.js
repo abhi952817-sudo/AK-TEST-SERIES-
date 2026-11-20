@@ -269,6 +269,12 @@ function validateCommunityShareSource({
       difficulty: cleanString(source.difficulty),
       imageUrl
     };
+    if (section.maxAttemptQuestions !== undefined && section.maxAttemptQuestions !== null) {
+      if (!Number.isInteger(section.maxAttemptQuestions) || section.maxAttemptQuestions <= 0) {
+        fail("The approved section attempt limit is invalid.");
+      }
+      publicQuestion.maxAttemptQuestions = section.maxAttemptQuestions;
+    }
     for (const field of ["questionTextHi", "optionAHi", "optionBHi", "optionCHi", "optionDHi"]) {
       const value = cleanString(source[field]);
       if (value) publicQuestion[field] = value;
