@@ -6,6 +6,7 @@ const {
   resolveScoringPolicy,
   validateVersionedTestScoring
 } = require("./scoringPolicyResolver");
+const { evaluateTestAttempt } = require("./examScoring");
 
 function makePolicy(overrides = {}) {
   return {
@@ -240,4 +241,51 @@ test("Versioned test validation rejects mismatched source total marks and duplic
     ),
     { code: "failed-precondition" }
   );
+});
+
+test("Versioned policy marks flow into authoritative scoring with optional section caps", () => {
+  const policies = [
+    makePolicy(),
+    makePolicy({
+      sectionId: "section_b",
+      sectionName: "Section B",
+      questionType: "NUMERICAL_VALUE",
+      positiveMarks: 4,
+      negativeMarks: 0,
+      maxAttemptQuestions: 1
+    })
+  ];
+  const questions = [
+    makeQuestion({ id: "q1", correctAnswer: "A" }),
+    makeQuestion({ id: "q2", correctAnswer: "B" }),
+    makeQuestion({
+      id: "q3", sectionId: "section_b", section: "Section B",
+      questionType: "NUMERICAL_VALUE", correctAnswer: "42"
+    }),
+    makeQuestion({
+      id: "q4", sectionId: "section_b", section: "Section B",
+      questionType: "NUMERICAL_VALUE", correctAnswer: "99"
+    })
+  ];
+  const validated = validateVersionedTestScoring(
+    makeRegistry(policies),
+    makeTestData({ questionsCount: 4, totalMarks: 12 }),
+    questions
+  );
+  const result = evaluateTestAttempt(
+    "example_exam",
+    validated.questions,
+    { q1: "A", q2: "C", q3: "42", q4: "0" },
+    60,
+    { useQuestionLevelMarks: true }
+  );
+
+  assert.equal(result.correctCount, 2);
+  assert.equal(result.wrongCount, 1);
+  assert.equal(result.unansweredCount, 1);
+  assert.equal(result.positiveMarksEarned, 8);
+  assert.equal(result.negativeMarksPenalty, 1);
+  assert.equal(result.finalScore, 7);
+  assert.equal(result.maxScore, 12);
+  assert.equal(result.usesQuestionLevelMarks, true);
 });
