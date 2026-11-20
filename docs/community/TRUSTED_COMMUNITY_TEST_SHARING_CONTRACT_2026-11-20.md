@@ -18,7 +18,7 @@ The callable independently:
 5. Verifies exact `examId + stageId + paperId + scoringVersion`; the administrator-owned registry binds each scoring version to its official exam year. If a source document also has `examYear`, it must match that registry binding.
 6. Verifies every question's subject, section, question type, positive marks and negative marks against the year-specific registry policy.
 7. Requires a unique question ID, verified Gemini source metadata, a valid answer key, valid option structure, and hosted HTTPS image URLs.
-8. Creates public question projections without correct answers or explanations, stores the private key separately, and writes the Community feed card in one Firestore batch.
+8. Creates public question projections without correct answers or explanations, stores the private key separately, and writes the Community feed card in one Firestore batch. The Android downloader reads only the public question subcollection; the attempt grader and post-attempt solutions callable prefer the verified Community projection and its private key vault.
 9. Uses deterministic document IDs and a source fingerprint for safe retries. A source test changed after publication is blocked for administrator review rather than silently overwritten.
 
 The original `Tests_Data` source document is never made public or modified by this callable.
@@ -101,7 +101,7 @@ Full Syllabus is accepted only when the source record has `syllabusCoverageVerif
 
 - Students can read published Community test parents and public question documents.
 - Students cannot write, update or delete `Shared_Community_Tests` documents.
-- Students cannot read or write `private_keys`.
+- Students cannot read or write `private_keys`; Android never receives answer keys before the attempt is submitted.
 - Students cannot create a `Community_Posts` document with `postType: TEST_SHARE` or convert another post into one.
 - The Admin SDK callable bypasses client rules and is the only student publication path.
 - Other allowed Community post types remain on their existing rules path.
