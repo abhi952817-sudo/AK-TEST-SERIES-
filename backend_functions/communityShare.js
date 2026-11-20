@@ -112,20 +112,23 @@ function validateCommunityShareSource({
   const examId = cleanString(testData.examId);
   const stageId = cleanString(testData.stageId);
   const paperId = cleanString(testData.paperId);
-  const examYear = cleanString(String(testData.examYear || ""));
+  const sourceExamYear = cleanString(String(testData.examYear || ""));
   const scoringVersion = Number(testData.scoringVersion);
 
-  if (!examId || !stageId || !paperId || !/^20\d{2}$/.test(examYear) ||
+  if (!examId || !stageId || !paperId ||
       !Number.isInteger(scoringVersion) || scoringVersion < 1) {
-    fail("The source test is missing canonical exam, year, stage, paper, or scoring-version metadata.");
+    fail("The source test is missing canonical exam, stage, paper, or scoring-version metadata.");
   }
 
   const exam = registry.exams[examId];
   if (!exam || !cleanString(exam.examName)) fail("This exam is not registered for Community sharing.");
-  const yearPolicy = exam.years && exam.years[examYear];
-  if (!yearPolicy) fail("This exam year has no approved server-side Community scoring policy.");
-  if (Number(yearPolicy.scoringVersion) !== scoringVersion) {
-    fail("The source test scoring version does not match the approved exam-year policy.");
+  // The admin-owned registry binds each immutable scoringVersion to its official exam year.
+  // A source-side examYear, when present, must agree with that server-owned binding.
+  const yearPolicy = exam.scoringVersions && exam.scoringVersions[String(scoringVersion)];
+  if (!yearPolicy) fail("This exam scoring version has no approved server-side Community policy.");
+  const examYear = cleanString(String(yearPolicy.examYear || ""));
+  if (!/^20\d{2}$/.test(examYear) || (sourceExamYear && sourceExamYear !== examYear)) {
+    fail("The source test exam year does not match the approved server-side scoring-version policy.");
   }
 
   const stage = yearPolicy.stages && yearPolicy.stages[stageId];
