@@ -13,6 +13,14 @@ function requireKeyValue(value, name) {
   return value.trim();
 }
 
+function isValidVerifiedAt(value) {
+  if (typeof value !== "string" ||
+      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$/.test(value)) {
+    return false;
+  }
+  return Number.isFinite(Date.parse(value));
+}
+
 /**
  * Resolve one exact policy. No display-name matching, year inference, nearest
  * version, default exam, or generic marking fallback is permitted.
@@ -59,7 +67,10 @@ function resolveScoringPolicy(registry, key) {
   let sourceUrlIsValid = false;
   try {
     const parsedSourceUrl = new URL(source.url);
-    sourceUrlIsValid = parsedSourceUrl.protocol === "https:" && Boolean(parsedSourceUrl.hostname);
+    sourceUrlIsValid = parsedSourceUrl.protocol === "https:" &&
+      Boolean(parsedSourceUrl.hostname) &&
+      !parsedSourceUrl.username &&
+      !parsedSourceUrl.password;
   } catch (_) {
     sourceUrlIsValid = false;
   }
@@ -68,8 +79,7 @@ function resolveScoringPolicy(registry, key) {
     !sourceUrlIsValid ||
     typeof source.title !== "string" ||
     !source.title.trim() ||
-    typeof policy.verifiedAt !== "string" ||
-    !Number.isFinite(Date.parse(policy.verifiedAt)) ||
+    !isValidVerifiedAt(policy.verifiedAt) ||
     typeof policy.approvedBy !== "string" ||
     !policy.approvedBy.trim()
   ) {
