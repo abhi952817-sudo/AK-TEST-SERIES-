@@ -260,7 +260,7 @@ fun PrivateTestsVaultScreen(
                             onStartExam = { viewModel.initiateTest(test) },
                             onDirectPractice = { activePreviewTest = test },
                             onSaveToMemory = { viewModel.downloadTestOffline(test) },
-                            onShareToCommunity = { viewModel.shareTestToCommunity(test) }
+                            onShareToCommunity = { selectedSubject -> viewModel.shareTestToCommunity(test, selectedSubject) }
                         )
                     }
                 }
@@ -295,8 +295,9 @@ fun PrivateTestCardItem(
     onStartExam: () -> Unit,
     onDirectPractice: () -> Unit,
     onSaveToMemory: () -> Unit,
-    onShareToCommunity: (() -> Unit)? = null
+    onShareToCommunity: ((String) -> Unit)? = null
 ) {
+    var showCommunityShareDialog by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -477,7 +478,7 @@ fun PrivateTestCardItem(
             if (isOwner && onShareToCommunity != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedButton(
-                    onClick = onShareToCommunity,
+                    onClick = { showCommunityShareDialog = true },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("share_to_community_button"),
@@ -498,6 +499,17 @@ fun PrivateTestCardItem(
                 }
             }
         }
+    }
+
+    if (showCommunityShareDialog && onShareToCommunity != null) {
+        CommunityShareSubjectDialog(
+            test = test,
+            onDismiss = { showCommunityShareDialog = false },
+            onConfirm = { selectedSubject ->
+                showCommunityShareDialog = false
+                onShareToCommunity.invoke(selectedSubject)
+            }
+        )
     }
 }
 

@@ -271,10 +271,11 @@ function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, su
 /**
  * Authoritative Evaluation of Test Attempt
  */
-function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0) {
+function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0, options = {}) {
   const exam = String(targetExam || "NEET");
-  const baseScheme = getMarkingSchemeForExam(exam);
-  const isMultiScheme = hasMultipleMarkingSchemes(exam);
+  const useQuestionLevelMarks = options.useQuestionLevelMarks === true;
+  const baseScheme = useQuestionLevelMarks ? { pos: 0, neg: 0 } : getMarkingSchemeForExam(exam);
+  const isMultiScheme = useQuestionLevelMarks ? false : hasMultipleMarkingSchemes(exam);
   const isCat = exam.toLowerCase().includes("cat");
 
   let correctCount = 0;
@@ -286,6 +287,8 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   let maxPossible = 0.0;
 
   const sectionAttemptCounts = {};
+  const possibleMarksBySection = new Map();
+  const sectionLimits = new Map();
 
   for (const q of questions) {
     const qId = q.id;
@@ -294,23 +297,52 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     const correctOpt = q.correctAnswer ? String(q.correctAnswer).trim().toUpperCase() : "";
     const isKeyVerified = isAnswerKeyVerified(correctOpt);
 
-    const scheme = isMultiScheme
-      ? getMarkingSchemeForQuestion(exam, q.section, q.subject, q.questionType)
-      : baseScheme;
+    let scheme = useQuestionLevelMarks
+      ? { pos: 0, neg: 0 }
+      : (isMultiScheme
+        ? getMarkingSchemeForQuestion(exam, q.section, q.subject, q.questionType)
+        : baseScheme);
 
-    maxPossible += scheme.pos;
+    // Shared Community questions were validated against an admin-owned, year-specific
+    // registry before publication. Use those immutable question-level marks only for
+    // this trusted server-side path; all other tests keep the existing registry engine.
+    if (useQuestionLevelMarks) {
+      const questionPos = Number(q.positiveMarks);
+      const questionNeg = Number(q.negativeMarks);
+      if (!Number.isFinite(questionPos) || questionPos <= 0 ||
+          !Number.isFinite(questionNeg) || questionNeg < 0) {
+        const error = new Error("Shared test question has invalid verified marking metadata.");
+        error.code = "failed-precondition";
+        throw error;
+      }
+      scheme = { pos: questionPos, neg: questionNeg };
+    }
 
-    const isTitaOrNumerical = (q.questionType || "").toUpperCase() === "TITA" ||
-      (q.questionType || "").toUpperCase() === "NUMERICAL" ||
-      (q.questionType || "").toUpperCase() === "NUMERICAL_VALUE";
+    const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
+    const secLimit = useQuestionLevelMarks
+      ? (Number.isInteger(q.maxAttemptQuestions) && q.maxAttemptQuestions > 0 ? q.maxAttemptQuestions : null)
+      : getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
+    const sectionMarks = possibleMarksBySection.get(secKey) || [];
+    sectionMarks.push(scheme.pos);
+    possibleMarksBySection.set(secKey, sectionMarks);
+    if (sectionLimits.has(secKey) && sectionLimits.get(secKey) !== secLimit) {
+      const error = new Error("Questions in the same section have conflicting attempt limits.");
+      error.code = "failed-precondition";
+      throw error;
+    }
+    sectionLimits.set(secKey, secLimit);
 
-    const effectiveNegMark = (isCat && isTitaOrNumerical) ? 0.0 : scheme.neg;
+    const normalizedQuestionType = (q.questionType || "").toUpperCase();
+    const isTitaOrNumerical = normalizedQuestionType === "TITA" ||
+      normalizedQuestionType === "NUMERICAL" ||
+      normalizedQuestionType === "NUMERICAL_VALUE" ||
+      normalizedQuestionType === "NAT";
+
+    const effectiveNegMark = (!useQuestionLevelMarks && isCat && isTitaOrNumerical) ? 0.0 : scheme.neg;
 
     if (!userOpt || userOpt === "SKIPPED") {
       unansweredCount++;
     } else {
-      const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
-      const secLimit = getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
       const currentAttempts = sectionAttemptCounts[secKey] || 0;
 
       if (secLimit !== null && currentAttempts >= secLimit) {
@@ -334,6 +366,16 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     }
   }
 
+  // Maximum score respects the section's configured attempt cap. For sections
+  // with optional questions, only the highest allowed question marks contribute.
+  for (const [sectionKey, marks] of possibleMarksBySection.entries()) {
+    const limit = sectionLimits.get(sectionKey);
+    const eligibleMarks = limit === null
+      ? marks
+      : marks.slice().sort((a, b) => b - a).slice(0, limit);
+    maxPossible += eligibleMarks.reduce((total, value) => total + value, 0);
+  }
+
   // Round maxPossible and calculate final scores
   const rawScore = positiveMarksEarned - negativeMarksPenalty;
   const finalScore = Math.max(0.0, rawScore);
@@ -354,8 +396,13 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     accuracyPercent,
     percentile: 0.0, // Population-based percentile computed against candidate cohort
     timeSpentSeconds,
-    correctMarksPerQuestion: baseScheme.pos,
-    negativeMarksPerQuestion: baseScheme.neg,
+    correctMarksPerQuestion: useQuestionLevelMarks
+      ? (Number(questions[0] && questions[0].positiveMarks) || 0)
+      : baseScheme.pos,
+    negativeMarksPerQuestion: useQuestionLevelMarks
+      ? (Number(questions[0] && questions[0].negativeMarks) || 0)
+      : baseScheme.neg,
+    usesQuestionLevelMarks: useQuestionLevelMarks,
   };
 }
 

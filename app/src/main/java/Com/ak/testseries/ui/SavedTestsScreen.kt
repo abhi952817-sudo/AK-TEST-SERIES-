@@ -326,7 +326,7 @@ fun SavedTestsScreen(viewModel: NEETViewModel) {
                         currentUserId = viewModel.currentUserId.value,
                         onDeleteTest = { viewModel.promptDeleteTest(test) },
                         onReportIssue = { viewModel.openReportIssueDialog(test) },
-                        onShareToCommunity = { viewModel.shareTestToCommunity(test) }
+                        onShareToCommunity = { selectedSubject -> viewModel.shareTestToCommunity(test, selectedSubject) }
                     )
                 }
             }

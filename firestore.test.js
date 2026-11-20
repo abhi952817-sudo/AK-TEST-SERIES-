@@ -778,28 +778,91 @@ test("Private Test Ownership: ownerId and uploaderId are supported, missing owne
   await assertFails(aliceDb.collection("Tests_Data").doc("orphan_private_test").get());
 });
 
-test("Shared_Community_Tests: Creator can update, but cannot alter creatorId or uploaderId", async () => {
+test("Shared_Community_Tests: students cannot publish or modify shared test records directly", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
 
-  // Alice creates community test
-  await assertSucceeds(
+  await assertFails(
     aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").set({
-      title: "Shared Community Test",
+      title: "Forged Shared Test",
       creatorId: ALICE_UID,
       targetExam: "NEET"
     })
   );
 
-  // Bob cannot delete or alter Alice's community test
-  await assertFails(
-    bobDb.collection("Shared_Community_Tests").doc("alice_comm_test").delete()
+  await assertSucceeds(
+    adminDb.collection("Shared_Community_Tests").doc("alice_comm_test").set({
+      title: "Server Published Test",
+      creatorId: ALICE_UID,
+      targetExam: "NEET"
+    })
   );
 
-  // Alice cannot reassign creatorId to Bob
   await assertFails(
     aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").update({
-      creatorId: BOB_UID
+      title: "Client Tampering"
+    })
+  );
+
+  await assertSucceeds(
+    aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").get()
+  );
+});
+
+test("Shared_Community_Tests: public questions are readable but private answer keys are denied", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const adminDb = ctx.firestore();
+    await adminDb.collection("Shared_Community_Tests").doc("answer_test").set({
+      title: "Answer Separation Test",
+      creatorId: ALICE_UID
+    });
+    await adminDb.collection("Shared_Community_Tests").doc("answer_test")
+      .collection("questions").doc("q1").set({ questionText: "Public question" });
+    await adminDb.collection("Shared_Community_Tests").doc("answer_test")
+      .collection("private_keys").doc("answerKey").set({ correctAnswer: "A" });
+  });
+
+  await assertSucceeds(
+    aliceDb.collection("Shared_Community_Tests").doc("answer_test")
+      .collection("questions").doc("q1").get()
+  );
+  await assertFails(
+    aliceDb.collection("Shared_Community_Tests").doc("answer_test")
+      .collection("private_keys").doc("answerKey").get()
+  );
+});
+
+test("Community_Posts: students cannot create or convert a post into TEST_SHARE", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("forged_test_share").set({
+      title: "Fake Test",
+      content: "Forged card",
+      subject: "Physics",
+      targetExam: "NEET UG",
+      postType: "TEST_SHARE",
+      testId: "forged",
+      creatorId: ALICE_UID
+    })
+  );
+
+  await assertSucceeds(
+    aliceDb.collection("Community_Posts").doc("normal_post").set({
+      title: "Normal Discussion",
+      content: "A valid discussion post",
+      subject: "Physics",
+      targetExam: "NEET UG",
+      postType: "DISCUSSION",
+      creatorId: ALICE_UID
+    })
+  );
+  await assertFails(
+    aliceDb.collection("Community_Posts").doc("normal_post").update({
+      postType: "TEST_SHARE"
     })
   );
 });

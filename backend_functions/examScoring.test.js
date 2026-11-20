@@ -395,3 +395,83 @@ test("Ranking snapshot rejects unavailable and inconsistent counts instead of fa
     percentile: 80,
   });
 });
+
+test("Trusted Community grading uses verified per-question marking metadata", () => {
+  const questions = [
+    {
+      id: "community_q1",
+      correctAnswer: "A",
+      section: "SECTION_A",
+      subject: "Physics",
+      questionType: "MCQ_SINGLE",
+      positiveMarks: 3,
+      negativeMarks: 0.5
+    },
+    {
+      id: "community_q2",
+      correctAnswer: "B",
+      section: "SECTION_A",
+      subject: "Physics",
+      questionType: "MCQ_SINGLE",
+      positiveMarks: 5,
+      negativeMarks: 1
+    }
+  ];
+  const result = evaluateTestAttempt(
+    "NEET UG",
+    questions,
+    { community_q1: { ans: "C" }, community_q2: { ans: "B" } },
+    60,
+    { useQuestionLevelMarks: true }
+  );
+  assert.strictEqual(result.positiveMarksEarned, 5);
+  assert.strictEqual(result.negativeMarksPenalty, 0.5);
+  assert.strictEqual(result.finalScore, 4.5);
+  assert.strictEqual(result.maxScore, 8);
+});
+
+test("Trusted Community grading fails closed when question-level marks are missing", () => {
+  assert.throws(() => evaluateTestAttempt(
+    "NEET UG",
+    [{ id: "community_q1", correctAnswer: "A", section: "SECTION_A", subject: "Physics" }],
+    { community_q1: { ans: "A" } },
+    60,
+    { useQuestionLevelMarks: true }
+  ), /invalid verified marking metadata/i);
+});
+
+test("Trusted Community scoring applies the registry's optional section attempt cap", () => {
+  const questions = [
+    {
+      id: "optional_q1",
+      correctAnswer: "A",
+      section: "optional_section",
+      subject: "Physics",
+      questionType: "MCQ_SINGLE",
+      positiveMarks: 4,
+      negativeMarks: 1,
+      maxAttemptQuestions: 1
+    },
+    {
+      id: "optional_q2",
+      correctAnswer: "A",
+      section: "optional_section",
+      subject: "Physics",
+      questionType: "MCQ_SINGLE",
+      positiveMarks: 5,
+      negativeMarks: 1,
+      maxAttemptQuestions: 1
+    }
+  ];
+  const result = evaluateTestAttempt(
+    "NEET UG",
+    questions,
+    { optional_q1: { ans: "A" }, optional_q2: { ans: "A" } },
+    30,
+    { useQuestionLevelMarks: true }
+  );
+  assert.strictEqual(result.correctCount, 1);
+  assert.strictEqual(result.unansweredCount, 1);
+  assert.strictEqual(result.finalScore, 4);
+  assert.strictEqual(result.maxScore, 5);
+});

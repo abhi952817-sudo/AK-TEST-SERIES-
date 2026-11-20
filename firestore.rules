@@ -261,22 +261,19 @@ service cloud.firestore {
     // Update/Delete: Creator or Verified Admin (creatorId and uploaderId cannot be forged or altered)
     // =========================================================================
     match /Shared_Community_Tests/{testId} {
+      // The source test is published only by shareTestToCommunity using the Admin SDK.
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && !isUserBanned(request.auth.uid) && (
-        request.resource.data.get('creatorId', '') == request.auth.uid
-        || request.resource.data.get('uploaderId', '') == request.auth.uid
-      );
-      allow update: if isAdmin() || (
-        isAuthenticated()
-        && !isUserBanned(request.auth.uid)
-        && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'uploaderId'])
-      );
-      allow delete: if isAdmin() || (
-        isAuthenticated()
-        && !isUserBanned(request.auth.uid)
-        && (resource.data.get('creatorId', '') == request.auth.uid || resource.data.get('uploaderId', '') == request.auth.uid)
-      );
+      allow create, update, delete: if isAdmin();
+
+      match /questions/{questionId} {
+        allow read: if isAuthenticated();
+        allow write: if false;
+      }
+
+      // Answer keys are private even from authenticated owners and Community readers.
+      match /private_keys/{keyId} {
+        allow read, write: if false;
+      }
     }
 
     match /Community_Posts/{postId} {
@@ -288,6 +285,7 @@ service cloud.firestore {
       allow create: if isAuthenticated()
                     && !isUserBanned(request.auth.uid)
                     && request.resource.data.creatorId == request.auth.uid
+                    && request.resource.data.postType != 'TEST_SHARE'
                     && request.resource.data.keys().hasOnly([
                       'id', 'authorName', 'authorSubtitle', 'isOfficial', 'isMonitor',
                       'timeAgo', 'title', 'content', 'isPinned', 'upvotes', 'comments',
@@ -322,6 +320,8 @@ service cloud.firestore {
                     || (isAuthenticated()
                         && !isUserBanned(request.auth.uid)
                         && resource.data.creatorId == request.auth.uid
+                        && resource.data.postType != 'TEST_SHARE'
+                        && request.resource.data.postType != 'TEST_SHARE'
                         && request.resource.data.diff(resource.data).affectedKeys()
                             .hasOnly(['title', 'content', 'subject', 'targetExam', 'imageUrl'])
                         && request.resource.data.subject is string

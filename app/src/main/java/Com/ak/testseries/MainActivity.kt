@@ -1568,7 +1568,7 @@ fun HomeTabScreen(viewModel: NEETViewModel) {
                     currentUserId = viewModel.currentUserId.value,
                     onDeleteTest = { viewModel.promptDeleteTest(otherTests[index]) },
                     onReportIssue = { viewModel.openReportIssueDialog(otherTests[index]) },
-                    onShareToCommunity = { viewModel.shareTestToCommunity(otherTests[index]) }
+                    onShareToCommunity = { selectedSubject -> viewModel.shareTestToCommunity(otherTests[index], selectedSubject) }
                 )
             }
         }
@@ -1829,7 +1829,7 @@ fun SearchTabScreen(viewModel: NEETViewModel) {
                         currentUserId = viewModel.currentUserId.value,
                         onDeleteTest = { viewModel.promptDeleteTest(test) },
                         onReportIssue = { viewModel.openReportIssueDialog(test) },
-                        onShareToCommunity = { viewModel.shareTestToCommunity(test) }
+                        onShareToCommunity = { selectedSubject -> viewModel.shareTestToCommunity(test, selectedSubject) }
                     )
                 }
             }
@@ -3102,6 +3102,7 @@ fun AiStateStep(title: String, isPassed: Boolean) {
 // ==========================================
 @Composable
 fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.domain.auth.AuthManager) {
+    var shareDialogTest by remember { mutableStateOf<Com.ak.testseries.data.TestEntity?>(null) }
     val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
     val history by viewModel.attemptHistory.collectAsStateWithLifecycle()
     val testsList by viewModel.testsList.collectAsStateWithLifecycle()
@@ -3348,7 +3349,7 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
                                 ) {
                                     Text(test.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
                                     IconButton(
-                                        onClick = { viewModel.shareTestToCommunity(test) },
+                                        onClick = { shareDialogTest = test },
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
@@ -3583,6 +3584,17 @@ fun ProfileTabScreen(viewModel: NEETViewModel, authManager: Com.ak.testseries.do
                 TextButton(onClick = { testToMove = null }) {
                     Text(stringRes("Cancel"))
                 }
+            }
+        )
+    }
+
+    shareDialogTest?.let { shareTest ->
+        Com.ak.testseries.ui.CommunityShareSubjectDialog(
+            test = shareTest,
+            onDismiss = { shareDialogTest = null },
+            onConfirm = { selectedSubject ->
+                shareDialogTest = null
+                viewModel.shareTestToCommunity(shareTest, selectedSubject)
             }
         )
     }
@@ -5378,6 +5390,7 @@ fun FullScreenSolutionPage(
     val solutionsFetchError by viewModel.solutionsFetchError.collectAsStateWithLifecycle()
     var isDoubtSolverOpen by remember { mutableStateOf(false) }
     var activeDoubtTab by remember { mutableStateOf(DoubtTab.AI) }
+    var showCommunityShareDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -5435,7 +5448,7 @@ fun FullScreenSolutionPage(
                                 text = { Text(stringRes("Share to Community")) },
                                 onClick = {
                                     expanded = false
-                                    viewModel.shareTestToCommunity(test)
+                                    showCommunityShareDialog = true
                                 }
                             )
                             DropdownMenuItem(
@@ -5883,6 +5896,17 @@ fun FullScreenSolutionPage(
                 onClose = { isDoubtSolverOpen = false }
             )
         }
+    }
+
+    if (showCommunityShareDialog) {
+        Com.ak.testseries.ui.CommunityShareSubjectDialog(
+            test = test,
+            onDismiss = { showCommunityShareDialog = false },
+            onConfirm = { selectedSubject ->
+                showCommunityShareDialog = false
+                viewModel.shareTestToCommunity(test, selectedSubject)
+            }
+        )
     }
 }
 
