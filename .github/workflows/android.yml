@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "integration/ak-test-series-complete-2026-11-20" ]
   pull_request:
     branches: [ "main" ]
 
