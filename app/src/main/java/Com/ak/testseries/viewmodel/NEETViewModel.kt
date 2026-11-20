@@ -3240,6 +3240,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     optionBHi = (data["optionBHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                     optionCHi = (data["optionCHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                     optionDHi = (data["optionDHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                    optionEHi = (data["optionEHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                     questionType = questionType,
                     section = (data["section"] as? String)?.trim().orEmpty(),
                     imageUrl = imageUrl.takeIf { it.isNotBlank() }
