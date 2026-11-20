@@ -528,7 +528,6 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
   let solutionKeys = {};
   try {
-    const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
     const keyValidationData = isTrustedCommunityTest
       ? { ...testData, countsTowardRanking: true, isOfficial: true }
       : testData;
@@ -1100,6 +1099,7 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   }
 
   const testData = testDoc.data();
+  const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
   const isCallerAdmin = Boolean(
     context.auth.token && (
       context.auth.token.admin === true ||
