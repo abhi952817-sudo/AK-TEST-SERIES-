@@ -56,10 +56,16 @@ function resolveScoringPolicy(registry, key) {
 
   const policy = matches[0];
   const source = policy.source || {};
+  let sourceUrlIsValid = false;
+  try {
+    const parsedSourceUrl = new URL(source.url);
+    sourceUrlIsValid = parsedSourceUrl.protocol === "https:" && Boolean(parsedSourceUrl.hostname);
+  } catch (_) {
+    sourceUrlIsValid = false;
+  }
   if (
     policy.status !== "APPROVED" ||
-    typeof source.url !== "string" ||
-    !/^https:\/\//i.test(source.url) ||
+    !sourceUrlIsValid ||
     typeof source.title !== "string" ||
     !source.title.trim() ||
     typeof policy.verifiedAt !== "string" ||
@@ -138,13 +144,17 @@ function validateVersionedTestScoring(registry, testData, questions) {
       questionType: question.questionType
     });
 
-    if (question.positiveMarks != null &&
-        Math.abs(Number(question.positiveMarks) - policy.positiveMarks) > 0.01) {
-      throw scoringError(`Question ${id} positive marks conflict with the approved policy.`);
+    if (question.positiveMarks != null) {
+      const suppliedPositive = Number(question.positiveMarks);
+      if (!Number.isFinite(suppliedPositive) || Math.abs(suppliedPositive - policy.positiveMarks) > 0.01) {
+        throw scoringError(`Question ${id} positive marks conflict with the approved policy.`);
+      }
     }
-    if (question.negativeMarks != null &&
-        Math.abs(Number(question.negativeMarks) - policy.negativeMarks) > 0.01) {
-      throw scoringError(`Question ${id} negative marks conflict with the approved policy.`);
+    if (question.negativeMarks != null) {
+      const suppliedNegative = Number(question.negativeMarks);
+      if (!Number.isFinite(suppliedNegative) || Math.abs(suppliedNegative - policy.negativeMarks) > 0.01) {
+        throw scoringError(`Question ${id} negative marks conflict with the approved policy.`);
+      }
     }
 
     const subject = policy.subjectName || question.subject;
