@@ -151,3 +151,17 @@ test("rejects an MCQ answer key that does not map to an available option", () =>
     testId: "test-1", ownerUid: "student-1", testData: data, registry, selectedSubject: "Physics"
   }), /answer key/i);
 });
+
+test("copies the registry's optional section attempt limit into the public question projection", () => {
+  const registryWithLimit = JSON.parse(JSON.stringify(registry));
+  registryWithLimit.exams.neet_ug.scoringVersions["2"].stages.neet_main
+    .papers.neet_paper_1.subjects[0].sections[0].maxAttemptQuestions = 1;
+  const result = validateCommunityShareSource({
+    testId: "test-1",
+    ownerUid: "student-1",
+    testData: sourceTest(),
+    registry: registryWithLimit,
+    selectedSubject: "Physics"
+  });
+  assert.equal(result.publicQuestions[0].maxAttemptQuestions, 1);
+});
