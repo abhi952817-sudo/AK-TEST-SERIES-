@@ -160,6 +160,12 @@ function validateCommunityShareSource({
 
   const exam = registry.exams[examId];
   if (!exam || !cleanString(exam.examName)) fail("This exam is not registered for Community sharing.");
+  const targetExam = cleanString(testData.targetExam);
+  const allowedExamNames = [exam.examName, ...(Array.isArray(exam.aliases) ? exam.aliases : [])]
+    .map(normalized);
+  if (targetExam && !allowedExamNames.includes(normalized(targetExam))) {
+    fail("The source test display exam name conflicts with its canonical exam ID.");
+  }
   // The admin-owned registry binds each immutable scoringVersion to its official exam year.
   // A source-side examYear, when present, must agree with that server-owned binding.
   const yearPolicy = exam.scoringVersions && exam.scoringVersions[String(scoringVersion)];
@@ -239,6 +245,11 @@ function validateCommunityShareSource({
       cleanString(item.sectionId) === sectionId ||
       normalized(item.sectionName) === normalized(sectionId)
     );
+    const sourceSectionName = cleanString(source.sectionName);
+    if (sourceSectionName && section &&
+        normalized(sourceSectionName) !== normalized(section.sectionName)) {
+      fail("A question's section ID and section name conflict with the approved exam mapping.");
+    }
     const typeRule = getQuestionTypeRule(section, questionType);
     if (!section || !typeRule ||
         !finiteNumber(typeRule.positiveMarks) || !finiteNumber(typeRule.negativeMarks)) {
