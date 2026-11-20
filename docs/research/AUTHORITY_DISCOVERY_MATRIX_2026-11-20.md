@@ -61,7 +61,7 @@ https://nta.gov.in/cms/uploads/202610161905649093_10704d6197.pdf
 - Pattern: Paper I = 50 questions / 100 marks; Paper II = 100 questions / 200 marks; total duration 180 minutes, without a break; all questions compulsory.
 - Each correct response receives 2 marks; there is no negative marking.
 - The subject-specific syllabus is published on UGC's syllabus portal: https://www.ugcnetonline.in/syllabus-new.php
-- NTA's English overview reports 85 subjects while the Hindi overview surfaced 87. Count the actual current Annexure-II subject list and reconcile the discrepancy before importing the subject registry.
+- The corrected December-2026 bulletin's Annexure-II lists subjects numbered 1 through 87, so the authoritative count is 87. NTA's English overview page shows 85, which is stale/inconsistent with the updated bulletin; use the corrected Annexure-II list and record the portal discrepancy.
 - The 16-Oct corrigendum changes dates and some candidate instructions; do not ignore it when consuming the base bulletin.
 
 ### CUET UG 2026
