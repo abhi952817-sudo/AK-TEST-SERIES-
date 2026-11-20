@@ -135,8 +135,12 @@ function validateCommunityShareSource({
     fail("The server-side Community exam registry is not configured.");
   }
 
-  const owner = cleanString(testData.uploaderId || testData.creatorId || testData.ownerId);
-  if (!owner || owner !== ownerUid) fail("Only the authenticated source-test owner can share this test.", "permission-denied");
+  const ownerFields = ["uploaderId", "creatorId", "ownerId"]
+    .map(field => cleanString(testData[field]))
+    .filter(Boolean);
+  if (ownerFields.length === 0 || ownerFields.some(owner => owner !== ownerUid)) {
+    fail("Only the authenticated source-test owner can share this test.", "permission-denied");
+  }
 
   const status = cleanString(testData.status);
   if (!["PUBLISHED", "APPROVED"].includes(status.toUpperCase())) {
