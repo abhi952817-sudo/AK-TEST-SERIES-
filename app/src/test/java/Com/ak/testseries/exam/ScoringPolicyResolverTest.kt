@@ -40,15 +40,22 @@ class ScoringPolicyResolverTest {
 
     @Test
     fun resolvesOnlyTheExactVersionedKey() {
-        val resolved = ScoringPolicyResolver.resolve("ACTIVE", listOf(policy()), key)
+        val resolved = ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy()), key)
         assertEquals(4.0, resolved.positiveMarks, 0.001)
         assertEquals(1.0, resolved.negativeMarks, 0.001)
     }
 
     @Test
+    fun rejectsUnsupportedRegistrySchema() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ScoringPolicyResolver.resolve(2, "ACTIVE", listOf(policy()), key)
+        }
+    }
+
+    @Test
     fun rejectsInactiveRegistry() {
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("DRAFT", listOf(policy()), key)
+            ScoringPolicyResolver.resolve(1, "DRAFT", listOf(policy()), key)
         }
     }
 
@@ -56,45 +63,45 @@ class ScoringPolicyResolverTest {
     fun rejectsUnknownYearAndDuplicatePolicies() {
         val wrongYear = policy { copy(examYear = "2025") }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(wrongYear), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(wrongYear), key)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy(), policy()), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy(), policy()), key)
         }
     }
 
     @Test
     fun rejectsUnapprovedOrUnverifiablePolicies() {
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(status = "DRAFT") }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(status = "DRAFT") }), key)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(sourceUrl = "http://example.gov") }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(sourceUrl = "http://example.gov") }), key)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(sourceUrl = "https://") }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(sourceUrl = "https://") }), key)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(sourceUrl = "https://user:pass@example.gov/bulletin.pdf") }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(sourceUrl = "https://user:pass@example.gov/bulletin.pdf") }), key)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(verifiedAt = "not-a-date") }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(verifiedAt = "not-a-date") }), key)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(verifiedAt = "2026-02-30T10:00:00Z") }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(verifiedAt = "2026-02-30T10:00:00Z") }), key)
         }
     }
 
     @Test
     fun rejectsInvalidMarksAndAttemptLimits() {
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(positiveMarks = 0.0) }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(positiveMarks = 0.0) }), key)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(negativeMarks = -0.25) }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(negativeMarks = -0.25) }), key)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(maxAttemptQuestions = 0) }), key)
+            ScoringPolicyResolver.resolve(1, "ACTIVE", listOf(policy { copy(maxAttemptQuestions = 0) }), key)
         }
     }
 }
