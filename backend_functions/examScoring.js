@@ -273,8 +273,9 @@ function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, su
  */
 function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0, options = {}) {
   const exam = String(targetExam || "NEET");
-  const baseScheme = getMarkingSchemeForExam(exam);
-  const isMultiScheme = hasMultipleMarkingSchemes(exam);
+  const useQuestionLevelMarks = options.useQuestionLevelMarks === true;
+  const baseScheme = useQuestionLevelMarks ? { pos: 0, neg: 0 } : getMarkingSchemeForExam(exam);
+  const isMultiScheme = useQuestionLevelMarks ? false : hasMultipleMarkingSchemes(exam);
   const isCat = exam.toLowerCase().includes("cat");
 
   let correctCount = 0;
@@ -294,14 +295,16 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     const correctOpt = q.correctAnswer ? String(q.correctAnswer).trim().toUpperCase() : "";
     const isKeyVerified = isAnswerKeyVerified(correctOpt);
 
-    let scheme = isMultiScheme
-      ? getMarkingSchemeForQuestion(exam, q.section, q.subject, q.questionType)
-      : baseScheme;
+    let scheme = useQuestionLevelMarks
+      ? { pos: 0, neg: 0 }
+      : (isMultiScheme
+        ? getMarkingSchemeForQuestion(exam, q.section, q.subject, q.questionType)
+        : baseScheme);
 
     // Shared Community questions were validated against an admin-owned, year-specific
     // registry before publication. Use those immutable question-level marks only for
     // this trusted server-side path; all other tests keep the existing registry engine.
-    if (options.useQuestionLevelMarks === true) {
+    if (useQuestionLevelMarks) {
       const questionPos = Number(q.positiveMarks);
       const questionNeg = Number(q.negativeMarks);
       if (!Number.isFinite(questionPos) || questionPos <= 0 ||
@@ -369,8 +372,13 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     accuracyPercent,
     percentile: 0.0, // Population-based percentile computed against candidate cohort
     timeSpentSeconds,
-    correctMarksPerQuestion: baseScheme.pos,
-    negativeMarksPerQuestion: baseScheme.neg,
+    correctMarksPerQuestion: useQuestionLevelMarks
+      ? (Number(questions[0] && questions[0].positiveMarks) || 0)
+      : baseScheme.pos,
+    negativeMarksPerQuestion: useQuestionLevelMarks
+      ? (Number(questions[0] && questions[0].negativeMarks) || 0)
+      : baseScheme.neg,
+    usesQuestionLevelMarks: useQuestionLevelMarks,
   };
 }
 
