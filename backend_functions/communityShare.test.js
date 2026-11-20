@@ -9,9 +9,9 @@ const registry = {
   exams: {
     neet_ug: {
       examName: "NEET UG",
-      years: {
-        "2026": {
-          scoringVersion: 2,
+      scoringVersions: {
+        "2": {
+          examYear: "2026",
           syllabusVersion: "neet-2026-v1",
           stages: {
             neet_main: {
@@ -123,7 +123,7 @@ test("rejects unverified or non-Gemini questions", () => {
   }), /verified/i);
 });
 
-test("rejects missing year-specific registry policies", () => {
+test("rejects source year that conflicts with the server-owned scoring-version year", () => {
   assert.throws(() => validateCommunityShareSource({
     testId: "test-1",
     ownerUid: "student-1",
