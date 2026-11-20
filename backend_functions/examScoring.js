@@ -287,6 +287,8 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   let maxPossible = 0.0;
 
   const sectionAttemptCounts = {};
+  const possibleMarksBySection = new Map();
+  const sectionLimits = new Map();
 
   for (const q of questions) {
     const qId = q.id;
@@ -316,7 +318,19 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
       scheme = { pos: questionPos, neg: questionNeg };
     }
 
-    maxPossible += scheme.pos;
+    const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
+    const secLimit = useQuestionLevelMarks
+      ? (Number.isInteger(q.maxAttemptQuestions) && q.maxAttemptQuestions > 0 ? q.maxAttemptQuestions : null)
+      : getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
+    const sectionMarks = possibleMarksBySection.get(secKey) || [];
+    sectionMarks.push(scheme.pos);
+    possibleMarksBySection.set(secKey, sectionMarks);
+    if (sectionLimits.has(secKey) && sectionLimits.get(secKey) !== secLimit) {
+      const error = new Error("Questions in the same section have conflicting attempt limits.");
+      error.code = "failed-precondition";
+      throw error;
+    }
+    sectionLimits.set(secKey, secLimit);
 
     const normalizedQuestionType = (q.questionType || "").toUpperCase();
     const isTitaOrNumerical = normalizedQuestionType === "TITA" ||
@@ -329,10 +343,6 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     if (!userOpt || userOpt === "SKIPPED") {
       unansweredCount++;
     } else {
-      const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
-      const secLimit = useQuestionLevelMarks
-        ? (Number.isInteger(q.maxAttemptQuestions) && q.maxAttemptQuestions > 0 ? q.maxAttemptQuestions : null)
-        : getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
       const currentAttempts = sectionAttemptCounts[secKey] || 0;
 
       if (secLimit !== null && currentAttempts >= secLimit) {
@@ -354,6 +364,16 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
         }
       }
     }
+  }
+
+  // Maximum score respects the section's configured attempt cap. For sections
+  // with optional questions, only the highest allowed question marks contribute.
+  for (const [sectionKey, marks] of possibleMarksBySection.entries()) {
+    const limit = sectionLimits.get(sectionKey);
+    const eligibleMarks = limit === null
+      ? marks
+      : marks.slice().sort((a, b) => b - a).slice(0, limit);
+    maxPossible += eligibleMarks.reduce((total, value) => total + value, 0);
   }
 
   // Round maxPossible and calculate final scores
