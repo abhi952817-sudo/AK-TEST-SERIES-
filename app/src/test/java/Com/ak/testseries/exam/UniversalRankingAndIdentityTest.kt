@@ -217,7 +217,7 @@ class UniversalRankingAndIdentityTest {
             sectionNameOrId = "Section B",
             subjectName = "Physics"
         )
-        assertEquals("NEET Section B allows maximum 10 attempts", 10, neetLimit)
+        assertNull("NEET UG 2026 has no Section B", neetLimit)
 
         val jeeLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
             examName = "JEE Main",
