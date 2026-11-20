@@ -280,9 +280,10 @@ function validateCommunityShareSource({
 
   const durationMinutes = Number(testData.durationMinutes);
   const totalMarks = Number(testData.totalMarks);
-  if (!Number.isInteger(durationMinutes) || durationMinutes <= 0 ||
+  if (!cleanString(testData.title) ||
+      !Number.isInteger(durationMinutes) || durationMinutes <= 0 ||
       !finiteNumber(totalMarks) || totalMarks <= 0) {
-    fail("The source test is missing valid duration or total-marks metadata.");
+    fail("The source test is missing a title, valid duration, or total-marks metadata.");
   }
 
   return {
