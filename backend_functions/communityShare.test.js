@@ -210,3 +210,13 @@ test("accepts finite numeric answer keys for numerical question types", () => {
   });
   assert.equal(result.privateKeys[0].correctAnswer, "3.5");
 });
+
+test("rejects conflicting owner identifiers on the source test record", () => {
+  assert.throws(() => validateCommunityShareSource({
+    testId: "test-1",
+    ownerUid: "student-1",
+    testData: sourceTest({ creatorId: "different-user" }),
+    registry,
+    selectedSubject: "Physics"
+  }), /owner/i);
+});
