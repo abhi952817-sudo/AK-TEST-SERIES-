@@ -70,7 +70,7 @@ fun CommunityShareSubjectDialog(
         exam == null -> "यह परीक्षा स्थानीय Exam Registry में नहीं मिली।"
         stage == null -> "इस टेस्ट का Stage ID गायब है या Registry में एक से अधिक Stage हैं। पहले सही Stage metadata जोड़ना जरूरी है।"
         paper == null -> "इस टेस्ट का Paper ID गायब है या चुने हुए Stage में एक से अधिक Paper हैं। बिना सही Paper के शेयर नहीं किया जा सकता।"
-        subjectOptions.isEmpty() -> "इस Exam, Stage और Paper के लिए कोई सत्यापित Subject mapping उपलब्ध नहीं है।"
+        subjectOptions.isEmpty() -> "इस Exam, Stage और Paper के लिए कोई Subject mapping उपलब्ध नहीं है।"
         else -> null
     }
 
