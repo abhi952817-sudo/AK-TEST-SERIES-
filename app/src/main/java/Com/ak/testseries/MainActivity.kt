@@ -5897,10 +5897,6 @@ fun FullScreenSolutionPage(
             )
         }
     }
-}
-
-enum class DoubtTab {
-    AI, YOUTUBE, GOOGLE
 
     if (showCommunityShareDialog) {
         Com.ak.testseries.ui.CommunityShareSubjectDialog(
@@ -5912,6 +5908,10 @@ enum class DoubtTab {
             }
         )
     }
+}
+
+enum class DoubtTab {
+    AI, YOUTUBE, GOOGLE
 }
 
 @Composable
