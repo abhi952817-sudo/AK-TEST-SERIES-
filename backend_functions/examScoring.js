@@ -360,6 +360,27 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
 }
 
 /**
+ * Creates a per-test ranking snapshot only from valid population counts.
+ * Returns null when the query result is missing, malformed or inconsistent.
+ */
+function createRankingSnapshot(higherCount, existingCount) {
+  const higher = higherCount;
+  const existing = existingCount;
+  if (!Number.isSafeInteger(higher) || higher < 0 ||
+      !Number.isSafeInteger(existing) || existing < 0 ||
+      higher > existing) {
+    return null;
+  }
+  const testRank = higher + 1;
+  const testTotalCandidates = existing + 1;
+  return {
+    testRank,
+    testTotalCandidates,
+    percentile: calculatePopulationPercentile(testRank, testTotalCandidates),
+  };
+}
+
+/**
  * Calculates genuine population-based percentile rank:
  * P = ((totalEligible - rank + 1) / totalEligible) * 100
  * Handles all boundary conditions deterministically.
@@ -502,6 +523,7 @@ module.exports = {
   getMaximumAttemptQuestionsCountForSection,
   evaluateTestAttempt,
   calculatePopulationPercentile,
+  createRankingSnapshot,
   calculateScorePercentileFromCounts,
   validateAndMergeAnswerKeys,
   getExamEligibility,
