@@ -502,7 +502,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
   let solutionKeys = {};
   try {
-    const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
+    const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
+    const keyValidationData = isTrustedCommunityTest
+      ? { ...testData, countsTowardRanking: true, isOfficial: true }
+      : testData;
+    const validated = validateAndMergeAnswerKeys(keyValidationData, questions, privateKeyData);
     questions = validated.questions;
     solutionKeys = validated.solutionKeys;
   } catch (err) {
@@ -1129,7 +1133,11 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
   let solutionKeys = {};
   try {
-    const validated = validateAndMergeAnswerKeys(testData, questions, privateKeyData);
+    const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
+    const keyValidationData = isTrustedCommunityTest
+      ? { ...testData, countsTowardRanking: true, isOfficial: true }
+      : testData;
+    const validated = validateAndMergeAnswerKeys(keyValidationData, questions, privateKeyData);
     solutionKeys = validated.solutionKeys;
   } catch (err) {
     throw new functions.https.HttpsError(err.code || "failed-precondition", err.message);
