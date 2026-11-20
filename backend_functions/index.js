@@ -211,9 +211,9 @@ exports.shareTestToCommunity = functions.https.onCall(async (data, context) => {
     isOfficial: false,
     isMonitor: false,
     timeAgo: "Just now",
-    title: "Shared Test: " + validated.title,
-    content: validated.description || ("Verified " + validated.examName + " test with " +
-      validated.questionCount + " questions."),
+    title: ("Shared Test: " + validated.title).slice(0, 120),
+    content: (validated.description || ("Verified " + validated.examName + " test with " +
+      validated.questionCount + " questions.")).slice(0, 5000),
     isPinned: false,
     upvotes: 0,
     comments: 0,
