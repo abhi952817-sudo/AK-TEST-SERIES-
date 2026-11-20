@@ -2,7 +2,7 @@ name: Community Firebase Rules CI
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "integration/ak-test-series-complete-2026-11-20" ]
     paths:
       - "firestore.rules"
       - "storage.rules"
