@@ -300,11 +300,16 @@ function validateCommunityShareSource({
       if (value) publicQuestion[field] = value;
     }
     publicQuestions.push(publicQuestion);
+    const explanation = cleanString(source.explanation || source.explanationEn);
+    const explanationHi = cleanString(source.explanationHi);
+    if (answer.length > 100 || explanation.length > 4000 || explanationHi.length > 4000) {
+      fail("A private answer key or explanation exceeds the safe storage limit.");
+    }
     privateKeys.push({
       id,
       correctAnswer: answer,
-      explanation: cleanString(source.explanation || source.explanationEn),
-      explanationHi: cleanString(source.explanationHi)
+      explanation,
+      explanationHi
     });
   }
 
