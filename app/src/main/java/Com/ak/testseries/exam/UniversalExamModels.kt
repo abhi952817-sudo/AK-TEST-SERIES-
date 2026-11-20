@@ -135,7 +135,12 @@ data class ExamConfig(
     val language: String = "Bilingual (English & Hindi)",
     val defaultOptionCount: Int = 4,
     val active: Boolean = true,
-    val verified: Boolean = false // Indicates if the configuration has been audited/verified
+    val verified: Boolean = false, // Only true when the configured exam-year pattern has authoritative source verification.
+    val examYear: String? = null,
+    val scoringVersion: String? = null,
+    val sourceUrl: String? = null,
+    val sourceTitle: String? = null,
+    val verifiedAt: String? = null
 )
 
 typealias ExamPatternConfig = ExamConfig
