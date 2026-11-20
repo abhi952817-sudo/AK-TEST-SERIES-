@@ -10,7 +10,7 @@ This is a read-only comparison report plus documentation on the integration bran
 
 ## Current integration CI
 Workflow run: 44714010245 (Android CI, run 698).
-At audit refresh: in_progress. Completed steps: checkout, JDK 21, Gradle setup, environment setup, debug keystore, Firebase Functions JavaScript syntax, Backend Scoring Tests, and Android Unit Tests all succeeded. Gradle build and APK upload had not completed. Therefore CI is NOT yet fully green.
+Final result for integration code commit c58438cf2235436c25c37b69fb32f8c2b20c8189: completed / success. The build job completed; JavaScript syntax, Backend Scoring Tests, Android Unit Tests, Gradle build, and APK upload all succeeded. The subsequent commits b999f7f and 081c7c9 update only this Markdown report; no application source changed in those two commits.
 
 ## Unique branch comparison inventory
 The following counts and changed-file paths are GitHub compare results against the integration branch. "Ahead" means commits unique to the compared branch relative to integration; "behind" means integration has commits absent from that branch. Large diverged branches are not safe for wholesale merging.
@@ -135,4 +135,4 @@ Before deletion, verify no open PR head/base, workflow reference, deployment env
 - Deployment workflow provisions Firebase secrets and deploys a callable. Keep it unexecuted pending explicit production deployment approval.
 
 ### CI and integration status
-The integration commit that added this report is b999f7f96c174fdec3416e8614cb7a150ab8fd51. It changes documentation only. The previous Android CI run 44714010245 was still running at the last poll; its Android unit-test step had succeeded, while Gradle build/APK upload were pending. A new commit may cause another PR workflow run; check the exact latest PR head before declaring CI green.
+The extended report was added in b999f7f96c174fdec3416e8614cb7a150ab8fd51 and then updated in 081c7c9c68faac8b0e5cdce434984ea2146bfa6e. Both commits change documentation only. Android CI run 44714010245 for the application-code integration commit c58438cf2235436c25c37b69fb32f8c2b20c8189 completed successfully, including Gradle build and APK upload. The report-only commits were not separately built because they do not change application code.
