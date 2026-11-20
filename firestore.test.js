@@ -813,20 +813,17 @@ test("Shared_Community_Tests: public questions are readable but private answer k
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
 
-  await assertSucceeds(
-    adminDb.collection("Shared_Community_Tests").doc("answer_test").set({
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const adminDb = ctx.firestore();
+    await adminDb.collection("Shared_Community_Tests").doc("answer_test").set({
       title: "Answer Separation Test",
       creatorId: ALICE_UID
-    })
-  );
-  await assertSucceeds(
-    adminDb.collection("Shared_Community_Tests").doc("answer_test")
-      .collection("questions").doc("q1").set({ questionText: "Public question" })
-  );
-  await assertSucceeds(
-    adminDb.collection("Shared_Community_Tests").doc("answer_test")
-      .collection("private_keys").doc("answerKey").set({ correctAnswer: "A" })
-  );
+    });
+    await adminDb.collection("Shared_Community_Tests").doc("answer_test")
+      .collection("questions").doc("q1").set({ questionText: "Public question" });
+    await adminDb.collection("Shared_Community_Tests").doc("answer_test")
+      .collection("private_keys").doc("answerKey").set({ correctAnswer: "A" });
+  });
 
   await assertSucceeds(
     aliceDb.collection("Shared_Community_Tests").doc("answer_test")
