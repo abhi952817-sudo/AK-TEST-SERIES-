@@ -153,6 +153,18 @@ exports.shareTestToCommunity = functions.https.onCall(async (data, context) => {
   )) {
     throw new functions.https.HttpsError("already-exists", "The deterministic Community post ID is already used by another record.");
   }
+  if (existingShared.exists && existingPost.exists &&
+      existingShared.get("sourceFingerprint") === sourceFingerprint) {
+    return {
+      success: true,
+      verifiedServerSide: true,
+      alreadyShared: true,
+      testId,
+      postId,
+      subject: validated.subject,
+      questionCount: validated.questionCount
+    };
+  }
 
   const now = admin.firestore.FieldValue.serverTimestamp();
   const sharedData = {
