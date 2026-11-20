@@ -282,7 +282,7 @@ function validateCommunityShareSource({
 
     const imageUrl = cleanString(source.imageUrl);
     if (source.needsImage === true && !imageUrl) {
-      fail("A question marked as requiring an image has no hosted image URL.");
+      fail("A question requires an image but has no hosted image URL.");
     }
     if (imageUrl && !/^https:\/\//i.test(imageUrl)) {
       fail("A question image is not a valid hosted HTTPS URL.");
