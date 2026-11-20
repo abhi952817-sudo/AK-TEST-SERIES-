@@ -83,3 +83,13 @@ The example is a test fixture only. Do not seed it or copy its marks into produc
 - No existing test documents were rewritten.
 - No legacy test score or rank was recalculated.
 - No Firebase deployment or production data mutation was performed.
+
+## Additional audit finding: JEE Advanced requires a richer scoring model
+
+The official JEE (Advanced) 2026 Information Brochure states that both 180-minute papers are compulsory, and that negative marks may apply to some questions; the exact marking scheme is supplied in the instructions for each question paper:
+- Official IIT Roorkee brochure: https://jeeadv.ac.in/documents/IBEnglish_2026.pdf (Clauses 9, 17 and 18; printed pages 15, 31–33).
+- The brochure also defines ranking across both papers and a tie-break sequence based on higher positive marks, then Mathematics marks, then Physics marks (Clause 22; printed page 43).
+
+The current versioned policy model stores only scalar `positiveMarks` and `negativeMarks`. The current evaluator calculates binary correct/wrong outcomes and cannot represent JEE Advanced multiple-select partial-credit rules, question-specific mark tables, or the exam's year-specific tie-break sequence. A comma-separated answer key is not a substitute for a scoring rubric.
+
+**Release guard:** JEE Advanced must remain unverified/inactive in the versioned registry until the engine supports an explicit scoring strategy and rule data (including selected-correct count, selected-incorrect options, partial-credit bands, zero/negative outcomes), plus subject aggregation and official tie-break handling. Do not reuse a generic `+4/-2` fallback for an official JEE Advanced paper. The same rule-engine audit must be applied to any other exam whose official scheme varies by question type or response pattern.
