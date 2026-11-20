@@ -118,6 +118,32 @@ test("Resolver rejects inactive registry and unapproved or source-less policies"
     }),
     { code: "failed-precondition" }
   );
+  assert.throws(
+    () => resolveScoringPolicy(makeRegistry([makePolicy({ source: { url: "https://", title: "x" } })]), {
+      examId: "example_exam", examYear: "2026", scoringVersion: "v2026-1",
+      stageId: "stage_1", paperId: "paper_1", subjectId: "physics",
+      sectionId: "section_a", questionType: "MCQ_SINGLE"
+    }),
+    { code: "failed-precondition" }
+  );
+  assert.throws(
+    () => resolveScoringPolicy(makeRegistry([makePolicy({ source: { url: "https://user:pass@example.gov/bulletin.pdf", title: "x" } })]), {
+      examId: "example_exam", examYear: "2026", scoringVersion: "v2026-1",
+      stageId: "stage_1", paperId: "paper_1", subjectId: "physics",
+      sectionId: "section_a", questionType: "MCQ_SINGLE"
+    }),
+    { code: "failed-precondition" }
+  );
+  for (const verifiedAt of ["not-a-date", "2026-02-30T10:00:00Z", "2026-01-10"]) {
+    assert.throws(
+      () => resolveScoringPolicy(makeRegistry([makePolicy({ verifiedAt })]), {
+        examId: "example_exam", examYear: "2026", scoringVersion: "v2026-1",
+        stageId: "stage_1", paperId: "paper_1", subjectId: "physics",
+        sectionId: "section_a", questionType: "MCQ_SINGLE"
+      }),
+      { code: "failed-precondition" }
+    );
+  }
 });
 
 test("Resolver rejects duplicate exact policies and invalid marks", () => {
