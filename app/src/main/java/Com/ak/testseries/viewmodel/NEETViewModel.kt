@@ -3084,7 +3084,12 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val communityDoc = db.collection("Shared_Community_Tests").document(cleanTestId).get().await()
                 if (communityDoc != null && communityDoc.exists()) {
-                    testAndQuestions = parseAndValidateSharedCommunityTest(cleanTestId, communityDoc)
+                    val publicQuestionSnapshot = communityDoc.reference.collection("questions").get().await()
+                    testAndQuestions = parseAndValidateSharedCommunityTest(
+                        cleanTestId,
+                        communityDoc,
+                        publicQuestionSnapshot.documents
+                    )
                     if (testAndQuestions == null) {
                         withContext(Dispatchers.Main) {
                             android.widget.Toast.makeText(getApplication(), "Cannot load test: Corrupted or invalid community test data", android.widget.Toast.LENGTH_SHORT).show()
@@ -3166,218 +3171,111 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun parseAndValidateSharedCommunityTest(
         testId: String,
-        doc: com.google.firebase.firestore.DocumentSnapshot
+        doc: com.google.firebase.firestore.DocumentSnapshot,
+        publicQuestionDocuments: List<com.google.firebase.firestore.DocumentSnapshot>
     ): Pair<TestEntity, List<QuestionEntity>>? {
         if (testId.isBlank()) return null
-        val title = doc.getString("title")?.trim() ?: ""
-        if (title.isBlank()) return null
+        val title = doc.getString("title")?.trim().orEmpty()
+        val targetExam = doc.getString("targetExam")?.trim().orEmpty()
+        val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 0
+        val totalMarks = (doc.get("totalMarks") as? Number)?.toDouble() ?: 0.0
+        val expectedCount = doc.getLong("questionCount")?.toInt()
+            ?: doc.getLong("questionsCount")?.toInt() ?: 0
+        val subject = doc.getString("subject")?.trim().orEmpty()
+        val creatorId = doc.getString("creatorId")?.trim().orEmpty()
 
-        val targetExam = doc.getString("targetExam")?.trim()?.ifBlank { "NEET" } ?: "NEET"
-        val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 180
-        if (durationMinutes <= 0) return null
+        if (title.isBlank() || targetExam.isBlank() || subject.isBlank() ||
+            creatorId.isBlank() || durationMinutes <= 0 || totalMarks <= 0.0 ||
+            expectedCount <= 0 || publicQuestionDocuments.size != expectedCount
+        ) return null
 
-        val totalMarksVal = (doc.get("totalMarks") as? Number)?.toDouble()
-        if (totalMarksVal != null && totalMarksVal <= 0.0) return null
+        val questions = mutableListOf<QuestionEntity>()
+        val seenIds = mutableSetOf<String>()
+        for (document in publicQuestionDocuments) {
+            val data = document.data ?: return null
+            val questionId = document.id.trim()
+            val questionText = (data["questionText"] as? String)?.trim().orEmpty()
+            val questionType = (data["questionType"] as? String)?.trim().orEmpty()
+            val rawOptions = data["options"] as? List<*> ?: emptyList<Any>()
+            val options = rawOptions.map { it as? String ?: return null }.map { it.trim() }
+            val isNumerical = questionType.contains("NUMERICAL", ignoreCase = true) ||
+                questionType.contains("NAT", ignoreCase = true) ||
+                questionType.equals("TITA", ignoreCase = true)
+            val positiveMarks = (data["positiveMarks"] as? Number)?.toDouble() ?: return null
+            val negativeMarks = (data["negativeMarks"] as? Number)?.toDouble() ?: return null
+            val imageUrl = (data["imageUrl"] as? String)?.trim().orEmpty()
 
-        val creatorId = doc.getString("creatorId")?.trim() ?: "anonymous"
-        val description = doc.getString("description")?.trim() ?: ""
-        val subject = doc.getString("subject")?.trim() ?: "Full Syllabus"
-        val classLevel = doc.getString("classLevel")?.trim() ?: "All"
-        val chapter = doc.getString("chapter")?.trim() ?: "All"
-        val topic = doc.getString("topic")?.trim() ?: "All"
-        val difficulty = doc.getString("difficulty")?.trim() ?: "Medium"
-        val expectedQCount = doc.getLong("questionCount")?.toInt() ?: doc.getLong("questionsCount")?.toInt() ?: 0
+            if (questionId.isBlank() || !seenIds.add(questionId) ||
+                questionText.length < 10 || questionType.isBlank() ||
+                positiveMarks <= 0.0 || negativeMarks < 0.0
+            ) return null
+            if (isNumerical) {
+                if (options.isNotEmpty()) return null
+            } else if (options.size !in 4..5 ||
+                options.any { it.isBlank() } ||
+                options.map { it.lowercase() }.distinct().size != options.size
+            ) return null
+            if (imageUrl.isNotBlank() && !imageUrl.startsWith("https://", ignoreCase = true)) return null
 
-        val qList = mutableListOf<QuestionEntity>()
-
-        // 1. Try parsing questions array of maps
-        val rawQuestions = doc.get("questions") as? List<*>
-        if (!rawQuestions.isNullOrEmpty()) {
-            for (i in rawQuestions.indices) {
-                val map = rawQuestions[i] as? Map<*, *> ?: return null
-                val qId = (map["id"] as? String)?.trim()?.ifBlank { "${testId}_q$i" } ?: "${testId}_q$i"
-                val qText = (map["questionText"] as? String)?.trim() ?: ""
-                if (qText.isBlank()) return null
-
-                val rawOpts = map["options"] as? List<*>
-                val optA = (map["optionA"] as? String)?.trim() ?: (rawOpts?.getOrNull(0) as? String)?.trim() ?: ""
-                val optB = (map["optionB"] as? String)?.trim() ?: (rawOpts?.getOrNull(1) as? String)?.trim() ?: ""
-                val optC = (map["optionC"] as? String)?.trim() ?: (rawOpts?.getOrNull(2) as? String)?.trim() ?: ""
-                val optD = (map["optionD"] as? String)?.trim() ?: (rawOpts?.getOrNull(3) as? String)?.trim() ?: ""
-
-                val qType = (map["questionType"] as? String)?.trim() ?: "MCQ"
-                val correctAns = (map["correctAnswer"] as? String)?.trim() ?: ""
-                if (correctAns.isBlank()) return null
-
-                val isNumerical = qType.contains("NUMERICAL", ignoreCase = true) || qType.contains("NAT", ignoreCase = true)
-                if (!isNumerical && (optA.isBlank() || optB.isBlank())) {
-                    return null
-                }
-
-                val posMarks = (map["positiveMarks"] as? Number)?.toDouble() ?: 4.0
-                if (posMarks <= 0.0) return null
-                val negMarks = (map["negativeMarks"] as? Number)?.toDouble() ?: 1.0
-                if (negMarks < 0.0) return null
-
-                val imgUrl = (map["imageUrl"] as? String)?.trim()
-                if (!imgUrl.isNullOrEmpty()) {
-                    if (imgUrl.startsWith("/") || imgUrl.startsWith("file:", ignoreCase = true) ||
-                        imgUrl.contains("/cache/") || imgUrl.contains("/extracted_cropped_images/")) {
-                        android.util.Log.e("NEETViewModel", "Blocked local image URL in shared test: $imgUrl")
-                        return null
-                    }
-                    if (!imgUrl.startsWith("http://", ignoreCase = true) && !imgUrl.startsWith("https://", ignoreCase = true)) {
-                        android.util.Log.e("NEETViewModel", "Image URL must be a remote URL: $imgUrl")
-                        return null
-                    }
-                }
-
-                qList.add(
-                    QuestionEntity(
-                        id = qId,
-                        testId = testId, // downloaded question.testId = testId
-                        questionText = qText,
-                        optionA = optA,
-                        optionB = optB,
-                        optionC = optC,
-                        optionD = optD,
-                        correctAnswer = correctAns,
-                        explanation = (map["explanation"] as? String)?.trim() ?: "",
-                        subject = (map["subject"] as? String)?.trim() ?: subject,
-                        chapter = (map["chapter"] as? String)?.trim() ?: chapter,
-                        topic = (map["topic"] as? String)?.trim() ?: topic,
-                        difficulty = (map["difficulty"] as? String)?.trim() ?: difficulty,
-                        questionTextHi = (map["questionTextHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
-                        optionAHi = (map["optionAHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
-                        optionBHi = (map["optionBHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
-                        optionCHi = (map["optionCHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
-                        optionDHi = (map["optionDHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
-                        explanationHi = (map["explanationHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
-                        questionType = qType,
-                        section = (map["section"] as? String)?.trim() ?: "SECTION_A",
-                        imageUrl = imgUrl?.takeIf { it.isNotBlank() }
-                    )
+            questions.add(
+                QuestionEntity(
+                    id = questionId,
+                    testId = testId,
+                    questionText = questionText,
+                    optionA = options.getOrNull(0).orEmpty(),
+                    optionB = options.getOrNull(1).orEmpty(),
+                    optionC = options.getOrNull(2).orEmpty(),
+                    optionD = options.getOrNull(3).orEmpty(),
+                    optionE = options.getOrNull(4),
+                    // Correct answers and explanations are deliberately never read from public docs.
+                    // The server grades attempts from Shared_Community_Tests/private_keys.
+                    correctAnswer = "",
+                    explanation = "",
+                    subject = (data["subject"] as? String)?.trim().orEmpty().ifBlank { subject },
+                    chapter = (data["chapter"] as? String)?.trim().orEmpty(),
+                    topic = (data["topic"] as? String)?.trim().orEmpty(),
+                    difficulty = (data["difficulty"] as? String)?.trim().orEmpty().ifBlank { "Medium" },
+                    questionTextHi = (data["questionTextHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                    optionAHi = (data["optionAHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                    optionBHi = (data["optionBHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                    optionCHi = (data["optionCHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                    optionDHi = (data["optionDHi"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+                    questionType = questionType,
+                    section = (data["section"] as? String)?.trim().orEmpty(),
+                    imageUrl = imageUrl.takeIf { it.isNotBlank() }
                 )
-            }
+            )
         }
 
-        // 2. Fallback to questionsJson if questions list was empty
-        if (qList.isEmpty()) {
-            val questionsJson = doc.getString("questionsJson")?.trim() ?: ""
-            if (questionsJson.isBlank()) return null
-            try {
-                val jsonArray = org.json.JSONArray(questionsJson)
-                if (jsonArray.length() == 0) return null
-                for (i in 0 until jsonArray.length()) {
-                    val qObj = jsonArray.getJSONObject(i)
-                    val qId = qObj.optString("id", "${testId}_q$i").ifBlank { "${testId}_q$i" }
-                    val qText = qObj.optString("questionText", qObj.optString("questionTextEn", "")).trim()
-                    if (qText.isBlank()) return null
-
-                    val optA = qObj.optString("optionA", qObj.optString("optionAEn", "")).trim()
-                    val optB = qObj.optString("optionB", qObj.optString("optionBEn", "")).trim()
-                    val optC = qObj.optString("optionC", qObj.optString("optionCEn", "")).trim()
-                    val optD = qObj.optString("optionD", qObj.optString("optionDEn", "")).trim()
-                    val optE = qObj.optString("optionE", qObj.optString("optionEEn", "")).trim().takeIf { it.isNotBlank() }
-
-                    val qType = qObj.optString("questionType", "MCQ")
-                    val correctAns = qObj.optString("correctAnswer", "").trim()
-                    if (correctAns.isBlank()) return null
-
-                    val isNumerical = qType.contains("NUMERICAL", ignoreCase = true) || qType.contains("NAT", ignoreCase = true)
-                    if (!isNumerical && (optA.isBlank() || optB.isBlank())) {
-                        return null
-                    }
-
-                    val posMarks = qObj.optDouble("positiveMarks", 4.0)
-                    if (posMarks <= 0.0) return null
-                    val negMarks = qObj.optDouble("negativeMarks", 1.0)
-                    if (negMarks < 0.0) return null
-
-                    val imgUrl = qObj.optString("imageUrl", "").trim()
-                    if (imgUrl.isNotEmpty()) {
-                        if (imgUrl.startsWith("/") || imgUrl.startsWith("file:", ignoreCase = true) ||
-                            imgUrl.contains("/cache/") || imgUrl.contains("/extracted_cropped_images/")) {
-                            return null
-                        }
-                        if (!imgUrl.startsWith("http://", ignoreCase = true) && !imgUrl.startsWith("https://", ignoreCase = true)) {
-                            return null
-                        }
-                    }
-
-                    qList.add(
-                        QuestionEntity(
-                            id = qId,
-                            testId = testId, // downloaded question.testId = testId
-                            questionText = qText,
-                            optionA = optA,
-                            optionB = optB,
-                            optionC = optC,
-                            optionD = optD,
-                            optionE = optE,
-                            correctAnswer = correctAns,
-                            explanation = qObj.optString("explanation", qObj.optString("explanationEn", "")).trim(),
-                            subject = qObj.optString("subject", subject).trim(),
-                            chapter = qObj.optString("chapter", chapter).trim(),
-                            topic = qObj.optString("topic", topic).trim(),
-                            difficulty = qObj.optString("difficulty", difficulty).trim(),
-                            questionTextHi = qObj.optString("questionTextHi").trim().takeIf { it.isNotBlank() },
-                            optionAHi = qObj.optString("optionAHi").trim().takeIf { it.isNotBlank() },
-                            optionBHi = qObj.optString("optionBHi").trim().takeIf { it.isNotBlank() },
-                            optionCHi = qObj.optString("optionCHi").trim().takeIf { it.isNotBlank() },
-                            optionDHi = qObj.optString("optionDHi").trim().takeIf { it.isNotBlank() },
-                            optionEHi = qObj.optString("optionEHi").trim().takeIf { it.isNotBlank() },
-                            explanationHi = qObj.optString("explanationHi").trim().takeIf { it.isNotBlank() },
-                            questionType = qType,
-                            section = qObj.optString("sectionId").ifBlank { qObj.optString("section") },
-                            imageUrl = imgUrl.takeIf { it.isNotBlank() }
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                return null
-            }
-        }
-
-        if (qList.isEmpty()) return null
-        if (expectedQCount > 0 && qList.size < expectedQCount) return null
-
-        val finalQuestionsJson = doc.getString("questionsJson")?.takeIf { it.isNotBlank() }
-            ?: serializeQuestionsToJson(qList)
-
-        val testEntity = Com.ak.testseries.data.TestEntity(
+        val test = TestEntity(
             id = testId,
             title = title,
-            description = description,
-            institute = "Community Vault",
-            batchName = "Community",
-            facultyName = doc.getString("creatorDisplayName") ?: doc.getString("creatorName") ?: "Community User",
-            language = doc.getString("language") ?: "English",
+            description = doc.getString("description").orEmpty(),
+            institute = doc.getString("source").orEmpty(),
+            batchName = doc.getString("classLevel").orEmpty(),
+            facultyName = "Community",
+            language = "Bilingual",
             subject = subject,
-            difficulty = difficulty,
-            testType = "Community Test",
-            questionsCount = qList.size,
+            difficulty = doc.getString("difficulty").orEmpty().ifBlank { "Medium" },
+            testType = "Community Shared",
+            questionsCount = questions.size,
             isOfficial = false,
             isVerifiedCommunity = true,
-            isPublic = false,
+            isPublic = true,
             countsTowardRanking = false,
-            isDownloaded = true,
-            timestamp = System.currentTimeMillis(),
             status = "Published",
             uploaderId = creatorId,
             targetExam = targetExam,
-            examId = doc.getString("examId") ?: targetExam,
+            durationMinutes = durationMinutes,
+            classLevel = doc.getString("classLevel").orEmpty(),
+            chapter = doc.getString("chapter").orEmpty(),
+            topic = doc.getString("topic").orEmpty(),
+            examId = doc.getString("examId"),
             stageId = doc.getString("stageId"),
             paperId = doc.getString("paperId"),
-            scoringVersion = doc.getLong("scoringVersion")?.toInt() ?: 1,
-            durationMinutes = durationMinutes,
-            classLevel = classLevel,
-            chapter = chapter,
-            topic = topic,
-            questionsJson = finalQuestionsJson
+            scoringVersion = doc.getLong("scoringVersion")?.toInt()
         )
-
-        return Pair(testEntity, qList)
+        return test to questions
     }
 
     private fun parseAndValidatePublicTest(
