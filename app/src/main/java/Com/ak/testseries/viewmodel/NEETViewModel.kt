@@ -114,7 +114,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Server-verified Admin Check (Phase 2)
      * - Always forces fresh ID token
-     * - Trusts only Custom Claim `admin: true` or verified owner email
+     * - Trusts only the verified primary owner identity; legacy admin claims are ignored
      * - Clears admin status on any failure
      */
     fun checkAdminCustomClaim(forceRefresh: Boolean = true) {
@@ -210,7 +210,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Fresh token + claim check
+        // Fresh token + verified primary owner identity check
         user.getIdToken(true)
             .addOnSuccessListener { result ->
                 val isVerifiedOwner = user.email
