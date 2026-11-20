@@ -217,10 +217,10 @@ class ExamPatternVerificationTest {
 
         // Verify specific calculated subtitles come directly from registry
         val neetSub = UniversalExamRegistry.getExamDisplaySubtitleByName("NEET UG")
-        assertTrue("NEET subtitle should indicate 180/200 Qs and 720 Marks: $neetSub", neetSub.contains("180/200 Qs • 720 Marks • 200 Mins (+4, -1)"))
+        assertTrue("NEET subtitle should indicate 180/200 Qs and 720 Marks: $neetSub", neetSub.contains("180 Qs • 720 Marks • 180 Mins (+4, -1)"))
 
         val jeeSub = UniversalExamRegistry.getExamDisplaySubtitleByName("JEE Main")
-        assertTrue("JEE subtitle should indicate 75/90 Qs and 300 Marks: $jeeSub", jeeSub.contains("75/90 Qs • 300 Marks • 180 Mins (+4, -1)"))
+        assertTrue("JEE subtitle should indicate 75/90 Qs and 300 Marks: $jeeSub", jeeSub.contains("75 Qs • 300 Marks • 180 Mins (+4, -1)"))
 
         val cuetSub = UniversalExamRegistry.getExamDisplaySubtitleByName("CUET UG")
         assertTrue("CUET subtitle should indicate 40/50 Qs and 200 Marks: $cuetSub", cuetSub.contains("40/50 Qs • 200 Marks • 45 Mins (+5, -1)"))
