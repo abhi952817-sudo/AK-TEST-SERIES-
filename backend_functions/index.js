@@ -15,8 +15,231 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const crypto = require("node:crypto");
+const { validateCommunityShareSource } = require("./communityShare");
+
 
 exports.normalizeExamKey = normalizeExamKey;
+
+/**
+ * Server-authoritative Community test publishing.
+ * The client sends only a source test ID and the subject selected in the verification UI.
+ * Questions, ownership, exam policy, scoring, and answer-key separation are re-read and
+ * validated from server-owned Firestore records before a single atomic publication batch.
+ */
+exports.shareTestToCommunity = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in before sharing a test.");
+  }
+
+  const uid = context.auth.uid;
+  const testId = typeof data?.testId === "string" ? data.testId.trim() : "";
+  const selectedSubject = typeof data?.selectedSubject === "string" ? data.selectedSubject.trim() : "";
+
+  if (!testId || testId.length > 128 || testId.includes("/")) {
+    throw new functions.https.HttpsError("invalid-argument", "A valid source test ID is required.");
+  }
+  if (!selectedSubject || selectedSubject.length > 100) {
+    throw new functions.https.HttpsError("invalid-argument", "Select a valid subject in the test verification card.");
+  }
+
+  const userRef = db.collection("Users_Data").doc(uid);
+  const sourceRef = db.collection("Tests_Data").doc(testId);
+  const registryRef = db.collection("Config").doc("community_exam_registry");
+
+  let userSnap;
+  let sourceSnap;
+  let registrySnap;
+  try {
+    [userSnap, sourceSnap, registrySnap] = await Promise.all([
+      userRef.get(),
+      sourceRef.get(),
+      registryRef.get()
+    ]);
+  } catch (error) {
+    console.error("Community share source read failed:", error);
+    throw new functions.https.HttpsError("unavailable", "The source test could not be verified. Try again later.");
+  }
+
+  if (!userSnap.exists) {
+    throw new functions.https.HttpsError("not-found", "Your user profile could not be verified.");
+  }
+  try {
+    assertActiveUserStatus(userSnap.data(), uid);
+  } catch (error) {
+    throw new functions.https.HttpsError(error.code || "permission-denied", error.message);
+  }
+  if (!sourceSnap.exists) {
+    throw new functions.https.HttpsError("not-found", "The original test is not available in the verified Tests_Data collection.");
+  }
+  if (!registrySnap.exists) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "The server-side Community exam registry has not been configured by an administrator. No test was published."
+    );
+  }
+
+  let validated;
+  try {
+    validated = validateCommunityShareSource({
+      testId,
+      ownerUid: uid,
+      testData: sourceSnap.data(),
+      registry: registrySnap.data(),
+      selectedSubject
+    });
+  } catch (error) {
+    throw new functions.https.HttpsError(
+      error.code || "failed-precondition",
+      error.message || "The source test did not pass Community verification."
+    );
+  }
+
+  const sourceData = sourceSnap.data();
+  const authorName = String(
+    userSnap.get("displayName") ||
+    userSnap.get("name") ||
+    context.auth.token.name ||
+    (context.auth.token.email ? context.auth.token.email.split("@")[0] : "") ||
+    "Student"
+  ).trim().slice(0, 80);
+
+  const sourceFingerprint = crypto.createHash("sha256").update(JSON.stringify({
+    testId,
+    examId: validated.examId,
+    examYear: validated.examYear,
+    stageId: validated.stageId,
+    paperId: validated.paperId,
+    scoringVersion: validated.scoringVersion,
+    subject: validated.subject,
+    title: validated.title,
+    durationMinutes: validated.durationMinutes,
+    totalMarks: validated.totalMarks,
+    questions: validated.publicQuestions,
+    privateKeys: validated.privateKeys
+  })).digest("hex");
+
+  const sharedRef = db.collection("Shared_Community_Tests").doc(testId);
+  const postId = "TEST_SHARE_" + uid + "_" + testId;
+  const postRef = db.collection("Community_Posts").doc(postId);
+
+  let existingShared;
+  let existingPost;
+  try {
+    [existingShared, existingPost] = await Promise.all([sharedRef.get(), postRef.get()]);
+  } catch (error) {
+    throw new functions.https.HttpsError("unavailable", "Existing Community share state could not be checked.");
+  }
+
+  if (existingShared.exists && existingShared.get("creatorId") !== uid) {
+    throw new functions.https.HttpsError("already-exists", "A different owner has already shared this test ID.");
+  }
+  if (existingShared.exists && existingShared.get("sourceFingerprint") !== sourceFingerprint) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "The source test changed after its Community publication. Ask an administrator to review the existing share before republishing."
+    );
+  }
+  if (existingPost.exists && existingPost.get("creatorId") !== uid) {
+    throw new functions.https.HttpsError("already-exists", "The Community post ID is already owned by another account.");
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const sharedData = {
+    testId,
+    title: validated.title,
+    description: validated.description,
+    targetExam: validated.examName,
+    examId: validated.examId,
+    examYear: Number(validated.examYear),
+    stageId: validated.stageId,
+    paperId: validated.paperId,
+    scoringVersion: validated.scoringVersion,
+    subject: validated.subject,
+    classLevel: validated.classLevel,
+    chapter: validated.chapter,
+    topic: validated.topic,
+    difficulty: validated.difficulty,
+    questionCount: validated.questionCount,
+    questionsCount: validated.questionCount,
+    durationMinutes: validated.durationMinutes,
+    totalMarks: validated.totalMarks,
+    source: String(sourceData.institute || sourceData.source || "Student-created test").slice(0, 120),
+    creatorId: uid,
+    uploaderId: uid,
+    creatorDisplayName: authorName,
+    creatorName: authorName,
+    answerKeySeparated: true,
+    isPublic: true,
+    isOfficial: false,
+    countsTowardRanking: false,
+    status: "Published",
+    sharedAt: now,
+    updatedAt: now,
+    version: 1,
+    sharingState: "COMMUNITY_SHARED",
+    sourceFingerprint,
+    registryVersion: registrySnap.get("version")
+  };
+
+  const postData = {
+    id: postId,
+    authorName,
+    authorSubtitle: validated.examName + " Aspirant",
+    isOfficial: false,
+    isMonitor: false,
+    timeAgo: "Just now",
+    title: "Shared Test: " + validated.title,
+    content: validated.description || ("Verified " + validated.examName + " test with " +
+      validated.questionCount + " questions."),
+    isPinned: false,
+    upvotes: 0,
+    comments: 0,
+    views: "0",
+    subject: validated.subject,
+    targetExam: validated.examName,
+    imageUrl: null,
+    isBookmarked: false,
+    timestamp: now,
+    postType: "TEST_SHARE",
+    testId,
+    creatorId: uid,
+    testTitle: validated.title,
+    questionCount: validated.questionCount,
+    durationMinutes: validated.durationMinutes,
+    chapter: validated.chapter,
+    difficulty: validated.difficulty,
+    classLevel: validated.classLevel,
+    totalMarks: validated.totalMarks,
+    topic: validated.topic
+  };
+
+  // Parent + safe public question projections + private answer keys + feed card:
+  // one batch, with no client-controlled question or grading data.
+  const batch = db.batch();
+  batch.set(sharedRef, sharedData);
+  for (const question of validated.publicQuestions) {
+    batch.set(sharedRef.collection("questions").doc(question.id), question);
+  }
+  batch.set(sharedRef.collection("private_keys").doc("answerKey"), {
+    testId,
+    questions: validated.privateKeys,
+    updatedAt: now
+  });
+  batch.set(postRef, postData);
+  await batch.commit();
+
+  return {
+    success: true,
+    verifiedServerSide: true,
+    alreadyShared: existingShared.exists,
+    testId,
+    postId,
+    subject: validated.subject,
+    questionCount: validated.questionCount
+  };
+});
+
 
 /**
  * Permanently removes only the retired, hard-coded demo test IDs.
