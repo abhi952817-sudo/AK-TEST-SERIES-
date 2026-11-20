@@ -131,12 +131,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         user.getIdToken(forceRefresh)
             .addOnSuccessListener { result ->
-                val hasAdminClaim = result.claims["admin"] == true
                 val isVerifiedOwner = user.email
                     ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
                         && user.isEmailVerified
 
-                isAdminFlow.value = hasAdminClaim || isVerifiedOwner
+                isAdminFlow.value = isVerifiedOwner
             }
             .addOnFailureListener {
                 isAdminFlow.value = false
@@ -185,12 +184,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         user.getIdToken(true) // always force refresh
             .addOnSuccessListener { result ->
-                val hasAdminClaim = result.claims["admin"] == true
                 val isVerifiedOwner = user.email
                     ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
                         && user.isEmailVerified
 
-                val isAllowed = hasAdminClaim || isVerifiedOwner
+                val isAllowed = isVerifiedOwner
                 isAdminFlow.value = isAllowed
                 if (isAllowed) purgeRetiredDemoTestsFromFirestore()
                 onResult(isAllowed)
@@ -215,12 +213,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         // Fresh token + claim check
         user.getIdToken(true)
             .addOnSuccessListener { result ->
-                val hasAdminClaim = result.claims["admin"] == true
                 val isVerifiedOwner = user.email
                     ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
                         && user.isEmailVerified
 
-                val isAllowed = hasAdminClaim || isVerifiedOwner
+                val isAllowed = isVerifiedOwner
                 isAdminFlow.value = isAllowed
                 onResult(isAllowed)
             }
