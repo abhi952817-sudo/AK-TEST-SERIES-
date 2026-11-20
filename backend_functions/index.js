@@ -14,6 +14,7 @@ const {
   getExamEligibility,
   normalizeExamKey,
 } = require("./examScoring");
+const { validateVersionedTestScoring } = require("./scoringPolicyResolver");
 const { validateSetAdminRoleAuth, resolveAdminRoleTarget, isPrimaryAdminToken, assertActiveUserStatus, PRIMARY_ADMIN_EMAIL } = require("./authHelper");
 const crypto = require("node:crypto");
 const { validateCommunityShareSource } = require("./communityShare");
@@ -562,13 +563,40 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     }
   }
 
-  // 5. Authoritatively evaluate score on the server
+  // 5. Resolve versioned scoring only from an active, approved, source-backed registry.
+  // Legacy unversioned tests retain their existing path; versioned tests never fall back.
+  let useQuestionLevelMarks = isTrustedCommunityTest;
+  if (!isTrustedCommunityTest && testData.scoringVersion != null && String(testData.scoringVersion).trim()) {
+    const scoringRegistrySnapshot = await db.collection("Config").doc("exam_scoring_registry").get();
+    if (!scoringRegistrySnapshot.exists) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "The versioned exam scoring registry is not configured. Scoring was not calculated."
+      );
+    }
+    try {
+      const resolved = validateVersionedTestScoring(
+        scoringRegistrySnapshot.data(),
+        testData,
+        questions
+      );
+      questions = resolved.questions;
+      useQuestionLevelMarks = true;
+    } catch (err) {
+      throw new functions.https.HttpsError(
+        err.code || "failed-precondition",
+        err.message || "Versioned scoring policy validation failed."
+      );
+    }
+  }
+
+  // 6. Authoritatively evaluate score on the server.
   const evalResult = evaluateTestAttempt(
     canonicalExam,
     questions,
     answers,
     cleanTimeSpent,
-    { useQuestionLevelMarks: testDoc.ref.parent.id === "Shared_Community_Tests" }
+    { useQuestionLevelMarks }
   );
 
   const attemptDocId = attemptSessionToken.trim();

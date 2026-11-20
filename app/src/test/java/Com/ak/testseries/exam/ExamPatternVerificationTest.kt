@@ -5,7 +5,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Rigorous Verification Test for all 23 registered competitive exams.
+ * Rigorous structural integrity test for all 25 registered competitive exams.
  * Verifies each exam against its actual configured pattern:
  * - sections
  * - question count (total and compulsory)
@@ -39,7 +39,12 @@ class ExamPatternVerificationTest {
         // Verify every exam passed
         auditReports.forEach { report ->
             assertTrue("Exam ${report.examName} must have a valid pattern", report.isPatternValid)
-            assertTrue("Exam ${report.examName} must be marked verified = true", report.verified)
+            val hasYearSpecificSource = report.examId == "neet_ug" || report.examId == "jee_main"
+            assertEquals(
+                "Only source-backed 2026 NEET/JEE entries may be verified; ${report.examId} must not inherit verification",
+                hasYearSpecificSource,
+                report.verified
+            )
             assertTrue("Exam ${report.examName} must have language configured", report.language.isNotBlank())
             assertTrue("Exam ${report.examName} must have at least 1 paper", report.papers.isNotEmpty())
             report.papers.forEach { paper ->
@@ -63,25 +68,19 @@ class ExamPatternVerificationTest {
         assertTrue(neet.verified)
 
         val paper = neet.stages.first().papers.first()
-        assertEquals(200, paper.durationMinutes)
+        assertEquals(180, paper.durationMinutes)
         assertEquals(720.0, paper.totalMarks, 0.001)
         assertEquals(4, paper.subjects.size) // Physics, Chemistry, Botany, Zoology
 
-        // Each subject: Section A (35 Qs, 35 comp, +4, -1), Section B (15 Qs, 10 comp, +4, -1)
+        // 2026: 45 compulsory questions in each subject; no optional Section B.
         paper.subjects.forEach { subj ->
-            assertEquals(2, subj.sections.size)
-            val secA = subj.sections[0]
-            val secB = subj.sections[1]
-
-            assertEquals(35, secA.totalQuestions)
-            assertEquals(35, secA.compulsoryQuestions)
-            assertEquals(4.0, secA.positiveMarks, 0.001)
-            assertEquals(1.0, secA.negativeMarks, 0.001)
-
-            assertEquals(15, secB.totalQuestions)
-            assertEquals(10, secB.compulsoryQuestions) // Attempt any 10 rule
-            assertEquals(4.0, secB.positiveMarks, 0.001)
-            assertEquals(1.0, secB.negativeMarks, 0.001)
+            assertEquals(1, subj.sections.size)
+            val section = subj.sections.single()
+            assertEquals(45, section.totalQuestions)
+            assertEquals(45, section.compulsoryQuestions)
+            assertEquals(4.0, section.positiveMarks, 0.001)
+            assertEquals(1.0, section.negativeMarks, 0.001)
+            assertEquals(QuestionType.MCQ_SINGLE, section.questionType)
         }
 
         val totalAttempted = paper.subjects.sumOf { s -> s.sections.sumOf { it.compulsoryQuestions } }
@@ -106,7 +105,7 @@ class ExamPatternVerificationTest {
         assertEquals(3, paper.subjects.size) // Physics, Chemistry, Mathematics
 
         // Section A (20 MCQs, 20 comp, +4, -1, 4 options)
-        // Section B (10 NVQs, 5 comp, +4, -1, 0 options)
+        // Section B (5 NVQs, all compulsory, +4, -1, 0 options)
         paper.subjects.forEach { subj ->
             assertEquals(2, subj.sections.size)
             val secA = subj.sections[0]
@@ -117,8 +116,8 @@ class ExamPatternVerificationTest {
             assertEquals(4, secA.optionsCount)
             assertEquals(QuestionType.MCQ_SINGLE, secA.questionType)
 
-            assertEquals(10, secB.totalQuestions)
-            assertEquals(5, secB.compulsoryQuestions) // Attempt any 5 rule
+            assertEquals(5, secB.totalQuestions)
+            assertEquals(5, secB.compulsoryQuestions) // All five numerical questions are compulsory
             assertEquals(0, secB.optionsCount) // Numerical value questions have 0 options
             assertEquals(QuestionType.NUMERICAL_VALUE, secB.questionType)
         }
@@ -138,7 +137,7 @@ class ExamPatternVerificationTest {
 
             assertEquals("Banking exam $examId must have defaultOptionCount = 5", 5, exam.defaultOptionCount)
             assertEquals("Banking", exam.category)
-            assertTrue(exam.verified)
+            assertFalse("Banking exam ${examId} is not source-verified for a specific year", exam.verified)
 
             val paper = exam.stages.first().papers.first()
             assertEquals(60, paper.durationMinutes)
@@ -159,14 +158,14 @@ class ExamPatternVerificationTest {
         val cat = UniversalExamRegistry.getExamById("cat")
         assertNotNull(cat)
         assertEquals("English", cat!!.language)
-        assertTrue(cat.verified)
+        assertFalse(cat.verified)
         assertEquals(120, cat.stages.first().papers.first().durationMinutes)
         assertEquals(198.0, cat.stages.first().papers.first().totalMarks, 0.001)
 
         val gate = UniversalExamRegistry.getExamById("gate")
         assertNotNull(gate)
         assertEquals("English", gate!!.language)
-        assertTrue(gate.verified)
+        assertFalse(gate.verified)
         assertEquals(180, gate.stages.first().papers.first().durationMinutes)
         assertEquals(100.0, gate.stages.first().papers.first().totalMarks, 0.001)
     }
@@ -218,10 +217,10 @@ class ExamPatternVerificationTest {
 
         // Verify specific calculated subtitles come directly from registry
         val neetSub = UniversalExamRegistry.getExamDisplaySubtitleByName("NEET UG")
-        assertTrue("NEET subtitle should indicate 180/200 Qs and 720 Marks: $neetSub", neetSub.contains("180/200 Qs • 720 Marks • 200 Mins (+4, -1)"))
+        assertTrue("NEET subtitle should indicate 180/200 Qs and 720 Marks: $neetSub", neetSub.contains("180 Qs • 720 Marks • 180 Mins (+4, -1)"))
 
         val jeeSub = UniversalExamRegistry.getExamDisplaySubtitleByName("JEE Main")
-        assertTrue("JEE subtitle should indicate 75/90 Qs and 300 Marks: $jeeSub", jeeSub.contains("75/90 Qs • 300 Marks • 180 Mins (+4, -1)"))
+        assertTrue("JEE subtitle should indicate 75/90 Qs and 300 Marks: $jeeSub", jeeSub.contains("75 Qs • 300 Marks • 180 Mins (+4, -1)"))
 
         val cuetSub = UniversalExamRegistry.getExamDisplaySubtitleByName("CUET UG")
         assertTrue("CUET subtitle should indicate 40/50 Qs and 200 Marks: $cuetSub", cuetSub.contains("40/50 Qs • 200 Marks • 45 Mins (+5, -1)"))
