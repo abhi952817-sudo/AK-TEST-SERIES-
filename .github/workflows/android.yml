@@ -1,4 +1,5 @@
-name: Android CI\n# Run on each isolated branch update to validate the exact feature head.
+name: Android CI
+# Run on each isolated branch update to validate the exact feature head.
 
 on:
   push:
