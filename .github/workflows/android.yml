@@ -1,5 +1,5 @@
 name: Android CI
-# Run on each isolated branch update to validate the exact feature head, including backend changes.
+# Run on each isolated branch update to validate the exact feature head, including backend changes and source-metadata edge cases.
 
 on:
   push:
