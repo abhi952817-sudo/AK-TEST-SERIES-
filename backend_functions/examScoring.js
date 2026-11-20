@@ -271,7 +271,7 @@ function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, su
 /**
  * Authoritative Evaluation of Test Attempt
  */
-function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0) {
+function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0, options = {}) {
   const exam = String(targetExam || "NEET");
   const baseScheme = getMarkingSchemeForExam(exam);
   const isMultiScheme = hasMultipleMarkingSchemes(exam);
@@ -294,9 +294,24 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     const correctOpt = q.correctAnswer ? String(q.correctAnswer).trim().toUpperCase() : "";
     const isKeyVerified = isAnswerKeyVerified(correctOpt);
 
-    const scheme = isMultiScheme
+    let scheme = isMultiScheme
       ? getMarkingSchemeForQuestion(exam, q.section, q.subject, q.questionType)
       : baseScheme;
+
+    // Shared Community questions were validated against an admin-owned, year-specific
+    // registry before publication. Use those immutable question-level marks only for
+    // this trusted server-side path; all other tests keep the existing registry engine.
+    if (options.useQuestionLevelMarks === true) {
+      const questionPos = Number(q.positiveMarks);
+      const questionNeg = Number(q.negativeMarks);
+      if (!Number.isFinite(questionPos) || questionPos <= 0 ||
+          !Number.isFinite(questionNeg) || questionNeg < 0) {
+        const error = new Error("Shared test question has invalid verified marking metadata.");
+        error.code = "failed-precondition";
+        throw error;
+      }
+      scheme = { pos: questionPos, neg: questionNeg };
+    }
 
     maxPossible += scheme.pos;
 
