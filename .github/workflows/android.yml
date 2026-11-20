@@ -35,9 +35,10 @@ jobs:
       run: |
         node --check backend_functions/index.js
         node --check backend_functions/examScoring.js
+        node --check backend_functions/communityShare.js
 
     - name: Run Backend Scoring Tests
-      run: node --test backend_functions/examScoring.test.js
+      run: node --test backend_functions/examScoring.test.js backend_functions/communityShare.test.js
 
     - name: Run Unit Tests
       run: gradle testDebugUnitTest
