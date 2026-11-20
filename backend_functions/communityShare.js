@@ -275,7 +275,7 @@ function validateCommunityShareSource({
       }
       publicQuestion.maxAttemptQuestions = section.maxAttemptQuestions;
     }
-    for (const field of ["questionTextHi", "optionAHi", "optionBHi", "optionCHi", "optionDHi"]) {
+    for (const field of ["questionTextHi", "optionAHi", "optionBHi", "optionCHi", "optionDHi", "optionEHi"]) {
       const value = cleanString(source[field]);
       if (value) publicQuestion[field] = value;
     }
