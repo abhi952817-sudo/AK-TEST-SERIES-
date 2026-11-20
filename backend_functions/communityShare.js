@@ -78,7 +78,7 @@ function isAnswerValidForQuestion(answer, questionType, optionCount) {
     return /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(clean) && Number.isFinite(Number(clean));
   }
   const parts = clean.split(",").map(part => part.trim());
-  if (!type.includes("MULTIPLE") && parts.length !== 1) return false;
+  if (!type.includes("MULTI") && parts.length !== 1) return false;
   if (parts.some(part => !/^[A-E]$/.test(part) && !/^[1-5]$/.test(part))) return false;
   const indexes = parts.map(part => /^[1-5]$/.test(part) ? Number(part) : part.charCodeAt(0) - 64);
   return new Set(indexes).size === indexes.length && indexes.every(index => index >= 1 && index <= optionCount);
