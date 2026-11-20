@@ -50,6 +50,20 @@ function getQuestionTypeRule(section, questionType) {
   return rules[questionType] || rules[questionType.toUpperCase()] || null;
 }
 
+function isAnswerValidForQuestion(answer, questionType, optionCount) {
+  const clean = cleanString(answer).toUpperCase();
+  const type = cleanString(questionType).toUpperCase();
+  if (!clean) return false;
+  if (["NUMERICAL", "NUMERICAL_VALUE", "NAT", "TITA"].includes(type)) {
+    return /^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)$/.test(clean) && Number.isFinite(Number(clean));
+  }
+  const parts = clean.split(",").map(part => part.trim());
+  if (!type.includes("MULTIPLE") && parts.length !== 1) return false;
+  if (parts.some(part => !/^[A-E]$/.test(part) && !/^[1-5]$/.test(part))) return false;
+  const indexes = parts.map(part => /^[1-5]$/.test(part) ? Number(part) : part.charCodeAt(0) - 64);
+  return new Set(indexes).size === indexes.length && indexes.every(index => index >= 1 && index <= optionCount);
+}
+
 /**
  * Validates and projects a Cloud Firestore-owned test for Community publication.
  *
@@ -216,10 +230,6 @@ function validateCommunityShareSource({
     }
 
     const answer = cleanString(source.correctAnswer);
-    if (!answer || !isAnswerKeyVerified(answer)) {
-      fail("A source question is missing a valid answer key; the test was not shared.");
-    }
-
     const numeric = ["NUMERICAL", "NUMERICAL_VALUE", "NAT", "TITA"].includes(questionType);
     const options = getOptions(source);
     if (numeric) {
@@ -228,6 +238,9 @@ function validateCommunityShareSource({
         options.some(option => !option) ||
         new Set(options.map(normalized)).size !== options.length) {
       fail("Each multiple-choice question must have four or five unique, non-empty options.");
+    }
+    if (!isAnswerKeyVerified(answer) || !isAnswerValidForQuestion(answer, questionType, options.length)) {
+      fail("A source question is missing a valid answer key for its question type and options.");
     }
 
     const imageUrl = cleanString(source.imageUrl);
