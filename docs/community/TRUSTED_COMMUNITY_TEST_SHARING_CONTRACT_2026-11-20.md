@@ -10,7 +10,7 @@ The Android client calls only `shareTestToCommunity` with:
 
 The client must not send question records, answers, explanations, exam identity, marking values, author identity, or publication fields as trusted input.
 
-The callable independently:
+The registry may include an `aliases` array for the exact display labels historically stored in source tests. The canonical `examId` remains the lookup key; conflicting display names are rejected.\n\nThe callable independently:
 1. Authenticates the caller and checks the authoritative `Users_Data/{uid}` status.
 2. Loads the original `Tests_Data/{testId}` document using the Functions Admin SDK.
 3. Verifies that `uploaderId`, `creatorId`, or `ownerId` identifies the caller.
@@ -36,7 +36,7 @@ Example shape (illustrative test fixture only; NOT an approved NEET or other exa
   "version": 1,
   "exams": {
     "example_exam": {
-      "examName": "Example Exam",
+      "examName": "Example Exam",\n      "aliases": ["Example", "Example Exam 2026"],
       "years": {
         "2026": {
           "scoringVersion": 1,
