@@ -87,7 +87,7 @@ Do not copy illustrative values into production. Missing years, stages, papers, 
 - `durationMinutes` and `totalMarks` as valid positive numbers
 - `title` and any optional display metadata
 
-A section may include `maxAttemptQuestions` when the official pattern allows fewer attempts than the number of displayed questions. This value is copied into the server-owned shared question projection and applied during grading; if omitted, every question in that section is attemptable.\n\nEvery question must include:
+A section may include `maxAttemptQuestions` when the official pattern allows fewer attempts than the number of displayed questions. This value is copied into the server-owned shared question projection and applied during grading; if omitted, every question in that section is attemptable.\n\nThe callable calculates the test's maximum marks from the validated per-question marks and any official section attempt limits. The source `totalMarks` must match this server calculation within 0.01; the server does not trust a client-supplied or inconsistent total.\n\nEvery question must include:
 - Unique `id`, `questionText`, `subjectId` and/or registered `subject`
 - `sectionId` (or a registry-matching section value), `questionType`
 - Exact `positiveMarks` and `negativeMarks` from the approved policy
