@@ -2139,7 +2139,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun shareTestToCommunity(test: TestEntity, selectedSubject: String = test.subject) {
+    fun shareTestToCommunity(test: TestEntity, selectedSubject: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
             val currentUid = currentUser?.uid
