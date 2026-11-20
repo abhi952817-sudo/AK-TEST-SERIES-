@@ -499,13 +499,21 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     }
   }
 
-  // Check for server-protected answer keys document (denied to normal clients by Firestore rules)
-  let privateKeyDoc = await testDoc.ref.collection("private_keys").doc("answerKey").get();
-  if (!privateKeyDoc.exists) {
-    privateKeyDoc = await db.collection("TestAnswerKeys").doc(cleanTestId).get();
+  // Load all server-protected private key chunks. Clients cannot read this subcollection.
+  const privateKeySnapshot = await testDoc.ref.collection("private_keys").get();
+  let privateKeyData = null;
+  if (!privateKeySnapshot.empty) {
+    const privateQuestions = [];
+    for (const keyDoc of privateKeySnapshot.docs) {
+      const keyData = keyDoc.data() || {};
+      if (Array.isArray(keyData.questions)) privateQuestions.push(...keyData.questions);
+      else if (keyData.id) privateQuestions.push(keyData);
+    }
+    if (privateQuestions.length > 0) privateKeyData = { questions: privateQuestions };
+  } else {
+    const legacyKeyDoc = await db.collection("TestAnswerKeys").doc(cleanTestId).get();
+    if (legacyKeyDoc.exists) privateKeyData = legacyKeyDoc.data();
   }
-
-  const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
   let solutionKeys = {};
   try {
     const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
@@ -1131,12 +1139,20 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
     }
   }
 
-  let privateKeyDoc = await testDoc.ref.collection("private_keys").doc("answerKey").get();
-  if (!privateKeyDoc.exists) {
-    privateKeyDoc = await db.collection("TestAnswerKeys").doc(cleanTestId).get();
+  const privateKeySnapshot = await testDoc.ref.collection("private_keys").get();
+  let privateKeyData = null;
+  if (!privateKeySnapshot.empty) {
+    const privateQuestions = [];
+    for (const keyDoc of privateKeySnapshot.docs) {
+      const keyData = keyDoc.data() || {};
+      if (Array.isArray(keyData.questions)) privateQuestions.push(...keyData.questions);
+      else if (keyData.id) privateQuestions.push(keyData);
+    }
+    if (privateQuestions.length > 0) privateKeyData = { questions: privateQuestions };
+  } else {
+    const legacyKeyDoc = await db.collection("TestAnswerKeys").doc(cleanTestId).get();
+    if (legacyKeyDoc.exists) privateKeyData = legacyKeyDoc.data();
   }
-
-  const privateKeyData = privateKeyDoc.exists ? privateKeyDoc.data() : null;
   let solutionKeys = {};
   try {
     const keyValidationData = isTrustedCommunityTest
