@@ -13,7 +13,7 @@ function cleanString(value) {
 }
 
 function normalized(value) {
-  return cleanString(value).toLowerCase().replace(/\\s+/g, " ");
+  return cleanString(value).toLowerCase().replace(/\s+/g, " ");
 }
 
 function finiteNumber(value) {
@@ -115,7 +115,7 @@ function validateCommunityShareSource({
   const examYear = cleanString(String(testData.examYear || ""));
   const scoringVersion = Number(testData.scoringVersion);
 
-  if (!examId || !stageId || !paperId || !/^20\\d{2}$/.test(examYear) ||
+  if (!examId || !stageId || !paperId || !/^20\d{2}$/.test(examYear) ||
       !Number.isInteger(scoringVersion) || scoringVersion < 1) {
     fail("The source test is missing canonical exam, year, stage, paper, or scoring-version metadata.");
   }
@@ -228,7 +228,7 @@ function validateCommunityShareSource({
     }
 
     const imageUrl = cleanString(source.imageUrl);
-    if (imageUrl && !/^https:\\/\\//i.test(imageUrl)) {
+    if (imageUrl && !/^https:\/\/\//i.test(imageUrl)) {
       fail("A question image is not a valid hosted HTTPS URL.");
     }
 
