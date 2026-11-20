@@ -170,3 +170,16 @@ The older `integration/verified-branch-consolidation-2026-11-19` tracker uses an
 7. Archive/delete branches only after their unique commits are proven integrated or explicitly classified obsolete, with approval.
 
 **Current result:** inventory and first-pass disposition completed; no application code merged, no branch deleted, and Main preserved. Full commit-by-commit source review and selective integration remain the next work items.
+
+
+## 9. Follow-up execution update (2026-11-20)
+
+After the initial inventory, the following selective actions were taken on a separate integration branch:
+
+- PR #19 was retargeted from `main` to `integration/ak-test-series-complete-2026-11-20` and squash-merged at commit `635e11ac72d96367364f32a85b78d7f36f74c6af`. Its Android configured-scoring path now rejects missing stage, paper, section configuration and unknown/missing question section IDs. It adds mixed-section and fail-closed regression tests.
+- PR #18 was retargeted from `main` to the same integration branch and squash-merged at commit `c58438cf2235436c25c37b69fb32f8c2b20c8189`. Its backend per-test ranking snapshot now represents unavailable or inconsistent population counts as null and adds tests. Ranking population transaction consistency and privacy remain open issues.
+- Both original PRs are now merged into the integration branch, not Main. Main remains at `29360378146d7c354377b4ea16ff01a7070057ef`.
+- Draft PR #20 was opened from the integration branch to Main solely to trigger validation. It is not approved for merge. Its head SHA is `c58438cf2235436c25c37b69fb32f8c2b20c8189`.
+- At the time of this addendum, PR #20's Android CI run `44714010245` was still in progress. No passing result is claimed until it completes.
+
+These two changes are selective candidates, not a declaration that the entire scoring/ranking engine is complete. PR #19 covers the explicit configured `calculateScore` path and does not by itself remove all legacy scoring heuristics or prove backend parity.
