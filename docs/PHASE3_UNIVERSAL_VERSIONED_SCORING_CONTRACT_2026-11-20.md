@@ -4,11 +4,19 @@ Branch: `feature/universal-exam-policy-engine-2026-11-20`
 Base: `feature/single-admin-security-2026-11-20`
 
 ## Audit findings
-- `UniversalExamRegistry.kt` currently contains 25 exam entries, all marked `verified = true`.
-- The 25 entries contain no `examYear` or year-bound scoring version.
-- The existing NEET UG entry describes the older Section A/Section B optional-question pattern and a 200-minute duration. It must not be treated as the current year-specific official pattern without a fresh official bulletin check.
-- Backend `getMarkingSchemeForExam` and Android `UniversalExamRegistry` use legacy exam-name/section matching. They are not a shared exact-key policy resolver.
+- The original `UniversalExamRegistry.kt` contained 25 exam entries all marked `verified = true`, with no `examYear` or year-bound scoring version.
+- Official NTA 2026 bulletins were located for NEET UG and JEE Main. NEET UG 2026 specifies 180 compulsory questions in 180 minutes, with Physics 45, Chemistry 45, Biology 90, total 720, and +4/-1/0 scoring. The old local entry incorrectly described 200 questions, optional Section B and 200 minutes.
+- JEE Main 2026 Paper 1 specifies 75 compulsory questions in 180 minutes, 20 MCQs and 5 numerical questions per subject, total 300, with negative marking in both sections. The old local entry incorrectly described 10 numerical questions with only 5 attempted.
+- The local registry is now corrected for these two source-verified 2026 patterns and stores their exam year, scoring version and source metadata. The other 23 entries are marked unverified until official year-specific evidence is added.
+- Backend legacy `getMarkingSchemeForExam` and Android `UniversalExamRegistry` still use legacy exam-name/section matching for unversioned saved tests. The new exact-key policy resolver is the separate versioned path.
 - Existing legacy unversioned tests continue to use the legacy engine in this phase to avoid silently changing old saved-test results.
+
+## Official 2026 source verification
+- NEET UG 2026 Information Bulletin, Chapter 4, pages 21–22: https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/02/202602231394640855.pdf
+  - 180 compulsory questions / 180 minutes; Physics 45, Chemistry 45, Biology 90; total 720; +4 correct, -1 incorrect, 0 unanswered.
+- JEE Main 2026 Information Bulletin, Chapter 2, pages 11–15: https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2025/11/202511021649722475.pdf
+  - Paper 1: 20 MCQs and 5 numerical questions per subject; 75 questions, 300 marks, 3 hours; negative marking applies to both sections.
+- The local registry tests assert these values and ensure the remaining 23 entries are not marked verified.
 
 ## New exact scoring identity
 Every versioned policy is resolved by the complete key:
