@@ -53,6 +53,7 @@ Example shape (illustrative test fixture only; NOT an approved NEET or other exa
                         {
                           "sectionId": "example_section_a",
                           "sectionName": "Section A",
+                          "maxAttemptQuestions": 10,
                           "questionTypes": {
                             "MCQ_SINGLE": {
                               "positiveMarks": 2,
@@ -86,7 +87,7 @@ Do not copy illustrative values into production. Missing years, stages, papers, 
 - `durationMinutes` and `totalMarks` as valid positive numbers
 - `title` and any optional display metadata
 
-Every question must include:
+A section may include `maxAttemptQuestions` when the official pattern allows fewer attempts than the number of displayed questions. This value is copied into the server-owned shared question projection and applied during grading; if omitted, every question in that section is attemptable.\n\nEvery question must include:
 - Unique `id`, `questionText`, `subjectId` and/or registered `subject`
 - `sectionId` (or a registry-matching section value), `questionType`
 - Exact `positiveMarks` and `negativeMarks` from the approved policy
