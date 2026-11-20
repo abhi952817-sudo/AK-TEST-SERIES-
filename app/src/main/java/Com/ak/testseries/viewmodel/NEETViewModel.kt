@@ -5654,7 +5654,8 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             moveTestToFolder(testId, folderId)
         }
 
-        // Community publication requires a separate, explicit user action.\n    }
+        // Community publication requires a separate, explicit user action.
+    }
 
     private fun saveQuestionsJsonToInternalStorage(testId: String, questionsJsonString: String) {
         try {
