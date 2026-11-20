@@ -579,6 +579,12 @@ test("Legacy admin claim on a non-owner account CANNOT perform administrative ac
       maintenanceMode: false
     })
   );
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Users_Data").doc(BOB_UID).set({
+      uid: BOB_UID,
+      isBanned: false
+    });
+  });
   await assertFails(
     legacyAdminDb.collection("Users_Data").doc(BOB_UID).update({ isBanned: true })
   );
