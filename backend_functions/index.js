@@ -455,8 +455,12 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
   const countsTowardRanking = testData.countsTowardRanking === true && (testData.isOfficial === true || testData.isPublic === true);
   const rawExamIdentity = testData.examId || testData.targetExam;
-  const canonicalExam = normalizeExamKey(rawExamIdentity);
-  if (canonicalExam === "UNKNOWN") {
+  const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
+  const normalizedExam = normalizeExamKey(rawExamIdentity);
+  const canonicalExam = normalizedExam === "UNKNOWN" && isTrustedCommunityTest
+    ? String(rawExamIdentity || "").trim()
+    : normalizedExam;
+  if (!canonicalExam || canonicalExam === "UNKNOWN") {
     throw new functions.https.HttpsError(
       "failed-precondition",
       "Test has no valid canonical exam identity. Scoring and ranking were not calculated."
