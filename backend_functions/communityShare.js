@@ -55,7 +55,7 @@ function isAnswerValidForQuestion(answer, questionType, optionCount) {
   const type = cleanString(questionType).toUpperCase();
   if (!clean) return false;
   if (["NUMERICAL", "NUMERICAL_VALUE", "NAT", "TITA"].includes(type)) {
-    return /^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)$/.test(clean) && Number.isFinite(Number(clean));
+    return /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(clean) && Number.isFinite(Number(clean));
   }
   const parts = clean.split(",").map(part => part.trim());
   if (!type.includes("MULTIPLE") && parts.length !== 1) return false;
