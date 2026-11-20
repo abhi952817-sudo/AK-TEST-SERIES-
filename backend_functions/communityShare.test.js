@@ -142,3 +142,12 @@ test("rejects unverified Full Syllabus claims", () => {
     selectedSubject: "Full Syllabus"
   }), /Full Syllabus/i);
 });
+
+test("rejects an MCQ answer key that does not map to an available option", () => {
+  const data = sourceTest({
+    questionsJson: JSON.stringify([{ ...JSON.parse(sourceTest().questionsJson)[0], correctAnswer: "E" }])
+  });
+  assert.throws(() => validateCommunityShareSource({
+    testId: "test-1", ownerUid: "student-1", testData: data, registry, selectedSubject: "Physics"
+  }), /answer key/i);
+});
