@@ -15,7 +15,7 @@ The callable independently:
 2. Loads the original `Tests_Data/{testId}` document using the Functions Admin SDK.
 3. Verifies that `uploaderId`, `creatorId`, or `ownerId` identifies the caller.
 4. Loads `Config/community_exam_registry`, which is admin-managed.
-5. Verifies exact `examId + examYear + stageId + paperId + scoringVersion`.
+5. Verifies exact `examId + stageId + paperId + scoringVersion`; the administrator-owned registry binds each scoring version to its official exam year. If a source document also has `examYear`, it must match that registry binding.
 6. Verifies every question's subject, section, question type, positive marks and negative marks against the year-specific registry policy.
 7. Requires a unique question ID, verified Gemini source metadata, a valid answer key, valid option structure, and hosted HTTPS image URLs.
 8. Creates public question projections without correct answers or explanations, stores the private key separately, and writes the Community feed card in one Firestore batch.
@@ -81,7 +81,7 @@ Do not copy illustrative values into production. Missing years, stages, papers, 
 `Tests_Data/{testId}` must contain:
 - `uploaderId` or `creatorId` or `ownerId` equal to the authenticated UID
 - `status` equal to `Published` or `APPROVED`
-- `examId`, `examYear`, `stageId`, `paperId`, `scoringVersion`
+- `examId`, `stageId`, `paperId`, `scoringVersion` (and optional `examYear`, which must match the server registry)
 - `questionsJson` as a JSON array and `questionsCount` matching its length
 - `durationMinutes` and `totalMarks` as valid positive numbers
 - `title` and any optional display metadata
