@@ -38,7 +38,7 @@ fun CommunityShareSubjectDialog(
     onConfirm: (String) -> Unit
 ) {
     val exam = remember(test.examId, test.targetExam) {
-        test.examId?.takeIf { it.isNotBlank() }?.let(UniversalExamRegistry::getExamById)
+        test.examId?.takeIf { it.isNotBlank() }?.let { examId -> UniversalExamRegistry.getExamById(examId) }
             ?: UniversalExamRegistry.getExam(test.targetExam)
     }
     val stage = remember(exam, test.stageId) {
