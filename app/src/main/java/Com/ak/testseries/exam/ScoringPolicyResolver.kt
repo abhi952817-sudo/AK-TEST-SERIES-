@@ -1,5 +1,10 @@
 package Com.ak.testseries.exam
 
+import java.net.URI
+import java.text.ParsePosition
+import java.text.SimpleDateFormat
+import java.util.Locale
+
 /**
  * Exact, source-backed scoring policy identity. Display labels are never used
  * as resolution keys because they can change between exam years.
@@ -42,6 +47,32 @@ data class ScoringPolicy(
  */
 object ScoringPolicyResolver {
 
+    private fun isValidHttpsSourceUrl(value: String): Boolean = try {
+        val uri = URI(value.trim())
+        uri.scheme.equals("https", ignoreCase = true) &&
+            !uri.host.isNullOrBlank() &&
+            uri.userInfo == null
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun isValidVerifiedAt(value: String): Boolean {
+        if (!value.matches(Regex(
+                "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$"
+            ))) return false
+
+        val formats = listOf(
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+        )
+        return formats.any { pattern ->
+            val parser = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
+            val position = ParsePosition(0)
+            val parsed = parser.parse(value, position)
+            parsed != null && position.index == value.length
+        }
+    }
+
     fun resolve(
         registryStatus: String,
         policies: List<ScoringPolicy>,
@@ -78,11 +109,11 @@ object ScoringPolicyResolver {
 
         val policy = matches.single()
         require(policy.status == "APPROVED") { "The scoring policy is not approved." }
-        require(policy.sourceUrl.startsWith("https://", ignoreCase = true)) {
-            "The scoring policy requires an HTTPS authoritative source."
+        require(isValidHttpsSourceUrl(policy.sourceUrl)) {
+            "The scoring policy requires a valid HTTPS authoritative source URL."
         }
-        require(policy.sourceTitle.isNotBlank() && policy.verifiedAt.isNotBlank() && policy.approvedBy.isNotBlank()) {
-            "The scoring policy is missing source provenance or approval metadata."
+        require(policy.sourceTitle.isNotBlank() && isValidVerifiedAt(policy.verifiedAt) && policy.approvedBy.isNotBlank()) {
+            "The scoring policy is missing valid source provenance or approval metadata."
         }
         require(policy.positiveMarks.isFinite() && policy.positiveMarks > 0.0) {
             "The scoring policy has invalid positive marks."
