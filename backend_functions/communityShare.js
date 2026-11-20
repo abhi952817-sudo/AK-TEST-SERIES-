@@ -343,7 +343,7 @@ function validateCommunityShareSource({
     topic: cleanString(testData.topic),
     difficulty: cleanString(testData.difficulty),
     durationMinutes,
-    totalMarks,
+    totalMarks: calculatedTotalMarks,
     questionCount: publicQuestions.length,
     publicQuestions,
     privateKeys,
