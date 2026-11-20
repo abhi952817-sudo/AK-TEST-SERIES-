@@ -318,17 +318,21 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
 
     maxPossible += scheme.pos;
 
-    const isTitaOrNumerical = (q.questionType || "").toUpperCase() === "TITA" ||
-      (q.questionType || "").toUpperCase() === "NUMERICAL" ||
-      (q.questionType || "").toUpperCase() === "NUMERICAL_VALUE";
+    const normalizedQuestionType = (q.questionType || "").toUpperCase();
+    const isTitaOrNumerical = normalizedQuestionType === "TITA" ||
+      normalizedQuestionType === "NUMERICAL" ||
+      normalizedQuestionType === "NUMERICAL_VALUE" ||
+      normalizedQuestionType === "NAT";
 
-    const effectiveNegMark = (isCat && isTitaOrNumerical) ? 0.0 : scheme.neg;
+    const effectiveNegMark = (!useQuestionLevelMarks && isCat && isTitaOrNumerical) ? 0.0 : scheme.neg;
 
     if (!userOpt || userOpt === "SKIPPED") {
       unansweredCount++;
     } else {
       const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
-      const secLimit = getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
+      const secLimit = useQuestionLevelMarks
+        ? (Number.isInteger(q.maxAttemptQuestions) && q.maxAttemptQuestions > 0 ? q.maxAttemptQuestions : null)
+        : getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
       const currentAttempts = sectionAttemptCounts[secKey] || 0;
 
       if (secLimit !== null && currentAttempts >= secLimit) {
