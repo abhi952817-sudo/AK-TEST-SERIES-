@@ -146,8 +146,12 @@ exports.shareTestToCommunity = functions.https.onCall(async (data, context) => {
       "The source test changed after its Community publication. Ask an administrator to review the existing share before republishing."
     );
   }
-  if (existingPost.exists && existingPost.get("creatorId") !== uid) {
-    throw new functions.https.HttpsError("already-exists", "The Community post ID is already owned by another account.");
+  if (existingPost.exists && (
+    existingPost.get("creatorId") !== uid ||
+    existingPost.get("postType") !== "TEST_SHARE" ||
+    existingPost.get("testId") !== testId
+  )) {
+    throw new functions.https.HttpsError("already-exists", "The deterministic Community post ID is already used by another record.");
   }
 
   const now = admin.firestore.FieldValue.serverTimestamp();
