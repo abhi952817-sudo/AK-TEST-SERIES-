@@ -289,3 +289,45 @@ test("Versioned policy marks flow into authoritative scoring with optional secti
   assert.equal(result.maxScore, 12);
   assert.equal(result.usesQuestionLevelMarks, true);
 });
+
+test("Versioned section attempt caps use canonical subject and section IDs", () => {
+  const policies = [
+    makePolicy({ subjectName: "Shared Subject", maxAttemptQuestions: 1 }),
+    makePolicy({
+      subjectId: "chemistry",
+      subjectName: "Shared Subject",
+      maxAttemptQuestions: 1
+    })
+  ];
+  const questions = [
+    makeQuestion({
+      id: "physics_q",
+      subject: "Shared Subject",
+      subjectId: "physics",
+      correctAnswer: "A"
+    }),
+    makeQuestion({
+      id: "chemistry_q",
+      subject: "Shared Subject",
+      subjectId: "chemistry",
+      correctAnswer: "B"
+    })
+  ];
+  const validated = validateVersionedTestScoring(
+    makeRegistry(policies),
+    makeTestData({ questionsCount: 2, totalMarks: 8 }),
+    questions
+  );
+  const result = evaluateTestAttempt(
+    "example_exam",
+    validated.questions,
+    { physics_q: "A", chemistry_q: "B" },
+    30,
+    { useQuestionLevelMarks: true }
+  );
+
+  assert.equal(result.correctCount, 2);
+  assert.equal(result.unansweredCount, 0);
+  assert.equal(result.finalScore, 8);
+  assert.equal(result.maxScore, 8);
+});
