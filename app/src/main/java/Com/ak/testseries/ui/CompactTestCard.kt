@@ -40,7 +40,7 @@ fun CompactTestCard(
     currentUserId: String = "",
     onDeleteTest: (() -> Unit)? = null,
     onReportIssue: (() -> Unit)? = null,
-    onShareToCommunity: (() -> Unit)? = null
+    onShareToCommunity: ((String) -> Unit)? = null
 ) {
     val subjectColor = when (test.subject.lowercase()) {
         "physics" -> Color(0xFF2196F3)
@@ -59,6 +59,7 @@ fun CompactTestCard(
     }
 
     val isLightTheme = MaterialTheme.colorScheme.background != Color(0xFF090A10)
+    var showCommunityShareDialog by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -148,7 +149,7 @@ fun CompactTestCard(
                                     text = { Text(stringRes("Share to Community")) },
                                     onClick = {
                                         expanded = false
-                                        onShareToCommunity.invoke()
+                                        showCommunityShareDialog = true
                                     }
                                 )
                             }
@@ -203,5 +204,16 @@ fun CompactTestCard(
                 }
             }
         }
+    }
+
+    if (showCommunityShareDialog && onShareToCommunity != null) {
+        CommunityShareSubjectDialog(
+            test = test,
+            onDismiss = { showCommunityShareDialog = false },
+            onConfirm = { selectedSubject ->
+                showCommunityShareDialog = false
+                onShareToCommunity.invoke(selectedSubject)
+            }
+        )
     }
 }
