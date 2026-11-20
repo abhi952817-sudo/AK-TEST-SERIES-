@@ -439,3 +439,39 @@ test("Trusted Community grading fails closed when question-level marks are missi
     { useQuestionLevelMarks: true }
   ), /invalid verified marking metadata/i);
 });
+
+test("Trusted Community scoring applies the registry's optional section attempt cap", () => {
+  const questions = [
+    {
+      id: "optional_q1",
+      correctAnswer: "A",
+      section: "optional_section",
+      subject: "Physics",
+      questionType: "MCQ_SINGLE",
+      positiveMarks: 4,
+      negativeMarks: 1,
+      maxAttemptQuestions: 1
+    },
+    {
+      id: "optional_q2",
+      correctAnswer: "A",
+      section: "optional_section",
+      subject: "Physics",
+      questionType: "MCQ_SINGLE",
+      positiveMarks: 5,
+      negativeMarks: 1,
+      maxAttemptQuestions: 1
+    }
+  ];
+  const result = evaluateTestAttempt(
+    "NEET UG",
+    questions,
+    { optional_q1: { ans: "A" }, optional_q2: { ans: "A" } },
+    30,
+    { useQuestionLevelMarks: true }
+  );
+  assert.strictEqual(result.correctCount, 1);
+  assert.strictEqual(result.unansweredCount, 1);
+  assert.strictEqual(result.finalScore, 4);
+  assert.strictEqual(result.maxScore, 5);
+});
