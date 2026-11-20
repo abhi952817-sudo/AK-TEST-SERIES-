@@ -175,3 +175,12 @@ test("rejects source total marks that do not equal the verified question marks",
     selectedSubject: "Physics"
   }), /total-marks/i);
 });
+
+test("rejects a question that requires an image but has no hosted image URL", () => {
+  const data = sourceTest({
+    questionsJson: JSON.stringify([{ ...JSON.parse(sourceTest().questionsJson)[0], needsImage: true, imageUrl: "" }])
+  });
+  assert.throws(() => validateCommunityShareSource({
+    testId: "test-1", ownerUid: "student-1", testData: data, registry, selectedSubject: "Physics"
+  }), /requires an image/i);
+});
