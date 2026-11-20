@@ -93,6 +93,17 @@ test("Resolver rejects an unknown exam year rather than inferring another year",
   );
 });
 
+test("Resolver rejects unsupported registry schema", () => {
+  assert.throws(
+    () => resolveScoringPolicy({ ...makeRegistry(), schemaVersion: 2 }, {
+      examId: "example_exam", examYear: "2026", scoringVersion: "v2026-1",
+      stageId: "stage_1", paperId: "paper_1", subjectId: "physics",
+      sectionId: "section_a", questionType: "MCQ_SINGLE"
+    }),
+    { code: "failed-precondition" }
+  );
+});
+
 test("Resolver rejects inactive registry and unapproved or source-less policies", () => {
   assert.throws(
     () => resolveScoringPolicy({ ...makeRegistry(), status: "DRAFT" }, {
