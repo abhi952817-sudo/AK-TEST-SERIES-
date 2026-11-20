@@ -11,7 +11,7 @@ on:
       - "firebase.json"
       - ".github/workflows/community-rules.yml"
   push:
-    branches: [ "feature/community-development-plan-2026-11-13" ]
+    branches: [ "feature/community-development-plan-2026-11-13", "feature/single-admin-security-2026-11-20" ]
     paths:
       - "firestore.rules"
       - "storage.rules"
