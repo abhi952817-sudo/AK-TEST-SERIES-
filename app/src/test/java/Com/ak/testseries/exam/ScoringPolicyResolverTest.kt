@@ -71,6 +71,18 @@ class ScoringPolicyResolverTest {
         assertThrows(IllegalArgumentException::class.java) {
             ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(sourceUrl = "http://example.gov") }), key)
         }
+        assertThrows(IllegalArgumentException::class.java) {
+            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(sourceUrl = "https://") }), key)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(sourceUrl = "https://user:pass@example.gov/bulletin.pdf") }), key)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(verifiedAt = "not-a-date") }), key)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ScoringPolicyResolver.resolve("ACTIVE", listOf(policy { copy(verifiedAt = "2026-02-30T10:00:00Z") }), key)
+        }
     }
 
     @Test
