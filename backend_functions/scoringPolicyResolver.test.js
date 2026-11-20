@@ -176,6 +176,14 @@ test("Versioned test validation rejects source marks that conflict with approved
     ),
     { code: "failed-precondition" }
   );
+  assert.throws(
+    () => validateVersionedTestScoring(
+      makeRegistry(),
+      makeTestData(),
+      [makeQuestion({ positiveMarks: "not-a-number" })]
+    ),
+    { code: "failed-precondition" }
+  );
 });
 
 test("Versioned test validation rejects mismatched source total marks and duplicate question IDs", () => {
