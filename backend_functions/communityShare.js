@@ -50,6 +50,26 @@ function getQuestionTypeRule(section, questionType) {
   return rules[questionType] || rules[questionType.toUpperCase()] || null;
 }
 
+function calculateVerifiedMaximumMarks(questions) {
+  const sections = new Map();
+  for (const question of questions) {
+    const key = question.subjectId + "::" + question.section;
+    const limit = Number.isInteger(question.maxAttemptQuestions) ? question.maxAttemptQuestions : null;
+    const current = sections.get(key) || { marks: [], limit };
+    if (current.limit !== limit) fail("Questions in the same section have conflicting verified attempt limits.");
+    current.marks.push(question.positiveMarks);
+    sections.set(key, current);
+  }
+  let total = 0;
+  for (const section of sections.values()) {
+    const marks = section.limit === null
+      ? section.marks
+      : section.marks.slice().sort((a, b) => b - a).slice(0, section.limit);
+    total += marks.reduce((sum, value) => sum + value, 0);
+  }
+  return Math.round(total * 100) / 100;
+}
+
 function isAnswerValidForQuestion(answer, questionType, optionCount) {
   const clean = cleanString(answer).toUpperCase();
   const type = cleanString(questionType).toUpperCase();
@@ -298,11 +318,13 @@ function validateCommunityShareSource({
   }
 
   const durationMinutes = Number(testData.durationMinutes);
-  const totalMarks = Number(testData.totalMarks);
+  const sourceTotalMarks = Number(testData.totalMarks);
+  const calculatedTotalMarks = calculateVerifiedMaximumMarks(publicQuestions);
   if (!cleanString(testData.title) ||
       !Number.isInteger(durationMinutes) || durationMinutes <= 0 ||
-      !finiteNumber(totalMarks) || totalMarks <= 0) {
-    fail("The source test is missing a title, valid duration, or total-marks metadata.");
+      !finiteNumber(sourceTotalMarks) || sourceTotalMarks <= 0 ||
+      Math.abs(sourceTotalMarks - calculatedTotalMarks) > 0.01) {
+    fail("The source total-marks value does not match the verified question and optional-section marking metadata.");
   }
 
   return {
