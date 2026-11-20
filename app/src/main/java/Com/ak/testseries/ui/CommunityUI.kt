@@ -413,13 +413,17 @@ fun CommunityScreen(
     }
 
     val createPostInFirebase: (CommunityPost) -> Unit = { newPost ->
-        val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
-        db.collection("Community_Posts").document(newPost.id).set(communityPostToMap(newPost))
+        if (newPost.postType == "TEST_SHARE") {
+            android.util.Log.w("CommunityScreen", "Client-side TEST_SHARE publishing is disabled; use the trusted shareTestToCommunity callable.")
+        } else {
+            val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
+            db.collection("Community_Posts").document(newPost.id).set(communityPostToMap(newPost))
+        }
     }
 
     val updatePostInFirebase: (CommunityPost) -> Unit = { updatedPost ->
         val db = Com.ak.testseries.data.remote.FirestoreHelper.getInstance()
-        if (currentUid == updatedPost.creatorId || isAdmin) {
+        if (updatedPost.postType != "TEST_SHARE" && (currentUid == updatedPost.creatorId || isAdmin)) {
             db.collection("Community_Posts").document(updatedPost.id).update(
                 mapOf(
                     "title" to updatedPost.title,
