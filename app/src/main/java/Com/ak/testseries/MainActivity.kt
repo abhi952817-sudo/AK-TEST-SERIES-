@@ -5390,6 +5390,7 @@ fun FullScreenSolutionPage(
     val solutionsFetchError by viewModel.solutionsFetchError.collectAsStateWithLifecycle()
     var isDoubtSolverOpen by remember { mutableStateOf(false) }
     var activeDoubtTab by remember { mutableStateOf(DoubtTab.AI) }
+    var showCommunityShareDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
