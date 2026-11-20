@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main", "integration/ak-test-series-complete-2026-11-20" ]
+    branches: [ "main", "feature/community-server-authoritative-share-2026-11-20" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "integration/ak-test-series-complete-2026-11-20" ]
 
 jobs:
   build:
