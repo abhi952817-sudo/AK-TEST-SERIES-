@@ -114,7 +114,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Server-verified Admin Check (Phase 2)
      * - Always forces fresh ID token
-     * - Trusts only Custom Claim `admin: true` or verified owner email
+     * - Trusts only the verified primary owner identity; legacy admin claims are ignored
      * - Clears admin status on any failure
      */
     fun checkAdminCustomClaim(forceRefresh: Boolean = true) {
@@ -131,12 +131,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         user.getIdToken(forceRefresh)
             .addOnSuccessListener { result ->
-                val hasAdminClaim = result.claims["admin"] == true
                 val isVerifiedOwner = user.email
                     ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
                         && user.isEmailVerified
 
-                isAdminFlow.value = hasAdminClaim || isVerifiedOwner
+                isAdminFlow.value = isVerifiedOwner
             }
             .addOnFailureListener {
                 isAdminFlow.value = false
@@ -185,12 +184,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
         user.getIdToken(true) // always force refresh
             .addOnSuccessListener { result ->
-                val hasAdminClaim = result.claims["admin"] == true
                 val isVerifiedOwner = user.email
                     ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
                         && user.isEmailVerified
 
-                val isAllowed = hasAdminClaim || isVerifiedOwner
+                val isAllowed = isVerifiedOwner
                 isAdminFlow.value = isAllowed
                 if (isAllowed) purgeRetiredDemoTestsFromFirestore()
                 onResult(isAllowed)
@@ -212,15 +210,14 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Fresh token + claim check
+        // Fresh token + verified primary owner identity check
         user.getIdToken(true)
             .addOnSuccessListener { result ->
-                val hasAdminClaim = result.claims["admin"] == true
                 val isVerifiedOwner = user.email
                     ?.equals("abhi952817@gmail.com", ignoreCase = true) == true
                         && user.isEmailVerified
 
-                val isAllowed = hasAdminClaim || isVerifiedOwner
+                val isAllowed = isVerifiedOwner
                 isAdminFlow.value = isAllowed
                 onResult(isAllowed)
             }

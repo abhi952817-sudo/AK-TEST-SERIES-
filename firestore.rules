@@ -13,11 +13,12 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Exactly one verified primary owner is an administrator.
+    // Legacy admin/superAdmin claims on other accounts do not grant access.
     function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.get('admin', false) == true
-        || (request.auth.token.get('email', '') == 'abhi952817@gmail.com' && request.auth.token.email_verified == true)
-      );
+      return isAuthenticated()
+        && request.auth.token.get('email', '') == 'abhi952817@gmail.com'
+        && request.auth.token.get('email_verified', false) == true;
     }
 
     // =========================================================================

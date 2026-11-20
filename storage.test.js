@@ -11,7 +11,7 @@ let testEnv;
 const PROJECT_ID = "demo-no-project";
 const ALICE_UID = "alice_student_123";
 const BOB_UID = "bob_student_456";
-const ADMIN_UID = "admin_super_999";
+const ADMIN_UID = "owner_uid_777";
 
 const [storageHost, storagePortRaw] = (
   process.env.FIREBASE_STORAGE_EMULATOR_HOST || "127.0.0.1:9199"
@@ -78,7 +78,7 @@ test("Community image path rejects PDF and unsupported MIME types", async () => 
 test("Community report evidence is private to reporter and Admin", async () => {
   const aliceStorage = testEnv.authenticatedContext(ALICE_UID).storage();
   const bobStorage = testEnv.authenticatedContext(BOB_UID).storage();
-  const adminStorage = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).storage();
+  const adminStorage = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).storage();
   const evidenceRef = ref(aliceStorage, `community_report_evidence/${ALICE_UID}/report-1`);
 
   await assertSucceeds(
@@ -91,5 +91,15 @@ test("Community report evidence is private to reporter and Admin", async () => {
   );
   await assertSucceeds(
     getBytes(ref(adminStorage, `community_report_evidence/${ALICE_UID}/report-1`))
+  );
+
+  const legacyAdminStorage = testEnv.authenticatedContext("legacy_admin_uid_999", {
+    email: "legacy-admin@example.com",
+    email_verified: true,
+    admin: true,
+    superAdmin: true
+  }).storage();
+  await assertFails(
+    getBytes(ref(legacyAdminStorage, `community_report_evidence/${ALICE_UID}/report-1`))
   );
 });

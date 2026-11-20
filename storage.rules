@@ -6,11 +6,12 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // Exactly one verified primary owner is an administrator.
+    // Legacy admin claims on other accounts do not grant Storage access.
     function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.admin == true
-        || (request.auth.token.email == "abhi952817@gmail.com" && request.auth.token.email_verified == true)
-      );
+      return isAuthenticated()
+        && request.auth.token.email == "abhi952817@gmail.com"
+        && request.auth.token.email_verified == true;
     }
 
     // Question diagram images and charts

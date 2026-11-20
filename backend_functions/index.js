@@ -14,7 +14,7 @@ const {
   getExamEligibility,
   normalizeExamKey,
 } = require("./examScoring");
-const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const { validateSetAdminRoleAuth, resolveAdminRoleTarget, isPrimaryAdminToken, assertActiveUserStatus, PRIMARY_ADMIN_EMAIL } = require("./authHelper");
 const crypto = require("node:crypto");
 const { validateCommunityShareSource } = require("./communityShare");
 
@@ -279,8 +279,7 @@ exports.purgeRetiredDemoTests = functions.https.onCall(async (data, context) => 
   }
   const isAdmin = Boolean(
     context.auth.token && (
-      context.auth.token.admin === true ||
-      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+      isPrimaryAdminToken(context.auth.token)
     )
   );
   if (!isAdmin) {
@@ -453,8 +452,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   // 3. Authorization check & explicit publication policy
   const isCallerAdmin = Boolean(
     context.auth.token && (
-      context.auth.token.admin === true ||
-      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+      isPrimaryAdminToken(context.auth.token)
     )
   );
   const isCreator = (testData.creatorId && testData.creatorId === userId) ||
@@ -968,19 +966,33 @@ exports.setAdminRole = functions.https.onCall(async (data, context) => {
     );
   }
 
-  const { targetUid, isAdmin: grantAdmin } = data || {};
-  let uidToPromote = targetUid;
-  if (!uidToPromote && data && data.email) {
-    const userRecord = await admin.auth().getUserByEmail(data.email);
-    uidToPromote = userRecord.uid;
+  const uidToPromote = resolveAdminRoleTarget(context, data);
+  let userRecord;
+  try {
+    userRecord = await admin.auth().getUser(uidToPromote);
+  } catch (err) {
+    throw new functions.https.HttpsError("not-found", "Primary administrator account was not found.");
   }
 
-  if (!uidToPromote) {
-    throw new functions.https.HttpsError("invalid-argument", "Missing targetUid or email.");
+  if (
+    typeof userRecord.email !== "string" ||
+    userRecord.email.trim().toLowerCase() !== PRIMARY_ADMIN_EMAIL ||
+    userRecord.emailVerified !== true
+  ) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "The single administrator must be the verified primary owner account."
+    );
   }
 
-  await admin.auth().setCustomUserClaims(uidToPromote, { admin: grantAdmin !== false });
-  return { success: true, targetUid: uidToPromote, admin: grantAdmin !== false };
+  const existingClaims = userRecord.customClaims || {};
+  await admin.auth().setCustomUserClaims(uidToPromote, {
+    ...existingClaims,
+    admin: true,
+    superAdmin: true,
+    role: "admin"
+  });
+  return { success: true, targetUid: uidToPromote, admin: true, superAdmin: true };
 });
 
 /**
@@ -1102,8 +1114,7 @@ exports.getTestAttemptSolutions = functions.https.onCall(async (data, context) =
   const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
   const isCallerAdmin = Boolean(
     context.auth.token && (
-      context.auth.token.admin === true ||
-      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+      isPrimaryAdminToken(context.auth.token)
     )
   );
 

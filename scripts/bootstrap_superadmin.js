@@ -1,49 +1,53 @@
 /**
- * AK Test Series - Super Admin Custom Claim Provisioning Script
- * 
- * Safely grants the `{ admin: true }` Firebase Auth custom claim to the designated
- * owner email account: abhi952817@gmail.com.
+ * One-time, single-owner Firebase Admin claim bootstrap.
  *
- * Usage:
- *   node scripts/bootstrap_superadmin.js [email]
+ * Required environment:
+ *   AK_SUPER_ADMIN_UID=<Firebase Auth UID of the primary owner>
+ *   CONFIRM_SINGLE_ADMIN_BOOTSTRAP=YES
+ *
+ * This script never looks up or promotes an arbitrary email/UID. It verifies
+ * the configured UID against the one approved, verified owner identity and
+ * preserves unrelated existing custom claims.
  */
-
 const admin = require("firebase-admin");
 
-const targetEmail = process.argv[2] || "abhi952817@gmail.com";
+const PRIMARY_ADMIN_EMAIL = "abhi952817@gmail.com";
+const ownerUid = process.env.AK_SUPER_ADMIN_UID;
+const confirmed = process.env.CONFIRM_SINGLE_ADMIN_BOOTSTRAP === "YES";
 
-// Initialize Firebase Admin SDK using Application Default Credentials (ADC) or service account
-if (!admin.apps.length) {
-  try {
+async function main() {
+  if (!ownerUid || !ownerUid.trim()) {
+    throw new Error("Set AK_SUPER_ADMIN_UID to the primary owner's Firebase Auth UID.");
+  }
+  if (!confirmed) {
+    throw new Error("Set CONFIRM_SINGLE_ADMIN_BOOTSTRAP=YES after verifying the Firebase project and owner UID.");
+  }
+
+  if (!admin.apps.length) {
     admin.initializeApp();
-  } catch (e) {
-    console.error("Firebase Admin initialization error:", e.message);
   }
+
+  const user = await admin.auth().getUser(ownerUid.trim());
+  if (
+    typeof user.email !== "string" ||
+    user.email.trim().toLowerCase() !== PRIMARY_ADMIN_EMAIL ||
+    user.emailVerified !== true
+  ) {
+    throw new Error("Refusing bootstrap: UID must belong to the verified primary owner account.");
+  }
+
+  const existingClaims = user.customClaims || {};
+  await admin.auth().setCustomUserClaims(user.uid, {
+    ...existingClaims,
+    admin: true,
+    superAdmin: true,
+    role: "admin"
+  });
+
+  console.log("[AK Test Series] Single primary administrator claim provisioned successfully.");
 }
 
-async function grantSuperAdmin(email) {
-  console.log(`[AK Test Series] Initiating Super Admin claim check for: ${email}`);
-  try {
-    const user = await admin.auth().getUserByEmail(email);
-    console.log(`[AK Test Series] Found user UID: ${user.uid} for email: ${user.email}`);
-
-    // Set custom claim { admin: true }
-    await admin.auth().setCustomUserClaims(user.uid, {
-      admin: true,
-      superAdmin: true,
-      role: "admin",
-      authorizedAt: Date.now()
-    });
-
-    console.log(`[AK Test Series] SUCCESS: Custom claim { admin: true } stamped on UID: ${user.uid}`);
-    console.log(`[AK Test Series] User ${email} is now verified as Super Admin.`);
-  } catch (error) {
-    if (error.code === 'auth/user-not-found') {
-      console.log(`[AK Test Series] Note: User ${email} has not logged in yet. The claim will be automatically provisioned via setAdminRole Cloud Function upon first Google Sign-In.`);
-    } else {
-      console.error(`[AK Test Series] Error assigning claim:`, error.message);
-    }
-  }
-}
-
-grantSuperAdmin(targetEmail);
+main().catch((error) => {
+  console.error("[AK Test Series] Admin bootstrap failed:", error.message);
+  process.exitCode = 1;
+});

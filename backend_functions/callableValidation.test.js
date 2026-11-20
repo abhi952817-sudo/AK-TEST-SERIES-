@@ -6,7 +6,7 @@ const {
   validateAndMergeAnswerKeys,
   getExamEligibility,
 } = require("./examScoring");
-const { validateSetAdminRoleAuth, assertActiveUserStatus } = require("./authHelper");
+const { validateSetAdminRoleAuth, resolveAdminRoleTarget, isPrimaryAdminToken, assertActiveUserStatus } = require("./authHelper");
 
 // Simulated logic mirroring submitTestAttemptServerSide verification rules
 function validateCallableSubmission(
@@ -64,7 +64,7 @@ function validateCallableSubmission(
   }
 
   // 3. Authorization & strict publication policy
-  const isCallerAdmin = Boolean(context.auth.token && context.auth.token.admin === true);
+  const isCallerAdmin = isPrimaryAdminToken(context.auth.token);
   const isCreator = (testDocData.creatorId && testDocData.creatorId === userId) ||
                     (testDocData.uploaderId && testDocData.uploaderId === userId);
 
@@ -615,28 +615,60 @@ test("setAdminRole: Caller with unverified owner email is rejected with permissi
   );
 });
 
-test("setAdminRole: Verified owner or admin claim is authorized", () => {
+test("setAdminRole: Only the case-insensitive verified primary owner is authorized", () => {
   const verifiedOwnerContext = {
     auth: {
       uid: "owner_123",
       token: {
-        email: "abhi952817@gmail.com",
+        email: "ABHI952817@GMAIL.COM",
         email_verified: true
       }
     }
   };
   assert.strictEqual(validateSetAdminRoleAuth(verifiedOwnerContext), true);
+  assert.strictEqual(isPrimaryAdminToken(verifiedOwnerContext.auth.token), true);
+  assert.strictEqual(resolveAdminRoleTarget(verifiedOwnerContext, {}), "owner_123");
+  assert.strictEqual(resolveAdminRoleTarget(verifiedOwnerContext, { targetUid: "owner_123", isAdmin: true }), "owner_123");
+});
 
+test("setAdminRole: Existing admin claim on another account is not sufficient", () => {
   const adminClaimContext = {
     auth: {
-      uid: "admin_123",
+      uid: "staff_123",
       token: {
         email: "staff@example.com",
-        admin: true
+        email_verified: true,
+        admin: true,
+        superAdmin: true
       }
     }
   };
-  assert.strictEqual(validateSetAdminRoleAuth(adminClaimContext), true);
+  assert.strictEqual(isPrimaryAdminToken(adminClaimContext.auth.token), false);
+  assert.throws(
+    () => validateSetAdminRoleAuth(adminClaimContext),
+    (err) => err.code === "permission-denied"
+  );
+});
+
+test("setAdminRole: Primary owner cannot promote another UID or email", () => {
+  const ownerContext = {
+    auth: {
+      uid: "owner_123",
+      token: { email: "abhi952817@gmail.com", email_verified: true }
+    }
+  };
+  assert.throws(
+    () => resolveAdminRoleTarget(ownerContext, { targetUid: "student_456" }),
+    (err) => err.code === "permission-denied"
+  );
+  assert.throws(
+    () => resolveAdminRoleTarget(ownerContext, { email: "student@example.com" }),
+    (err) => err.code === "invalid-argument"
+  );
+  assert.throws(
+    () => resolveAdminRoleTarget(ownerContext, { isAdmin: false }),
+    (err) => err.code === "permission-denied"
+  );
 });
 
 // =========================================================================
@@ -912,8 +944,7 @@ function validateGetSolutions(
 
   const isCallerAdmin = Boolean(
     context.auth.token && (
-      context.auth.token.admin === true ||
-      (context.auth.token.email === "abhi952817@gmail.com" && context.auth.token.email_verified === true)
+      isPrimaryAdminToken(context.auth.token)
     )
   );
 

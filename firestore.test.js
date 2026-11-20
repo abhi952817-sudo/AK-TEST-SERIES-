@@ -11,7 +11,7 @@ let testEnv;
 const PROJECT_ID = "demo-no-project";
 const ALICE_UID = "alice_student_123";
 const BOB_UID = "bob_student_456";
-const ADMIN_UID = "admin_super_999";
+const ADMIN_UID = "owner_uid_777";
 
 const [emulatorHost, emulatorPortStr] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8085").split(":");
 const emulatorPort = parseInt(emulatorPortStr, 10);
@@ -359,7 +359,7 @@ test("F-016: Student CANNOT read private_keys subcollection or TestAnswerKeys di
   );
 
   // Admin CAN read private_keys and TestAnswerKeys
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
   await assertSucceeds(
     adminDb.collection("Tests").doc("official_neet_2026").collection("private_keys").doc("answerKey").get()
   );
@@ -533,7 +533,7 @@ test("Community posts reject General subject and PDF attachment fields", async (
 test("Community reports are private to Admin and block lists are owner-managed", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
 
   await assertSucceeds(
     aliceDb.collection("Community_Reports").doc("report_1").set({
@@ -564,9 +564,34 @@ test("Community reports are private to Admin and block lists are owner-managed",
 // 6. ADMIN CUSTOM CLAIMS VERIFICATION
 // =========================================================================
 
-test("Admin: user with { admin: true } custom claim CAN perform administrative actions", async () => {
-  // Context with token.admin = true
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+test("Legacy admin claim on a non-owner account CANNOT perform administrative actions", async () => {
+  // A stale claim must not bypass the single-owner policy.
+  const legacyAdminDb = testEnv.authenticatedContext("legacy_admin_uid_999", {
+    email: "legacy-admin@example.com",
+    email_verified: true,
+    admin: true,
+    superAdmin: true
+  }).firestore();
+
+  await assertFails(
+    legacyAdminDb.collection("Config").doc("admin_settings").set({
+      dailyFreeLimit: 5,
+      maintenanceMode: false
+    })
+  );
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection("Users_Data").doc(BOB_UID).set({
+      uid: BOB_UID,
+      isBanned: false
+    });
+  });
+  await assertFails(
+    legacyAdminDb.collection("Users_Data").doc(BOB_UID).update({ isBanned: true })
+  );
+});
+
+test("Single verified primary owner CAN perform administrative actions", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
 
   // Admin can write to Config
   await assertSucceeds(
@@ -658,7 +683,7 @@ test("Leaderboard: Students CAN read public leaderboard, CANNOT write directly w
   });
 
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
 
   // Alice can read public leaderboard rankings
   await assertSucceeds(aliceDb.collection("Leaderboard").doc("rank_1").get());
@@ -732,7 +757,7 @@ test("User_Analytics: Student can log own analytics, but cannot forge events for
 });
 
 test("Private Test Ownership: Creator can read private test, another student is denied", async () => {
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
@@ -753,7 +778,7 @@ test("Private Test Ownership: Creator can read private test, another student is 
 });
 
 test("Private Test Ownership: ownerId and uploaderId are supported, missing owner fails closed", async () => {
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
@@ -780,7 +805,7 @@ test("Private Test Ownership: ownerId and uploaderId are supported, missing owne
 
 test("Shared_Community_Tests: students cannot publish or modify shared test records directly", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
 
   await assertFails(
     aliceDb.collection("Shared_Community_Tests").doc("alice_comm_test").set({
@@ -811,7 +836,7 @@ test("Shared_Community_Tests: students cannot publish or modify shared test reco
 
 test("Shared_Community_Tests: public questions are readable but private answer keys are denied", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
 
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const adminDb = ctx.firestore();
@@ -872,7 +897,7 @@ test("Community_Posts: students cannot create or convert a post into TEST_SHARE"
 // =========================================================================
 
 test("Ban Enforcement Rules: Active student can write attempts and community posts", async () => {
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
 
   // Admin sets active student profile
@@ -907,7 +932,7 @@ test("Ban Enforcement Rules: Active student can write attempts and community pos
 });
 
 test("Ban Enforcement Rules: Banned student is blocked from writing attempts, community tests, or community posts", async () => {
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
   // Admin sets Bob as suspended (isBanned: true)
@@ -958,7 +983,7 @@ test("Ban Enforcement Rules: Banned student is blocked from writing attempts, co
 });
 
 test("Ban Enforcement Rules: Admin can unban student and restore privileges in real-time", async () => {
-  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore();
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, { email: "abhi952817@gmail.com", email_verified: true }).firestore();
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
   // Bob is initially banned
