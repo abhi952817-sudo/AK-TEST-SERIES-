@@ -43,6 +43,7 @@ class QuestionLevelScoringEngineTest {
             rubric = QuestionLevelScoringEngine.Rubric(1, emptyList(), 0.0, tolerance = 0.01)
         )
         assertEquals(4.0, QuestionLevelScoringEngine.evaluate(listOf(question), mapOf("numeric" to "12.509")).finalScore, 0.001)
+        assertEquals(4.0, QuestionLevelScoringEngine.evaluate(listOf(question), mapOf("numeric" to "12.5")).finalScore, 0.001)
         assertThrows(IllegalArgumentException::class.java) {
             QuestionLevelScoringEngine.evaluate(listOf(question), mapOf("numeric" to "NaN"))
         }
@@ -55,6 +56,13 @@ class QuestionLevelScoringEngineTest {
         }
         assertThrows(IllegalArgumentException::class.java) {
             QuestionLevelScoringEngine.evaluate(listOf(multiQuestion(), multiQuestion()), mapOf("multi_1" to "A"))
+        }
+    }
+
+    @Test fun unknownAnswerQuestionIdsFailClosed() {
+        val question = multiQuestion()
+        assertThrows(IllegalArgumentException::class.java) {
+            QuestionLevelScoringEngine.evaluate(listOf(question), mapOf("not_in_test" to "A"))
         }
     }
 
