@@ -50,7 +50,6 @@ fun PrivateTestsVaultScreen(
     var selectedFilter by remember { mutableStateOf("All Private") }
     var selectedSubject by remember { mutableStateOf("All") }
 
-    var showImportDialog by remember { mutableStateOf(false) }
     var activePreviewTest by remember { mutableStateOf<TestEntity?>(null) }
 
     // Filter private tests: Authenticated students see only tests they created; Admins can see all
@@ -117,7 +116,7 @@ fun PrivateTestsVaultScreen(
                             }
                         }
                         Text(
-                            text = "Local pre-formatted questions, options & images from JSON without AI",
+                            text = "Your private AI-generated & saved tests",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -126,22 +125,6 @@ fun PrivateTestsVaultScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    Button(
-                        onClick = { showImportDialog = true },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Import JSON", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -235,10 +218,7 @@ fun PrivateTestsVaultScreen(
 
             // Main Test List
             if (filteredTests.isEmpty()) {
-                EmptyPrivateVaultView(
-                    searchQuery = searchQuery,
-                    onImportClick = { showImportDialog = true }
-                )
+                EmptyPrivateVaultView(searchQuery = searchQuery)
             } else {
                 LazyColumn(
                     modifier = Modifier
@@ -274,14 +254,6 @@ fun PrivateTestsVaultScreen(
             test = test,
             viewModel = viewModel,
             onDismiss = { activePreviewTest = null }
-        )
-    }
-
-    // Pre-formatted JSON Import Modal
-    if (showImportDialog) {
-        ImportPreformattedJsonDialog(
-            viewModel = viewModel,
-            onDismiss = { showImportDialog = false }
         )
     }
 }
@@ -503,8 +475,7 @@ fun PrivateTestCardItem(
 
 @Composable
 fun EmptyPrivateVaultView(
-    searchQuery: String,
-    onImportClick: () -> Unit
+    searchQuery: String
 ) {
     Box(
         modifier = Modifier
@@ -539,21 +510,16 @@ fun EmptyPrivateVaultView(
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "You can import pre-formatted questions, options & images directly from JSON into your private vault without Gemini AI.",
+                text = if (searchQuery.isNotBlank()) {
+                    "Try a different title, subject, or chapter keyword."
+                } else {
+                    "Generate verified tests from your PDFs using the AI Upload tab to save them in your private vault."
+                },
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
-            Spacer(modifier = Modifier.height(20.dp))
-            Button(
-                onClick = onImportClick,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Import Pre-formatted JSON Test", fontWeight = FontWeight.Bold)
-            }
         }
     }
 }
@@ -980,156 +946,4 @@ fun LocalPreformattedQuestionModal(
             }
         }
     }
-}
-
-@Composable
-fun ImportPreformattedJsonDialog(
-    viewModel: NEETViewModel,
-    onDismiss: () -> Unit
-) {
-    var title by remember { mutableStateOf("") }
-    var subject by remember { mutableStateOf("Physics") }
-    var jsonText by remember { mutableStateOf("") }
-    var isPublic by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var isSaving by remember { mutableStateOf(false) }
-
-    val sampleJson = """[
-  {
-    "id": "p_q1",
-    "questionText": "What is the SI unit of electric current?",
-    "optionA": "Ampere",
-    "optionB": "Volt",
-    "optionC": "Ohm",
-    "optionD": "Watt",
-    "correctAnswer": "A",
-    "explanation": "Ampere (A) is the SI base unit of electric current.",
-    "subject": "Physics",
-    "imageUrl": ""
-  }
-]"""
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Code, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Import Pre-formatted JSON Test", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = "Paste pre-formatted JSON containing questions, options, correct answers & images. The app renders and saves it into local Room memory without AI API calls.",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Test Title") },
-                    placeholder = { Text("e.g. Physics Chapter 1 Private Practice") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = subject,
-                    onValueChange = { subject = it },
-                    label = { Text("Subject") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = isPublic,
-                        onCheckedChange = { isPublic = it }
-                    )
-                    Text("Share publicly to community (default: Private Vault)", fontSize = 12.sp)
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("JSON Payload:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    TextButton(onClick = { jsonText = sampleJson }) {
-                        Text("Fill Sample JSON", fontSize = 11.sp)
-                    }
-                }
-
-                OutlinedTextField(
-                    value = jsonText,
-                    onValueChange = { jsonText = it },
-                    placeholder = { Text("Paste JSON array here...") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-                )
-
-                if (errorMessage != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = errorMessage!!,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (jsonText.isBlank()) {
-                        errorMessage = "Please enter or paste JSON payload"
-                        return@Button
-                    }
-                    isSaving = true
-                    viewModel.savePreformattedJsonTest(
-                        title = title,
-                        subject = subject,
-                        jsonString = jsonText,
-                        isPublic = isPublic,
-                        onSuccess = {
-                            isSaving = false
-                            onDismiss()
-                        },
-                        onError = { err ->
-                            isSaving = false
-                            errorMessage = err
-                        }
-                    )
-                },
-                enabled = !isSaving
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Text("Save to Vault & Memory")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }
