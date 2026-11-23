@@ -15,6 +15,7 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const { validateVersionedTestScoring } = require("./scoringPolicyResolver");
+const { isLegacyScoringApproved } = require("./legacyScoringGate");
 const { validateSetAdminRoleAuth, resolveAdminRoleTarget, isPrimaryAdminToken, assertActiveUserStatus, PRIMARY_ADMIN_EMAIL } = require("./authHelper");
 const crypto = require("node:crypto");
 const { validateCommunityShareSource } = require("./communityShare");
@@ -586,6 +587,19 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       throw new functions.https.HttpsError(
         err.code || "failed-precondition",
         err.message || "Versioned scoring policy validation failed."
+      );
+    }
+  } else if (!isTrustedCommunityTest) {
+    // Unversioned legacy scoring is permitted only for IDs explicitly grandfathered
+    // by the server-owned Config allowlist. Client-controlled test metadata cannot
+    // opt itself into historical scoring or competitive ranking.
+    const legacyAllowlistSnapshot = await db.collection("Config").doc("legacy_scoring_allowlist").get();
+    const approvedLegacyTest = legacyAllowlistSnapshot.exists &&
+      isLegacyScoringApproved(cleanTestId, legacyAllowlistSnapshot.data());
+    if (!approvedLegacyTest) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "This test has no approved year-versioned scoring policy and is not on the historical legacy allowlist. Scoring was not calculated."
       );
     }
   }
