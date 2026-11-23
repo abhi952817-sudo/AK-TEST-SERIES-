@@ -75,6 +75,10 @@ test("duplicate question IDs and malformed multi-select answers fail closed", ()
   assert.throws(() => evaluateQuestionLevelAttempt([multi], { multi_1: "A,A" }), { code: "failed-precondition" });
 });
 
+test("answer entries for unknown question IDs fail closed", () => {
+  assert.throws(() => evaluateQuestionLevelAttempt([multi], { not_in_test: "A" }), { code: "failed-precondition" });
+});
+
 test("unanswered questions receive the explicit unanswered value and do not count as attempted", () => {
   const question = { ...multi, rubric: { ...multi.rubric, unansweredMarks: 0.5 } };
   const result = evaluateQuestionLevelAttempt([question], {});
