@@ -153,6 +153,9 @@ function evaluateQuestionLevelAttempt(questions, userAnswers) {
     else wrongCount++;
   }
 
+  const unknownAnswerIds = Object.keys(userAnswers).filter(id => !seenIds.has(id));
+  if (unknownAnswerIds.length) throw scoringError("Answers contain unknown question IDs: " + unknownAnswerIds.sort().join(", ") + ".");
+
   const round = value => Math.round((value + Number.EPSILON) * 100) / 100;
   const attemptedCount = correctCount + partialCount + wrongCount;
   return {
