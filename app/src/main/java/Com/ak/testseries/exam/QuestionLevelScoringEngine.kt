@@ -45,6 +45,11 @@ object QuestionLevelScoringEngine {
         val maxScore: Double
     )
 
+    private val strictNumberPattern = Regex("^[+-]?(?:\\\\d+(?:\\\\.\\\\d+)?|\\\\.\\\\d+)$")
+
+    private fun strictFiniteNumber(value: String?): Double? =
+        if (value != null && strictNumberPattern.matches(value.trim())) value.trim().toDoubleOrNull()?.takeIf { it.isFinite() } else null
+
     private val supported = setOf(
         "BINARY_MARKS",
         "EXACT_RESPONSE_TABLE",
@@ -85,7 +90,7 @@ object QuestionLevelScoringEngine {
             if (strategy == "NUMERIC_TOLERANCE") {
                 val tolerance = requireFinite(question.rubric?.tolerance, "rubric.tolerance")
                 require(tolerance >= 0.0) { "Numeric tolerance cannot be negative." }
-                require(question.correctAnswer!!.toDoubleOrNull()?.isFinite() == true) {
+                require(strictFiniteNumber(question.correctAnswer) != null) {
                     "Numeric correctAnswer must be finite."
                 }
             }
@@ -157,9 +162,9 @@ object QuestionLevelScoringEngine {
                     outcome = if (isCorrect) Outcome.CORRECT else Outcome.WRONG
                 }
                 "NUMERIC_TOLERANCE" -> {
-                    val entered = answer.trim().toDoubleOrNull()
+                    val entered = strictFiniteNumber(answer)
                     require(entered != null && entered.isFinite()) { "Numeric response must be finite." }
-                    val expected = question.correctAnswer!!.toDouble()
+                    val expected = strictFiniteNumber(question.correctAnswer)!!
                     val isCorrect = kotlin.math.abs(entered - expected) <= question.rubric!!.tolerance!!
                     marks = if (isCorrect) question.positiveMarks!! else -question.negativeMarks!!
                     outcome = if (isCorrect) Outcome.CORRECT else Outcome.WRONG
@@ -181,7 +186,7 @@ object QuestionLevelScoringEngine {
             }
         }
 
-        fun rounded(value: Double) = kotlin.math.round(value * 100.0) / 100.0
+        fun rounded(value: Double) = kotlin.math.floor(value * 100.0 + 0.5) / 100.0
         val attempted = correct + partial + wrong
         return Result(
             totalQuestions = questions.size,

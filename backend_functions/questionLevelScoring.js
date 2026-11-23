@@ -6,7 +6,7 @@ const STRATEGIES = new Set([
   "MULTI_SELECT_PARTIAL_TABLE",
   "NUMERIC_TOLERANCE"
 ]);
-const NUMBER_PATTERN = /^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)$/;
+const NUMBER_PATTERN = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
 
 function scoringError(message) {
   const error = new Error(message);
@@ -117,7 +117,7 @@ function evaluateQuestionLevelAttempt(questions, userAnswers) {
     seenIds.add(question.id);
     maxScore += question.maxMarks;
     const rawAnswer = userAnswers[question.id];
-    if (rawAnswer == null || (typeof rawAnswer === "string" && !rawAnswer.trim()) || rawAnswer === "SKIPPED") {
+    if (rawAnswer == null || (typeof rawAnswer === "string" && !rawAnswer.trim()) || (typeof rawAnswer === "string" && rawAnswer.trim().toUpperCase() === "SKIPPED")) {
       unansweredCount++;
       const marks = question.strategyId === "BINARY_MARKS" || question.strategyId === "NUMERIC_TOLERANCE"
         ? 0 : question.rubric.unansweredMarks;
