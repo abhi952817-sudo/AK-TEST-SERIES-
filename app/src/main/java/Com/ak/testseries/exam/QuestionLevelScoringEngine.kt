@@ -85,7 +85,7 @@ object QuestionLevelScoringEngine {
             if (strategy == "NUMERIC_TOLERANCE") {
                 val tolerance = requireFinite(question.rubric?.tolerance, "rubric.tolerance")
                 require(tolerance >= 0.0) { "Numeric tolerance cannot be negative." }
-                require(question.correctAnswer.toDoubleOrNull()?.isFinite() == true) {
+                require(question.correctAnswer!!.toDoubleOrNull()?.isFinite() == true) {
                     "Numeric correctAnswer must be finite."
                 }
             }
@@ -137,7 +137,7 @@ object QuestionLevelScoringEngine {
             require(seenIds.add(question.id)) { "Duplicate question ID: ${question.id}." }
             max += question.maxMarks
             val answer = userAnswers[question.id]
-            if (answer.isNullOrBlank() || answer == "SKIPPED") {
+            if (answer.isNullOrBlank() || answer.trim().equals("SKIPPED", ignoreCase = true)) {
                 unanswered++
                 val marks = if (question.strategyId == "BINARY_MARKS" || question.strategyId == "NUMERIC_TOLERANCE") {
                     0.0
