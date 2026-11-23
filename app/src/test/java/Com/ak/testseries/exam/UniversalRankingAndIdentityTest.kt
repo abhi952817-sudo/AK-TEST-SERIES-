@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -217,7 +218,7 @@ class UniversalRankingAndIdentityTest {
             sectionNameOrId = "Section B",
             subjectName = "Physics"
         )
-        assertEquals("NEET Section B allows maximum 10 attempts", 10, neetLimit)
+        assertNull("NEET UG 2026 has no Section B", neetLimit)
 
         val jeeLimit = UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
             examName = "JEE Main",

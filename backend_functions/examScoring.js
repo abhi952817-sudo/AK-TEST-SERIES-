@@ -318,7 +318,9 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
       scheme = { pos: questionPos, neg: questionNeg };
     }
 
-    const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
+    const secKey = useQuestionLevelMarks
+      ? `${String(q.subjectId || q.subject || '').toLowerCase().trim()}_${String(q.sectionId || q.section || '').toLowerCase().trim()}`
+      : `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
     const secLimit = useQuestionLevelMarks
       ? (Number.isInteger(q.maxAttemptQuestions) && q.maxAttemptQuestions > 0 ? q.maxAttemptQuestions : null)
       : getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);

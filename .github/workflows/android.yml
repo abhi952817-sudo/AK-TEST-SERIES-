@@ -3,7 +3,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main", "feature/community-server-authoritative-share-2026-11-20", "feature/single-admin-security-2026-11-20" ]
+    branches: [ "main", "feature/community-server-authoritative-share-2026-11-20", "feature/single-admin-security-2026-11-20", "feature/universal-exam-policy-engine-2026-11-20" ]
   pull_request:
     branches: [ "main", "integration/ak-test-series-complete-2026-11-20" ]
 
@@ -38,10 +38,12 @@ jobs:
         node --check backend_functions/examScoring.js
         node --check backend_functions/communityShare.js
         node --check backend_functions/authHelper.js
+        node --check backend_functions/scoringPolicyResolver.js
+        node --check backend_functions/legacyScoringGate.js
         node --check scripts/bootstrap_superadmin.js
 
     - name: Run Backend Scoring Tests
-      run: node --test backend_functions/examScoring.test.js backend_functions/communityShare.test.js backend_functions/callableValidation.test.js
+      run: node --test backend_functions/examScoring.test.js backend_functions/communityShare.test.js backend_functions/callableValidation.test.js backend_functions/scoringPolicyResolver.test.js backend_functions/legacyScoringGate.test.js
 
     - name: Run Unit Tests
       run: gradle testDebugUnitTest

@@ -387,37 +387,35 @@ class ExamScoringEngineTest {
     }
 
     @Test
-    fun testSectionBOptionalAttemptCapping() {
-        // 12 questions in Physics Section B for NEET UG (only first 10 should be evaluated)
-        val questions = (1..12).map { i ->
+    fun testJeeMainSectionBQuestionsAreAllCompulsory() {
+        // JEE Main 2026 Paper 1 has five compulsory numerical-value questions per subject.
+        val questions = (1..5).map { i ->
             createQuestion(
                 id = "phy_b_$i",
-                correctAnswer = "A",
+                correctAnswer = "7",
                 subject = "Physics",
                 section = "SECTION_B"
             )
         }
-
-        // Student answers all 12 questions (first 10 correct, 11 and 12 wrong)
-        val userAnswers = mutableMapOf<String, String>()
-        for (i in 1..10) {
-            userAnswers["phy_b_$i"] = "A" // Correct
-        }
-        userAnswers["phy_b_11"] = "B" // Surplus wrong (should be ignored)
-        userAnswers["phy_b_12"] = "B" // Surplus wrong (should be ignored)
+        val userAnswers = questions.associate { it.id to "7" }
 
         val breakdown = ExamScoringEngine.evaluateTestAttempt(
-            targetExam = "NEET UG",
+            targetExam = "JEE Main",
             questions = questions,
             userAnswers = userAnswers,
             timeSpentSeconds = 300
         )
 
-        assertEquals("Only first 10 attempts in Section B should be counted", 10, breakdown.attemptedCount)
-        assertEquals("First 10 were correct", 10, breakdown.correctCount)
-        assertEquals("Surplus attempts 11 & 12 should not count as wrong", 0, breakdown.wrongCount)
-        assertEquals(40.0, breakdown.positiveMarksEarned, 0.001)
+        assertEquals(5, breakdown.attemptedCount)
+        assertEquals(5, breakdown.correctCount)
+        assertEquals(0, breakdown.wrongCount)
+        assertEquals(20.0, breakdown.positiveMarksEarned, 0.001)
         assertEquals(0.0, breakdown.negativeMarksPenalty, 0.001)
+        assertEquals(5, UniversalExamRegistry.getMaximumAttemptQuestionsCountForSection(
+            examName = "JEE Main",
+            sectionNameOrId = "Section B",
+            subjectName = "Physics"
+        ))
     }
 
     @Test

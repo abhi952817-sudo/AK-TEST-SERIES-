@@ -27,14 +27,11 @@ class UniversalQuestionGenerationPlannerTest {
     }
 
     @Test
-    fun neet200QuestionsUseFullConfiguredSectionCapacity() {
+    fun neetQuestionRequestAboveOfficialCapacityIsRejected() {
         val (exam, stage, paper) = route("NEET UG")
-        val plan = UniversalQuestionGenerationPlanner.create(exam, stage, paper, "All Subjects", 200)
-
-        assertEquals(200, plan.allocations.sumOf { it.questionCount })
-        assertEquals(mapOf("physics" to 50, "chemistry" to 50, "botany" to 50, "zoology" to 50), plan.subjectCounts)
-        assertTrue(plan.allocations.filter { it.sectionId.endsWith("sec_a") }.all { it.questionCount == 35 })
-        assertTrue(plan.allocations.filter { it.sectionId.endsWith("sec_b") }.all { it.questionCount == 15 })
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            UniversalQuestionGenerationPlanner.create(exam, stage, paper, "All Subjects", 200)
+        }
     }
 
     @Test
