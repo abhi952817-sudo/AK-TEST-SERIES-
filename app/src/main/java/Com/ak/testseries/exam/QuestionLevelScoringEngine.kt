@@ -45,7 +45,7 @@ object QuestionLevelScoringEngine {
         val maxScore: Double
     )
 
-    private val strictNumberPattern = Regex("^[+-]?(?:\\\\d+(?:\\\\.\\\\d+)?|\\\\.\\\\d+)$")
+    private val strictNumberPattern = Regex("^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)$")
 
     private fun strictFiniteNumber(value: String?): Double? =
         if (value != null && strictNumberPattern.matches(value.trim())) value.trim().toDoubleOrNull()?.takeIf { it.isFinite() } else null
@@ -185,6 +185,9 @@ object QuestionLevelScoringEngine {
                 Outcome.WRONG -> wrong++
             }
         }
+
+        val unknownAnswerIds = userAnswers.keys - seenIds
+        require(unknownAnswerIds.isEmpty()) { "Answers contain unknown question IDs: ${unknownAnswerIds.sorted().joinToString()}. " }
 
         fun rounded(value: Double) = kotlin.math.floor(value * 100.0 + 0.5) / 100.0
         val attempted = correct + partial + wrong
