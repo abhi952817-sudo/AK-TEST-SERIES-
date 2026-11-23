@@ -100,3 +100,15 @@ The official JEE (Advanced) 2026 Information Brochure states that both 180-minut
 The current versioned policy model stores only scalar `positiveMarks` and `negativeMarks`. The current evaluator calculates binary correct/wrong outcomes and cannot represent JEE Advanced multiple-select partial-credit rules, question-specific mark tables, or the exam's year-specific tie-break sequence. A comma-separated answer key is not a substitute for a scoring rubric.
 
 **Release guard:** JEE Advanced must remain unverified/inactive in the versioned registry until the engine supports an explicit scoring strategy and rule data (including selected-correct count, selected-incorrect options, partial-credit bands, zero/negative outcomes), plus subject aggregation and official tie-break handling. Do not reuse a generic `+4/-2` fallback for an official JEE Advanced paper. The same rule-engine audit must be applied to any other exam whose official scheme varies by question type or response pattern.
+
+
+## Implemented follow-up: explicit legacy scoring allowlist
+
+- The server now rejects non-Community tests that have no non-empty `scoringVersion` unless their exact test ID appears in the server-owned `Config/legacy_scoring_allowlist` document.
+- Allowlist schema: `{ schemaVersion: 1, status: "ACTIVE", testIds: ["immutable-historical-test-id"] }`.
+- The allowlist validator fails closed for missing, inactive, malformed or unsupported schema documents and requires an exact ID match.
+- Client-controlled test fields such as `legacyScoringApproved` cannot grant grandfathered status.
+- Existing stored attempt documents and scores are not rewritten. No test IDs are automatically grandfathered. An administrator must review historical records and explicitly populate the allowlist before those old tests can accept new scored attempts.
+- New unversioned tests are blocked from scoring; they cannot enter competitive ranking through the legacy evaluator.
+- Added Node regression tests and CI syntax/test coverage for the allowlist validator.
+- This is a server code change only. The Firestore allowlist document has not been created or seeded, and no production data was changed.
