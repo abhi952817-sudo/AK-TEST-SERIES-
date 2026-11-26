@@ -350,3 +350,24 @@ Official content structure observed:
 - **04 Psychology:** the official document is organized by numbered broad areas, beginning Emergence of Psychology; Research Methodology and Statistics; Psychological Testing; Biological Basis of Behavior. Remaining numbered areas and subtopics require full page-by-page extraction.
 - Status: these five source PDFs are **CONTENT_READ at initial extraction level**, but not final-normalized syllabus records. Do not upgrade the overall UGC NET exam from **PARTIAL** until all 87 Paper-II subjects plus Paper-I are individually checked, and exact page references/document metadata are recorded.
 
+
+### 7.6 UGC NET subject-PDF extraction — sub-batch 2 (codes 05–09)
+
+The official UGC syllabus portal's English links were followed to the actual PDFs. These five documents were opened and syllabus text read. Full normalized page-by-page topic maps and metadata checks remain.
+
+| Code | Official subject | Official English PDF |
+|---:|---|---|
+| 05 | Sociology | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/05/Sociology_English.pdf |
+| 06 | History | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/06/History_English.pdf |
+| 07 | Anthropology | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/07/Anthropology_English.pdf |
+| 08 | Commerce | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/08/Commerce_English.pdf |
+| 09 | Education | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/09/Education_English.pdf |
+
+Official content structure observed:
+- **05 Sociology:** 10 units — Sociological Theory; Research Methodology and Methods; Basic Concepts and Institutions; Rural and Urban Transformations; State, Politics and Development; Economy and Society; Environment and Society; Family, Marriage and Kinship; Science, Technology and Society; Culture and Symbolic Transformations.
+- **06 History:** official document states 10 units and covers historical sources/methodology, prehistory, ancient, medieval and modern Indian history, national movement and post-independence phases. Exact unit-by-unit topic-page mapping remains.
+- **07 Anthropology:** 10 units; visible official sections include discipline/history/scope and research methods, archaeological/prehistory content, social anthropology, theories in social anthropology, Indian anthropology and applied anthropology. Full unit headings/topic-page map remains.
+- **08 Commerce:** 10 units — Business Environment and International Business; Accounting and Auditing; Business Economics; Business Finance; Business Statistics and Research Methods; Business Management and Human Resource Management; Banking and Financial Institutions; Marketing Management; Legal Aspects of Business; Income-tax and Corporate Tax Planning.
+- **09 Education:** official PDF explicitly identifies 8 pages. Its syllabus includes Educational Studies; History, Politics and Economics of Education; Learner and Learning Process; Teacher Education; Curriculum Studies; Research in Education; Pedagogy, Andragogy and Assessment; and Educational Management, Administration and Leadership.
+- Status: codes 05–09 are **CONTENT_READ at initial extraction level**. Overall UGC NET remains **PARTIAL** until every Paper-II subject PDF is checked and all subject records have complete source-page mappings and metadata.
+
