@@ -60,9 +60,9 @@ Official RRB portal reference: https://rrb.indianrailways.gov.in/
 | 20 | `ibps_clerk` | IBPS Clerk | CONTENT_READ — official CRP CSA-XVI notification and official Preliminary Information Handout read; Prelims and Mains pattern and Local Language Proficiency Test recorded. Notification gives section names, not an exhaustive topic-by-topic syllabus; Main Handout was not yet found in the official resources checked |
 | 21 | `sbi_clerk` | SBI Clerk | CONTENT_READ — official Junior Associate Advertisement 17 plus official Prelims and Main Acquaint Yourself Handouts read; stage/section pattern and illustrative question formats recorded. The handouts state samples are illustrative, not exhaustive; do not convert them into a complete chapter syllabus |
 | 22 | `sbi_po` | SBI PO | CONTENT_READ — official Advertisement 09 and official Prelims/Main Acquaint Yourself Handouts read; three-phase selection, section pattern, descriptive tasks and sample question formats recorded. Sample questions are illustrative, not exhaustive |
-| 23 | `nda` | NDA | PENDING |
-| 24 | `cds` | CDS | PENDING |
-| 25 | `gate` | GATE | PENDING |
+| 23 | `nda` | NDA | CONTENT_READ — official UPSC NDA & NA II 2026 notification and Appendix-I actually read; Mathematics p.20–21 and GAT p.21–24 syllabus/pattern inspected; final normalized topic-page map remains |
+| 24 | `cds` | CDS | CONTENT_READ — official UPSC CDS II 2026 notification and Appendix-I actually read; academy-specific scheme, English/GK and detailed Mathematics syllabus p.19–22 inspected; final normalized topic-page map remains |
+| 25 | `gate` | GATE | PARTIAL — official GATE 2027 syllabus portal, question-pattern page, revised information brochure, all 30 test-paper syllabus PDFs and common GA PDF opened/read; full page-by-page topic normalization, page counts and revision/hash QA remain |
 
 ## 4. Batch notes and source map
 
@@ -190,13 +190,105 @@ Official RRB portal reference: https://rrb.indianrailways.gov.in/
    - Handouts contain sample formats and examples but explicitly treat examples as illustrative, not exhaustive. Do not present coaching-derived topic lists as official syllabus.
    - Status: **CONTENT_READ** for the standard Junior Associate Advertisement 17 and both official handouts; final topic/page normalization remains.
 
+
+### Batch 5 — official source content read; GATE detailed mapping remains partial
+
+1. **NDA / Naval Academy Examination-II 2026**
+   - Official UPSC examination page: https://www.upsc.gov.in/active-examinations/national-defence-academy-and-naval-academy-examination-ii-2026
+   - Official notice: https://www.upsc.gov.in/sites/default/files/Notif-NDA-II-2026-Engl-200526.pdf
+   - Notice No. 10/2026-NDA-II, dated 20 May 2026; examination held 13 September 2026. This is the latest 2026 NDA notification reviewed in this research record; do not assume its syllabus for a later cycle without checking the new notice.
+   - Appendix-I: printed pp.19–24. Scheme on p.19; Mathematics syllabus pp.20–21; GAT syllabus pp.21–24.
+   - Written scheme: Mathematics (Paper-I, code 01) 2.5 hours/300 marks; General Ability Test (Paper-II, code 02) 2.5 hours/600 marks. Written total 900; SSB Test/Interview 900. Objective questions. Mathematics and GAT Part B (GK) are bilingual Hindi/English.
+   - Mathematics official units:
+     1. Algebra
+     2. Matrices and Determinants
+     3. Trigonometry
+     4. Analytical Geometry of Two and Three Dimensions
+     5. Differential Calculus
+     6. Integral Calculus and Differential Equations
+     7. Vector Algebra
+     8. Statistics and Probability
+   - Topics read include sets/relations/complex and binary numbers/progressions/quadratics/permutations/binomial/logarithms; matrices, determinants and linear systems; trigonometric ratios/identities/applications; coordinate geometry/conics/3D lines, planes and spheres; functions/limits/continuity/differentiation/maxima-minima; integration/definite integrals/areas/first-order differential equations; vector dot/cross products; data distributions/central tendency/variance/correlation/regression/probability/Bayes/binomial distribution.
+   - GAT Part A English (200 marks): Grammar and usage, vocabulary, comprehension and cohesion in extended text.
+   - GAT Part B General Knowledge (400 marks): six official sections — A Physics, B Chemistry, C General Science, D History/Freedom Movement/Social Studies, E Geography, F Current Events. Examples include matter/motion/heat/light/electricity in Physics; broad chemistry principles; general science; Indian history and freedom movement; physical/social/economic geography; and national/international current events and personalities. UPSC says the topics are not exhaustive.
+   - Approximate Part-B weighting by sections A–F as printed in the notification: 25%, 15%, 10%, 20%, 20%, 10%.
+   - SSB has two stages. Stage I includes Officer Intelligence Rating and Picture Perception & Description Test; Stage II includes Interview, Group Testing Officer tasks, Psychology Tests and Conference (Appendix-I, p.24).
+   - Status: **CONTENT_READ** for official notice, scheme and core syllabus. Full normalized topic-by-topic source map and document metadata QA remain.
+
+2. **Combined Defence Services Examination-II 2026**
+   - Official UPSC examination page: https://upsc.gov.in/active-examinations/combined-defence-services-examination-ii-2026
+   - Official notice: https://www.upsc.gov.in/uploads/2026/06/Notif-CDS-II-2026-Engl-200526-1.pdf
+   - Notice No. 11/2026-CDS-II, dated 20 May 2026; examination held 13 September 2026.
+   - Appendix-I begins p.19. Scheme p.19–20; official syllabus starts p.20 and Mathematics continues through p.22 in the extracted official content.
+   - IMA/INA/AFA written examination: English 100 marks/2h, General Knowledge 100/2h, Elementary Mathematics 100/2h; written total 300; SSB interview 300.
+   - OTA written examination: English 100/2h and General Knowledge 100/2h; written total 200; SSB interview 200. OTA has **no Elementary Mathematics paper**. Preserve academy routes separately.
+   - All papers are objective. GK and Elementary Mathematics papers are bilingual Hindi/English. Mathematics standard is Matriculation level; English and GK standard is approximately graduate level.
+   - English (code 11): tests understanding of English and workmanlike use of words. The official syllabus is broad and does not prescribe a long chapter list.
+   - General Knowledge (code 12): current events; matters of everyday observation/experience in their scientific aspects; History of India; Geography. UPSC says the expected knowledge is that of an educated person without special study of a scientific subject.
+   - Elementary Mathematics (code 13) official headings: Arithmetic; Algebra; Trigonometry; Geometry; Mensuration; Statistics.
+   - Extracted Mathematics detail includes number systems and fundamental operations; square roots/decimals; unitary method; time-distance/time-work; percentages; simple/compound interest; profit/loss; ratio/proportion/variation; elementary number theory, divisibility, factors, HCF/LCM and logarithms; polynomials, quadratics, simultaneous equations/inequations, set notation and indices; trigonometric ratios/identities/heights and distances; lines/angles/triangles/circles/loci; areas/surface areas/volumes; statistical tabulation/graphs and central tendency.
+   - Wrong objective answers incur one-third of the marks assigned to that question (Appendix-II, printed p.22). Written examination is followed by SSB Intelligence and Personality Test.
+   - Status: **CONTENT_READ** for official notice, academy routes, exam scheme and Appendix-I syllabus. Full normalized topic-by-topic source map and document metadata QA remain.
+
+3. **GATE 2027**
+   - Official GATE 2027 website (IIT Madras, Organizing Institute): https://gate2027.iitm.ac.in/
+   - Official exam-paper and syllabus index: https://gate2027.iitm.ac.in/exam_papers_and_syllabus
+   - Official question-paper pattern: https://gate2027.iitm.ac.in/question_paper_pattern
+   - Official Information Brochure (revised version dated 27 August 2026): https://gate2027.iitm.ac.in/static/doc/IB/GATE2027-IB.pdf
+   - The official website states that GATE 2027 syllabi have been revised. The 2027 brochure/website identifies IIT Madras as Organizing Institute and 30 test papers.
+   - All 30 official paper-specific syllabus PDFs were opened/read from the official syllabus index, in addition to the common General Aptitude PDF. The full topic-by-topic structured extraction and page-count/hash QA have **not** yet been completed. Status therefore remains **PARTIAL**, not fully verified.
+   - Official 30-paper registry (code — paper):
+     - AE — Aerospace Engineering
+     - AG — Agricultural Engineering
+     - AR — Architecture and Planning
+     - BM — Biomedical Engineering
+     - BT — Biotechnology
+     - CE — Civil Engineering
+     - CH — Chemical Engineering
+     - CS — Computer Science and Information Technology
+     - CY — Chemistry
+     - DA — Data Science and Artificial Intelligence
+     - EC — Electronics and Communication Engineering
+     - EE — Electrical Engineering
+     - ES — Environmental Science and Engineering
+     - EY — Ecology and Evolution
+     - GE — Geomatics Engineering
+     - GG — Geology and Geophysics
+     - IN — Instrumentation Engineering
+     - MA — Mathematics
+     - ME — Mechanical Engineering
+     - MN — Mining Engineering
+     - MT — Metallurgical Engineering
+     - NM — Naval Architecture and Marine Engineering
+     - PE — Petroleum Engineering
+     - PH — Physics
+     - PI — Production and Industrial Engineering
+     - RA — Robotics and Automation
+     - ST — Statistics
+     - XE — Engineering Sciences
+     - XH — Humanities and Social Sciences
+     - XL — Life Sciences
+   - The syllabus PDF naming convention is available directly from the official index at: https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/ . The official index links the appropriate PDF for each code; the three multi-section papers use combined syllabi.
+   - Important version changes: Robotics & Automation (RA) is a new paper for 2027; Textile Engineering & Fibre Science (TF) is incorporated as XE9 (not a separate TF test paper); XE, XH and XL sectional codes were revised. Do not create a separate TF exam/paper record for GATE 2027.
+   - Exam pattern: CBT, English, 3 hours, 65 questions/100 marks: 10 GA questions for 15 marks + 55 subject questions for 85 marks. Questions are MCQ, MSQ or NAT, carrying one or two marks. For many engineering papers the subject section includes Engineering Mathematics (13 marks) plus 72 marks of subject questions; other paper families have different common/optional section structures shown in the official pattern.
+   - Negative marking: wrong 1-mark MCQ −1/3; wrong 2-mark MCQ −2/3; no negative marking for MSQ or NAT. No partial marks in MSQ. One or up to two test papers may be selected, subject to the official two-paper combination rules.
+   - Common GA syllabus PDF: https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/GA_GATE2027_Syllabus.pdf . Official sections: Verbal Aptitude (grammar, vocabulary, reading/comprehension, narrative sequencing); Quantitative Aptitude (data interpretation, numerical computation/estimation, ratios, percentages, powers, logs, permutations/combinations, series, mensuration, geometry, elementary statistics/probability); Analytical Aptitude (deduction, induction, analogy, numerical relations/reasoning); Spatial Aptitude (2D/3D transformations, rotation, scaling, mirroring, assembling, paper folding/cutting and patterns).
+   - XE (Engineering Sciences) official sectional hierarchy: XE0 Engineering Mathematics (common); choose any two of XE1 Fluid Mechanics, XE2 Materials Science, XE3 Solid Mechanics, XE4 Thermodynamics, XE5 Polymer Science and Engineering, XE6 Food Technology, XE7 Atmospheric and Oceanic Sciences, XE8 Energy Science, XE9 Textile Engineering & Fibre Science.
+   - XH (Humanities & Social Sciences): XH0 Reasoning and Comprehension (common); select one of XH1 Economics, XH2 English, XH3 Linguistics, XH4 Philosophy, XH5 Psychology, XH6 Sociology.
+   - XL (Life Sciences): XL0 Chemistry (common); select any two of XL1 Biochemistry, XL2 Botany, XL3 Microbiology, XL4 Zoology, XL5 Food Technology.
+   - Other multi-part paper examples from official pattern: AR has common part A and selectable B1 Architecture/B2 Planning; GE has common part A and selectable B1 Surveying & Mapping/B2 Image Processing & Analysis; GG has common part A and B1 Geology/B2 Geophysics (chosen during application); RA has common part A and selectable B1 Electrical/B2 Mechanical.
+   - The individual PDFs contain revised paper-specific technical/science/humanities syllabi; these must be normalized one by one into the final subject/topic hierarchy before the GATE dataset can be marked complete.
+   - Status: **PARTIAL** — all 30 official paper PDFs and common GA source opened/read; complete line-by-line topic/page mapping, exact PDF metadata/page counts, and checksums/revision QA remain.
+
 ## 5. Next sequence
 
-Continue without waiting for RRB NTPC:
-- **Batch 4:** Completed at the official-source content-reading level; final structured normalization and source metadata QA remain.
-- **Batch 5:** NDA, CDS, GATE.
+All five batches have now been covered at the research/source-reading level for the 25-exam registry. Continue with the consolidation pass rather than stopping for the deferred RRB NTPC item:
+- Normalize every CONTENT_READ exam into the agreed Exam → Version → Stage → Paper → Subject → Chapter/Unit → Topic hierarchy.
+- Complete the remaining PARTIAL records first: RRB NTPC source gap, RRB ALP full PDF extraction, RRB JE common pattern/branch mapping, UGC NET subject syllabus PDFs, and GATE paper-by-paper topic/page mapping.
+- Recheck official corrigenda, current applicable syllabus versions, document dates, exact page counts and source hashes.
+- Only when all source gaps are either completed or explicitly recorded and the user approves, prepare the Universal Syllabus Database design/data package.
 
-After Batch 5, reconcile any deferred/partial sources (including RRB NTPC and RRB ALP), complete source metadata/page/hash QA, and only then prepare the Universal Syllabus Database work.
+RRB NTPC is deferred, not deleted from the registry and not a blocker.
 
 ## 6. Integration gate
 
