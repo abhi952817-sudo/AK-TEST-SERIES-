@@ -293,3 +293,39 @@ RRB NTPC is deferred, not deleted from the registry and not a blocker.
 ## 6. Integration gate
 
 This document is a research-progress record, not approved database content. No syllabus data has been inserted into Firestore/Room, no JSON dataset has been approved for production, and no app code has been changed. Final integration requires normalized data, official source-page mapping, revision/corrigendum checks, and explicit approval.
+
+
+## 7. Consolidation & Gap Audit — pass 1 (26 November 2026)
+
+This pass re-opened the exact official source documents/pages for the remaining partial records. It remains read-only with respect to application code and databases.
+
+### 7.1 RRB ALP CEN 01/2026 — still PARTIAL
+- Official RRB Chandigarh landing page successfully re-opened: https://www.rrbcdg.gov.in/2026-01-alp.php
+- It lists the official English notification: https://www.rrbcdg.gov.in/uploads/2026/01-ALP/012026ALP-CEN.pdf and Hindi notification: https://www.rrbcdg.gov.in/uploads/2026/01-ALP/012026ALP-CEN-Hi.pdf.
+- Official notice date: 14 May 2026. Application FAQ is dated 16 May 2026.
+- Repeated direct extraction of the official English PDF timed out. Landing-page verification confirms the document exists, but does not verify its full syllabus content. Status remains **PARTIAL**. Do not claim the syllabus is absent or verified. Next source route: inspect the official Hindi PDF or an official regional RRB mirror; retain the English notice as preferred canonical source if accessible.
+
+### 7.2 RRB JE / DMS CEN 04/2026 — still PARTIAL, common CBT structure now confirmed
+- Official PDF reopened: https://rrbsecunderabad.gov.in/wp-content/uploads/2026/08/CEN-04-2026JE_English.pdf
+- PDF is 77 pages. Exam stages are CBT-I, CBT-II, Document Verification and Medical Examination (printed pp.11 onward).
+- CBT-I (common to all notified posts): 100 questions/100 marks, 90 minutes (120 minutes for eligible scribe users); Mathematics 30, General Intelligence & Reasoning 25, General Awareness 15, General Science 30. Negative marking: 1/3 mark per wrong answer (printed p.11–12).
+- CBT-II: 150 questions, 120 minutes (160 minutes for eligible scribe users); syllabus includes General Awareness, Physics & Chemistry, Basics of Computers and Applications, Basics of Environment and Pollution Control, and technical abilities for the post (printed p.20). Each wrong answer attracts 1/3 negative marking.
+- The four technical exam groups are officially mapped by qualification streams on p.21: Mechanical & Allied, Electrical & Allied, Electronics & Allied, Civil & Allied. Syllabus annexures are listed at pp.74–77: Civil pp.74–75, Electrical p.75, Electronics p.76, Mechanical pp.76–77.
+- Full technical topic lists were not reliably extracted from the annexure pages in this pass. Keep status **PARTIAL** until each branch annexure is actually read and normalized. DMS must not be given an invented technical branch syllabus; check its post-specific applicability in the full notice.
+
+### 7.3 UGC NET December 2026 — official subject list reconciliation
+- Official bulletin re-opened: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/20261016860019603.pdf
+- Bulletin exam scheme: printed p.17; Paper I 50 questions/100 marks, Paper II 100 questions/200 marks; 180 minutes total, no break. Paper I is common/compulsory; Paper II tests the selected subject.
+- Annexure II is printed pp.45–47 and lists 87 Paper-II subject entries (subject codes are not a continuous 1–87 sequence). Newer entries include codes 100–107.
+- Official UGC syllabus portal re-opened: https://www.ugcnetonline.in/syllabus-new.php
+- Portal heading says “Updated Syllabi of UGC-NET (Applicable from June 2019 UGC-NET Onwards)” and the page lists download links for the newer codes 100 Yoga, 101 Sindhi, 102 Hindu Studies, 103 Indian Knowledge System, 104 Disaster Management, 105 Ayurveda Biology, 106 Forestry and 107 Statistics. This resolves the earlier uncertainty that the 2026 bulletin's newer codes might be missing from the portal.
+- However, subject-level PDFs still need to be opened/read individually. The portal listing is not proof that every PDF's full content has been verified. UGC NET remains **PARTIAL** until Paper-I and all 87 Paper-II subject syllabi are normalized, with exact official PDF URLs/page references.
+
+### 7.4 Consolidation status after pass 1
+- RRB NTPC remains **DEFERRED_NOT_BLOCKING / PARTIAL**: official CEN 06/2026 and CEN 07/2026 complete documents are still not fully read.
+- RRB ALP remains **PARTIAL**: official landing page and canonical PDFs confirmed, but PDF extraction timed out.
+- RRB JE remains **PARTIAL**: common CBT scheme and annexure ranges confirmed; technical topic text remains to be extracted.
+- UGC NET remains **PARTIAL**: official 87-subject list reconciled against the official portal; individual syllabus PDFs remain to be read.
+- GATE remains **PARTIAL**: 30 official test-paper PDFs and GA source opened, but complete topic/page normalization and metadata QA remain.
+- No exam has been upgraded to fully verified in this pass merely because a link or section heading was found.
+
