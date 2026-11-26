@@ -55,11 +55,11 @@ Official RRB portal reference: https://rrb.indianrailways.gov.in/
 | 15 | `rrb_je` | RRB JE | PARTIAL — official CEN 04/2026, 77-page PDF opened; technical syllabus annexure groups and page ranges identified; full pattern/topic normalization remains |
 | 16 | `ctet` | CTET | CONTENT_READ — official September 2026 Information Bulletin read for Paper-I/Paper-II structure and syllabus Appendix-I pages 8–14; final detailed normalization remains |
 | 17 | `ugc_net` | UGC NET | PARTIAL — updated December 2026 official bulletin read for exam scheme and subject-code annexure; individual subject syllabus PDFs still require subject-wise verification |
-| 18 | `cat` | CAT | PENDING |
-| 19 | `ibps_po` | IBPS PO | PENDING |
-| 20 | `ibps_clerk` | IBPS Clerk | PENDING |
-| 21 | `sbi_clerk` | SBI Clerk | PENDING |
-| 22 | `sbi_po` | SBI PO | PENDING |
+| 18 | `cat` | CAT | CONTENT_READ — official CAT 2026 information bulletin and IIM Indore press release read; official section names and timing recorded. Official material reviewed does not specify the total/section-wise question counts or a detailed chapter-wise syllabus; do not fill these from third-party sources |
+| 19 | `ibps_po` | IBPS PO | CONTENT_READ — official CRP PO/MT-XVI notification plus official Preliminary and Main Information Handouts read; prelim/main pattern and selection stages recorded. Official notification defines test sections and descriptive paper scope, not a complete topic-by-topic chapter catalogue |
+| 20 | `ibps_clerk` | IBPS Clerk | CONTENT_READ — official CRP CSA-XVI notification and official Preliminary Information Handout read; Prelims and Mains pattern and Local Language Proficiency Test recorded. Notification gives section names, not an exhaustive topic-by-topic syllabus; Main Handout was not yet found in the official resources checked |
+| 21 | `sbi_clerk` | SBI Clerk | CONTENT_READ — official Junior Associate Advertisement 17 plus official Prelims and Main Acquaint Yourself Handouts read; stage/section pattern and illustrative question formats recorded. The handouts state samples are illustrative, not exhaustive; do not convert them into a complete chapter syllabus |
+| 22 | `sbi_po` | SBI PO | CONTENT_READ — official Advertisement 09 and official Prelims/Main Acquaint Yourself Handouts read; three-phase selection, section pattern, descriptive tasks and sample question formats recorded. Sample questions are illustrative, not exhaustive |
 | 23 | `nda` | NDA | PENDING |
 | 24 | `cds` | CDS | PENDING |
 | 25 | `gate` | GATE | PENDING |
@@ -128,10 +128,72 @@ Official RRB portal reference: https://rrb.indianrailways.gov.in/
    - Subject/code annexure: printed pp.45–47. Paper-I is compulsory; Paper-II is selected by subject.
    - The bulletin directs candidates to the UGC syllabus portal for subject-wise syllabi. The portal labels its syllabus set as applicable from June 2019 onwards. The Paper-II PDFs therefore need individual subject-by-subject review, particularly where the December 2026 bulletin lists newer/additional subjects. Do not claim all UGC NET subject syllabi are verified based on the bulletin alone.
 
+
+### Batch 4 — official source content read; final structured normalization remains
+
+1. **CAT 2026**
+   - Official website: https://iimcat.ac.in/
+   - Official Information Bulletin (version dated 26 July 2026): https://iimcat.ac.in/per/g06/pub/32842/EForms/image/CAT2026/CAT2026InformationBulletin_26-07-2026_V2.pdf
+   - Official IIM Indore press release: https://iimcat.ac.in/per/g06/pub/32842/EForms/image/CAT2026/CAT_2026_Press_Release_26-07-2026.pdf
+   - The official source says CAT 2026 is a computer-based test scheduled for 29 November 2026, in three sessions, with total duration 120 minutes.
+   - Official sections: (I) Verbal Ability and Reading Comprehension; (II) Data Interpretation and Logical Reasoning; (III) Quantitative Ability. Exactly 40 minutes is allotted to each section, and candidates cannot switch sections during a section.
+   - The official bulletin/press material reviewed did **not** specify total or per-section question counts, nor an exhaustive chapter-wise topic syllabus. Do not copy the frequently repeated 68-question/24-22-22 forecast or coaching topic lists into the official dataset.
+   - Status: **CONTENT_READ** for the official section structure; topic-level syllabus details are not published in the official sources reviewed. Final document metadata/page QA remains.
+
+2. **IBPS PO/MT-XVI 2026**
+   - Official IBPS cycle page: https://www.ibps.in/index.php/management-trainees-xvi/
+   - Official detailed notification: https://www.ibps.in/wp-content/uploads/Detailed-Notification_CRP-PO-XVI_Final_V1_30.06.2026.pdf
+   - Official Preliminary Information Handout: https://www.ibps.in/wp-content/uploads/IBPS-POMT-XVI-IH-Eng-2026.pdf
+   - Official Main Information Handout (document's internal title says CRP PO/MT-XVI; filename contains “XV”): https://www.ibps.in/wp-content/uploads/IBPS-MAIN-PO-MT-XV-IH-Eng-2026.pdf
+   - Notification title: CRP PO/MT-XVI, vacancies of 2027–28. Notification's exam structure is printed on pp.12–13; penalty clause p.14; interview clause p.15. Official IBPS cycle page lists vacancy corrigenda dated 20 July and 27 August 2026; these revise vacancy information and must be included in final metadata review.
+   - Preliminary: English Language 30 questions/30 marks/20 min; Quantitative Aptitude 35/30/20 min; Reasoning Ability 35/40/20 min; total 100 questions/100 marks/60 min.
+   - Main objective: Reasoning 40/60/45 min; General/Economy/Banking/Digital/Financial Awareness including RBI circulars 50/60/35 min; English Language 40/20/35 min; Data Analysis & Interpretation 40/60/45 min; total 170 questions/200 marks/160 min.
+   - Main descriptive paper: Essay and Comprehension, 2 questions/25 marks/30 min, English. Official scope note says it may broadly cover economic and social issues, emerging trends in banking and technology, current events and ethics.
+   - Wrong answers in objective tests carry a 1/4 (0.25) mark penalty. Selection includes Preliminary, Main, Personality Test, Interview and provisional allotment.
+   - The official documents provide section labels, sample questions and descriptive scope, but do not set out one exhaustive chapter-by-chapter syllabus. Treat examples as illustrative.
+   - Status: **CONTENT_READ** for official pattern and provided test descriptions; detailed normalized content and corrigendum QA remain.
+
+3. **IBPS CSA-XVI 2026 (clerical cadre / Customer Service Associate)**
+   - Official IBPS cycle page: https://www.ibps.in/index.php/clerical-cadre-xvi
+   - Official detailed notification: https://www.ibps.in/wp-content/uploads/Notification_CRP_CSA_XVI-Final.pdf
+   - Official Preliminary Information Handout: https://www.ibps.in/wp-content/uploads/CRP-CSA-PRE-XVI-IH-Eng-2026.pdf
+   - Notification title: CRP CSA-XVI, vacancies of 2027–28, dated 1 August 2026. Official cycle page lists corrigendum dated 29 September 2026 (vacancy update; the corrigendum states other terms remain unchanged).
+   - Exam structure: printed pp.14–15; penalty clause p.16; Local Language Proficiency Test clause p.17.
+   - Preliminary: English Language 30/30/20 min; Numerical Ability 35/35/20 min; Reasoning Ability 35/35/20 min; total 100 questions/100 marks/60 min.
+   - Main: General/Financial Awareness 40/50/20 min; General English 40/40/35 min; Reasoning Ability 40/60/35 min; Quantitative Aptitude 40/50/35 min; total 160 questions/200 marks/125 min.
+   - Wrong answers in both objective examinations attract 1/4 (0.25) mark penalty. Selection includes Prelims, Main and a qualifying Local Language Proficiency Test (LLPT) where applicable; no interview stage is specified in this notice.
+   - The notification specifies section names and assessment structure, not an exhaustive chapter/topic list. The official Preliminary handout gives sample formats and expressly cautions that examples are illustrative. An official Main handout was not found among the official resources checked on 26 November 2026; the scheduled Main exam is in December 2026, so check the official site again when its handout is published.
+   - Status: **CONTENT_READ** for official pattern and Preliminary handout; detailed topic curriculum not specified in reviewed official sources.
+
+4. **SBI Probationary Officer 2026–27**
+   - Official SBI careers page: https://sbi.bank.in/web/careers/recruitment-results
+   - Official Advertisement No. CRPD/PO/2026-27/09: https://sbi.bank.in/documents/77530/57941/18062026_1_Detailed_Adv.2026.pdf/1f1a9532-8a2f-6e59-08a0-616d62a497b1
+   - Official Preliminary Acquaint Yourself booklet: https://sbi.bank.in/documents/77530/57941334/22072026_SBI+%28PO%29+PRE+IH+Eng+2026.pdf/5518888e-7662-47a8-e916-00b1957ca830
+   - Official Main Acquaint Yourself booklet (exam on 12 September 2026): https://sbi.bank.in/documents/77530/59067274/02092026SBIPOMainsEnglish.pdf
+   - Advertisement is 15 pages; recruitment schedule and phases appear on printed pp.2–3. Advertisement paragraph 8 defines selection procedure; full exam pattern also appears in the official handouts. Official SBI page lists a corrigendum dated 2 July 2026; include it in final metadata review.
+   - Preliminary: English Language 40/40/20 min; Quantitative Aptitude 30/30/20 min; Reasoning Ability 30/30/20 min; total 100 marks/60 min.
+   - Main objective: Reasoning & Computer Aptitude 40/60/50 min; Data Analysis & Interpretation 30/60/45 min; General Awareness/Economy/Banking Knowledge 60/60/45 min; English Language 40/20/40 min; total 170 questions/200 marks/3 hours.
+   - Main descriptive paper (Communication Skills): 3 tasks/30 marks/30 min — one email from two options, one situation analysis from two options, and either report writing or precis writing from two options. Grand total 230 marks/3 hours 30 minutes.
+   - Phase III: Psychometric Test, Group Exercises and Interview. Objective wrong answers carry a 1/4 mark penalty. Main handout includes sample tests and states that samples are illustrative and not exhaustive.
+   - Official handouts explain the nature of selected tests (e.g. English grammar/vocabulary/comprehension; Data Analysis computation and interpretation of tables/graphs), but they do not establish a complete exhaustive chapter-wise topic syllabus.
+   - Status: **CONTENT_READ** for official pattern, phase structure and sample test descriptions; final detailed page-map and corrigendum QA remain.
+
+5. **SBI Junior Associate 2026–27 (Customer Support & Sales; Advertisement 17)**
+   - Official SBI careers page: https://sbi.bank.in/web/careers/current-openings
+   - Official Advertisement No. CRPD/CR/2026-27/17: https://sbi.bank.in/webfiles/uploads/files_2627/08/JA_2026_Detailed_Advt_Eng.pdf
+   - Official Preliminary Acquaint Yourself booklet: https://sbi.bank.in/webfiles/uploads/files_2627/09/SBI_JA-Customer_Support_Sales-IH_Pre-2026-27_Eng.pdf
+   - Official Main Acquaint Yourself booklet (correctly for Advertisement 17, not the separate Special Recruitment Drive Advertisement 16): https://sbi.bank.in/webfiles/uploads/files_2627/11/SBI_Junior_Associates_Mains_IH_Eng_2026_27_17.pdf
+   - Advertisement is 11 pages; selection procedure is printed p.5 onward. Official Prelims handout contains the structure table on p.4; official Mains handout contains its structure table and samples (printed page 5 and following).
+   - Preliminary: English Language 30/30/20 min; Numerical Ability 35/35/20 min; Reasoning Ability 35/35/20 min; total 100 questions/100 marks/60 min.
+   - Main: General/Financial Awareness 50/50/35 min; General English 40/40/35 min; Quantitative Aptitude 50/50/45 min; Reasoning Ability & Computer Aptitude 50/60/45 min; total 190 questions/200 marks/160 min.
+   - Wrong objective answers attract a 1/4 mark penalty. Selection includes Prelims, Main, and a qualifying Local Language Proficiency Test where the candidate has not produced acceptable proof of having studied the specified language in Class 10 or 12. No interview stage is specified.
+   - Handouts contain sample formats and examples but explicitly treat examples as illustrative, not exhaustive. Do not present coaching-derived topic lists as official syllabus.
+   - Status: **CONTENT_READ** for the standard Junior Associate Advertisement 17 and both official handouts; final topic/page normalization remains.
+
 ## 5. Next sequence
 
 Continue without waiting for RRB NTPC:
-- **Batch 4:** CAT, IBPS PO, IBPS Clerk, SBI Clerk, SBI PO.
+- **Batch 4:** Completed at the official-source content-reading level; final structured normalization and source metadata QA remain.
 - **Batch 5:** NDA, CDS, GATE.
 
 After Batch 5, reconcile any deferred/partial sources (including RRB NTPC and RRB ALP), complete source metadata/page/hash QA, and only then prepare the Universal Syllabus Database work.
