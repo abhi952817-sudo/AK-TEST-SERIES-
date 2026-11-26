@@ -329,3 +329,24 @@ This pass re-opened the exact official source documents/pages for the remaining 
 - GATE remains **PARTIAL**: 30 official test-paper PDFs and GA source opened, but complete topic/page normalization and metadata QA remain.
 - No exam has been upgraded to fully verified in this pass merely because a link or section heading was found.
 
+
+### 7.5 UGC NET subject-PDF extraction — sub-batch 1 (codes 00–04)
+
+The official UGC portal links were followed to the actual English syllabus PDFs. These five documents were opened and their syllabus content read. Exact PDF page counts and complete line-by-line page maps remain to be recorded.
+
+| Code | Official subject | Official English PDF |
+|---:|---|---|
+| 00 | General Paper on Teaching & Research Aptitude (Paper-I) | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/00-Paper-I/Paper-I_English.pdf |
+| 01 | Economics / Rural Economics / Co-operation / Demography / Development Planning / Development Studies / Econometrics / Applied Economics / Development Economics / Business Economics | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/01/Economics_English.pdf |
+| 02 | Political Science | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/02/Political%20Science_English.pdf |
+| 03 | Philosophy | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/03/Philosophy-English.pdf |
+| 04 | Psychology | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/04/Psychology_English.pdf |
+
+Official content structure observed:
+- **00 Paper-I:** 10 units — Teaching Aptitude; Research Aptitude; Comprehension; Communication; Mathematical Reasoning and Aptitude; Logical Reasoning; Data Interpretation; ICT; People, Development and Environment; Higher Education System.
+- **01 Economics:** unit structure begins Micro Economics, Macro Economics, Statistics and Econometrics, Mathematical Economics, International Economics, Public Economics, Money and Banking, Growth and Development Economics, Environmental Economics and Demography (complete unit list still needs page-by-page verification).
+- **02 Political Science:** official unit headings begin Political Theory, Political Thought, Indian Political Thought, Comparative Political Analysis, International Relations, India’s Foreign Policy, Political Institutions in India; remaining unit/page map to be normalized from full PDF.
+- **03 Philosophy:** 10 units — Classical Indian Epistemology and Metaphysics; Classical Western Epistemology and Metaphysics; Indian Ethics; Western Ethics; Contemporary Indian Philosophy; Recent Western Philosophy; Social and Political Philosophy (Indian); Social and Political Philosophy (Western); Logic; Applied Philosophy.
+- **04 Psychology:** the official document is organized by numbered broad areas, beginning Emergence of Psychology; Research Methodology and Statistics; Psychological Testing; Biological Basis of Behavior. Remaining numbered areas and subtopics require full page-by-page extraction.
+- Status: these five source PDFs are **CONTENT_READ at initial extraction level**, but not final-normalized syllabus records. Do not upgrade the overall UGC NET exam from **PARTIAL** until all 87 Paper-II subjects plus Paper-I are individually checked, and exact page references/document metadata are recorded.
+
