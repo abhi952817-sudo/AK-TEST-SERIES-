@@ -395,3 +395,27 @@ Official syllabus structure observed in the PDFs:
 
 - The five official PDFs were opened and syllabus content was read through Parallel extraction. This is **CONTENT_READ at initial extraction level**, not a final verified structured record. Exact page counts, complete topic-by-topic source-page maps, PDF revision metadata and normalization remain pending. Do not upgrade overall UGC NET from **PARTIAL**.
 
+
+### 7.8 UGC NET subject-PDF extraction — sub-batch 4 (codes 16–20)
+
+Official subject-code mapping and PDF links were checked against the UGC NET Bureau's updated-syllabus portal and subjects list:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+
+| Code | Official subject | Official PDF | Extraction status |
+|---:|---|---|---|
+| 16 | Music | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/16/Music_English.pdf | PARTIAL — PDF opened; syllabus structure and selected content extracted; complete ten-unit mapping still needed |
+| 17 | Management | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/17/Management_English.pdf | PARTIAL — PDF opened; selected unit content extracted; full ten-unit mapping still needed |
+| 18 | Maithili | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/18/Maithili_Maithili.pdf | PARTIAL — PDF opened in Maithili/Devanagari; extraction shows ten-unit literature/language structure, but OCR/text quality and internal code label need verification |
+| 19 | Bengali | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/19/Bengali_Bengali.pdf | PARTIAL — PDF opened; extracted Bengali text is encoding/OCR-garbled in places; needs page-image review or better extraction |
+| 20 | Hindi | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/20/HINDI.pdf | PARTIAL — Hindi PDF opened; available extraction begins Unit I (Hindi language and its development, historical background of Old and Middle Indo-Aryan languages); remaining pages/units not yet extracted |
+
+Observed content and structure:
+- **16 Music:** The official PDF states Units I–IV are common to all Music candidates, while Units V–X are subject-specific. The listed branches include Hindustani (Vocal, Instrumental & Musicology), Karnataka, Percussion and Rabindra Sangeet. Extracted content includes Unit II Folk Music (origin, evolution, classification, regional traditions, instruments/performers, ragas/talas, fairs/festivals); later sections include Indian musical instruments, gharanas/institutions, and Rabindra Sangeet composition/evolution. Full common and branch-specific unit mapping remains pending.
+- **17 Management:** Official code/name confirmed. Extracted content includes accounting principles/standards and financial statement analysis; marketing product/pricing/place/promotion decisions; quality management/TQM/ISO and operations research (transportation, queuing, decision theory, PERT/CPM); data warehousing/mining/knowledge management; technological change; entrepreneurship and intrapreneurship. Do not treat these excerpts as a complete unit outline.
+- **18 Maithili:** The PDF extraction shows ten units spanning Maithili literary history, poetics, linguistics, Vidyapati and Chanda Jha, epic/short epic poetry, lyric poetry, drama/one-act plays, novels/stories, criticism and folk literature. Important source anomaly: extracted PDF header appears to show an internal “कोड नं. : 8” despite the official portal listing this as subject code 18. Preserve this discrepancy for manual PDF-page verification; do not silently normalize it.
+- **19 Bengali:** Official code/name confirmed. Unit headings/topics are partly visible (Bengali language origin/development, pre-modern Bengali literature, short stories, drama/farce), but text extraction contains substantial character/encoding corruption. No complete topic transcription is claimed.
+- **20 Hindi:** Official portal provides a Hindi-language PDF and no English link in its table. Extracted opening identifies Code 20, Hindi, Unit I: Hindi language and its development, including historical background of ancient and medieval Indo-Aryan languages. Full syllabus remains to be extracted from the Hindi PDF.
+
+- This batch is **not fully content-read**: codes 16–20 remain PARTIAL pending complete page-by-page extraction, unit/topic mapping, PDF page counts and metadata checks. The original language of codes 18–20 is retained; translation/normalization must be checked against the source rather than guessed. Overall UGC NET remains **PARTIAL**.
+
