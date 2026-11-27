@@ -419,3 +419,62 @@ Observed content and structure:
 
 - This batch is **not fully content-read**: codes 16–20 remain PARTIAL pending complete page-by-page extraction, unit/topic mapping, PDF page counts and metadata checks. The original language of codes 18–20 is retained; translation/normalization must be checked against the source rather than guessed. Overall UGC NET remains **PARTIAL**.
 
+
+
+### 7.9 UGC NET subject-PDF extraction — sub-batch 5 (codes 21–25; 27 November 2026)
+
+Official subject-code mapping was checked against the UGC NET Bureau's syllabus portal and subject list:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+
+All five official PDF endpoints returned successfully (HTTP 200) and were parsed as PDF documents. Page counts below are the PDF parser's physical page counts; they do not substitute for page-by-page syllabus provenance. The PDFs are mainly in the respective language scripts except Sanskrit, for which the English PDF was used.
+
+| Code | Official subject | Official PDF | PDF pages | Extraction status |
+|---:|---|---|---:|---|
+| 21 | Kannada | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/21/Kannada_Kannada.pdf | 16 | PARTIAL — official subject/code header confirmed; ten-unit structure is visible, but Kannada glyphs/topics are substantially corrupted in text extraction |
+| 22 | Malayalam | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/22/Malayalam_Malayalam.pdf | 6 | PARTIAL — code/name and all ten unit headings/broad areas are visible; OCR/encoding corruption affects many words and exact topic transcription |
+| 23 | Odia (portal row also says “Oriya”) | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/23/Odia_Odia.pdf | 4 | PARTIAL — PDF header identifies Odia, code 23; extracted body contains mixed-script corruption and repeated placeholder text, so topics cannot be safely normalized |
+| 24 | Punjabi | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/24/Punjabi_Punjabi.pdf | 6 | PARTIAL — Punjabi/code 24 and ten unit labels are visible; extraction converts much of the Punjabi text into unreliable Devanagari/Bengali mixed text |
+| 25 | Sanskrit | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/25/SANSKRIT_English.pdf | 5 | CONTENT_READ — complete ten-unit English syllabus text extracted; unit-to-page mapping and revision/publication metadata remain pending |
+
+Observed official content and extraction notes:
+
+- **21 Kannada:** The PDF header identifies UNIVERSITY GRANTS COMMISSION / NET BUREAU, Subject: KANNADA, Code No. 21. Ten numbered unit blocks (ಘಟ-1 through ಘಟ-10) are visible, and the PDF is 16 pages. However, much of the extracted Kannada script is missing or replaced by punctuation/empty glyphs. A few author-name fragments are visible, but the actual syllabus topics cannot be transcribed reliably from the current text extraction. Keep PARTIAL; require page-image/manual Kannada-language verification before topic normalization. Do not reconstruct topic names from partial glyphs.
+
+- **22 Malayalam:** The PDF header identifies MALAYALAM, Code No. 22; the PDF is 6 pages. Ten unit blocks are visible. The broad subject areas identifiable from the source text are:
+  1. Early/historical development and literary traditions of Malayalam.
+  2. Twentieth-century Malayalam poetry and its literary movements.
+  3. Story literature, including the short story and novel.
+  4. Visual/performance arts and literature: Kathakali, Thullal, Malayalam drama, screenplay and cinema.
+  5. Folklore/folk-literature concepts, oral genres, ritual and non-ritual performance traditions.
+  6. Malayalam literary criticism and its development.
+  7. Other literary forms and research/related literary studies (including biography, autobiography and travel/travelogue-related forms in the extracted text).
+  8. Linguistics and grammar, including Dravidian/Malayalam language history and structural topics.
+  9. Literary theories and aesthetics.
+  10. Kerala culture, history, society, religion, politics and media/cultural institutions.
+  These are broad reading aids, not a final transcription: the OCR is visibly distorted, so exact Malayalam wording, complete subtopic lists and exact source-page ranges need a native-script page review. Keep PARTIAL.
+
+- **23 Odia:** The portal's syllabus table labels code 23 “Oriya”, while the subjects list and the PDF header identify the subject as “Odia”; the linked filename is Odia_Odia.pdf. Preserve this naming discrepancy as source metadata rather than creating two subjects. PDF header identifies UGC NET Bureau, Subject: Odia, Code no. 23. The four-page extraction is heavily corrupted (it includes unrelated-looking mixed-script fragments and repeated placeholder text), so no unit/topic outline is asserted. Keep PARTIAL and obtain a reliable Odia-script transcription or inspect rendered pages manually.
+
+- **24 Punjabi:** The PDF header confirms Subject: PUNJABI, Code No.: 24; the PDF is 6 pages and shows Unit I through Unit X. The extraction has severe character mapping/encoding damage: large portions are rendered as unrelated Devanagari and mixed Bengali text. The unit labels alone do not validate the topic contents. Keep PARTIAL; do not translate or infer the ten units from their damaged extraction.
+
+- **25 Sanskrit:** The official English PDF header identifies SANSKRIT, Code No.: 25; the PDF is 5 pages. All ten units and their specified study components were read:
+  1. Vedic Literature — theories regarding the Vedas, Saṁhitā, dialogue hymns, Brāhmaṇa, Āraṇyaka and Vedāṅgas.
+  2. Specific Study of Vedic Literature — selected Ṛgveda/Śuklayajurveda/Atharvaveda hymns, Brāhmaṇa and Upaniṣad texts, Vedic grammar, Nirukta, etymology and Vedic accent.
+  3. Darśana — major philosophical schools and their epistemological, metaphysical and ethical perspectives.
+  4. Darśana Literature: Special Study — selected Sāṁkhya, Vedānta, Nyāya, Yoga and other philosophical works/concepts.
+  5. Grammar and Linguistics — Sanskrit grammarians, linguistic classification, speech sounds, phonetic laws, semantic change and language concepts.
+  6. Specific Study of Grammar — Sandhi, Subanta, Halanta, Samāsa, Taddhita, Tiṅanta, Kṛdanta, Kāraka, voice/pada rules, Mahābhāṣya and Vākyapadīya.
+  7. Sanskrit Literature, Poetics and Prosody — major Sanskrit authors and literary schools, plus Western poetics.
+  8. Specific Literary Texts and Poetics — prescribed poetry, drama, prose, Campū, Sāhityadarpaṇa, Kāvyaprakāśa, Alaṅkāra, Dhvanyāloka, Nāṭyaśāstra and metres.
+  9. Purāṇetihāsa, Dharmaśāstra and Epigraphy — Rāmāyaṇa, Mahābhārata, Purāṇas, Smṛti, Kauṭilīya Arthaśāstra, Brāhmī script and inscriptions.
+  10. Specific Study — prescribed Arthaśāstra/Smṛti passages, Brāhmī script and selected Mauryan, post-Mauryan, Gupta and post-Gupta inscriptions.
+  A source-text anomaly is retained for QA: Unit VIII's extracted prescribed drama list repeats “Uttararāmacaritam”. Do not silently deduplicate without checking the original page. The PDF parser confirms five physical pages, but did not establish the exact page range for each unit or an explicit publication/revision date. Keep CONTENT_READ at the source-content level, not final VERIFIED.
+
+### 7.10 Sub-batch 5 outcome and remaining UGC NET work
+
+- Codes **21–24 remain PARTIAL** because script/OCR corruption prevents reliable full topic transcription.
+- Code **25 is CONTENT_READ** at the official-source content level; exact unit/page mapping and source revision metadata remain.
+- This completes the code 21–25 source-location and PDF-opening pass, but it does **not** complete the five-subject normalization/verification stage.
+- Overall UGC NET remains **PARTIAL**. Do not approve the UGC NET syllabus dataset until Paper-I and all 87 Paper-II subject records have reliable unit/topic extraction, official PDF provenance, source-page mappings and revision/metadata QA.
+- Next UGC NET sub-batch for research sequencing: codes **26–30** — Tamil, Telugu, Urdu, Arabic and English. Continue to preserve each subject and its language/PDF as an independent record.
