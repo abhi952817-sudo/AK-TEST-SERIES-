@@ -170,3 +170,44 @@ Only records with explicit approved/published status and public/official visibil
 - The Student device submits only the translated candidate payload plus provider/model provenance and validation metadata to the trusted publication endpoint. The backend independently validates publisher ownership, publication eligibility, required language coverage and payload schema before publishing.
 - Admin translation may execute server-side through the Admin's authorized provider/model configuration and Secret Manager-held credentials. Never route an Admin secret through the Android client.
 - If the Student's device is offline, the selected provider is unavailable, or its quota is exhausted, publication remains pending; do not silently substitute the Admin model or another user's credentials.
+
+## Phase 9A — Main-branch integration audit (2026-11-28)
+
+Audit scope: read-only inspection of current `main` files and current PR #26 head. No production Firebase access, emulator execution, Android build, or runtime upload/publish test was performed.
+
+### Confirmed current-state findings
+
+| Area | Evidence on `main` | Result |
+|---|---|---|
+| Admin PDF upload UI | `app/src/main/java/Com/ak/testseries/exam/UniversalExamAdminScreen.kt` | Admin UI selects a PDF and runs `UniversalPdfPipeline`; this screen's publish action delegates to the injected `onPublishTest` callback. The screen itself does not implement a publication/translation transaction. |
+| PDF extraction AI | `app/src/main/java/Com/ak/testseries/exam/UniversalPdfPipeline.kt` | Current path calls `FirebaseAiService.generateJson` first, then an optional direct Gemini API-key fallback. This is not yet the shared five-provider router contract and is not a dedicated translation service. |
+| Prompt language behavior | `app/src/main/java/Com/ak/testseries/exam/UniversalAIContext.kt` | Generation prompt can request Hindi fields based on `examConfig.language`; this is generation/extraction behavior, not a publish-only translation gate. It does not implement arbitrary configured public-language fan-out. |
+| Student private PDF Storage | `storage.rules` | `/LiveTests/{fileName}` and `/pdfs/{fileName}` are Admin-write-only. No UID-scoped private Student PDF path is defined. The default rule is Admin-only. |
+| Shared student tests | `firestore.rules` `/Shared_Community_Tests/{testId}` | Authenticated users can read documents; owner/uploader can create and update. This is a community-share collection, not a safe private upload vault. Do not store private drafts or answer-bearing source payloads there. |
+| Firestore publication orchestration | `backend_functions/index.js` | No publication-triggered translation callable/orchestrator was found in the inspected exports. Existing `Shared_Community_Tests` references are attempt/solution lookup and retired-demo cleanup, not a translation workflow. |
+| Student BYOK secure storage | Main source search | The expected canonical Android Keystore-backed UID-scoped provider credential store was not located in the inspected Main paths. Earlier reconciliation documentation describes it as a required port, not proof it is implemented. |
+| Universal provider router | Main source search | No canonical `UniversalAiRouter.kt` / provider interface at the expected paths. Current PDF pipeline's Gemini-specific transport remains. |
+| Student private tests UI | `PrivateTestsVaultScreen.kt` | Existing vault filters locally available tests by uploader/owner and offers community sharing. It does not prove that source PDF bytes are uploaded to a UID-private Firebase Storage path. |
+
+### Required corrections before enabling publication translation
+
+1. Build and test the private PDF upload path first: `private_uploads/{uid}/{uploadId}/source.pdf`, owner-only client reads, create-only source writes, strict PDF MIME/size limits, and no public URL. Decide explicit deletion/retention behavior. Admin/server access must be narrowly scoped and audited.
+2. Keep private source PDFs, extracted source text, private tests and answer keys out of `/Shared_Community_Tests`. Use a separate private owner-scoped draft record and private Storage objects.
+3. Add a single publication state machine and callable authorization boundary. The server derives UID/role from Auth, checks ownership, ban/account status, Admin approval/moderation and versioned enabled-language config. A client-side `isPublic` flag or callback is never sufficient authorization.
+4. For Student BYOK, translation runs on the Student device through the selected local provider adapter; the raw key stays in Android Keystore and is never sent to backend. The backend receives only candidate translations/provenance metadata and validates ownership/schema/language coverage/publication eligibility. Provider/model provenance from a client is self-reported, not cryptographically attested; do not present it as independently verified.
+5. For Admin publication, translation runs through the Admin-authorized server-side provider adapter with Secret Manager credentials. Never embed or send Admin secrets to the app.
+6. Use one provider-neutral translation prompt/schema/validator for both roles. The role changes credential resolution and execution location, not translation logic.
+7. Add versioned language configuration, immutable source hash, idempotent job keys, review state and atomic public activation. A failed or low-confidence required language blocks publication; no partial language set becomes public.
+8. Add Storage/Firestore emulator rules tests, callable unit tests, Android BYOK/key-isolation tests and end-to-end publication tests before enabling any Student PDF upload or public translation. No rule relaxation or production deployment is authorized by this audit.
+9. Remove the current Admin screen's immediate “Published” success toast unless the downstream callback returns confirmed success; the current callback is fire-and-forget from this screen and the toast is not proof of backend publication.
+
+### Gate status
+
+- Private Student PDF upload to Firebase: **NOT IMPLEMENTED / NOT VERIFIED** in inspected Main paths.
+- Publish-only translation trigger: **NOT IMPLEMENTED / NOT VERIFIED**.
+- Admin-vs-Student model/credential routing: **NOT IMPLEMENTED / NOT VERIFIED**.
+- Shared provider-neutral translation prompt + validator: **NOT IMPLEMENTED / NOT VERIFIED**.
+- Atomic multilingual public publication: **NOT IMPLEMENTED / NOT VERIFIED**.
+- Main-branch security/emulator and Android tests for this feature: **NOT RUN**.
+
+This audit records blockers and the safe implementation order; it does not authorize claiming the feature is complete. Scoring, negative marking, ranking, answer-key evaluation and their tests remain out of scope.
