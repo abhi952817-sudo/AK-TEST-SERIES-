@@ -1990,3 +1990,51 @@ Detailed notes:
 - Do not combine English and Hindi text by position alone. Keep each PDF as a distinct source record linked to the same subject/version, with language and source-page provenance.
 - No current subject status is promoted to VERIFIED from this pass. Paper-I remains CONTENT_READ at English text level with Hindi outline comparison; Music 16, Management 17 and Hindu Studies 102 remain PARTIAL.
 - No app code, database, UI, Room schema, scoring or ranking code changed. Only the research status Markdown file was appended.
+
+
+### 7.47 Official UGC NET partial-source follow-up — Persian 42, Rajasthani 43, Sanskrit Traditional Subjects 73 (28 November 2026)
+
+Official UGC portal links:
+- Persian 42: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/42/Persian_Persian.pdf
+- Rajasthani 43: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/43/Rajasthani_Hindi.pdf
+- Sanskrit Traditional Subjects 73: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/73/Sanskrit%20Traditional%20Subjects_Hindi_Only.pdf
+
+| Code | Subject | Extraction result | Status |
+|---:|---|---|---|
+| 42 | Persian | Eight printed pages returned, with ten Roman-numbered units visible; Arabic/Persian-script text is not reliably OCR-readable | PARTIAL |
+| 43 | Rajasthani | Hindi PDF exposes the opening five unit blocks and detailed topics; extraction stops at Unit 5 and has several OCR substitutions | PARTIAL |
+| 73 | Sanskrit Traditional Subjects | Hindi-only PDF opened; Sanskrit unit content visible in parts, but extensive OCR corruption and incomplete/irregular unit sequence | PARTIAL |
+
+Detailed observations:
+
+- **42 Persian:** Official PDF header confirms Subject Persian, Code 42; printed page markers 1–8 were returned. Ten units are visible in the source sequence:
+  I. Persian language/linguistic foundations (exact heading needs native-script review).
+  II. Samanid and Ghaznavid periods.
+  III. Mongol and Timurid periods.
+  IV. Sultanate period.
+  V. Mughal and post-Mughal period.
+  VI. Constitutional/modern period (exact Persian heading needs page-image verification).
+  VII. Qajar period and constitutional movement.
+  VIII. Post-Islamic Revolution literature.
+  IX. Literary genres/rhetoric and literary criticism (exact wording requires native review).
+  X. History and culture of Persianate countries (including Iran, Afghanistan and Central Asia as shown in source).
+  The source lists numerous authors, works and periods, but OCR outputs Arabic/Persian glyph sequences with unreliable character order/word boundaries. Do not convert these names or detailed topics from OCR alone. Keep PARTIAL; require Persian-script page-image transcription and expert/native-script QA.
+
+- **43 Rajasthani:** Official header confirms Code 43, Subject Rajasthani. Hindi PDF extraction shows the first five unit blocks:
+  1. Rajasthani language — origin, development, historical background, dialects/regions, script (Mudiya/Mahajani), poetic styles.
+  2. Rajasthani grammar — alphabet/sounds, grammar categories, word formation and lexicography.
+  3. Rajasthani literature — periodisation and literary forms/traditions.
+  4. Ancient Rajasthani literature — historical background, trends, authors/works.
+  5. Medieval Rajasthani literature — background, वीर/भक्ति/श्रृंगार/नीति/रीति etc. trends, authors/works and saint traditions.
+  The extraction repeatedly stops after Unit 5, and labels within Units 1–3 are OCR-corrupted (e.g. unit numbers and individual words). It is not safe to assume that five is the complete syllabus. Keep PARTIAL; fetch the complete PDF pages and verify any further units before normalization.
+
+- **73 Sanskrit Traditional Subjects:** Official header confirms Code 73 and पारम्परिक संस्कृतविषयः. The Hindi-only PDF shows separate traditional-subject sections, including Veda, Vyākaraṇa, Sāhitya, Dharmaśāstra, Mīmāṃsā, Nyāya-Vaiśeṣika, Vedānta and Sarvadarśana; the official portal's current subject description also lists Jyotiṣa/Siddhānta Jyotiṣa, Navya Vyākaraṇa, Vyākaraṇa, Mīmāṃsā, Navya Nyāya, Sāṃkhya-Yoga, comparative philosophy, Śukla Yajurveda, Madhva Vedānta, Dharmaśāstra, Sāhitya, Purāṇetihāsa and Āgama, with the subjects page additionally listing Advaita Vedānta.
+  The extracted PDF has damaged Devanagari/Sanskrit characters, irregular section/unit numbering and missing text fragments. Do not treat the visible subset as the complete list of specialisations or all detailed topics. Preserve code 73 as a separate Paper-II subject, not a duplicate of Sanskrit code 25. Keep PARTIAL pending complete rendered-page transcription and comparison against the current portal's full specialisation list.
+
+### 7.48 Status and next steps after codes 42, 43, 73
+
+- Codes 42, 43 and 73 remain PARTIAL; official PDF availability is confirmed, but text extraction is not sufficient for final structured syllabus data.
+- The 87-subject current-cycle list remains unchanged.
+- Prioritise image-based/native-script QA for Persian, Sanskrit Traditional Subjects, Manipuri, Nepali, Assamese, Gujarati, Chinese, Dogri and other legacy-font PDFs. A link or readable unit heading alone is not enough to mark CONTENT_READ/VERIFIED.
+- Continue to keep official source text separate from any normalized transliteration/translation; retain raw source strings and page evidence.
+- No app code, database, Room schema, UI, scoring or ranking code was modified. Only this Markdown research status file was appended.
