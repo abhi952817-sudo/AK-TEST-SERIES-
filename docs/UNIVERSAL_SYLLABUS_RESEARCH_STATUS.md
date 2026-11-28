@@ -1957,3 +1957,36 @@ Detailed observations:
 - Current December 2026 subject enumeration remains 87 Paper-II subjects; no new subject rows are added by this QA.
 - Remaining language-script QA is still open for codes 16–29, 32–38, 42–43, 73, 84–85, 94–95, 101–102 and any other entries with OCR/metadata gaps. Paper-I Hindi/English comparison and page provenance also remain.
 - No app code, database, Room schema, UI, scoring or ranking code was changed. Only this Markdown research status file was appended.
+
+
+### 7.45 Hindi-language alternate-source QA — Music 16, Management 17, Hindu Studies 102, Paper-I 00 (28 November 2026)
+
+Official portal confirms these Hindi PDF endpoints:
+- Music 16: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/16/Music_Hindi.pdf
+- Management 17: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/17/Management_Hindi.pdf
+- Hindu Studies 102: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/102/Hindu%20Studies_Hindi.pdf
+- Paper-I 00: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/00-Paper-I/Paper-I_Hindi.pdf
+
+| Code | Subject | Hindi alternate-source result | Status impact |
+|---:|---|---|---|
+| 16 | Music | Substantial Hindi content extracted; stream-specific structure and OCR anomalies require full comparison | Remains PARTIAL |
+| 17 | Management | Some management units/topics extracted, but returned text is incomplete and numbering is corrupted | Remains PARTIAL |
+| 102 | Hindu Studies | Hindi text extraction is heavily corrupted legacy-font output; cannot safely transcribe technical Sanskrit/Hindi terms | Remains PARTIAL |
+| 00 | Paper-I | All ten units and notes visible in Hindi version; headings align broadly with English version | English CONTENT_READ remains; bilingual comparison improved, page/hash QA pending |
+
+Detailed notes:
+
+- **Music (16), Hindi:** The PDF includes an introductory note distinguishing Hindustani (vocal, instrumental and musicology), Carnatic, percussion and Rabindra Sangeet, and indicates shared syllabus units alongside stream-specific units. The extract exposes detailed terminology, folk music, rasa/aesthetics, research methodology/interdisciplinary/modern technology, Hindustani applied theory/history/genres/instruments/artists/gharanas, and portions of Carnatic content. However, the extracted header renders Code No. as “6” rather than 16, several technical words/names are damaged, and the returned content is very long/truncated. This alternate is useful for recovery but cannot be merged mechanically with the English source. Keep PARTIAL; compare each stream-specific unit and prescribed list against the complete original pages.
+
+- **Management (17), Hindi:** The official header is rendered as Code No. 7 (missing leading digit), Subject Management. Readable blocks include management principles/functions/communication/decision-making/organization design, managerial economics/demand/market/national income, ethics/CSR/corporate governance, organizational behaviour, HRM, performance/OD/talent/industrial relations, and portions of accounting/finance. The extraction jumps across unit labels and ends during finance content; units and full topic order cannot be reconstructed reliably from this text. Keep PARTIAL; obtain complete English/Hindi page-by-page text and reconcile the official syllabus structure.
+
+- **Hindu Studies (102), Hindi:** Header confirms code 102, but the body is legacy-font/transliteration corruption and mixes readable Hindi/Sanskrit fragments with Latin substitutions. Ten unit-number markers appear, but exact headings and topics cannot be certified. Keep PARTIAL; use rendered page images and Sanskrit/Hindi subject-matter transcription, preserving the English PDF as a separate official language source.
+
+- **Paper-I (00), Hindi:** Header confirms Code 00, General Paper: Teaching and Research Aptitude. All ten unit sections are visible and broadly align with the previously read English PDF: Teaching Aptitude; Research Aptitude; Comprehension; Communication; Mathematical Reasoning and Aptitude; Logical Reasoning; Data Interpretation; ICT; People, Development and Environment; Higher Education System. The Hindi PDF also reproduces the note that five two-mark questions are set from each module and the accommodation note for graphical/pictorial questions. Some OCR errors affect numbering/words (e.g. Unit IX/X labels) but the broad content is comparable. This supports bilingual content consistency at the unit-outline level; exact line-by-line equivalence and page mapping remain pending.
+
+### 7.46 QA implications
+
+- Hindi alternate PDFs are not automatically better sources: legacy-font extraction can be worse than English or can omit leading digits from codes and corrupt technical words.
+- Do not combine English and Hindi text by position alone. Keep each PDF as a distinct source record linked to the same subject/version, with language and source-page provenance.
+- No current subject status is promoted to VERIFIED from this pass. Paper-I remains CONTENT_READ at English text level with Hindi outline comparison; Music 16, Management 17 and Hindu Studies 102 remain PARTIAL.
+- No app code, database, UI, Room schema, scoring or ranking code changed. Only the research status Markdown file was appended.
