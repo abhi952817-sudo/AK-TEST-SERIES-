@@ -164,3 +164,9 @@ Only records with explicit approved/published status and public/official visibil
 - This section defines the required behavior and integration contract; it is not evidence that publication-triggered translation code, secure student credential retrieval, Firestore schema, Storage paths, or emulator tests are already implemented.
 - The current storage.rules snapshot allows PDF writes only to Admins under /LiveTests and /pdfs; a private Student PDF path and owner-only rules are not established by that file. Do not enable Student PDF upload or public translation until the actual upload path, provider-key storage, publication callable and rules are audited together.
 - Keep this work independent of scoring, negative-marking, ranking, and answer-key evaluation contracts.
+
+### Credential-boundary clarification
+- Student BYOK translation must execute through the Student's device-local Universal AI Router/provider adapter using the UID-scoped Android Keystore-backed credential. The Student API key must never be sent to a Cloud Function, Firestore, Storage, logs, or the publication request.
+- The Student device submits only the translated candidate payload plus provider/model provenance and validation metadata to the trusted publication endpoint. The backend independently validates publisher ownership, publication eligibility, required language coverage and payload schema before publishing.
+- Admin translation may execute server-side through the Admin's authorized provider/model configuration and Secret Manager-held credentials. Never route an Admin secret through the Android client.
+- If the Student's device is offline, the selected provider is unavailable, or its quota is exhausted, publication remains pending; do not silently substitute the Admin model or another user's credentials.
