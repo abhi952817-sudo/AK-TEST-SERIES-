@@ -2038,3 +2038,60 @@ Detailed observations:
 - Prioritise image-based/native-script QA for Persian, Sanskrit Traditional Subjects, Manipuri, Nepali, Assamese, Gujarati, Chinese, Dogri and other legacy-font PDFs. A link or readable unit heading alone is not enough to mark CONTENT_READ/VERIFIED.
 - Continue to keep official source text separate from any normalized transliteration/translation; retain raw source strings and page evidence.
 - No app code, database, Room schema, UI, scoring or ranking code was modified. Only this Markdown research status file was appended.
+
+
+### 7.49 Official UGC NET language-subject follow-up — codes 84, 85, 94, 95 (28 November 2026)
+
+Official PDF endpoints rechecked:
+- Kashmiri 84: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/84/Kashmiri_Kashmiri_Only.pdf
+- Konkani 85: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/85/Konkani_Konkani_Only.pdf
+- Bodo 94: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/94/Bodo_Hindi_Only.pdf
+- Santali 95: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/95/Santali_Hindi_Only.pdf
+
+| Code | Subject | Source result | Status |
+|---:|---|---|---|
+| 84 | Kashmiri | Ten unit blocks appear, but extraction is almost entirely corrupted glyphs; no reliable topic transcription | PARTIAL |
+| 85 | Konkani | Five printed pages, all ten units and substantial topics extracted; systematic legacy-font character substitutions require Konkani-script proofreading | PARTIAL |
+| 94 | Bodo | Ten unit blocks visible in Hindi/Bodo text, but mixed script and damaged words/numbers prevent safe detailed normalization | PARTIAL |
+| 95 | Santali | Hindi-only PDF now yields all ten unit headings and substantial detailed topics in readable Hindi | CONTENT_READ (Hindi-source text level; named-work/name OCR QA pending) |
+
+Detailed findings:
+
+- **84 Kashmiri:** Official header confirms Subject Kashmiri, Code 84. Ten unit headings/blocks are visible, but extraction consists largely of repeated/garbled symbols and corrupted glyph sequences. No reliable unit/topic text can be transcribed from this output. Keep PARTIAL; page-image review and Kashmiri-script expertise are required.
+
+- **85 Konkani:** Official header confirms Subject Konkani, Code 85; all five printed pages were returned. All ten units are present:
+  1. Language science/history of Konkani.
+  2. Grammar.
+  3. History of Konkani literature.
+  4. Narrative literary forms.
+  5. Lyrical/poetic literary forms.
+  6. Dramatic literary forms.
+  7. Humorous and intellectual prose forms.
+  8. Literary theory and criticism.
+  9. Folklore.
+  10. Comparative literary study and translation.
+  Detailed coverage includes language origin/history/dialects/scripts/standardisation, grammar, Konkani literature from oral/early periods through modern revival, regional and religious literary traditions, prose/poetry/drama, criticism, folklore, comparative literature, reception/influence and translation. The extraction is systematic but has legacy-font character substitutions (e.g. common consonant and vowel sequences are replaced by similar-looking characters); exact Konkani orthography, author names and prescribed works require page-image/native-speaker QA. Keep PARTIAL; do not silently normalize the systematic substitutions.
+
+- **94 Bodo:** Official header confirms Code 94 and Subject Bodo. Ten unit blocks are visible. Extracted content includes Bodo language/literature, language change and language planning, language-family and structural features, Bodo grammar/phonology, literary genres and periods, language contact, Bodo culture/customs/festivals, traditional knowledge and neighbouring ethnic communities of Assam. Parts of Units 5–10 are readable in Bodo script, while the opening portion has mixed/garbled text and several key terms are corrupted. Keep PARTIAL until all units are transcribed and cross-checked against the original page images; retain the Hindi-only source limitation.
+
+- **95 Santali:** The official Hindi-only PDF was re-read. Header confirms Code 95 and Subject Santali. The Hindi text is substantially more readable than the earlier extraction and all ten units are present:
+  1. Ethnology.
+  2. Linguistics and Grammar.
+  3. Indian Literature.
+  4. Theory of Literature.
+  5. Folk Literature.
+  6. Santali Poetry Literature.
+  7. Santali Prose Literature.
+  8. Santali Magazines.
+  9. Adivasi leaders and literary figures.
+  10. History of the Santals.
+  Detailed content includes tribal/social/economic/religious systems; Santali language origins/classification/phonology/grammar/script; selected Sanskrit/Hindi/Bengali literature; literary genres and theory; folk songs/stories/proverbs/idioms/riddles/culture/festivals/instruments/dance; early/medieval/modern Santali poetry; plays/novels/stories/essays; magazines; freedom fighters and writers; Santal origins, clans, creation narratives, life-cycle rituals, festivals, livelihoods, hunting, governance and social/economic/religious organisation.
+  This closes the earlier content-coverage gap at Hindi text level. OCR still damages some names, titles and Santali terms; preserve the PDF's exact Hindi transcription and verify proper nouns against rendered pages before marking final VERIFIED. Status CONTENT_READ, not final VERIFIED.
+
+### 7.50 UGC NET language-subject QA outcome
+
+- Code 95 Santali moves from PARTIAL to CONTENT_READ because the official Hindi-only PDF now exposes all ten units and detailed Hindi content.
+- Codes 84 Kashmiri, 85 Konkani and 94 Bodo remain PARTIAL for documented script/OCR reasons.
+- The current December 2026 Paper-II subject list remains exactly 87 rows. No subject has been added or removed.
+- CONTENT_READ is not equivalent to VERIFIED: page-by-page mapping, PDF hashes/revision metadata, native-script proofreading and corrigendum checks remain required.
+- No app code, database, Room schema, UI, scoring or ranking code was modified. Only this Markdown research status file was appended.
