@@ -2798,3 +2798,43 @@ Official index: https://www.ugcnetonline.in/syllabus-new.php
 - Next native-script remediation batch: codes 101 Sindhi (Arabic and Hindi PDFs), 102 Hindu Studies (already CONTENT_READ; QA only), 103 Indian Knowledge System, 104 Disaster Management and 105 Ayurveda Biology. Keep subjects 101–105 separate and only promote a subject when its complete official source text is actually readable.
 
 No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
+
+
+### 7.62 UGC NET Paper-II — current-cycle codes 101–105 source-text recheck (28 November 2026)
+
+This pass re-opened the official index and current-cycle subject PDFs for codes 101–105. It reconciles older status notes with the latest English/Hindi source evidence. The official index confirms the code/name mapping and the available language links.
+
+#### 7.62.1 Official index links
+
+Official index: https://www.ugcnetonline.in/syllabus-new.php
+
+- Code 101 Sindhi — Arabic: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/101/Sindhi_Arabic.pdf ; Hindi: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/101/Sindhi_Hindi.pdf
+- Code 102 Hindu Studies — English: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/102/Hindu%20Studies_Engish.pdf ; Hindi: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/102/Hindu%20Studies_Hindi.pdf
+- Code 103 Indian Knowledge System — English: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/103/Indian_Knowledge_System_english.pdf ; Hindi: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/103/Indian_Knowledge_System_hindi.pdf
+- Code 104 Disaster Management — English: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/104/Disaster_Management_English.pdf ; Hindi: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/104/Disaster_Management_hindi.pdf
+- Code 105 Ayurveda Biology — English: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/105/Ayurveda_Biology_English.pdf ; Hindi: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/105/Ayurveda_Biology_Hindi.pdf
+
+#### 7.62.2 Subject-by-subject findings
+
+| Code | Subject | Latest source-text evidence | Status decision |
+|---:|---|---|---|
+| 101 | Sindhi | Both official variants were opened. Arabic-script extraction mixes Sindhi/Arabic, Latin and unrelated glyphs. Hindi-script extraction contains readable Sindhi-in-Devanagari fragments for early literature/language periods, but is visibly incomplete and contains substitutions; it does not establish a complete unit/topic map. | Remains PARTIAL. Do not merge the two incomplete extractions to invent missing content. Native Sindhi/page-image review required. |
+| 102 | Hindu Studies | English official PDF was read at source-text level and exposes ten unit blocks with substantial content; this is the evidence for the prior promotion in Section 7.53.4. The Hindi alternate was also opened, but its legacy-font extraction is severely corrupted and cannot independently verify exact Sanskrit/Hindi terms. | Remains CONTENT_READ. Keep English and Hindi source records separate; finish Sanskrit-term proofreading, page mapping and source metadata before VERIFIED. |
+| 103 | Indian Knowledge System | Official English PDF is 16 pages with printed page markers 1–16. All ten units and detailed topic lists were extracted, including philosophical systems, astronomy, health/well-being, architecture, chemistry/metallurgy, life sciences/agriculture/ecology and further knowledge-system themes. Sanskrit transliteration has some spacing/diacritic artefacts, but the source is sufficiently readable for research capture. | Remains CONTENT_READ. Complete exact topic-page mapping, PDF hash/revision and Sanskrit diacritic QA before VERIFIED. |
+| 104 | Disaster Management | Official English PDF identifies Code 104 and states ten syllabus units. Full detailed content was extracted across the units, including disaster fundamentals, research methodology, legal/governance framework, society and vulnerability, community-based DRR, health, environment/climate, remote sensing/GIS, ICT/emerging technologies and emergency response. The source labels both Environment/Climate and Remote Sensing/GIS as “Unit VII”; preserve this source numbering anomaly and do not silently renumber the official text. | Remains CONTENT_READ. Record the duplicate Unit VII label as an official-source anomaly; finish page/hash/version metadata and topic-page QA. |
+| 105 | Ayurveda Biology | Official English PDF is ten pages with printed page markers 1–10 and ten units. All ten unit headings and detailed topic lists were extracted, covering Ayurveda history, philosophy/fundamentals, sharira rachna/kriya, padartha/dravya, rasa shastra/bhaishajya kalpana/pharmacopeia, disease biology/microbiology/immunology, genetics/ayurgenomics/cell and molecular biology, physiology/biochemistry/nanotechnology, biodiversity/environment/IPR/entrepreneurship, and research methodology/biostatistics/Ayurveda-informatics. Sanskrit transliteration has minor spacing/diacritic issues. | Remains CONTENT_READ. Complete Sanskrit proofreading, exact page mapping and PDF hash/revision metadata before VERIFIED. |
+
+#### 7.62.3 UGC NET tally and reconciliation
+
+- No status promotions in this pass.
+- Running Paper-II tally remains **60 CONTENT_READ / 27 PARTIAL** across 87 subjects.
+- Code 102 Hindu Studies is CONTENT_READ based on the English PDF source-text reading recorded in Section 7.53.4; its corrupted Hindi variant does not reverse that source-level status.
+- Codes 103, 104 and 105 remain CONTENT_READ; their current English PDF reads reconfirm their earlier source-text status.
+- Code 101 Sindhi remains PARTIAL because neither official language/script variant provides a complete reliable extraction.
+- Paper-I code 00 remains separate from the 87 Paper-II subject tally.
+
+#### 7.62.4 Remaining UGC NET work after this pass
+
+The native-script remediation batches have now rechecked the major previously PARTIAL groups, but several records still need page-image transcription. Remaining work includes code 101 Sindhi; codes 21–24, 26–29, 32–37, 42–43, 84–85 and 94; plus any other PARTIAL subjects in the current 87-subject register. Also complete source hash, revision date, page count, exact topic-page provenance and official corrigendum/source-list checks for every subject before final VERIFIED.
+
+No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
