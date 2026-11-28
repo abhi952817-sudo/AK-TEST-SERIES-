@@ -2095,3 +2095,99 @@ Detailed findings:
 - The current December 2026 Paper-II subject list remains exactly 87 rows. No subject has been added or removed.
 - CONTENT_READ is not equivalent to VERIFIED: page-by-page mapping, PDF hashes/revision metadata, native-script proofreading and corrigendum checks remain required.
 - No app code, database, Room schema, UI, scoring or ranking code was modified. Only this Markdown research status file was appended.
+
+
+### 7.51 RRB official-source recovery and corrigendum gap audit (28 November 2026)
+
+This addendum records later source recovery and supersedes earlier extraction-timeout notes only where a complete official PDF was subsequently read. Earlier checkpoints remain as historical audit records. No app code or database was changed.
+
+#### 7.51.1 RRB ALP CEN 01/2026 — source text read; status moves PARTIAL → CONTENT_READ
+
+Official sources:
+- RRB Chandigarh CEN landing page (detailed notice date 14 May 2026; English and Hindi links): https://www.rrbcdg.gov.in/2026-01-alp.php
+- English detailed CEN PDF successfully opened and parsed from the participating RRB Ajmer official domain: https://rrbajmer.gov.in/Upload_PDF/CEN%2001-2026%20Eng-639143539720035538.pdf
+- Alternate official English/Hindi document links listed by RRB Chandigarh:
+  - English: https://www.rrbcdg.gov.in/uploads/2026/01-ALP/012026ALP-CEN.pdf
+  - Hindi: https://www.rrbcdg.gov.in/uploads/2026/01-ALP/012026ALP-CEN-Hi.pdf
+- RRB Bhubaneswar's CEN 01/2026 page independently lists both language versions on 15 May 2026: https://www.rrbbbs.gov.in/cen.php?prmt=TkRVPQ%3D%3D
+
+The RRB Ajmer-hosted English document was read through its final printed page 37. The detailed notice landing-page date is 14 May 2026 on RRB Chandigarh (15 May on RRB Bhubaneswar). The document itself labels 21 March 2026 as the *indicative notice in Employment News*; do not use that as the detailed-CEN publication date. Exact PDF hash/revision metadata has not yet been recorded. The Hindi PDF link is confirmed, but that PDF has not been successfully parsed.
+
+| Printed page(s) | Official section | Source-read result |
+|---:|---|---|
+| 13–14 | §12.0 Recruitment Process / §12.1 CBT-1 | Recruitment stages and CBT-1 pattern/syllabus read |
+| 15 | §12.2 CBT-2, Part-A and Part-B | Pattern, syllabus headings, DGT dependency and qualification-to-trade mapping read |
+| 16 | §12.3 CBAT and §12.4 DV start | CBAT conditions and final merit weightage read |
+
+**CBT-1, printed p.14**
+- 60 minutes; 75 questions; 75 marks; 1/3 negative marking; normalized across multiple shifts.
+- Mathematics: number system, BODMAS, decimals, fractions, LCM/HCF, ratio/proportion, percentages, mensuration, time/work, time/distance, simple/compound interest, profit/loss, algebra, geometry, trigonometry, elementary statistics, square root, age calculations, calendar/clock, pipes/cisterns.
+- Mental Ability: analogies, alphabetical/number series, coding/decoding, mathematical operations, relationships, syllogism, jumbling, Venn diagrams, data interpretation/sufficiency, conclusions/decision-making, similarities/differences, analytical reasoning, classification, directions, statement–arguments/assumptions.
+- General Science: Physics, Chemistry and Life Sciences at 10th-standard level.
+- The 2026 source's CBT-1 syllabus block contains these three labelled areas; do not import a General Awareness section from another ALP cycle.
+
+**CBT-2 Part-A, printed p.15**
+- 90 minutes; 100 questions. Part-A is used for shortlisting/merit after the qualifying condition in Part-B is met.
+- Mathematics: the same broad mathematical topic list as CBT-1.
+- General Intelligence and Reasoning: analogies, alphabetical/number series, coding/decoding, mathematical operations, relationships, syllogism, jumbling, Venn diagrams, data interpretation/sufficiency, conclusions/decision-making, similarities/differences, analytical reasoning, classification, directions, statement–arguments/assumptions.
+- Basic Science and Engineering: Engineering Drawing (projections, views, drawing instruments, lines, geometrical figures, symbolic representation); units and measurements; mass, weight and density; work, power and energy; speed and velocity; heat and temperature; basic electricity; levers and simple machines; occupational safety and health; environment education; IT literacy.
+
+**CBT-2 Part-B, printed p.15**
+- 60 minutes; 75 questions; qualifying test only; 35% qualifying threshold for all candidates irrespective of category/community.
+- Questions are from the relevant trade syllabi prescribed by the Directorate General of Training (DGT). The CEN directs candidates to DGT for the detailed trade syllabus; do not invent or expand DGT topics from this notice.
+- ITI/Trade Apprenticeship candidates appear in their own trade. Degree/Diploma candidates select a trade from the CEN's qualification-wise mapping:
+  - Electrical Engineering: Electrician; Instrument Mechanic; Wireman; Armature & Coil Winder; Refrigeration and Air-conditioning Mechanic.
+  - Electronics Engineering: Electronics Mechanic; Mechanic (Radio & TV).
+  - Mechanical Engineering: Fitter; Mechanic (Motor Vehicle); Tractor Mechanic; Mechanic (Diesel); Turner; Machinist; Refrigeration and Air-conditioning Mechanic; Heat Engine; Millwright/Maintenance Mechanic.
+  - Automobile Engineering: Mechanic (Motor Vehicle); Tractor Mechanic; Mechanic (Diesel); Heat Engine; Refrigeration and Air-conditioning Mechanic.
+
+**CBAT, printed p.16**
+- Conducted in English and Hindi; no negative marking.
+- Candidate must clear each test battery/section separately and obtain minimum T-score 42 in each battery.
+- Final merit gives 50% weightage to CBT-2 Part-A and 50% to CBAT scores (subject to the CEN's other qualifying and eligibility provisions).
+
+**Status interpretation:** ALP is now CONTENT_READ at the English source-text level, replacing the earlier “PDF extraction timed out” status as the latest checkpoint. It is not final VERIFIED: Hindi-language comparison, exact topic-to-page mapping beyond the section-level page map, PDF hash/revision metadata, and official-source verification of the later corrigendum remain open.
+
+#### 7.51.2 RRB ALP CEN 01/2026 — later Corrigendum No. 1 remains pending primary-source verification
+
+A Parallel search found a copy of “Amendment/Corrigendum No. 1, CEN No. 01/2026” dated 10 November 2026 on non-RRB file hosts. The surfaced text states that notified ALP vacancies increase from 11,127 to 14,627, provides Annexure-B1, and says all other terms and conditions remain unchanged. However, the actual corrigendum PDF was not retrieved from an official RRB host or read from an official RRB page in this pass.
+
+- Do not treat the non-RRB-hosted copy as primary-source proof.
+- Current vacancy figures and whether the official amendment text is identical must be checked against an official RRB listing/PDF.
+- The statement “all other terms and conditions remain unchanged” is provisional until the official amendment is read.
+- The ALP syllabus content above is extracted from the original detailed CEN, not certified against a primary-host copy of the November corrigendum.
+
+#### 7.51.3 RRB JE/DMS CEN 04/2026 — original notice confirmed; Corrigendum No. 1 not yet read from primary PDF
+
+Official original notice:
+- https://rrbsecunderabad.gov.in/wp-content/uploads/2026/08/CEN-04-2026JE_English.pdf
+- Original notice: 77 printed pages; official listing dated 13 August 2026.
+- CBT-I and CBT-II common pattern details were read in the earlier RRB JE audit entry.
+- JE engineering syllabus annexure page map remains: Civil & Allied pp.74–75; Electrical & Allied p.75; Electronics & Allied p.76; Mechanical & Allied pp.76–77. Detailed technical-topic normalization is still required.
+
+Official RRB Mumbai notification listing:
+- https://rrb.indianrailways.gov.in/getdata?cennum=04%2F2026&loc=mumbai&category=Notification
+- The listing shows “Corrigendum No.1 of CEN No. 04/2026” dated 18 August 2026, with English and Hindi view options, as well as the original detailed notification dated 13 August 2026.
+- The parser exposed the official listing row but not the direct English/Hindi corrigendum PDF URL; attempts to retrieve the PDF from the official page did not complete.
+
+A non-RRB mirror returned text claiming Corrigendum-1 adds CMA and Annexure-VIII(E), and changes the DMS instruction so a candidate cannot choose the CMA exam group. Because the primary RRB-hosted corrigendum PDF has not been opened, these amendment details are **provisional only**. Do not add CMA syllabus topics, change DMS exam-group routing, or mark the amended CEN fully verified from the mirror. Keep RRB JE/DMS/CMA PARTIAL pending the original corrigendum PDF, CMA Annexure-VIII(E), exact updated group mapping and source-page verification.
+
+#### 7.51.4 RRB NTPC CEN 06/2026 Graduate and CEN 07/2026 Undergraduate — still DEFERRED_NOT_BLOCKING / PARTIAL
+
+Official RRB-hosted resource routes were surfaced:
+- CEN 06/2026 Graduate: https://rrb.indianrailways.gov.in/-/image/1791375679144CEN_06_2026_NTPC_G.pdf/examsDocuments
+- CEN 07/2026 Undergraduate: https://rrb.indianrailways.gov.in/-/image/1791999622770Final_CEN_07-2026_14.10.2026_English.pdf/examsDocuments
+
+The official RRB Mumbai index also exposes notification-category rows for both CENs, but the direct original PDF retrieval attempts returned network/connect errors. The high-effort independent Parallel research pass likewise did not establish readable original PDFs, complete page counts, syllabus pages or corrigendum effects. Search snippets/listing dates alone do not prove PDF contents.
+
+- CEN 06/2026: detailed English/Hindi PDF not content-read in this pass.
+- CEN 07/2026: detailed English/Hindi PDF not content-read in this pass.
+- Keep both DEFERRED_NOT_BLOCKING / PARTIAL. Do not transfer exam patterns or topic lists from earlier NTPC cycles.
+
+#### 7.51.5 Tool coordination and work boundary
+
+- Deep Research App was started/steered for the continuing Universal Syllabus research plan.
+- Parallel Search, Fetch and a separate high-effort Parallel research run were used for independent source discovery and cross-checking.
+- GitHub was used to read this research status file before any permitted status-file update.
+- Liner search and Firecrawl search/scrape/browser actions could not run because their connected-app credit allowances were exhausted. No claim is made that those services completed research.
+- No app code, Firestore/Room database, UI, scoring, ranking, or other repository file was modified. Research remains read-only except for this append-only status update.
