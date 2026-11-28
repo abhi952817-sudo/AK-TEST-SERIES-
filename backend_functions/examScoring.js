@@ -565,7 +565,6 @@ module.exports = {
   getMarkingSchemeForExam,
   getMarkingSchemeForQuestion,
   hasMultipleMarkingSchemes,
-  getMaximumAttemptQuestionsCountForSection,
   evaluateTestAttempt,
   calculatePopulationPercentile,
   createRankingSnapshot,
