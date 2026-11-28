@@ -1,5 +1,7 @@
 "use strict";
 
+const crypto = require("node:crypto");
+
 /**
  * NEET UG 2026 source-backed scoring policy.
  * Source: NTA NEET (UG)-2026 Information Bulletin, Chapter 4, pp. 21-22.
@@ -101,6 +103,32 @@ function isFullLengthTest(testData, questions) {
   return testData.isFullLength === true ||
     type.includes("full") ||
     questions.length === NEET_UG_2026_POLICY.fullLengthQuestionCount;
+}
+
+function createNeetScoringFingerprint(testData, questions) {
+  const identity = validateNeetUg2026Identity(testData);
+  if (!Array.isArray(questions) || questions.length === 0) {
+    throw scoringError("A question list is required to fingerprint a NEET attempt.");
+  }
+  const questionKeys = questions.map(question => ({
+    id: String(question && question.id || ""),
+    subject: normalizeSubject(question || {}),
+    questionType: String(question && question.questionType || "").trim().toUpperCase(),
+    correctAnswer: String(question && question.correctAnswer || "").trim().toUpperCase(),
+    acceptedAnswers: Array.isArray(question && question.acceptedAnswers)
+      ? question.acceptedAnswers.map(value => String(value).trim().toUpperCase()).sort()
+      : [],
+    scoringStatus: String(question && (question.scoringStatus || question.answerStatus) || "NORMAL").trim().toUpperCase()
+  })).sort((a, b) => a.id.localeCompare(b.id));
+  const canonical = JSON.stringify({
+    examId: identity.examId,
+    examYear: identity.examYear,
+    scoringVersion: identity.scoringVersion,
+    stageId: identity.stageId,
+    paperId: identity.paperId,
+    questions: questionKeys
+  });
+  return crypto.createHash("sha256").update(canonical).digest("hex");
 }
 
 function evaluateNeetUgAttempt(testData, questions, userAnswers, timeSpentSeconds = 0) {
@@ -266,7 +294,8 @@ function evaluateNeetUgAttempt(testData, questions, userAnswers, timeSpentSecond
     scoringEngine: "NEET_UG_2026_V1",
     scoringVersion: policy.scoringVersion,
     examYear: policy.examYear,
-    scoringPolicySource: policy.source
+    scoringPolicySource: policy.source,
+    scoringFingerprint: createNeetScoringFingerprint(testData, questions)
   };
 }
 
@@ -274,5 +303,6 @@ module.exports = {
   NEET_UG_2026_POLICY,
   isNeetUg2026Test,
   validateNeetUg2026Identity,
+  createNeetScoringFingerprint,
   evaluateNeetUgAttempt
 };
