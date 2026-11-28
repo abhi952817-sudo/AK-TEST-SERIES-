@@ -1807,3 +1807,20 @@ The official UGC portal labels the document “Updated Syllabi of UGC-NET (Appli
 - Paper-I: separate compulsory code 00, ten units, four-page English PDF CONTENT_READ; Hindi-language comparison and metadata QA remain.
 - Overall UGC-NET first-pass research is not fully VERIFIED. The remaining work is quality assurance rather than inventing additional current-cycle subject codes: page mapping, source hashes/revision dates, native-script/OCR correction, alternate-language comparisons, and confirmation of code 90's expanded scope.
 - Do not mark the Universal Syllabus Database ready until all 30 PARTIAL Paper-II records and Paper-I QA are closed or explicitly approved with a documented partial-source exception.
+
+
+### 7.40 Language-variant QA follow-up — Sindhi code 101 (28 November 2026)
+
+The official UGC syllabus index lists both English and Hindi download columns for Sindhi (code 101). A separate Arabic-script PDF was already opened in sub-batch 17. This follow-up located and opened the official Hindi PDF:
+- Hindi version: https://ugcnetonline.in/NTA_All_R_Syllabus/101/Sindhi_Hindi.pdf
+- Arabic-script version: https://ugcnetonline.in/NTA_All_R_Syllabus/101/Sindhi_Arabic.pdf
+- Official syllabus index: https://www.ugcnetonline.in/syllabus-new.php
+
+The Hindi PDF text extraction is substantially more readable than the Arabic-script extraction and exposes the opening units:
+1. Sindhi language — origin/foundations, historical development, dialects, post-partition changes in India, language contact and scripts.
+2. Early Sindhi literature — historical period, regional conditions, literary streams, romances, heroic/charitable narratives, Ismaili religious poetry and folk narratives.
+3. Middle-period Sindhi literature — Bhakti and Sufi traditions, Indian philosophy, major Sufi/Vedantic poets including Qazi Qazan, Shah Abdul Karim, Shah Inayat Rizvi, Shah Abdul Latif, Sachal Sarmast and Sami.
+4. Modern Sindhi literature — modern period, prose development, script issues before/under British rule, post-partition script matters and Indian government decisions.
+The returned text stops during Unit IV and does not expose Units V–X or a reliable page count. Some dates and words are also OCR-corrupted. Therefore the Hindi PDF improves the source evidence but does not close the gap. Keep code 101 PARTIAL; obtain the full rendered PDF/page images or a complete native-language transcription before marking it CONTENT_READ.
+
+**Current-cycle impact:** None of the 87 subject mappings changes. Code 101 remains one current Paper-II subject with two official language/script variants; store the two source documents under one subject/version relationship, not as duplicate subjects.
