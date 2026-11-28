@@ -2187,8 +2187,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val targetExam = test.targetExam.takeIf { it.isNotBlank() }
-                    ?: _userProfile.value.targetExam.takeIf { it.isNotBlank() }
-                    ?: throw IllegalStateException("Test has no exam identity; scoring cannot assume NEET.")
+                    ?: throw IllegalStateException("Test has no canonical exam identity; scoring is blocked.")
 
                 val (defaultPosMark, defaultNegMark) =
                     Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForExam(targetExam)
