@@ -83,19 +83,28 @@ test("Authoritative evaluation: NEET standard attempt", () => {
   assert.strictEqual(result.accuracyPercent, 50.0);
 });
 
-test("Section B optional limit: surplus questions are ignored", () => {
-  const questions = [];
-  const answers = {};
-  for (let i = 1; i <= 12; i++) {
-    const qid = `secB_q${i}`;
-    questions.push({ id: qid, correctAnswer: "A", section: "SECTION_B", subject: "Physics" });
-    answers[qid] = { ans: "A" };
+test("NEET practice tests score all questions without legacy Section B caps", () => {
+  for (const count of [12, 45, 90, 180, 200]) {
+    const questions = Array.from({ length: count }, (_, index) => ({
+      id: `q${index + 1}`,
+      correctAnswer: "A",
+      section: index % 2 === 0 ? "SECTION_A" : "SECTION_B",
+      subject: "Physics"
+    }));
+    const answers = Object.fromEntries(questions.map(question => [question.id, "A"]));
+    const result = evaluateTestAttempt("NEET UG", questions, answers);
+    assert.strictEqual(result.totalQuestions, count);
+    assert.strictEqual(result.correctCount, count);
+    assert.strictEqual(result.finalScore, count * 4);
+    assert.strictEqual(result.maxScore, count * 4);
   }
+});
 
-  const result = evaluateTestAttempt("NEET UG", questions, answers, 300);
-  assert.strictEqual(result.correctCount, 10);
-  assert.strictEqual(result.unansweredCount, 2);
-  assert.strictEqual(result.finalScore, 40.0);
+test("Scoring rejects missing exam identity instead of assuming NEET", () => {
+  assert.throws(
+    () => evaluateTestAttempt("", [{ id: "q1", correctAnswer: "A" }], { q1: "A" }),
+    error => error.code === "invalid-argument"
+  );
 });
 
 test("CAT TITA questions have zero negative penalty", () => {
