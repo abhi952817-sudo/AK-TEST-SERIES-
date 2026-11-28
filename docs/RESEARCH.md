@@ -2582,3 +2582,53 @@ These excerpts are not sufficient to normalize the complete topic lists. More im
 - Next required evidence: obtain the complete original English notification from an official RRB host, verify the matching official listing and corrigenda, then compare its pages and text against these secondary copies. Only after that should the complete syllabus topics be normalized and cited page by page.
 
 No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
+
+
+### 7.57 RRB JE/DMS/CMA CEN 04/2026 — Corrigendum-1 and later amendment cross-check (28 November 2026)
+
+This pass investigated the two outstanding JE-related items: Corrigendum No.1 and the newly added CMA syllabus. It also checked whether a later amendment changes syllabus conditions.
+
+#### 7.57.1 Original CEN — official source
+
+- Official RRB-hosted detailed CEN 04/2026 (JE/DMS), 77 pages:
+  https://rrbsecunderabad.gov.in/wp-content/uploads/2026/08/CEN-04-2026JE_English.pdf
+- The official RRB Secunderabad notice page lists CEN 04/2026 notification and FAQ:
+  https://rrbsecunderabad.gov.in/notices/
+- The official unified RRB resource route for the original notification is:
+  https://rrb.indianrailways.gov.in/-/image/1786627574998CEN_04_2026_JE_DMS_English.pdf/examsDocuments
+- Original Annexure VIII(A)–VIII(D) cover the Civil & Allied, Mechanical & Allied, Electrical & Allied, and Electronics & Allied JE exam groups. Original CEN is not sufficient for CMA because CMA was added later.
+
+#### 7.57.2 Corrigendum No.1 — official route found, full official fetch not completed
+
+- Official unified RRB PDF URL identified:
+  https://rrb.indianrailways.gov.in/-/image/1787108023956Corrigendum_1_CEN_04-2026.pdf/examsDocuments
+- Official application-portal route also surfaced:
+  https://rrbapply.gov.in/assets/forms/CEN_04_2026_Corrigendum_1.pdf
+- The unified RRB PDF timed out on two fetch attempts; the application-portal PDF connection failed. Firecrawl could not run because the connected account had insufficient credits. Therefore the complete Corrigendum-1 PDF has **not** been read directly from the official host in this pass.
+- Search-indexed text from copies hosted on non-RRB domains identifies the document as “Corrigendum-1”, dated 18-08-2026, seven pages, and attributes it to Chairpersons/Railway Recruitment Boards. These copies are leads only, not primary-source evidence.
+- The indexed text indicates that Corrigendum-1:
+  1. Adds Chemical & Metallurgical Assistant (CMA), 35 vacancies, as a new post/exam group.
+  2. Adds Annexure VIII(E), “Syllabus for CMA Exam Group”.
+  3. Adds one JE/Electrical/TRS vacancy at RRB Secunderabad.
+  4. Adds medical standard B-2 and related amendments.
+  5. Changes the DMS exam-group selection note so CMA is excluded from the alternate exam groups DMS candidates may select.
+  6. Updates the notice title/footer from JE/DMS to JE/DMS/CMA.
+- The indexed syllabus text exposes the start of Annexure VIII(E): measurements/units/dimensions and measurement errors; light (reflection, refraction, total internal reflection, interference, diffraction, polarization, microscope/telescope magnification and electromagnetic spectra); heat (heat transfer, expansion, temperature scales, calorimetry, specific/latent heat, anomalous expansion of water, combustion/calorific value); and sound (sources, propagation, velocity, characteristics, reflection/echo, resonance, SONAR and Doppler effect). This is an incomplete excerpt and must not be treated as the complete CMA syllabus.
+
+#### 7.57.3 Corrigendum No.2 — later amendment scope
+
+- Search-indexed copy identifies “Amendment/Corrigendum No. 2”, CEN 04/2026, dated 04-11-2026, under the heading “Enhancement of notified vacancies”.
+- Indexed content says it revises vacancies for JE/P. Way (Category 17) and JE/S&T/Signal (Category 35), increasing the overall total from 4,029 to 4,487, and explicitly states that all other terms and conditions stipulated in CEN 04/2026 remain unchanged.
+- The copy is hosted on a non-RRB domain; a direct official RRB-host PDF was not established in this pass. Do not treat this as final primary-source verification.
+- Provisional impact assessment: this later amendment appears vacancy-only and does not alter the syllabus. Confirm against the official Corrigendum No.2 PDF before closing the amendment audit.
+
+#### 7.57.4 Status and next action
+
+- `rrb_je` remains **PARTIAL**.
+- The four original JE technical exam groups remain tied to the original CEN Annexures VIII(A)–VIII(D); preserve DMS routing separately.
+- CMA must be represented as a distinct exam group with its own Annexure VIII(E), not merged into Mechanical JE or DMS.
+- Do not promote the CMA syllabus to CONTENT_READ/VERIFIED until the complete official Corrigendum-1 and all pages of Annexure VIII(E) are obtained and read. Record its official PDF hash, page count, printed-page map and language.
+- Obtain the official Corrigendum No.2 PDF and confirm its “all other terms unchanged” clause directly.
+- The main gap-audit conclusion remains unchanged: RRB JE is PARTIAL and no exam is finally VERIFIED.
+
+No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
