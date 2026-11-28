@@ -478,3 +478,72 @@ Observed official content and extraction notes:
 - This completes the code 21–25 source-location and PDF-opening pass, but it does **not** complete the five-subject normalization/verification stage.
 - Overall UGC NET remains **PARTIAL**. Do not approve the UGC NET syllabus dataset until Paper-I and all 87 Paper-II subject records have reliable unit/topic extraction, official PDF provenance, source-page mappings and revision/metadata QA.
 - Next UGC NET sub-batch for research sequencing: codes **26–30** — Tamil, Telugu, Urdu, Arabic and English. Continue to preserve each subject and its language/PDF as an independent record.
+
+
+### 7.11 UGC NET subject-PDF extraction — sub-batch 6 (codes 26–30; 28 November 2026)
+
+Official subject-code mapping and the exact linked PDF endpoints were verified against:
+- UGC NET Bureau updated syllabus table: https://www.ugcnetonline.in/syllabus-new.php
+- UGC NET Bureau subject-code list: https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 Information Bulletin (Annexure-II confirms codes for current cycle): https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+The five subject codes and PDF endpoints are:
+- 26 Tamil — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/26/Tamil_Tamil_PDF.pdf
+- 27 Telugu — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/27/Telugu_Telugu.pdf
+- 28 Urdu — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/28/Urdu_Urdu.pdf
+- 29 Arabic — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/29/Arabic_Arabic__PDF.pdf
+- 30 English — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/30/English_English.pdf
+
+All five official PDF endpoints returned HTTP 200 and were parsed. Physical PDF page counts from parser metadata are recorded below; these are not a substitute for unit-to-page provenance.
+
+| Code | Subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 26 | Tamil | 7 | PARTIAL — all ten broad unit/section headings and substantial content extracted, but Tamil legacy-font/encoding corruption affects many words and exact topic transcription |
+| 27 | Telugu | 13 | PARTIAL — all ten unit headings and extensive topic text extracted; Telugu legacy-font encoding is not reliably Unicode, requiring native-script rendering/manual validation |
+| 28 | Urdu | 12 | PARTIAL — ten unit structure visible, but Urdu extraction is substantially corrupted/inconsistent; exact unit/topic mapping needs Urdu-script page review |
+| 29 | Arabic | 10 | PARTIAL — all ten units and broad subject coverage extracted; Arabic OCR truncates or damages several names/terms and some lines |
+| 30 | English | 1 | CONTENT_READ — all ten official unit headings extracted clearly; PDF contains only broad unit descriptors, not a detailed chapter/subtopic list |
+
+Observed source content and QA:
+
+- **26 Tamil:** The seven-page PDF opens with the Tamil syllabus and states five broad content divisions (Tamil literary works, Tamil grammar, Tamil literary criticism, Tamil Nadu history/culture, and Tamil with other disciplines), organized into ten units. Extracted unit/section material includes ancient Tamil literature (Ettuthokai, Pattuppattu, Pathinenkilkanakku), epics, Bhakti/minor literature and commentators, modern literature and writers, grammar traditions/texts, grammar commentators/language history/lexicons, and literary criticism. Later content also addresses folklore, Tamil culture/history and interdisciplinary/translation or media-related themes. Because the extraction has many replacement glyphs and legacy-font corruption, these are broad identification notes only; complete topic lists, exact Tamil spellings and unit/page ranges need page-image/native Tamil verification. Keep PARTIAL.
+
+- **27 Telugu:** The 13-page PDF header confirms UNIVERSITY GRANTS COMMISSION / NET BUREAU, Subject: TELUGU, Code No. 27. Ten official unit headings were extracted:
+  1. General Linguistics.
+  2. Evolution and Development of Telugu Language.
+  3. Study/Research Methods in Ancient Telugu Literature.
+  4. Trends and Processes in Modern Telugu Literature.
+  5. Folklore.
+  6. Telugu Literary Criticism.
+  7. Introduction to Sanskrit Literature.
+  8. History and Culture of Telugu People.
+  9. Telugu Grammar, Prosody and Figures of Speech.
+  10. Translation, Journalism/Mass Media and Writing.
+  Extensive text was extracted under these headings, including linguistics, Dravidian languages, Telugu historical development, classical/modern literary movements, folklore genres, criticism/aesthetics, Sanskrit texts/authors, regional dynasties/culture, grammar/prosody/figures and translation/media. However, the PDF uses legacy Telugu font encoding: extracted characters appear as non-readable Latin/diacritic sequences rather than dependable Unicode Telugu. Unit headings can be cross-checked in transliterated form, but detailed topics cannot be approved until the original rendered pages are read by a Telugu-capable reviewer. Keep PARTIAL.
+
+- **28 Urdu:** The 12-page PDF header confirms Subject: Urdu, Code No. 28. Ten unit labels are visible. Extracted broad areas include Urdu language/linguistics; Urdu poetic forms and prescribed poets; prose and literary history; drama and dastan; novel and short story; criticism and research; non-fiction prose; literary movements/schools; and Urdu poetry/translation/media-related applications. The Urdu script extraction is inconsistent, with damaged headings, names and tables; some unit numbering/content appears malformed. These are provisional broad categories only. Keep PARTIAL and require Urdu-script page-image verification before full transcription.
+
+- **29 Arabic:** The 10-page PDF header confirms UGC NET Bureau, Subject: Arabic, Code No. 29; title metadata indicates “NET ARABIC REVISED”. All ten unit headings/broad subject areas were extracted:
+  1. Arabic poetry up to the Abbasid period.
+  2. Arabic prose up to the Abbasid period.
+  3. Migrant (Mahjar) and Andalusian literature.
+  4. Literary criticism and prominent critics.
+  5. Rhetoric and prosody.
+  6. Important Arabic sources and references.
+  7. Modern Arabic literature.
+  8. Literary trends, movements and schools.
+  9. Indo-Arabic literature.
+  10. Arabic-English-Arabic translation, language applications and general knowledge.
+  Arabic text is mostly legible, but OCR truncates several poet/author names and parts of prosody/translation sections. Complete names, diacritics and exact subtopic/page mapping need Arabic-language page QA. No explicit revision date was established from the extracted text. Keep PARTIAL.
+
+- **30 English:** The one-page PDF header confirms UNIVERSITY GRANTS COMMISSION NET BUREAU, Subject: English, Code No. 30. All ten official units are clearly stated:
+  I Drama; II Poetry; III Fiction and short story; IV Non-Fictional Prose; V Language (basic concepts, theories and pedagogy) and English in Use; VI English in India (history, evolution and futures); VII Cultural Studies; VIII Literary Criticism; IX Literary Theory post-World War II; X Research Methods and Materials in English.
+  The PDF note says Units I–IV must also be tested through comprehension passages to assess critical reading, critical thinking and writing skills, covering all literatures in English. The official document itself gives broad unit headings only; it does not provide detailed chapter/subtopic lists. Do not add coaching-derived topic lists as official syllabus. Record this as CONTENT_READ with official topic granularity limited to the published headings. Unit-to-page mapping is physically p.1; publication/revision date not identified.
+
+### 7.12 Sub-batch 6 outcome and remaining UGC NET work
+
+- All five official subject-code mappings and PDF endpoints (26–30) were verified; all five PDFs opened successfully.
+- Code 30 English is CONTENT_READ at the granularity actually published by the official PDF. Codes 26 Tamil, 27 Telugu, 28 Urdu and 29 Arabic remain PARTIAL pending script/OCR QA, full topic transcription and unit/page mapping.
+- The official syllabus table labels code 23 “Oriya” while the official subject list and PDF header identify “Odia”; the discrepancy recorded in sub-batch 5 remains an open metadata normalization item.
+- Overall UGC NET remains PARTIAL. Codes 16–29 are not all fully verified; Paper-I and the full set of 87 Paper-II subjects still require a consolidated audit of PDF versions, page provenance, topic completeness and language/OCR quality. Do not mark the UGC NET dataset approved.
+- Next subject-code batch for research sequencing: codes **31–35** — Linguistics, Chinese, Dogri, Nepali and Manipuri. Verify each current official portal entry and PDF before extraction; preserve language-specific sources and any missing/changed links as explicit gaps.
