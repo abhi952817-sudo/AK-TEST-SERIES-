@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "examId": "neet_ug",
+    "examYear": "2026",
+    "scoringVersion": "neet-ug-2026-v1",
+    "stageId": "neet_main",
+    "paperId": "neet_paper_1",
+    "positiveMarks": 4,
+    "negativeMarks": 1,
+    "unansweredMarks": 0
+  },
+  "cases": [
+    {
+      "id": "mixed-correct-wrong-unanswered",
+      "questions": [
+        {
+          "id": "q1",
+          "subject": "Physics",
+          "questionType": "MCQ_SINGLE",
+          "correctAnswer": "A"
+        },
+        {
+          "id": "q2",
+          "subject": "Chemistry",
+          "questionType": "MCQ_SINGLE",
+          "correctAnswer": "B"
+        },
+        {
+          "id": "q3",
+          "subject": "Biology",
+          "questionType": "MCQ_SINGLE",
+          "correctAnswer": "C"
+        }
+      ],
+      "answers": {
+        "q1": "A",
+        "q2": "D",
+        "q3": ""
+      },
+      "expected": {
+        "totalQuestions": 3,
+        "correctCount": 1,
+        "wrongCount": 1,
+        "unansweredCount": 1,
+        "positiveMarksEarned": 4,
+        "negativeMarksPenalty": 1,
+        "rawScore": 3,
+        "finalScore": 3,
+        "maxScore": 12,
+        "accuracyPercent": 50
+      }
+    },
+    {
+      "id": "negative-raw-score-is-preserved",
+      "questions": [
+        {
+          "id": "q1",
+          "subject": "Physics",
+          "questionType": "MCQ_SINGLE",
+          "correctAnswer": "A"
+        },
+        {
+          "id": "q2",
+          "subject": "Physics",
+          "questionType": "MCQ_SINGLE",
+          "correctAnswer": "C"
+        }
+      ],
+      "answers": {
+        "q1": "B",
+        "q2": "D"
+      },
+      "expected": {
+        "totalQuestions": 2,
+        "correctCount": 0,
+        "wrongCount": 2,
+        "unansweredCount": 0,
+        "positiveMarksEarned": 0,
+        "negativeMarksPenalty": 2,
+        "rawScore": -2,
+        "finalScore": -2,
+        "maxScore": 8,
+        "accuracyPercent": 0
+      }
+    }
+  ]
+}
