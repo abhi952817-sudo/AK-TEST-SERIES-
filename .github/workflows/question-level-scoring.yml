@@ -19,8 +19,15 @@ jobs:
           node --check backend_functions/index.js
           node --check backend_functions/questionLevelScoring.js
           node --check backend_functions/questionLevelScoringIntegration.js
-      - name: Run question-level scoring tests
-        run: node --test backend_functions/questionLevelScoring.test.js backend_functions/questionLevelScoringIntegration.test.js
+          node --check backend_functions/neetUgScoring.js
+      - name: Run scoring policy and strategy tests
+        run: >-
+          node --test
+          backend_functions/examScoring.test.js
+          backend_functions/scoringPolicyResolver.test.js
+          backend_functions/questionLevelScoring.test.js
+          backend_functions/questionLevelScoringIntegration.test.js
+          backend_functions/neetUgScoring.test.js
       - uses: actions/setup-java@v4
         with:
           java-version: "21"
