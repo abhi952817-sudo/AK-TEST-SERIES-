@@ -2764,3 +2764,37 @@ Official index: https://www.ugcnetonline.in/syllabus-new.php
 Next five UGC NET PARTIAL subjects: code 43 Rajasthani, 84 Kashmiri, 85 Konkani, 94 Bodo and 95 Santali. Preserve source-script identity, all unit divisions and language-specific provenance.
 
 No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
+
+
+### 7.61 UGC NET Paper-II — native-script remediation batch 4 (codes 43, 84, 85, 94, 95) — 28 November 2026
+
+The official UGC NET syllabus index and linked PDFs were checked for Rajasthani, Kashmiri, Konkani, Bodo and Santali. Subject identities and official index mappings were confirmed. This pass did not produce a new status promotion.
+
+#### 7.61.1 Official index links and language-column notes
+
+Official index: https://www.ugcnetonline.in/syllabus-new.php
+
+- Code 43 Rajasthani: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/43/Rajasthani_Hindi.pdf — the index links this Hindi PDF in both English and Hindi columns.
+- Code 84 Kashmiri: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/84/Kashmiri_Kashmiri_Only.pdf — same native-script file in both columns.
+- Code 85 Konkani: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/85/Konkani_Konkani_Only.pdf — same native-script file in both columns.
+- Code 94 Bodo: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/94/Bodo_Hindi_Only.pdf — Hindi-only download is listed; English column is blank.
+- Code 95 Santali: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/95/Santali_Hindi_Only.pdf — Hindi-only download is listed; English column is blank.
+
+#### 7.61.2 Subject-by-subject findings
+
+| Code | Subject | Extraction and structure | Status decision |
+|---:|---|---|---|
+| 43 | Rajasthani | Official PDF is a Hindi syllabus. The current extraction returns five visible syllabus units/sections, including language origin/development/dialects and script; grammar; literary periods/forms; ancient Rajasthani literature; and medieval Rajasthani literature. The text contains OCR substitutions and the extraction still exposes only the first five units previously noted; later content/page completeness is not established. | Remains PARTIAL; determine whether the official file contains additional pages/units and complete the remaining source transcription. |
+| 84 | Kashmiri | Official PDF identifies Kashmiri, Code 84. Ten unit labels (i–x) are visible, but the extracted text is severely corrupted with repeated glyph blocks, broken encoding and non-semantic sequences. | Remains PARTIAL; page-image/native Kashmiri script review required for all ten units. |
+| 85 | Konkani | Official PDF is five pages and identifies Konkani, Code 85. All ten units are visible. The text is represented through a legacy Devanagari-font conversion with systematic substitutions (e.g. common letters/words are transformed), so many topic headings are structurally visible but exact native Konkani wording is not safe to normalize without a font-aware rendering/transcription pass. | Remains PARTIAL; render all five pages, resolve legacy font mapping and proofread Konkani transcription. |
+| 94 | Bodo | Official index supplies a Hindi-only PDF. Ten units are visible, with text partly represented in Devanagari and partly corrupted by Latin-character substitutions, misspelled OCR tokens and mixed encoding. Broad areas include Bodo language/literature, language history/structure, culture and ethnographic knowledge, but individual topic wording is not reliable enough for final capture. | Remains PARTIAL; inspect the complete rendered PDF and transcribe from the Hindi/native-script source without guessing damaged terms. |
+| 95 | Santali | Official index supplies a Hindi-only PDF. The extracted Hindi-level text covers ten units: Ethnology; Linguistics and Grammar; Indian Literature; Theory of Literature; Folk Literature; Santali Poetry Literature; Santali Prose Literature; Santali Magazines; Adivasi leaders/literary figures; History of the Santals. Most structure and broad content are readable, but names, titles and several words contain OCR substitutions. | Remains CONTENT_READ (unchanged); finish named-work/person proofreading, exact page mapping, PDF hash and source metadata before any VERIFIED decision. |
+
+#### 7.61.3 UGC NET tally and next batch
+
+- No status changes in this batch.
+- UGC NET Paper-II tally remains **60 CONTENT_READ / 27 PARTIAL** across 87 subjects.
+- Paper-I code 00 remains a separate common paper.
+- Next native-script remediation batch: codes 101 Sindhi (Arabic and Hindi PDFs), 102 Hindu Studies (already CONTENT_READ; QA only), 103 Indian Knowledge System, 104 Disaster Management and 105 Ayurveda Biology. Keep subjects 101–105 separate and only promote a subject when its complete official source text is actually readable.
+
+No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
