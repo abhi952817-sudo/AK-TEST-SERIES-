@@ -997,3 +997,97 @@ Observed official content and QA:
 - Code 62's PDF proposes the title “Religious Studies”; preserve the official code 62 and existing subject name “Comparative Study of Religions”, with the proposed title stored as an alias/source note.
 - Official subject sequence after code 62 continues with code 63 Mass Communication and Journalism, 65 Performing Art – Dance/Drama/Theatre, 66 Museology & Conservation, 67 Archaeology and 68 Criminology. Code 64 is absent; do not invent a subject. Continue with the next five actual listed subjects.
 - Overall UGC NET remains PARTIAL. Paper-I and current-cycle 87 Paper-II subject coverage are not yet fully verified. The older syllabus portal does expose additional subjects beyond the earlier batches, but every current-cycle subject still needs a source-availability/content check, including codes 100–107. Complete reconciliation, page provenance, revision/hash metadata and OCR/language QA are still required before database approval.
+
+
+### 7.23 UGC NET subject-PDF extraction — sub-batch 12 (codes 63, 65, 66, 67, 68; 28 November 2026)
+
+Official subject-code mappings and exact PDF links were checked against the UGC NET Bureau portal and December 2026 bulletin:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+- https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+Code 64 is absent from the official subject list; the next five actual subjects are 63, 65, 66, 67 and 68.
+
+Official English PDFs opened and read:
+- 63 Mass Communication and Journalism — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/63/Mass%20communication%20and%20%20journalism_English.pdf
+- 65 Performing Art – Dance/Drama/Theatre — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/65/Performing%20Arts_English.pdf
+- 66 Museology & Conservation — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/66/Museology%20and%20Conservation_English.pdf
+- 67 Archaeology — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/67/Archaeology_English.pdf
+- 68 Criminology — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/68/Criminology_English.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 63 | Mass Communication and Journalism | Not confirmed | CONTENT_READ — all ten units and detailed topic lists extracted |
+| 65 | Performing Art – Dance/Drama/Theatre | 5 printed pages visible | CONTENT_READ — common Units 1–5 and separate Dance/Drama-Theatre Units 6–10 extracted |
+| 66 | Museology & Conservation | Not confirmed | CONTENT_READ — all ten units and detailed syllabus text extracted |
+| 67 | Archaeology | 5 printed pages visible | CONTENT_READ — all ten units and detailed syllabus text extracted |
+| 68 | Criminology | 3 printed pages visible | CONTENT_READ — all ten units and detailed syllabus text extracted |
+
+Observed official content and QA:
+
+- **63 Mass Communication and Journalism:** Official PDF header confirms Code No. 63. All ten units were read:
+  1. Introduction to Journalism and Mass Communication.
+  2. Communication for Development and Social Change.
+  3. Reporting and Editing.
+  4. Advertising and Marketing Communication.
+  5. Public Relations and Corporate Communication.
+  6. Media Laws and Ethics.
+  7. Media Management and Production.
+  8. ICT and Media.
+  9. Film and Visual Communication.
+  10. Communication Research.
+  Detailed topics include Indian media history, communication theories, development paradigms, news/reporting/editing, advertising, PR, media statutes and ethics, production/management, ICT, cinema and communication research methods/statistics. The source references specific enactments and sections; preserve the document's wording and record legal-currentness as a separate review item rather than silently replacing it. Physical page count and exact unit-page mapping not confirmed. Status CONTENT_READ.
+
+- **65 Performing Art – Dance/Drama/Theatre:** Official PDF header confirms Code No. 65. This is a branched syllabus:
+  - **Common Units 1–5 for Dance and Drama/Theatre:** (1) Cultural History of India; (2) Folk and Traditional Theatre Forms of India; (3) The Natyasastra; (4) Art and Aesthetics; (5) Dance and Theatre Forms of East and South Asian Countries.
+  - **Dance route Units 6–10:** (6) Dance in Sanskrit Literature and Treatises; (7) Indian Classical Dance; (8) Indian Classical Dance in Independent India; (9) Dance Education, Pedagogy and Research; (10) International Dance and Interactions.
+  - **Drama/Theatre route Units 6–10:** (6) Drama and its Theories: Indian and Western; (7) Modern Indian Theatre; (8) Acting and Direction; (9) Theatre Design and Techniques; (10) Theatre Education, Pedagogy and Research.
+  The printed PDF markers 1–5 are visible. Preserve the common core plus two distinct subject routes; do not merge the Dance and Drama/Theatre-specific units into one undifferentiated list. Detailed text includes named forms, texts, artists, schools, institutions and research/pedagogy areas. Status CONTENT_READ.
+
+- **66 Museology & Conservation:** Official PDF header confirms Code No. 66. All ten units were read:
+  1. Introduction to Museum and Museology.
+  2. Collection Management.
+  3. Documentation and Research of Tangible and Intangible Collections.
+  4. Museum Exhibitions.
+  5. Museum Education, Interpretation and Publications.
+  6. Conservation of Collections — Part I.
+  7. Conservation of Collections — Part II.
+  8. Museum Management.
+  9. Museum Marketing and Public Relations.
+  10. Legislation and Conventions Related to Museums and Heritage.
+  Detailed topics cover museum types/history/ethics, collecting and object handling, documentation standards and Object ID, exhibition design/lighting/labels, education and accessibility, preventive/remedial conservation, management/security/disaster planning, marketing/PR, and Indian/international heritage legislation/conventions. Physical page count and unit-page map were not confirmed. Status CONTENT_READ.
+
+- **67 Archaeology:** Official PDF header confirms Code No. 67; printed page markers 1–5 are visible. All ten units were read:
+  1. Introduction to Archaeology — scope, ethics, methods, documentation, interpretation, conservation and dating methods.
+  2. Introduction to Prehistory — human evolution, geology/climate, lithic technologies and world prehistory.
+  3. Palaeolithic Cultural Developments in the Indian Subcontinent.
+  4. Mesolithic and Neolithic Cultures.
+  5. Proto-history and Harappan/Chalcolithic Cultures.
+  6. Iron Age and Growth of New Urban Centres.
+  7. Architecture, Art and Iconography.
+  8. Palaeography and Epigraphy.
+  9. Numismatics.
+  10. Methodology of Archaeological Research.
+  Detailed site names, cultural assemblages, inscriptions, dating techniques, coinage and research methods were extracted. Preserve the specific site/inscription lists as official syllabus content; do not normalize OCR anomalies (e.g. a stray “Authors?” in Unit V) without source-page review. Status CONTENT_READ; page markers provide initial provenance but final unit-page map and revision metadata remain.
+
+- **68 Criminology:** Official PDF header confirms Code No. 68; printed page markers 1–3 are visible. All ten units were read:
+  1. Crime as a legal, social and psychological construct; crime categories and contemporary forms.
+  2. Criminology scope, criminal justice system, participation of victims/witnesses and crime prevention.
+  3. Schools of Criminology and foundational theories.
+  4. Social control/conflict, modern and contemporary criminological theories.
+  5. Legal approaches, substantive/procedural law, investigation, evidence, rights and relevant legal frameworks.
+  6. Criminological research methods, ethics and data.
+  7. Penology, punishment theories, sentencing and prison standards.
+  8. Prison systems, institutional/community corrections, probation, parole and correctional administration.
+  9. Juvenile and youth justice, institutions, UN standards and delinquency prevention.
+  10. Victimology, victimization, victim rights/compensation and contemporary victimology.
+  The source includes detailed theoretical schools, named statutes, legal procedures, research methods and victimology concepts. Keep educational topic descriptions at syllabus level; preserve the exact source wording and statutory version as a provenance field. Status CONTENT_READ.
+
+### 7.24 Sub-batch 12 outcome and remaining UGC NET work
+
+- Five official PDFs (codes 63, 65, 66, 67, 68) were opened and all published units were read.
+- All five are CONTENT_READ at the source-text level. Codes 65, 67 and 68 expose printed page markers; codes 63 and 66 still need physical page-count and unit-page QA.
+- Code 65 requires a true branched hierarchy: common Units 1–5, then separate Dance and Drama/Theatre routes for Units 6–10.
+- Code 64 is absent from the official list and must not be invented.
+- Next five actual subjects after code 68: code 70 Tribal and Regional Language/Literature, 71 Folk Literature, 72 Comparative Literature, 73 Sanskrit Traditional Subjects, 74 Women Studies. Code 69 is absent; verify the code 73 Hindi-only source and preserve its language limitation.
+- Overall UGC NET remains PARTIAL. The current-cycle 87-subject list must still be reconciled against the full portal list, including codes 79–95 and new codes 100–107. Paper-I, exact page provenance, version/hash metadata and language/OCR QA remain before approval.
