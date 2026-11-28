@@ -144,7 +144,12 @@ function validateCallableSubmission(
   }
 
   // 6. Authoritative evaluation
-  const targetExam = testDocData.targetExam || "NEET";
+  const targetExam = testDocData.examId || testDocData.targetExam;
+  if (typeof targetExam !== "string" || !targetExam.trim()) {
+    const err = new Error("Test has no canonical exam identity; refusing to assume NEET.");
+    err.code = "failed-precondition";
+    throw err;
+  }
   const evalResult = evaluateTestAttempt(targetExam, questions, answers, cleanTimeSpent);
 
 
