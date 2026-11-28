@@ -40,4 +40,20 @@ jobs:
           cp .env.example .env
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       - name: Run Android unit tests
-        run: gradle testDebugUnitTest
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            set +e
+            gradle --no-configuration-cache --no-daemon testDebugUnitTest 2>&1 | tee /tmp/gradle-test.log
+            gradle_status=${PIPESTATUS[0]}
+            set -e
+            if [ "$gradle_status" -eq 0 ]; then
+              exit 0
+            fi
+            if grep -Eq "429|Too Many Requests" /tmp/gradle-test.log && [ "$attempt" -lt 3 ]; then
+              echo "Maven Central rate-limited this attempt; retrying Gradle dependency resolution ($attempt/3)."
+              sleep $((attempt * 20))
+            else
+              exit "$gradle_status"
+            fi
+          done
