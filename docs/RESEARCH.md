@@ -2459,3 +2459,85 @@ This pass used the live official UGC NET syllabus index and its exact linked PDF
 - Highest-value next action for these records is rendered-page/native-script QA, not more attempts to infer from OCR: obtain PDF page images, identify embedded font/encoding, and manually transcribe/compare each page while retaining raw source text and page provenance.
 - Continue the other UGC NET PARTIAL subjects using exact links from the official index. Separately continue official RRB retrieval for NTPC detailed CENs and the ALP/JE corrigendum PDFs; do not promote from mirror copies.
 - No application source, syllabus database, UI, Room/Firestore schema, scoring engine, ranking code or test policy was changed.
+
+
+---
+
+# Final Syllabus Gap Audit — Checkpoint 1 (28 November 2026)
+
+**Scope:** Reconcile the 25-exam research register against the current Main-branch `UniversalExamRegistry.kt` and the latest dated research addenda. This is a documentation audit only.
+
+## 1. Registry reconciliation
+
+- Current Main `UniversalExamRegistry.kt`: **25 unique exam IDs**.
+- Consolidated research register: **25 exam rows**.
+- Missing or unmatched exam IDs: **0**.
+- The registry IDs and research IDs match exactly.
+- No application code, UI, Room/Firestore schema, database, scoring engine, ranking logic or exam policy was changed.
+
+## 2. Corrected latest status snapshot
+
+The summary table in Section 3 above is not fully current: it still shows RRB ALP as PARTIAL. Later Section 7.51.1 records that the complete official English CEN 01/2026 PDF was read through printed page 37 and explicitly promotes ALP to CONTENT_READ. This later dated evidence supersedes the older table entry.
+
+Applying that correction, the current working count is:
+
+- **21 CONTENT_READ**
+- **4 PARTIAL / DEFERRED_NOT_BLOCKING**
+- **0 final VERIFIED**
+
+CONTENT_READ means the applicable official source text has been read sufficiently for research; it does not mean normalized, fully sourced and approved for the Universal Syllabus Database.
+
+| # | Exam ID | Latest working status | Remaining gap / next QA action |
+|---:|---|---|---|
+| 1 | `neet_ug` | CONTENT_READ | Reconfirm applicable official 2026 PDF/version, record PDF hash and page count, complete topic-to-page provenance and corrigendum check. First implementation priority only after research closure and explicit approval. |
+| 2 | `jee_main` | CONTENT_READ | Reconfirm applicable official 2026 syllabus/version, PDF hash/page metadata, topic-to-page normalization and corrigendum check. |
+| 3 | `jee_advanced` | CONTENT_READ | Mathematics, Physics and Chemistry read; finish page-count/publication metadata, PDF hash and normalized topic-page map. |
+| 4 | `cuet_ug` | CONTENT_READ | All 37 official subject PDFs were read; normalize each subject separately, retain the correct paper codes/routes, and complete PDF hash, page-count and source-page QA. |
+| 5 | `upsc_cse` | CONTENT_READ | Keep Prelims, Mains, Essay, GS and each optional subject separate; finish optional-subject topic/page normalization, source metadata and applicable notice/corrigendum review. |
+| 6 | `ssc_cgl` | CONTENT_READ | Tier-I and Tier-II source pages read; complete topic-page normalization, PDF hash/version metadata and corrigendum review. |
+| 7 | `ssc_chsl` | CONTENT_READ | Keep Tier-I, Tier-II and qualifying skill/typing stages distinct; finish source metadata, topic-page normalization and corrigendum review. |
+| 8 | `ssc_mts` | CONTENT_READ | Current recorded detailed source is the 2025 notice, not a 2026 syllabus. Preserve the 2025 version; check for a newer applicable official cycle before publishing a current-version dataset. Keep MTS and Havaldar PET/PST separate. |
+| 9 | `ssc_gd` | CONTENT_READ | Complete source hash/page/version metadata, topic-page normalization and corrigendum check; preserve CBE and qualifying physical/medical stages separately. |
+| 10 | `ssc_cpo` | CONTENT_READ | Complete source hash/page/version metadata, Paper-I/Paper-II normalization and corrigendum check; preserve PET/PST and medical stages separately. |
+| 11 | `rrb_ntpc` | PARTIAL / DEFERRED_NOT_BLOCKING | Obtain and read complete official CEN 06/2026 Graduate and CEN 07/2026 Undergraduate notifications plus relevant corrigenda. Do not transfer previous-cycle topics or rely on non-RRB mirrors/knowledge-centre compilations. |
+| 12 | `rrb_group_d` | CONTENT_READ | Official CEN 09/2025 read; recheck official corrigenda 1–4 and record their effect, source hashes, page metadata and final syllabus page map. |
+| 13 | `rrb_alp` | CONTENT_READ | Official English CEN 01/2026 read through printed p.37. Still obtain/read official Hindi PDF for comparison, verify Corrigendum No.1 from an official RRB host, record hash/revision metadata and keep DGT trade syllabi as external dependencies rather than inventing their topics. |
+| 14 | `rrb_technician` | CONTENT_READ | Preserve Grade-I Signal and Grade-III as separate branches; complete topic-page normalization, source hash/revision QA and corrigendum review. |
+| 15 | `rrb_je` | PARTIAL | Finish common CBT and technical-group topic normalization; retrieve/read official Corrigendum No.1 and Annexure VIII(E) if applicable. Do not add CMA topics or alter DMS routing from mirror-only claims. |
+| 16 | `ctet` | CONTENT_READ | Preserve Paper-I and Paper-II routes and the Mathematics & Science versus Social Studies option; finish all subject/unit topic-page normalization and source metadata QA. |
+| 17 | `ugc_net` | PARTIAL | Official inventory is 87 Paper-II subjects plus separate Paper-I code 00. Latest working subject tally is 59 CONTENT_READ / 28 PARTIAL. Complete native-script/page-image QA for damaged PDFs, preserve every subject and alternate language separately, and record PDF hash/revision/page provenance for all 87. |
+| 18 | `cat` | CONTENT_READ | Official sources establish the three sections and timing, not a complete chapter-wise syllabus or question-count catalogue. Record this as an official-source limitation; do not fill gaps from coaching lists. Finish source metadata/page QA. |
+| 19 | `ibps_po` | CONTENT_READ | Official notification and Prelims/Main handouts read. Keep sample questions distinct from official exhaustive syllabus; finish vacancy-corrigendum and source metadata QA. |
+| 20 | `ibps_clerk` | CONTENT_READ | Official notification and Prelims handout read. Recheck the official site for the Main handout when published/available; do not treat illustrative samples as exhaustive chapters. Complete source metadata QA. |
+| 21 | `sbi_clerk` | CONTENT_READ | Official advertisement and Prelims/Main handouts read. Preserve illustrative sample formats as examples, not a complete chapter syllabus; finish source/version metadata QA. |
+| 22 | `sbi_po` | CONTENT_READ | Official advertisement and Prelims/Main handouts read. Preserve the three-phase structure and descriptive tasks; do not treat examples as exhaustive chapters. Finish source/version metadata QA. |
+| 23 | `nda` | CONTENT_READ | Mathematics and GAT source pages read; finish normalized topic-to-page map, PDF hash/page metadata and corrigendum review. |
+| 24 | `cds` | CONTENT_READ | Preserve IMA/INA/AFA versus OTA paper routes; finish normalized topic-to-page map, PDF hash/page metadata and corrigendum review. |
+| 25 | `gate` | PARTIAL | All 30 official paper syllabus PDFs and common GA PDF were opened/read. Normalize every paper separately, record page counts/hash/revision and complete page-level topic provenance; retain new RA and XE9/TF distinctions correctly. |
+
+## 3. Cross-exam gaps that block final VERIFIED status
+
+1. **Source identity and versioning:** Record the exact official source URL, issuing authority, cycle/year, publication or revision date, PDF hash, page count, language and retrieval/check date for every syllabus source.
+2. **Page provenance:** Every normalized topic/unit must map back to the exact printed page(s) and source-language text. A general notification page range is not enough for final database approval.
+3. **Corrigenda and amendments:** Check the issuing authority's official listing and read every applicable amendment. A search snippet, third-party mirror or an amendment summary is only a lead.
+4. **OCR and native-script QA:** Where extraction is damaged, inspect rendered PDF pages and compare the native script. Keep raw extraction and corrected transcription separately; never guess unclear terms.
+5. **Structure normalization:** Preserve exam → version → stage → paper → subject → section → unit/chapter → topic/subtopic distinctions. Do not merge separate routes, electives, grades, trades, optional subjects or language versions.
+6. **Official-source limitations:** Where the authority publishes only section names or illustrative examples (e.g. CAT and banking handouts), record that limitation instead of fabricating a chapter-wise syllabus from coaching material.
+7. **Approval boundary:** CONTENT_READ and PARTIAL are research states only. No entry becomes VERIFIED or publishable until the evidence, normalization, discrepancy review and approval gates are complete.
+
+## 4. Highest-priority unresolved source retrieval
+
+1. RRB NTPC CEN 06/2026 Graduate and CEN 07/2026 Undergraduate complete official detailed notifications and relevant corrigenda.
+2. RRB JE/DMS CEN 04/2026 official Corrigendum No.1 and any applicable CMA Annexure VIII(E).
+3. RRB ALP CEN 01/2026 official Corrigendum No.1 and Hindi-source comparison.
+4. UGC NET's 28 PARTIAL Paper-II subjects: page-image/native-script remediation and complete source-text confirmation.
+5. Remaining source metadata, page maps and corrigendum checks for the 21 CONTENT_READ exam records.
+
+## 5. Next sequence
+
+- Continue only the source-completion and QA items above; do not begin syllabus database or app implementation yet.
+- After source QA, run a second gap audit and reconcile every exam/subject status and source reference.
+- Only when the research completion checkpoint is genuinely met, request the user's explicit go-ahead for NEET UG syllabus implementation inside the shared Universal Syllabus architecture.
+- Keep the existing restriction: do not modify scoring engine, policy resolver, scoring contracts, negative marking, ranking logic or scoring tests.
+
+**Audit conclusion:** The 25-exam registry inventory is reconciled, but the research is **not complete and none of the 25 exams is finally VERIFIED**. Four exam records remain PARTIAL/DEFERRED_NOT_BLOCKING, and all 21 CONTENT_READ records still have some combination of metadata, page-provenance, normalization, corrigendum or official-source-limit checks outstanding.
