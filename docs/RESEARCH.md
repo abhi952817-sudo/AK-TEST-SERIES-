@@ -2632,3 +2632,52 @@ This pass investigated the two outstanding JE-related items: Corrigendum No.1 an
 - The main gap-audit conclusion remains unchanged: RRB JE is PARTIAL and no exam is finally VERIFIED.
 
 No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
+
+
+### 7.58 UGC NET Paper-II — native-script remediation batch 1 (codes 21, 22, 23, 24, 26) — 28 November 2026
+
+Official index and linked syllabus PDFs were rechecked for five subjects previously marked PARTIAL. The purpose of this pass was to test whether direct official-PDF extraction can recover the native-script syllabus reliably. It did not produce sufficient evidence to promote any subject.
+
+#### 7.58.1 Official index evidence
+
+- Official UGC NET syllabus index (updated syllabi applicable from June 2019 onwards):
+  https://www.ugcnetonline.in/syllabus-new.php
+- Official UGC NET subject-code list:
+  https://www.ugcnetonline.in/subjects.php
+- The official index identifies the following Paper-II entries and supplies one linked PDF in both displayed language columns for each:
+  - Code 21 Kannada: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/21/Kannada_Kannada.pdf
+  - Code 22 Malayalam: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/22/Malayalam_Malayalam.pdf
+  - Code 23 Odia (index table labels it “Oriya”): https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/23/Odia_Odia.pdf
+  - Code 24 Punjabi: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/24/Punjabi_Punjabi.pdf
+  - Code 26 Tamil: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/26/Tamil_Tamil_PDF.pdf
+- For these five entries, the English and Hindi columns point to the same native-language PDF; the index does not provide a separate English/Hindi translation link in these rows.
+
+#### 7.58.2 Extraction findings by subject
+
+| Code | Subject | Official PDF extraction result | Unit/structure observations | Decision |
+|---:|---|---|---|---|
+| 21 | Kannada | 16 printed pages surfaced in extracted text. Kannada glyphs are substantially dropped/replaced; many topic lines are unreadable. | Ten numbered unit groups (ಘಟಕ 1–10) are visible; subsection numbering is extensive. | Remains PARTIAL. Requires page-image/native Kannada transcription QA. |
+| 22 | Malayalam | Malayalam script is present but OCR substitutions, broken glyphs and word corruption are frequent. | Ten units are visible: early Malayalam literature; twentieth-century Malayalam poetry; narrative prose; visual/performing arts and literature; folklore; Malayalam criticism; other literary forms; linguistics and grammar; literary theory/aesthetics; Kerala culture. | Remains PARTIAL. Unit map is provisional; compare every topic against rendered pages/native Malayalam. |
+| 23 | Odia | Extraction is severely corrupted and largely non-readable Latin-like fragments; reliable native Odia topic transcription was not obtained. | Page/heading fragments suggest a multi-unit syllabus, but unit/topic labels cannot safely be normalized from this extraction. | Remains PARTIAL. Requires page-image/native Odia review; do not infer topics from the corrupted text. |
+| 24 | Punjabi | PDF identifies UGC NET Paper-II Punjabi, Code 24, but extracted content is almost entirely replaced by symbols/percent signs and is not semantically readable. | Unit I through Unit X labels are visible, but their detailed content cannot be reliably read. | Remains PARTIAL. Requires page-image/native Gurmukhi transcription QA. |
+| 26 | Tamil | Tamil text is extracted in a legacy-font/encoding form with systematic character substitutions. Meaning is partly recoverable but not safe for exact topic transcription. | The document states five broad content divisions, expanded into ten units: ancient Tamil literature; epics; devotional/minor literature and commentators; modern literature; grammar; grammar commentators/language history/reference works; literary criticism; Tamil Nadu history; Tamil Nadu culture; Tamil and other disciplines. | Remains PARTIAL. Needs rendered-page comparison and native Tamil proofreading, especially names, titles and technical terms. |
+
+#### 7.58.3 Cross-check observations
+
+- These are official UGC-hosted PDFs linked directly from the official syllabus index; the index confirms subject identity and code.
+- The extraction output alone does not establish complete topic fidelity for these scripts. Do not reconstruct missing words, author names, work titles or subtopics by guesswork.
+- The five subjects remain distinct Paper-II datasets. Preserve each official source PDF unchanged and store raw extraction separately from any corrected transcription.
+- The official index table's duplicate English/Hindi links for these language subjects must not be mistaken for two independent language editions.
+- PDF hashes, exact page counts for the four non-Kannada files, rendered page-by-page QA, and final topic-to-page mapping remain outstanding.
+
+#### 7.58.4 Status decision and next batch
+
+- Code 21 Kannada: PARTIAL (unchanged).
+- Code 22 Malayalam: PARTIAL (unchanged).
+- Code 23 Odia: PARTIAL (unchanged).
+- Code 24 Punjabi: PARTIAL (unchanged).
+- Code 26 Tamil: PARTIAL (unchanged).
+- No subject promoted to CONTENT_READ or VERIFIED in this pass.
+- Next UGC NET native-script batch: codes 27 Telugu, 28 Urdu, 29 Arabic, 32 Chinese and 33 Dogri; preserve their separate official source files and language/script QA requirements.
+
+No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
