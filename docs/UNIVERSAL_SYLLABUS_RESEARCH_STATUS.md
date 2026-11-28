@@ -728,3 +728,86 @@ Observed official content and QA:
 - The UGC NET syllabus portal explicitly distinguishes French (French Version) and links both English and French PDFs. Preserve both source documents under the same official subject code 39 and compare them before final approval; do not create two separate exam subjects.
 - Next research batch is codes **41–45**: Russian, Persian, Rajasthani, German and Japanese. Verify the current official portal's language-specific PDF links before fetching.
 - Overall UGC NET remains PARTIAL. The official December 2026 subject list, the June 2019-applicable syllabus portal, Paper-I and all 87 Paper-II subject records still need reconciliation, exact source-page provenance, PDF revision/hash metadata and language/OCR QA. No UGC NET dataset should be marked approved yet.
+
+
+### 7.17 UGC NET subject-PDF extraction — sub-batch 9 (codes 41–45; 28 November 2026)
+
+Official subject names/codes and portal-linked PDF endpoints were verified against:
+- UGC NET Bureau syllabus portal: https://www.ugcnetonline.in/syllabus-new.php
+- UGC NET Bureau subject list: https://www.ugcnetonline.in/subjects.php
+- UGC-NET June 2026 official NTA subject list: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/04/20260430737599423.pdf
+
+Official linked PDFs opened:
+- 41 Russian — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/41/Russian_English.pdf
+- 42 Persian — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/42/Persian_Persian.pdf
+- 43 Rajasthani — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/43/Rajasthani_Hindi.pdf
+- 44 German — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/44/German_German.pdf
+- 45 Japanese — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/45/Japanese_Japanese_Only.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 41 | Russian | Not confirmed | CONTENT_READ — all ten units and detailed English syllabus text extracted; page mapping and metadata remain |
+| 42 | Persian | 8 | PARTIAL — ten unit blocks and Persian-script content are present, but extracted glyph order/encoding is unreliable for accurate transcription |
+| 43 | Rajasthani | Not confirmed | PARTIAL — official Hindi PDF opened; only an incomplete portion of the syllabus was returned, covering early language/grammar/literature units |
+| 44 | German | Not confirmed | CONTENT_READ — all ten units and detailed German-language topics extracted; exact PDF page count and revision metadata remain |
+| 45 | Japanese | 3 | CONTENT_READ — all ten units and bilingual Japanese/English topic descriptions extracted with page markers 1–3 |
+
+Observed official content and QA:
+
+- **41 Russian:** Official PDF header confirms UGC NET Bureau, Subject: Russian, Code No. 41. All ten units were read:
+  1. Practical Russian — grammar and text comprehension.
+  2. Phonetics/phonology, lexicology and phraseology.
+  3. Morphology and word formation.
+  4. Syntax.
+  5. Translation theory/practice and methods of teaching Russian as a foreign language.
+  6. Culture and Civilization — Russian history, customs/festivals, arts, science and technology.
+  7. Major literary trends, methods and themes from the 19th century through the modern period.
+  8. Literary genres, elements of literary works, and biographies/major works of specified authors.
+  9. Russian folklore; close reading of prescribed works up to the end of the 19th century; literary critics.
+  10. Analysis of prescribed literary works from the 20th century onward and literary critics.
+  Detailed English text was extracted. The prescribed author/work lists are part of the official syllabus and must be retained as structured reading-list nodes, not discarded as examples. Exact page count/unit-page mapping and source revision metadata were not established. Status CONTENT_READ, not final VERIFIED.
+
+- **42 Persian:** Official PDF header confirms UGC NET Bureau, Subject: Persian, Code No. 42; parser reports eight physical pages. Ten unit blocks are visible, covering historical periods of Persian literature, literary works/authors, literary genres and criticism, Persian language/linguistics and Persianate culture. However, the extracted Persian/Arabic-script text has unreliable character ordering/encoding and is not safe for exact topic transcription or translation. Keep PARTIAL until rendered-page review by a Persian-capable reviewer. Do not reconstruct names or prescribed works from the damaged extraction.
+
+- **43 Rajasthani:** Official PDF header confirms University Grants Commission NET Bureau, Code No. 43, Subject: Rajasthani. The current extraction returned the beginning portion of the syllabus:
+  - Language origin/development, dialects, script and poetic styles.
+  - Rajasthani grammar, alphabet, phonology, morphology and lexicography.
+  - Literary periodization and literary forms.
+  - Ancient Rajasthani literature.
+  - Medieval Rajasthani literature and major traditions.
+  The returned content is incomplete and some OCR terms are damaged; the remaining units/pages were not recovered in this pass. Keep PARTIAL. Do not infer later units or claim a ten-unit outline until the complete official PDF is extracted and read.
+
+- **44 German:** Official PDF header confirms UGC NET Bureau, Subject: German, Code No. 44. All ten units were extracted in German:
+  1. Sprachkönnen — word/sentence construction and expression.
+  2. Sprachgebrauch — grammatical usage and language structures.
+  3. Sprachkompetenz — orthography, word choice, idiomatics and style.
+  4. Literatur — primary texts, German-language authors, analytical/interpretive text questions.
+  5. Literaturgeschichte — periods, philosophical foundations, style, authors and texts.
+  6. Literatur- und Kulturwissenschaft — literary concepts, genres/text types, stylistic devices, media and theories.
+  7. Linguistik — phonetics/phonology, morphology, syntax and linguistic theories.
+  8. Übersetzungswissenschaft — translation theories, practice, problems and media.
+  9. Didaktik und wissenschaftliches Schreiben — DaF/literature teaching, digital media, research methods and reading comprehension.
+  10. Landeskunde — German-speaking countries, German history/contemporary culture, politics, arts, media and text comprehension.
+  The official source text is legible in German. Preserve original German labels and add translations only as a separate derived display field. Physical page count and revision metadata were not confirmed. Status CONTENT_READ at the text level.
+
+- **45 Japanese:** Official PDF header confirms UGC NET Bureau, Subject: Japanese, Code No. 45; three physical pages with page markers 1–3. All ten units were read in Japanese and English:
+  1. Language/grammar — particles, adjectives, adverbs, verbs and intermediate/advanced patterns.
+  2. Reading comprehension and kanji recognition.
+  3. Applied language — idioms, proverbs, onomatopoeia, compound kanji words, synonyms and antonyms.
+  4. Japanese linguistics — language characteristics, phonetics, morphology, syntax, semantics, parts of speech, interpersonal expressions/honorifics and teaching methods.
+  5. Japanese literature: novels — major works, authors and characters.
+  6. Japanese literary history and trends — ancient to contemporary history, genres and foreign influence.
+  7. Culture and folk tradition — festivals, traditional arts, aesthetics, customs, popular culture and beliefs.
+  8. Society and religion — society, work culture, education, women, social issues and religions.
+  9. Japanese civilization, history and intellectual trends — historical periods, treaties, political/social changes, nationalism, Pacific War, post-war development, constitutions and philosophy.
+  10. Current affairs/general awareness about Japan — major events, India–Japan relations, achievements, topography and administrative divisions.
+  Status CONTENT_READ; final metadata/revision QA remains.
+
+### 7.18 Sub-batch 9 outcome and remaining UGC NET work
+
+- All five official subject-code mappings and linked PDF endpoints (41–45) were checked; all five official PDFs opened.
+- Russian (41), German (44) and Japanese (45) are CONTENT_READ at the actual extracted source-text level.
+- Persian (42) remains PARTIAL due to Persian-script encoding/order problems. Rajasthani (43) remains PARTIAL because only an incomplete portion of the official PDF was returned.
+- The official portal links German and Japanese in their native scripts and Russian in English; preserve the portal's source language and do not replace native source PDFs with third-party translations.
+- Next research batch: codes **46–50** — Adult Education/Continuing Education/Andragogy/Non-Formal Education, Physical Education, Arab Culture and Islamic Studies, Indian Culture and code 50's exact official title as currently listed. Verify the current official portal and the December 2026 subject list before opening the PDFs.
+- Overall UGC NET remains PARTIAL. The full 87-subject December 2026 list is not the same thing as the older portal's legacy syllabus table; reconcile the current-cycle subject list against available syllabus PDFs, including new/additional subject codes, before claiming complete UGC NET coverage. Paper-I and all Paper-II subject PDFs still need consolidated page provenance, version/hash metadata and language/OCR QA.
