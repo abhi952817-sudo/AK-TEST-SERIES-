@@ -3783,10 +3783,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     return null
                 }
 
-                val posMarks = qObj.optDouble("positiveMarks", 4.0)
-                if (posMarks <= 0.0) return null
-                val negMarks = qObj.optDouble("negativeMarks", 1.0)
-                if (negMarks < 0.0) return null
+                val sectionForScoring = qObj.optString("section", "SECTION_A")
+                val subjectForScoring = qObj.optString("subject", subject)
+                val (policyPosMarks, policyNegMarks) = try {
+                    Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(
+                        targetExam, sectionForScoring, subjectForScoring, qType
+                    )
+                } catch (_: Exception) {
+                    return null
+                }
+                val posMarks = qObj.optDouble("positiveMarks", policyPosMarks)
+                if (!posMarks.isFinite() || posMarks <= 0.0) return null
+                val negMarks = qObj.optDouble("negativeMarks", policyNegMarks)
+                if (!negMarks.isFinite() || negMarks < 0.0) return null
 
                 val imgUrl = qObj.optString("imageUrl", "").trim()
                 if (imgUrl.isNotEmpty()) {
