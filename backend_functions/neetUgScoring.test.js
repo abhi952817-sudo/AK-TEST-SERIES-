@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   NEET_UG_2026_POLICY,
+  createNeetScoringFingerprint,
   evaluateNeetUgAttempt
 } = require("./neetUgScoring");
 
@@ -154,4 +155,15 @@ test("shared Kotlin/Node golden fixtures produce the same NEET 2026 scores", () 
       assert.equal(result[field], expected, fixture.id + " -> " + field);
     }
   }
+});
+
+test("NEET scoring fingerprint is order-independent and changes with trusted answer keys", () => {
+  const data = testData();
+  const one = question("q1", "Physics", { correctAnswer: "A" });
+  const two = question("q2", "Chemistry", { correctAnswer: "B" });
+  const original = createNeetScoringFingerprint(data, [one, two]);
+  const reordered = createNeetScoringFingerprint(data, [two, one]);
+  const changedKey = createNeetScoringFingerprint(data, [one, { ...two, correctAnswer: "C" }]);
+  assert.equal(original, reordered);
+  assert.notEqual(original, changedKey);
 });
