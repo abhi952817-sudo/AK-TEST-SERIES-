@@ -2681,3 +2681,45 @@ Official index and linked syllabus PDFs were rechecked for five subjects previou
 - Next UGC NET native-script batch: codes 27 Telugu, 28 Urdu, 29 Arabic, 32 Chinese and 33 Dogri; preserve their separate official source files and language/script QA requirements.
 
 No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
+
+
+### 7.59 UGC NET Paper-II — native-script remediation batch 2 (codes 27, 28, 29, 32, 33) — 28 November 2026
+
+The official UGC syllabus index and five linked official PDFs were read/extracted in a second native-script remediation batch.
+
+#### 7.59.1 Official index links
+
+Official index: https://www.ugcnetonline.in/syllabus-new.php
+
+- Code 27 Telugu: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/27/Telugu_Telugu.pdf
+- Code 28 Urdu: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/28/Urdu_Urdu.pdf
+- Code 29 Arabic: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/29/Arabic_Arabic__PDF.pdf
+- Code 32 Chinese: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/32/ChineseChinese_PDF.pdf
+- Code 33 Dogri: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/33/Dogri_Dogri.pdf
+
+As in the previous language-subject batch, the official index points to the same native-script PDF in both displayed language columns for these rows.
+
+#### 7.59.2 Subject-by-subject findings
+
+| Code | Subject | Extraction and structure | Status decision |
+|---:|---|---|---|
+| 27 | Telugu | Official PDF extraction surfaced 13 numbered pages and ten units. Broad unit headings are recoverable: General Linguistics; Evolution and Development of Telugu Language; Study/Research Methods in Ancient Telugu Literature; Trends and Processes in Modern Telugu Literature; Folklore; Telugu Literary Criticism; Introduction to Sanskrit Literature; History and Culture of Telugu People; Telugu Grammar, Prosody and Figures of Speech; Translation, Journalism/Mass Media and Writing. The Telugu legacy-font encoding is represented through non-standard transliteration/glyph strings; some English glosses and topic content can be read, but exact native Telugu wording is not reliably preserved. | Remains PARTIAL; require rendered-page/native Telugu proofreading and exact topic-to-page mapping. |
+| 28 | Urdu | Official PDF confirms UGC NET Paper-II Urdu, Code 28. Extraction returned Urdu/Arabic script mixed with Latin-like fragments, misplaced glyphs and corrupted words. Only Unit 1 and part of Unit 2 were recoverable in the returned text; complete unit coverage was not established. | Remains PARTIAL; requires page-image and native Urdu transcription. |
+| 29 | Arabic | Official PDF is ten pages. All ten units were extracted with Arabic text and English headings/glosses. The unit structure covers Arabic poetry to Abbasid period; Arabic prose to Abbasid period; migrant and Andalusian literature; literary criticism; rhetoric and prosody; Arabic sources/references; modern Arabic literature; literary trends/movements/schools; Indo-Arabic literature; and Arabic-English-Arabic translation, language applications and general knowledge. Page markers 1–10 are present. | **Promote PARTIAL → CONTENT_READ.** Full text is readable enough for research-level capture; native-script proofreading, exact topic-page normalization, hash and final QA remain before VERIFIED. |
+| 32 | Chinese | Official PDF identifies Chinese, Code 32. The extraction yielded readable English descriptions for Units 7–10: Civilization/History/Philosophical Thought; India-China Relations; socio-economic-political development in the PRC; International Relations and Current Affairs. Chinese-script portions are corrupted, and Units 1–6 were not recovered in the returned content. | Remains PARTIAL; obtain complete page images and native Chinese transcription for all units. |
+| 33 | Dogri | Official PDF identifies Dogri, Code 33. Devanagari/Dogri text is partly readable. The returned extraction covers Units I–IV only: language and linguistics; Dogri grammar/morphology and script; Dogri poetry; Dogri short story. Numerous OCR substitutions remain (including names, dates and words); later units were not present in the returned text. | Remains PARTIAL; verify complete page count and recover remaining units from rendered pages. |
+
+#### 7.59.3 UGC NET running tally update
+
+The previous recorded UGC NET tally was 59 CONTENT_READ / 28 PARTIAL across 87 Paper-II subjects. This batch makes one justified promotion:
+
+- **60 CONTENT_READ**
+- **27 PARTIAL**
+- Paper-I code 00 remains a separate common paper, not part of the 87 Paper-II subject tally.
+- No subject is marked final VERIFIED by this pass.
+
+#### 7.59.4 Next batch
+
+Next five subjects for native-script remediation: code 34 Nepali, 35 Manipuri, 36 Assamese, 37 Gujarati and 42 Persian. Keep each Paper-II subject separate and do not infer missing text from coaching sources or previous question papers.
+
+No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
