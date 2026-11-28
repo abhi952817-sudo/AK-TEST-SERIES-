@@ -148,7 +148,7 @@ data class ProfileBackupPayload(
                 userId = json.optString("userId", ""),
                 name = if (json.has("name") && !json.isNull("name")) json.getString("name") else null,
                 email = if (json.has("email") && !json.isNull("email")) json.getString("email") else null,
-                targetExam = json.optString("targetExam", "NEET"),
+                targetExam = json.optString("targetExam", ""),
                 classLevel = json.optString("classLevel", "All"),
                 phoneNumber = if (json.has("phoneNumber") && !json.isNull("phoneNumber")) json.getString("phoneNumber") else null,
                 selectedLanguage = json.optString("selectedLanguage", "HINDI"),

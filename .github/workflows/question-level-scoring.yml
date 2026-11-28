@@ -1,0 +1,36 @@
+name: Question-Level Scoring CI
+
+on:
+  push:
+    branches: ["feature/question-level-scoring-strategy-2026-11-23"]
+  pull_request:
+    branches: ["feature/universal-exam-policy-engine-2026-11-20"]
+
+jobs:
+  question-level-scoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: Check scoring integration JavaScript
+        run: |
+          node --check backend_functions/index.js
+          node --check backend_functions/questionLevelScoring.js
+          node --check backend_functions/questionLevelScoringIntegration.js
+      - name: Run question-level scoring tests
+        run: node --test backend_functions/questionLevelScoring.test.js backend_functions/questionLevelScoringIntegration.test.js
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "9.3.1"
+      - name: Prepare build environment
+        run: |
+          cp .env.example .env
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      - name: Run Android unit tests
+        run: gradle testDebugUnitTest

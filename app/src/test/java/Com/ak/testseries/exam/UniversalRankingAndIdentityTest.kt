@@ -225,7 +225,7 @@ class UniversalRankingAndIdentityTest {
             sectionNameOrId = "Section B",
             subjectName = "Physics"
         )
-        assertEquals("JEE Main Section B allows maximum 5 attempts", 5, jeeLimit)
+        assertNull("JEE Main 2026 Section B is compulsory, not an optional cap", jeeLimit)
     }
 
     @Test

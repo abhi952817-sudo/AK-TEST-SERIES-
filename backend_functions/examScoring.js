@@ -257,22 +257,16 @@ function hasMultipleMarkingSchemes(examName) {
   return name.includes("nda") || name.includes("cds") || name.includes("gate") || name.includes("mts") || name.includes("jee adv") || name === "jee_advanced" || name.includes("cat");
 }
 
-function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, subjectName = "") {
-  const name = String(examName || "").trim().toLowerCase();
-  const sec = String(sectionNameOrId || "").trim().toLowerCase();
-
-  if (sec === "section_b" || sec.includes("section b") || sec.includes("sec_b")) {
-    if (name.includes("neet")) return 10;
-    if (name.includes("jee")) return 5;
-  }
-  return null;
-}
-
 /**
  * Authoritative Evaluation of Test Attempt
  */
 function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0, options = {}) {
-  const exam = String(targetExam || "NEET");
+  if (typeof targetExam !== "string" || targetExam.trim().length === 0) {
+    const error = new Error("A canonical targetExam is required; refusing to assume NEET.");
+    error.code = "invalid-argument";
+    throw error;
+  }
+  const exam = targetExam.trim();
   const useQuestionLevelMarks = options.useQuestionLevelMarks === true;
   const baseScheme = useQuestionLevelMarks ? { pos: 0, neg: 0 } : getMarkingSchemeForExam(exam);
   const isMultiScheme = useQuestionLevelMarks ? false : hasMultipleMarkingSchemes(exam);
@@ -321,9 +315,11 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     const secKey = useQuestionLevelMarks
       ? `${String(q.subjectId || q.subject || '').toLowerCase().trim()}_${String(q.sectionId || q.section || '').toLowerCase().trim()}`
       : `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
+    // Attempt caps are applied only when supplied by the trusted, versioned policy.
+    // Question count and section names never imply an optional-attempt rule.
     const secLimit = useQuestionLevelMarks
       ? (Number.isInteger(q.maxAttemptQuestions) && q.maxAttemptQuestions > 0 ? q.maxAttemptQuestions : null)
-      : getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
+      : null;
     const sectionMarks = possibleMarksBySection.get(secKey) || [];
     sectionMarks.push(scheme.pos);
     possibleMarksBySection.set(secKey, sectionMarks);
@@ -569,7 +565,6 @@ module.exports = {
   getMarkingSchemeForExam,
   getMarkingSchemeForQuestion,
   hasMultipleMarkingSchemes,
-  getMaximumAttemptQuestionsCountForSection,
   evaluateTestAttempt,
   calculatePopulationPercentile,
   createRankingSnapshot,

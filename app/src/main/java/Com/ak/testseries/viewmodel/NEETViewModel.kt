@@ -3287,7 +3287,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val questionsJson = doc.getString("questionsJson")?.trim() ?: ""
         if (questionsJson.isBlank()) return null
 
-        val targetExam = doc.getString("targetExam")?.trim()?.ifBlank { "NEET" } ?: "NEET"
+        val targetExam = doc.getString("targetExam")?.trim()?.takeIf { it.isNotBlank() } ?: return null
         val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 180
         if (durationMinutes <= 0) return null
         val creatorId = doc.getString("uploaderId")?.trim() ?: "anonymous"
@@ -3324,10 +3324,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     return null
                 }
 
-                val posMarks = qObj.optDouble("positiveMarks", 4.0)
-                if (posMarks <= 0.0) return null
-                val negMarks = qObj.optDouble("negativeMarks", 1.0)
-                if (negMarks < 0.0) return null
+                val sectionForScoring = qObj.optString("section", "SECTION_A")
+                val subjectForScoring = qObj.optString("subject", subject)
+                val (policyPosMarks, policyNegMarks) = try {
+                    Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(
+                        targetExam, sectionForScoring, subjectForScoring, qType
+                    )
+                } catch (_: Exception) {
+                    return null
+                }
+                val posMarks = qObj.optDouble("positiveMarks", policyPosMarks)
+                if (!posMarks.isFinite() || posMarks <= 0.0) return null
+                val negMarks = qObj.optDouble("negativeMarks", policyNegMarks)
+                if (!negMarks.isFinite() || negMarks < 0.0) return null
 
                 val imgUrl = qObj.optString("imageUrl", "").trim()
                 if (imgUrl.isNotEmpty()) {
@@ -3803,15 +3812,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 if (answeredInSectionCount >= limit) {
                     return false
                 }
-            }
-        } else if (question != null && (question.section.equals("SECTION_B", ignoreCase = true) || question.section.contains("Section B", ignoreCase = true))) {
-            val answeredSectionBCount = questions.count { q ->
-                (q.section.equals("SECTION_B", ignoreCase = true) || q.section.contains("Section B", ignoreCase = true)) &&
-                (question.subject.isBlank() || q.subject.equals(question.subject, ignoreCase = true)) &&
-                _userAnswers.value.containsKey(q.id) && q.id != questionId
-            }
-            if (answeredSectionBCount >= 10) {
-                return false
             }
         }
         val answers = _userAnswers.value.toMutableMap()
