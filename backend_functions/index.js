@@ -17,6 +17,7 @@ const {
 const { validateVersionedTestScoring } = require("./scoringPolicyResolver");
 const { buildApprovedQuestionLevelQuestions, createQuestionLevelTestFingerprint } = require("./questionLevelScoringIntegration");
 const { evaluateQuestionLevelAttempt } = require("./questionLevelScoring");
+const { isNeetUg2026Test, evaluateNeetUgAttempt } = require("./neetUgScoring");
 const { isLegacyScoringApproved } = require("./legacyScoringGate");
 const { validateSetAdminRoleAuth, resolveAdminRoleTarget, isPrimaryAdminToken, assertActiveUserStatus, PRIMARY_ADMIN_EMAIL } = require("./authHelper");
 const crypto = require("node:crypto");
@@ -568,8 +569,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
 
   // 5. Resolve versioned scoring only from an active, approved, source-backed registry.
   // Legacy unversioned tests retain their existing path; versioned tests never fall back.
+  const isNeetVersionedTest = isNeetUg2026Test(testData);
   let useQuestionLevelMarks = isTrustedCommunityTest;
-  if (!isTrustedCommunityTest && testData.scoringVersion != null && String(testData.scoringVersion).trim()) {
+  if (!isTrustedCommunityTest && !isNeetVersionedTest && testData.scoringVersion != null && String(testData.scoringVersion).trim()) {
     const scoringRegistrySnapshot = await db.collection("Config").doc("exam_scoring_registry").get();
     if (!scoringRegistrySnapshot.exists) {
       throw new functions.https.HttpsError(
@@ -591,7 +593,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         err.message || "Versioned scoring policy validation failed."
       );
     }
-  } else if (!isTrustedCommunityTest) {
+  } else if (!isTrustedCommunityTest && !isNeetVersionedTest) {
     // Unversioned legacy scoring is permitted only for IDs explicitly grandfathered
     // by the server-owned Config allowlist. Client-controlled test metadata cannot
     // opt itself into historical scoring or competitive ranking.
@@ -610,7 +612,13 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   // Advanced question-level rubrics are opt-in only through a separate server-owned
   // registry. A missing/invalid registry never falls back to scalar grading.
   let questionLevelResult = null;
-  if (!isTrustedCommunityTest && testData.questionScoringMode === "QUESTION_LEVEL_V1") {
+  if (isNeetVersionedTest && testData.questionScoringMode === "QUESTION_LEVEL_V1") {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "NEET UG 2026 uses the official single-correct +4/-1/0 policy; partial-credit rubrics are not permitted."
+    );
+  }
+  if (!isTrustedCommunityTest && !isNeetVersionedTest && testData.questionScoringMode === "QUESTION_LEVEL_V1") {
     if (!testData.scoringVersion || !useQuestionLevelMarks) {
       throw new functions.https.HttpsError(
         "failed-precondition",
@@ -645,7 +653,19 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     }
   }
 
-  const evalResult = questionLevelResult
+  let neetResult = null;
+  if (isNeetVersionedTest) {
+    try {
+      neetResult = evaluateNeetUgAttempt(testData, questions, answers, cleanTimeSpent);
+    } catch (err) {
+      throw new functions.https.HttpsError(
+        err.code || "failed-precondition",
+        err.message || "NEET UG 2026 scoring validation failed."
+      );
+    }
+  }
+
+  const evalResult = neetResult || (questionLevelResult
     ? {
         ...questionLevelResult,
         wrongCount: questionLevelResult.wrongCount,
@@ -664,7 +684,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         answers,
         cleanTimeSpent,
         { useQuestionLevelMarks }
-      );
+      ));
 
   // Partial-credit ranking/tie-break semantics are not yet approved. Preserve the
   // authoritative score, but keep such attempts out of competitive aggregates.
@@ -843,8 +863,12 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       incorrectCount: evalResult.wrongCount,
       partialCount: evalResult.partialCount || 0,
       unansweredCount: evalResult.unansweredCount,
-      scoringEngine: questionLevelResult ? "QUESTION_LEVEL_V1" : "LEGACY_SCALAR",
-      scoringVersion: testData.scoringVersion || null,
+      scoringEngine: neetResult ? "NEET_UG_2026_V1" : (questionLevelResult ? "QUESTION_LEVEL_V1" : "LEGACY_SCALAR"),
+      scoringVersion: evalResult.scoringVersion || testData.scoringVersion || null,
+      examYear: evalResult.examYear || testData.examYear || null,
+      scoringPolicySource: evalResult.scoringPolicySource || null,
+      bonusCount: evalResult.bonusCount || 0,
+      subjectBreakdown: evalResult.subjectBreakdown || null,
       skippedCount: evalResult.unansweredCount,
       positiveMarksEarned: evalResult.positiveMarksEarned,
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
@@ -918,6 +942,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
       partialCount: evalResult.partialCount || 0,
+      bonusCount: evalResult.bonusCount || 0,
+      subjectBreakdown: evalResult.subjectBreakdown || null,
       skippedCount: evalResult.unansweredCount,
       positiveMarksEarned: evalResult.positiveMarksEarned,
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
