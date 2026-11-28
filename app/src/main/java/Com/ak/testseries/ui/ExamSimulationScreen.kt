@@ -118,10 +118,37 @@ fun ExamSimulationScreen(
     }
 
     val currentTest = activeTest!!
-    val targetExamName = currentTest.targetExam.ifBlank { "NEET UG" }
-    val (posMark, negMark) = remember(targetExamName) {
-        ExamScoringEngine.getMarkingScheme(targetExamName)
+    val targetExamName = currentTest.targetExam.trim()
+    if (targetExamName.isBlank()) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (isHindi) "इस टेस्ट की परीक्षा पहचान उपलब्ध नहीं है। स्कोरिंग रोक दी गई है।"
+                else "This test has no exam identity. Scoring has been blocked.",
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+        return
     }
+    val scoringScheme = remember(targetExamName) {
+        runCatching { ExamScoringEngine.getMarkingScheme(targetExamName) }.getOrNull()
+    }
+    if (scoringScheme == null) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (isHindi) "इस परीक्षा की सत्यापित स्कोरिंग नीति उपलब्ध नहीं है।"
+                else "No verified scoring policy is available for this exam.",
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+        return
+    }
+    val (posMark, negMark) = scoringScheme
 
     // Pager State for horizontal swipeable questions
     val pagerState = rememberPagerState(
