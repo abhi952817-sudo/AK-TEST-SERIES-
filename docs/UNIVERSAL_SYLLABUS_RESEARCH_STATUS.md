@@ -811,3 +811,89 @@ Observed official content and QA:
 - The official portal links German and Japanese in their native scripts and Russian in English; preserve the portal's source language and do not replace native source PDFs with third-party translations.
 - Next research batch: codes **46–50** — Adult Education/Continuing Education/Andragogy/Non-Formal Education, Physical Education, Arab Culture and Islamic Studies, Indian Culture and code 50's exact official title as currently listed. Verify the current official portal and the December 2026 subject list before opening the PDFs.
 - Overall UGC NET remains PARTIAL. The full 87-subject December 2026 list is not the same thing as the older portal's legacy syllabus table; reconcile the current-cycle subject list against available syllabus PDFs, including new/additional subject codes, before claiming complete UGC NET coverage. Paper-I and all Paper-II subject PDFs still need consolidated page provenance, version/hash metadata and language/OCR QA.
+
+
+### 7.19 UGC NET subject-PDF extraction — sub-batch 10 (codes 46, 47, 49, 50; 28 November 2026)
+
+The official UGC NET syllabus portal and subject list were checked:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 official Information Bulletin, Annexure-II (printed pp.45–47): https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+- NTA June 2026 official subject list: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/04/20260430737599423.pdf
+
+**Important code-sequence finding:** There is no subject code 48 in the official UGC subject list/portal. The sequence jumps from 47 Physical Education to 49 Arab Culture and Islamic Studies. Do not create a placeholder exam or invent code 48. This batch therefore contains four subjects, not five.
+
+Official PDFs opened:
+- 46 Adult Education / Continuing Education / Andragogy / Non-Formal Education — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/46/Adult%20Education_English.pdf
+- 47 Physical Education — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/47/Physical%20Education_English.pdf
+- 49 Arab Culture and Islamic Studies — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/49/Arab%20Culture%20and%20Islamic%20Studies_English.pdf
+- 50 Indian Culture — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/50/Indian%20Culture_English.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 46 | Adult Education / Continuing Education / Andragogy / Non-Formal Education | Not confirmed | CONTENT_READ — all ten unit headings and detailed syllabus text extracted |
+| 47 | Physical Education | 10 | CONTENT_READ — all ten units and detailed topic text extracted with page markers 1–10 |
+| 49 | Arab Culture and Islamic Studies | Not confirmed | CONTENT_READ — all ten units and detailed topic lists extracted |
+| 50 | Indian Culture | 5 | CONTENT_READ — all ten units and detailed topic text extracted with printed page markers 1–5 |
+
+Observed official content and QA:
+
+- **46 Adult Education / Continuing Education / Andragogy / Non-Formal Education:** Official PDF header confirms UGC NET Bureau, Code No. 46. All ten unit headings and detailed text were read:
+  1. Adult, Continuing Education & Extension: Indian and Global Contexts.
+  2. Theoretical and Functional Base of Adult Education.
+  3. Alternate Learning Systems.
+  4. Curriculum Planning and Teaching-Learning Materials.
+  5. Human Resource Management in Lifelong Learning & Extension.
+  6. Communication for Social Development.
+  7. Social and Developmental Concerns.
+  8. Vocational Education and Skill Development.
+  9. Research and Research Methods.
+  10. Lifelong Learning: The Futuristic Vision.
+  Detailed topics include historical adult education, lifelong learning, andragogy, distance/online learning, ICT and MOOCs, curriculum design, training/HRM, development communication, social justice and inclusion, skill-development policy, research design/data collection/ethics, and future learning communities. Preserve the original unit names (including source spelling inconsistencies such as “Human Reseource” in the extracted heading) and keep OCR corrections separate from the source transcription. Physical page count and exact unit-page mapping remain to be recorded. Status CONTENT_READ.
+
+- **47 Physical Education:** Official PDF header confirms Subject: Physical Education, Code No. 47; the PDF extraction shows physical page markers 1–10. All ten units were read:
+  1. Physical Education and Adapted Physical Education — philosophy, history/development, recreation, wellness, teaching aptitude, social aspects of sport, Olympics/Asian/Commonwealth Games and governing bodies.
+  2. Exercise Physiology — body systems, muscle physiology, energy systems, fatigue/recovery, nutrition, environment, women in sport, ageing, rehabilitation and ergogenic aids.
+  3. Kinesiology and Biomechanics — anatomy/movement, planes/axes, joints, mechanics, kinematics/kinetics, projectile motion, friction, posture and sports-skill analysis.
+  4. Sports Psychology — motivation, performance factors, personality, group dynamics, motor learning and psychological preparation.
+  5. Teacher Education and Curriculum in Physical Education — professional preparation, agencies, qualifications, curriculum design, teaching aids and evaluation.
+  6. Health Education and Sports Nutrition — health programmes, diseases, first aid, pollution, nutrition and health effects of substances.
+  7. Sports Training — training principles/load, strength, endurance, speed, flexibility, coordination, technique/tactics, planning, periodization and talent identification.
+  8. Research in Physical Education — research methods/design, hypotheses, tools, sampling, statistics, software and research reporting.
+  9. Test, Measurement and Evaluation — fitness/skill tests, anthropometry, physiological and psychological testing.
+  10. Sports Management — administration, finance, supervision, facilities, records, event management and public relations.
+  Detailed text is present and page markers support the 10-page source. Keep CONTENT_READ; final source revision/date/hash QA remains.
+
+- **49 Arab Culture and Islamic Studies:** Official PDF header confirms Subject: Arab Culture and Islamic Studies, Code No. 49. All ten units and detailed numbered topics were extracted:
+  1. Emergence of Islam and Khilafat-e-Rashidah.
+  2. The Umayyads.
+  3. The Abbasids.
+  4. The Arabs in Spain and Sicily.
+  5. Dynasties of East and West.
+  6. The Ottoman and Safavid Empire.
+  7. Islam in India.
+  8. Islamic Sciences — Tafsir, Hadith and Fiqh.
+  9. Muslim Philosophy, Sufism and Muslim Contribution to Knowledge.
+  10. Modern Trends and Movements in Islam.
+  The source includes detailed historical, political, cultural, educational, literary, religious-science, philosophical and modern-movement topic lists, including prescribed scholars/thinkers and historical events. Preserve these as source-authored topics and named entities; do not generalize away the detailed lists. Exact physical page count, page-to-unit mapping and revision metadata were not established in this pass. Status CONTENT_READ at text level.
+
+- **50 Indian Culture:** Official PDF header confirms Subject: Indian Culture, Code No. 50; printed page markers 1–5. All ten units were read:
+  1. Meaning and Concepts of Culture — traditional/modern concepts, Indianness, civilization, historiography and approaches.
+  2. Sources for the Study of Indian Culture — archaeological, literary, oral, foreign and archival sources.
+  3. Prehistoric and Protohistoric Cultures — Stone Age, Chalcolithic, Harappan culture, language families.
+  4. Vedic and Post-Vedic Period — social/political/economic/religious/scientific ideas, Shramana traditions and education.
+  5. Mauryan and Post-Mauryan Period — institutions, Ashoka, scripts, invasions, art, literature, science, Sangam culture and education.
+  6. Gupta and Post-Gupta Period — institutions, science, art/architecture, literature, education and external contacts.
+  7. Early Medieval Period — social/political/economic/religious changes, philosophy, art, education, science and literature.
+  8. Sultanate Period — Delhi Sultanate, Vijayanagara, institutions, religion, art, literature and education.
+  9. Mughal Period — polity, economy, society, religion, literature, art/architecture, education, science/technology and European arrival.
+  10. Modern Period — successor states, Western ideas, education, cultural renaissance, reform/revivalist movements, Dalit/Sikh movements, legislation, literature, science and technology.
+  Unit/page map: I–III p.1; IV–VI p.2; VII–VIII p.3; IX p.4; X p.5. Status CONTENT_READ; final revision/hash metadata remains.
+
+### 7.20 Sub-batch 10 outcome and remaining UGC NET work
+
+- Four official PDFs (codes 46, 47, 49, 50) were opened and all ten units in each were read.
+- All four are CONTENT_READ at the source-text level. Code 48 is absent from the official subject list and must remain absent; the numerical gap is not an incomplete exam.
+- The December 2026 official subject list includes these subjects/codes. The portal links code 46/47 and 49/50 official English/Hindi resources; this pass read the English PDFs only.
+- Next subject sequence after code 50 is code 55 Labour Welfare / Personnel Management / Industrial Relations / Labour and Social Welfare / Human Resource Management. Codes 51–54 are absent from the official UGC subject list. Do not create records for missing codes. Next research should continue from code 55 and verify subsequent official entries in groups of up to five actual subjects.
+- Overall UGC NET remains PARTIAL. The official current-cycle 87-subject list and older syllabus portal need a subject-by-subject reconciliation, including new codes 100–107 and any other current subjects without legacy portal PDFs. Paper-I, all 87 current Paper-II subjects, page provenance, PDF version/hash metadata and language/OCR QA remain before final approval.
