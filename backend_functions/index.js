@@ -15,6 +15,8 @@ const {
   normalizeExamKey,
 } = require("./examScoring");
 const { validateVersionedTestScoring } = require("./scoringPolicyResolver");
+const { buildApprovedQuestionLevelQuestions, createQuestionLevelTestFingerprint } = require("./questionLevelScoringIntegration");
+const { evaluateQuestionLevelAttempt } = require("./questionLevelScoring");
 const { isLegacyScoringApproved } = require("./legacyScoringGate");
 const { validateSetAdminRoleAuth, resolveAdminRoleTarget, isPrimaryAdminToken, assertActiveUserStatus, PRIMARY_ADMIN_EMAIL } = require("./authHelper");
 const crypto = require("node:crypto");
@@ -605,13 +607,60 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   }
 
   // 6. Authoritatively evaluate score on the server.
-  const evalResult = evaluateTestAttempt(
-    canonicalExam,
-    questions,
-    answers,
-    cleanTimeSpent,
-    { useQuestionLevelMarks }
-  );
+  // Advanced question-level rubrics are opt-in only through a separate server-owned
+  // registry. A missing/invalid registry never falls back to scalar grading.
+  let questionLevelResult = null;
+  if (!isTrustedCommunityTest && testData.questionScoringMode === "QUESTION_LEVEL_V1") {
+    if (!testData.scoringVersion || !useQuestionLevelMarks) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Question-level scoring requires a successfully resolved versioned exam policy."
+      );
+    }
+    const rubricRegistrySnapshot = await db.collection("Config").doc("question_level_scoring_registry").get();
+    if (!rubricRegistrySnapshot.exists) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "The server-owned question-level rubric registry is not configured."
+      );
+    }
+    try {
+      const fingerprint = createQuestionLevelTestFingerprint(cleanTestId, testData, questions);
+      const scoringQuestions = buildApprovedQuestionLevelQuestions(
+        rubricRegistrySnapshot.data(),
+        cleanTestId,
+        fingerprint,
+        questions
+      );
+      const normalizedAnswers = Object.fromEntries(Object.entries(answers).map(([id, value]) => [
+        id,
+        value && typeof value === "object" && !Array.isArray(value) ? value.ans : value
+      ]));
+      questionLevelResult = evaluateQuestionLevelAttempt(scoringQuestions, normalizedAnswers);
+    } catch (err) {
+      throw new functions.https.HttpsError(
+        err.code || "failed-precondition",
+        err.message || "Approved question-level scoring validation failed."
+      );
+    }
+  }
+
+  const evalResult = questionLevelResult
+    ? {
+        ...questionLevelResult,
+        wrongCount: questionLevelResult.wrongCount,
+        accuracyPercent: null,
+        percentile: 0.0,
+        timeSpentSeconds: cleanTimeSpent,
+        usesQuestionLevelMarks: true
+      }
+    : evaluateTestAttempt(
+        canonicalExam,
+        questions,
+        answers,
+        cleanTimeSpent,
+        { useQuestionLevelMarks }
+      );
 
   const attemptDocId = attemptSessionToken.trim();
   const attemptsRef = userRef.collection("Attempts");
@@ -670,6 +719,8 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
           testId: cleanTestId,
           targetExam: canonicalExam,
           score: existing.score,
+          partialCount: existing.partialCount || 0,
+          wrongCount: existing.incorrectCount || 0,
           rawScore: existing.rawScore || existing.score,
           maxScore: existing.maxScore,
           percentile: existing.percentile ?? null,
@@ -722,7 +773,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     };
 
     if (evalResult.finalScore > currentMaxScore) {
-      updates.maxScore = Math.round(evalResult.finalScore);
+      updates.maxScore = evalResult.finalScore;
     }
 
     // Award ranking points only on FIRST valid attempt on QUALIFYING OFFICIAL tests
@@ -746,7 +797,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       ? testData.rankingWeight
       : (isPartTest ? 0.2 : 1.0);
     
-    const weightedScore = Math.round(evalResult.finalScore * rankingWeight);
+    const weightedScore = Math.round(evalResult.finalScore * rankingWeight * 100) / 100;
 
     if (isFirstAttempt && countsTowardRanking) {
       newExamScore = currentExamScore + weightedScore;
@@ -771,15 +822,19 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       testId: cleanTestId,
       testTitle: testData.title || "",
       targetExam: canonicalExam,
-      score: Math.round(evalResult.finalScore),
+      score: evalResult.finalScore,
       rawScore: evalResult.rawScore,
-      maxScore: Math.round(evalResult.maxScore),
+      maxScore: evalResult.maxScore,
       percentile: attemptPercentile, // Real population-based percentile calculated against candidate cohort
       testRank: testRank,
       testTotalCandidates: testTotalCandidates,
       accuracy: evalResult.accuracyPercent,
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
+      partialCount: evalResult.partialCount || 0,
+      unansweredCount: evalResult.unansweredCount,
+      scoringEngine: questionLevelResult ? "QUESTION_LEVEL_V1" : "LEGACY_SCALAR",
+      scoringVersion: testData.scoringVersion || null,
       skippedCount: evalResult.unansweredCount,
       positiveMarksEarned: evalResult.positiveMarksEarned,
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
@@ -806,7 +861,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       transaction.set(testEntryRef, {
         userId,
         displayName: userData.name || "Student",
-        score: Math.round(evalResult.finalScore),
+        score: evalResult.finalScore,
         rawScore: evalResult.rawScore,
         accuracy: evalResult.accuracyPercent,
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -843,15 +898,16 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
       attemptId: attemptDocId,
       testId: cleanTestId,
       targetExam: canonicalExam,
-      score: Math.round(evalResult.finalScore),
+      score: evalResult.finalScore,
       rawScore: evalResult.rawScore,
-      maxScore: Math.round(evalResult.maxScore),
+      maxScore: evalResult.maxScore,
       percentile: attemptPercentile,
       testRank,
       testTotalCandidates,
       accuracy: evalResult.accuracyPercent,
       correctCount: evalResult.correctCount,
       incorrectCount: evalResult.wrongCount,
+      partialCount: evalResult.partialCount || 0,
       skippedCount: evalResult.unansweredCount,
       positiveMarksEarned: evalResult.positiveMarksEarned,
       negativeMarksPenalty: evalResult.negativeMarksPenalty,
