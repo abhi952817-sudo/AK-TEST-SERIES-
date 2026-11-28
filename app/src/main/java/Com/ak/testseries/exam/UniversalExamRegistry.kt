@@ -83,7 +83,7 @@ object UniversalExamRegistry {
             )
         )
 
-        // 2. JEE Main (Engineering Entrance)
+        // 2. JEE Main — 2026 Paper 1 (NTA Information Bulletin, Chapter 2)
         register(
             ExamConfig(
                 examId = "jee_main",
@@ -93,6 +93,11 @@ object UniversalExamRegistry {
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
                 verified = true,
+                examYear = "2026",
+                scoringVersion = "jee-main-2026-p1-v1",
+                sourceUrl = "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2025/11/202511021649722475.pdf",
+                sourceTitle = "JEE (Main)-2026 Information Bulletin",
+                verifiedAt = "2026-11-20T00:00:00Z",
                 difficultyRatio = DifficultyRatio(easyPercent = 25, mediumPercent = 50, hardPercent = 25),
                 supportedQuestionTypes = listOf(
                     QuestionType.DIRECT_MCQ,
@@ -101,13 +106,13 @@ object UniversalExamRegistry {
                     QuestionType.MULTI_STATEMENT,
                     QuestionType.GRAPH
                 ),
-                aiSystemInstruction = "You are the Chief Academic Examiner for JEE Main. Generate rigorous analytical questions for Physics, Chemistry, and Mathematics. Focus on multi-concept synthesis, calculus-based derivations, vector algebra, organic reaction mechanisms, and physical chemistry stoichiometry. Numerical value questions require exact integer or rounded values.",
+                aiSystemInstruction = "You are the Chief Academic Examiner for JEE Main Paper 1. Generate questions for Physics, Chemistry, and Mathematics using the official year-specific paper structure. Numerical value questions use integer answer entry.",
                 patternRules = listOf(
-                    "+4 marks for correct, -1 mark penalty for incorrect",
-                    "Section A: 20 Multiple Choice Questions (compulsory)",
-                    "Section B: 10 Numerical value questions (attempt any 5)",
-                    "Total 300 marks (75 questions attempted out of 90)",
-                    "Duration 180 minutes (3 hours)"
+                    "2026 Paper 1: 75 questions, 300 marks, 180 minutes",
+                    "Each subject: Section A has 20 compulsory MCQs",
+                    "Each subject: Section B has 5 compulsory numerical-value questions",
+                    "Section A and Section B both apply +4 for correct and -1 for incorrect",
+                    "No optional Section B selection in the 2026 Paper 1 pattern"
                 ),
                 stages = listOf(
                     StageConfig(
@@ -122,21 +127,21 @@ object UniversalExamRegistry {
                                         "physics", "Physics",
                                         listOf(
                                             SectionConfig("phy_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("phy_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("phy_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
                                         )
                                     ),
                                     SubjectConfig(
                                         "chemistry", "Chemistry",
                                         listOf(
                                             SectionConfig("chem_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("chem_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("chem_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
                                         )
                                     ),
                                     SubjectConfig(
                                         "mathematics", "Mathematics",
                                         listOf(
                                             SectionConfig("math_sec_a", "Section A (MCQ)", 20, 20, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("math_sec_b", "Section B (NVQ)", 10, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
+                                            SectionConfig("math_sec_b", "Section B (NVQ)", 5, 5, 4.0, 1.0, QuestionType.NUMERICAL_VALUE, optionsCount = 0)
                                         )
                                     )
                                 )
@@ -156,7 +161,7 @@ object UniversalExamRegistry {
                 category = "Engineering Entrance",
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
-                verified = true,
+                verified = false,
                 difficultyRatio = DifficultyRatio(easyPercent = 10, mediumPercent = 45, hardPercent = 45),
                 supportedQuestionTypes = listOf(
                     QuestionType.MCQ_SINGLE,
