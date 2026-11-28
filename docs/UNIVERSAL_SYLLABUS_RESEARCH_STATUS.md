@@ -2351,3 +2351,52 @@ After the official English alternate PDF for code 102 was read, the latest recor
 - Liner deep research could not run because the connected account returned insufficient credits; no research result is attributed to it.
 - Firecrawl search could not run because the connected account returned insufficient credits; no research result is attributed to it.
 - No app code, UI, Room/Firestore schema, database, scoring, ranking or other application source was modified.
+
+
+### 7.54 RRB amendment-source corroboration and authority boundary (28 November 2026)
+
+This short follow-up records the latest search results for RRB amendment PDFs. It does not promote any RRB syllabus status without an official-host source document.
+
+#### 7.54.1 ALP CEN 01/2026 Corrigendum No.1 — full text found on non-RRB mirror, primary source still missing
+
+A fresh Parallel search located a complete readable copy of “Amendment/Corrigendum No. 1, CEN No. 01/2026” dated 10-11-2026 on non-RRB file hosts. The copy's text says:
+- The original CEN was published 14-05-2026.
+- The amendment concerns enhancement of notified vacancies after additional Zonal Railway demands.
+- Total vacancies increase from 11,127 to 14,627.
+- Revised RRB/Railway/Community-wise vacancies are in Annexure-B1.
+- “All other terms and conditions stipulated in CEN No. 01/2026 shall remain unchanged.”
+
+This is useful corroborating text but the retrieved file host is not an RRB domain. The amendment itself directs candidates to official RRB websites. Therefore the primary RRB-hosted PDF and official listing row have not yet been independently retrieved/read in this pass. Keep the amendment's exact text and vacancy figures PROVISIONAL until primary-host verification. The claim that syllabus terms remain unchanged must not be promoted to final verified status from a mirror alone.
+
+#### 7.54.2 JE/DMS/CMA CEN 04/2026 Corrigendum No.1 — official original FAQ and official listing boundary
+
+An official RRB-hosted FAQ was found:
+https://www.rrbthiruvananthapuram.gov.in/assets/pdf/FAQ_CEN_04_2026.pdf
+
+It is an 8-page FAQ dated 13-08-2026 for the original CEN 04/2026 (JE/DMS). Its question 68 directs candidates to Annexure VIII(A) through VIII(D) of the original CEN for CBT syllabus. This FAQ predates the 18-08-2026 Corrigendum-1 and therefore does not include or verify any later CMA Annexure-VIII(E) amendment.
+
+The official RRB Mumbai notification listing previously parsed in this research shows:
+https://rrb.indianrailways.gov.in/getdata?cennum=04%2F2026&loc=mumbai&category=Notification
+- Corrigendum No.1 of CEN No. 04/2026 — 18-08-2026, with English/Hindi view controls.
+- Original Detailed Centralised Employment Notification — 13-08-2026.
+The direct official corrigendum PDF button URL still could not be resolved by the available page parser.
+
+Search results from non-RRB sources consistently describe the amendment as adding 35 CMA vacancies and one JE/Electrical/TRS vacancy (3,993 → 4,029), introducing CMA Annexure-VIII(E), adding medical standard B-2, and revising the DMS exam-group instruction. These remain **secondary-source leads only**. Do not add CMA topic data or change DMS routing in the Universal Syllabus until the original RRB-hosted Corrigendum-1 is opened and read.
+
+#### 7.54.3 NTPC 2026 — official candidate portal FAQ links discovered, detailed CEN PDFs still inaccessible
+
+The official RRB candidate portal https://www.rrbapply.gov.in/ exposes these FAQ endpoints:
+- CEN 06/2026 NTPC Graduate: https://rrbapply.gov.in/assets/forms/FAQs_CEN_07_2026_NTPC_G_English.pdf
+- CEN 06/2026 NTPC Graduate Hindi: https://rrbapply.gov.in/assets/forms/FAQs_CEN_07_2026_NTPC_G_Hindi.pdf
+- CEN 07/2026 NTPC Undergraduate: https://rrbapply.gov.in/assets/forms/FAQ_07_2026_NTPC_UG.pdf
+
+The three official FAQ PDFs returned connection errors when fetched. The official RRB detailed-CEN routes also failed or were rejected by the document server. Search surfaced third-party copies of CEN 06/2026 (54-page official-content copy with an added host page) and CEN 07/2026 (57-page copy), but those are not primary RRB hosts and have not been used to verify syllabus content. The official RRB knowledge-centre syllabus PDF remains explicitly non-authoritative for the 2026 CEN because its disclaimer says the compilation is based on previous CENs and may differ from the applicable notification.
+
+**Status remains unchanged:** CEN 06/2026 and CEN 07/2026 are PARTIAL / DEFERRED_NOT_BLOCKING until the original official detailed notifications and all relevant corrigenda can be read.
+
+#### 7.54.4 Tool and source accounting
+
+- Parallel Search surfaced the ALP amendment mirror, the JE amendment leads, the official RRB FAQ and candidate portal resource paths.
+- Parallel Fetch read the official 8-page CEN 04/2026 FAQ and attempted the official candidate portal PDFs; the latter returned connection errors.
+- Firecrawl search did not run because the connected account had insufficient credits. No result is attributed to Firecrawl.
+- No application source, syllabus database, scoring engine, ranking code, or UI was changed.
