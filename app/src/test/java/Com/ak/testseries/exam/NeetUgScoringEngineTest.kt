@@ -120,4 +120,46 @@ class NeetUgScoringEngineTest {
             NeetUgScoringEngine.evaluateTestAttempt(testEntity(1), q, mapOf("other" to "A"), 1)
         }
     }
+    @Test
+    fun sharedGoldenFixturesMatchBackendScoringContract() {
+        val stream = javaClass.classLoader!!.getResourceAsStream("scoring/neet_ug_2026_golden.json")
+            ?: throw AssertionError("Shared NEET golden fixture was not packaged.")
+        val root = org.json.JSONObject(stream.bufferedReader().use { it.readText() })
+        val cases = root.getJSONArray("cases")
+        for (index in 0 until cases.length()) {
+            val fixture = cases.getJSONObject(index)
+            val questionsJson = fixture.getJSONArray("questions")
+            val questions = (0 until questionsJson.length()).map { qIndex ->
+                val q = questionsJson.getJSONObject(qIndex)
+                question(
+                    id = q.getString("id"),
+                    subject = q.getString("subject"),
+                    key = q.getString("correctAnswer")
+                ).copy(questionType = q.optString("questionType", "MCQ_SINGLE"))
+            }
+            val answersJson = fixture.getJSONObject("answers")
+            val answers = answersJson.keys().asSequence().associateWith { key ->
+                answersJson.optString(key, "")
+            }
+            val result = NeetUgScoringEngine.evaluateTestAttempt(
+                testEntity(questions.size),
+                questions,
+                answers,
+                0
+            )
+            val expected = fixture.getJSONObject("expected")
+            assertEquals(expected.getInt("totalQuestions"), result.totalQuestions)
+            assertEquals(expected.getInt("correctCount"), result.correctCount)
+            assertEquals(expected.getInt("wrongCount"), result.wrongCount)
+            assertEquals(expected.getInt("unansweredCount"), result.unansweredCount)
+            assertEquals(expected.getDouble("positiveMarksEarned"), result.positiveMarksEarned, 0.001)
+            assertEquals(expected.getDouble("negativeMarksPenalty"), result.negativeMarksPenalty, 0.001)
+            assertEquals(expected.getDouble("rawScore"), result.rawScore, 0.001)
+            assertEquals(expected.getDouble("finalScore"), result.finalScore, 0.001)
+            assertEquals(expected.getDouble("maxScore"), result.maxScore, 0.001)
+            assertEquals(expected.getDouble("accuracyPercent"), result.accuracyPercent, 0.001)
+        }
+        stream.close()
+    }
+
 }
