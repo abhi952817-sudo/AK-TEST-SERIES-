@@ -2188,13 +2188,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
 
                 val targetExam = test.targetExam.takeIf { it.isNotBlank() }
                     ?: _userProfile.value.targetExam.takeIf { it.isNotBlank() }
-                    ?: "NEET"
+                    ?: throw IllegalStateException("Test has no exam identity; scoring cannot assume NEET.")
 
-                val (defaultPosMark, defaultNegMark) = try {
+                val (defaultPosMark, defaultNegMark) =
                     Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForExam(targetExam)
-                } catch (e: Exception) {
-                    Pair(4.0, 1.0)
-                }
 
                 // Standardize question data ensuring all required fields are present while excluding private user data
                 val rawArray = try {
@@ -2249,15 +2246,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     qClean.put("section", secId)
                     qClean.put("sectionName", secName)
 
-                    val (calcPos, calcNeg) = try {
-                        if (Com.ak.testseries.exam.UniversalExamRegistry.hasMultipleMarkingSchemes(targetExam)) {
-                            Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(targetExam, secId, qObj.optString("subject", test.subject), qType)
-                        } else {
-                            Pair(defaultPosMark, defaultNegMark)
-                        }
-                    } catch (e: Exception) {
-                        Pair(defaultPosMark, defaultNegMark)
-                    }
+                    val (calcPos, calcNeg) =
+                        Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(
+                            targetExam, secId, qObj.optString("subject", test.subject), qType
+                        )
 
                     val finalPos = if (qObj.has("positiveMarks") && qObj.optDouble("positiveMarks", 0.0) > 0.0) {
                         qObj.optDouble("positiveMarks", calcPos)
@@ -3517,7 +3509,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val title = doc.getString("title")?.trim() ?: ""
         if (title.isBlank()) return null
 
-        val targetExam = doc.getString("targetExam")?.trim()?.ifBlank { "NEET" } ?: "NEET"
+        val targetExam = doc.getString("targetExam")?.trim()?.takeIf { it.isNotBlank() } ?: return null
         val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 180
         if (durationMinutes <= 0) return null
 
@@ -3559,10 +3551,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     return null
                 }
 
-                val posMarks = (map["positiveMarks"] as? Number)?.toDouble() ?: 4.0
-                if (posMarks <= 0.0) return null
-                val negMarks = (map["negativeMarks"] as? Number)?.toDouble() ?: 1.0
-                if (negMarks < 0.0) return null
+                val sectionForScoring = (map["section"] as? String)?.trim()?.ifBlank { "SECTION_A" } ?: "SECTION_A"
+                val subjectForScoring = (map["subject"] as? String)?.trim()?.ifBlank { subject } ?: subject
+                val (policyPosMarks, policyNegMarks) = try {
+                    Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(
+                        targetExam, sectionForScoring, subjectForScoring, qType
+                    )
+                } catch (_: Exception) {
+                    return null
+                }
+                val posMarks = (map["positiveMarks"] as? Number)?.toDouble() ?: policyPosMarks
+                if (!posMarks.isFinite() || posMarks <= 0.0) return null
+                val negMarks = (map["negativeMarks"] as? Number)?.toDouble() ?: policyNegMarks
+                if (!negMarks.isFinite() || negMarks < 0.0) return null
 
                 val imgUrl = (map["imageUrl"] as? String)?.trim()
                 if (!imgUrl.isNullOrEmpty()) {
@@ -3634,10 +3635,19 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                         return null
                     }
 
-                    val posMarks = qObj.optDouble("positiveMarks", 4.0)
-                    if (posMarks <= 0.0) return null
-                    val negMarks = qObj.optDouble("negativeMarks", 1.0)
-                    if (negMarks < 0.0) return null
+                    val sectionForScoring = qObj.optString("section", "SECTION_A")
+                    val subjectForScoring = qObj.optString("subject", subject)
+                    val (policyPosMarks, policyNegMarks) = try {
+                        Com.ak.testseries.exam.UniversalExamRegistry.getMarkingSchemeForQuestion(
+                            targetExam, sectionForScoring, subjectForScoring, qType
+                        )
+                    } catch (_: Exception) {
+                        return null
+                    }
+                    val posMarks = qObj.optDouble("positiveMarks", policyPosMarks)
+                    if (!posMarks.isFinite() || posMarks <= 0.0) return null
+                    val negMarks = qObj.optDouble("negativeMarks", policyNegMarks)
+                    if (!negMarks.isFinite() || negMarks < 0.0) return null
 
                     val imgUrl = qObj.optString("imageUrl", "").trim()
                     if (imgUrl.isNotEmpty()) {
@@ -3736,7 +3746,7 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
         val questionsJson = doc.getString("questionsJson")?.trim() ?: ""
         if (questionsJson.isBlank()) return null
 
-        val targetExam = doc.getString("targetExam")?.trim()?.ifBlank { "NEET" } ?: "NEET"
+        val targetExam = doc.getString("targetExam")?.trim()?.takeIf { it.isNotBlank() } ?: return null
         val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 180
         if (durationMinutes <= 0) return null
         val creatorId = doc.getString("uploaderId")?.trim() ?: "anonymous"
@@ -4252,15 +4262,6 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 if (answeredInSectionCount >= limit) {
                     return false
                 }
-            }
-        } else if (question != null && (question.section.equals("SECTION_B", ignoreCase = true) || question.section.contains("Section B", ignoreCase = true))) {
-            val answeredSectionBCount = questions.count { q ->
-                (q.section.equals("SECTION_B", ignoreCase = true) || q.section.contains("Section B", ignoreCase = true)) &&
-                (question.subject.isBlank() || q.subject.equals(question.subject, ignoreCase = true)) &&
-                _userAnswers.value.containsKey(q.id) && q.id != questionId
-            }
-            if (answeredSectionBCount >= 10) {
-                return false
             }
         }
         val answers = _userAnswers.value.toMutableMap()
