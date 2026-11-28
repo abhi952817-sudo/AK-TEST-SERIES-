@@ -2075,6 +2075,8 @@ fun StructuredQuestionsTab(
     } else {
         val allImages = pages.flatMap { it.extractedImages }
         val viewModel: Com.ak.testseries.viewmodel.NEETViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+        val userProfile by viewModel.userProfile.collectAsState()
+        val selectedTargetExam = userProfile.targetExam.trim()
         var savedStatus by remember { mutableStateOf<String?>(null) }
         var currentQuestions by remember(classification) { mutableStateOf(classification.detectedQuestions) }
         var cropTargetQuestion by remember { mutableStateOf<StructuredQuestion?>(null) }
@@ -2136,16 +2138,21 @@ fun StructuredQuestionsTab(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            viewModel.saveExtractedQuestionsToPrivateRoomDatabase(
-                                testTitle = "Parsed PDF Test (${currentQuestions.size} Qs)",
-                                subject = "Full Syllabus",
-                                targetExam = "NEET",
-                                structuredQuestions = currentQuestions,
-                                onSuccess = { id ->
-                                    savedStatus = "✅ Saved to Room DB ($id)"
-                                }
-                            )
+                            if (selectedTargetExam.isBlank()) {
+                                savedStatus = "Select an exam in your profile before saving this test."
+                            } else {
+                                viewModel.saveExtractedQuestionsToPrivateRoomDatabase(
+                                    testTitle = "Parsed PDF Test (${currentQuestions.size} Qs)",
+                                    subject = "Full Syllabus",
+                                    targetExam = selectedTargetExam,
+                                    structuredQuestions = currentQuestions,
+                                    onSuccess = { id ->
+                                        savedStatus = "✅ Saved to Room DB ($id)"
+                                    }
+                                )
+                            }
                         },
+                        enabled = selectedTargetExam.isNotBlank(),
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
