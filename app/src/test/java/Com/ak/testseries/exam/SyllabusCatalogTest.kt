@@ -29,6 +29,12 @@ class SyllabusCatalogTest {
         }
         assertEquals(20, chapters.count { it.subject == "Physics" })
         assertEquals(20, chapters.count { it.subject == "Chemistry" })
+        assertEquals(13, chapters.count { it.subject == "Botany" })
+        assertEquals(11, chapters.count { it.subject == "Zoology" })
+        assertTrue("Biology Unit 04 must include the official developmental-process topic",
+            chapters.any { it.chapter.contains("Unit 04") && it.keyTopics.contains("Sequence of developmental process in a plant cell") })
+        assertTrue("Physics Unit 02 must retain the official average-speed wording",
+            chapters.any { it.chapter.contains("Unit 02") && it.keyTopics.contains("Average speed and instantaneous velocity") })
         assertEquals("NEET_UG_2026_NMC_2025-12-22", NeetUg2026Syllabus.VERSION)
     }
 
