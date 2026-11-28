@@ -123,9 +123,15 @@ function evaluateNeetUgAttempt(testData, questions, userAnswers, timeSpentSecond
     if (questions.length !== policy.fullLengthQuestionCount) {
       throw scoringError("A full-length NEET 2026 paper must contain exactly 180 compulsory questions.");
     }
-    if (testData.durationMinutes != null && Number(testData.durationMinutes) !== policy.durationMinutes) {
-      throw scoringError("A full-length NEET 2026 paper must use the official 180-minute duration.");
+    if (Number(testData.durationMinutes) !== policy.durationMinutes) {
+      throw scoringError("A full-length NEET 2026 paper must explicitly declare the official 180-minute duration.");
     }
+    if (Number(testData.totalMarks) !== policy.maxMarks) {
+      throw scoringError("A full-length NEET 2026 paper must explicitly declare 720 total marks.");
+    }
+  } else if (testData.totalMarks != null &&
+      Math.abs(Number(testData.totalMarks) - questions.length * policy.positiveMarks) > 0.01) {
+    throw scoringError("NEET partial-test totalMarks must equal four marks per question.");
   }
 
   const seen = new Set();
