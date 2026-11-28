@@ -1374,3 +1374,100 @@ Observed official content and QA:
 - Code 86 is absent from the official subject list and must not be invented.
 - Next actual subjects after 89 are 90 Politics including International Relations/International Studies and area studies, 91 Prakrit, 92 Human Rights and Duties, 93 Tourism Administration and Management, and 94 Bodo. Verify the official source link and source-language constraints for each. Code 90 has an older portal title “International and Area Studies” while the current subject list uses the expanded Politics/IR/area-studies title; preserve both with provenance rather than creating duplicate exam subjects.
 - Overall UGC NET remains PARTIAL. Continue with codes 90–94, then 95 Santali and current-cycle codes 100–107. Reconcile all 87 current subjects, Paper-I and exact official syllabus sources/versions/page provenance before database approval.
+
+
+### 7.31 UGC NET subject-PDF extraction — sub-batch 16 (codes 90–94; 28 November 2026)
+
+Official subject list and portal-linked PDF sources checked:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 official bulletin, Annexure-II: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+Official PDFs opened:
+- 90 International and Area Studies — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/90/International%20and%20Area%20Studies_English.pdf
+- 91 Prakrit — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/91/Prakrit_English.pdf
+- 92 Human Rights and Duties — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/92/Human%20Right%20and%20Duties_English.pdf
+- 93 Tourism Administration and Management — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/93/Tourism%20Administration%20and%20Management_English.pdf
+- 94 Bodo — Hindi-only PDF: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/94/Bodo_Hindi_Only.pdf
+
+| Code | Official current/portal subject title | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 90 | Current list: Politics including International Relations/International Studies including Defence/Strategic Studies, West Asian Studies, Southeast Asian Studies, African Studies, South Asian Studies, Soviet Studies, American Studies; portal PDF title: International and Area Studies | Not confirmed | CONTENT_READ — all ten units and detailed topic text extracted; title discrepancy recorded |
+| 91 | Prakrit | Printed markers 1–3 | CONTENT_READ — all ten units, prescribed texts and detailed topics extracted |
+| 92 | Human Rights and Duties | Not confirmed | CONTENT_READ — all ten units and detailed topics extracted |
+| 93 | Tourism Administration and Management | 6 | CONTENT_READ — all ten units and detailed topics extracted with page markers 1–6 |
+| 94 | Bodo | Not confirmed | PARTIAL — Hindi-only PDF opened; Bodo/Devanagari extraction is mixed and partly corrupted, requiring native-language QA |
+
+Observed official content and QA:
+
+- **90 International and Area Studies:** Official PDF header confirms Subject: International and Area Studies, Code No. 90. All ten units were read:
+  1. International and Area Studies: Concepts, Theories and Approaches.
+  2. Evolution of International Relations and Area Studies.
+  3. Contemporary World Order.
+  4. Conflict, Security and Peace: National and International.
+  5. International Organisations and Global Governance.
+  6. India’s Foreign Policy.
+  7. South Asia and Indo-Pacific Region.
+  8. Central Asia, West Asia and Africa.
+  9. Europe and Erstwhile Soviet Union/Russia.
+  10. The Americas.
+  Detailed content covers IR theories, global order, strategic thought/doctrines, national/international security, international organisations, India’s foreign policy, regional politics, development cooperation and geopolitical issues. **Title discrepancy:** current UGC-NET December 2026 subject list expands code 90 to “Politics including International Relations/International Studies including Defence / Strategic Studies, West Asian Studies, Southeast Asian Studies, African Studies, South Asian Studies, Soviet Studies, American Studies”, while the legacy portal PDF header remains “International and Area Studies”. Preserve one code 90 record with both names and explicit source/version provenance; do not create duplicate subjects or assume the older PDF fully covers every expanded current title component. Status CONTENT_READ for the linked PDF only; current-cycle equivalence requires UGC/NTA confirmation.
+
+- **91 Prakrit:** Official PDF header confirms Code No. 91; printed page markers 1–3 are visible. All ten units were read:
+  1. History of the Prakrit Language: Origin and Development.
+  2. Origin and Characteristic Features of Different Prakrits.
+  3. Prakrit Canons and Commentary Literature.
+  4. History of Prakrit Kāvya Literature.
+  5. Prakrit in Ancient Dramatic Literature and Saṭṭaka Literature.
+  6. Prakrit Inscriptional Literature.
+  7. Prakrit Scientific Literature.
+  8. Prakrit Grammar and Prakrit Philology.
+  9. Study of Original Prakrit Texts.
+  10. Study of Original Prakrit Kāvya Literature.
+  Detailed source includes named canonical texts, grammarians, inscriptions, metres and exact prescribed chapter/verse ranges. Preserve diacritics, canonical titles and prescribed selections. Printed page map: Unit I p.1; Units II–VII p.2; Units VIII–X p.3. Status CONTENT_READ.
+
+- **92 Human Rights and Duties:** Official PDF header confirms Code No. 92. All ten units were read:
+  1. Human Rights and Duties: Concept and Nature.
+  2. Origin and Evolution of Human Rights and International Standards.
+  3. Society, Economy, Polity, Religion and Culture — their Inter-relationship.
+  4. State and Individual Liberty.
+  5. UN and Various Agencies, Intergovernmental Organisations and NGOs.
+  6. Growth Models and Human Rights.
+  7. Development, Underdevelopment and Social Action.
+  8. Human Rights and Indian Constitution.
+  9. Constitutional Governance.
+  10. International Enforcement of Human Rights.
+  Detailed content includes rights theories, international conventions, social/economic/cultural rights, state responsibilities, UN bodies, development/globalisation, constitutional law, governance and treaty-monitoring bodies/courts. The source contains dated legal/institutional references; preserve as published and assess currency separately. Physical page count and unit-page map were not established. Status CONTENT_READ.
+
+- **93 Tourism Administration and Management:** Official PDF header confirms Code No. 93; six physical pages with page markers 1–6. All ten units were read:
+  1. Tourism concepts, definitions, history, models, systems, industry and impacts.
+  2. Earth/World Geography, time calculations, tourist movements and environmental laws.
+  3. Tourism products of India, heritage, culture, performing arts, protected areas, hill stations, beaches and special-interest tourism.
+  4. Transport systems, aviation, rail, road, water transport, ticketing and travel documentation.
+  5. Travel agencies, tour operators, itinerary planning, costing, travel documents and operations.
+  6. Hospitality industry, accommodation, front office, housekeeping, food production and F&B operations.
+  7. Tourism services marketing, service quality, market segmentation, branding, promotion and destination image.
+  8. Tourism planning, policy, sustainable/responsible tourism and tourism economics.
+  9. Statistics and research methods.
+  10. Management, organisational behaviour, accounting, financial management and tourism/hospitality law.
+  Preserve the detailed destination/site lists, models, travel terminology, organisations and policy/legal references. Page markers 1–6 provide full pagination. Status CONTENT_READ.
+
+- **94 Bodo:** Official portal links a Hindi-only PDF; its extracted header confirms Code No. 94 and Bodo subject. The extraction shows ten unit blocks and mixed text in Bodo/Devanagari/Latin:
+  1. Bodo literature/linguistic and literary background (heading and subtopics require native-language confirmation).
+  2. Bodo literary history (partial heading).
+  3. Bodo language/literature and related sections (text extraction corrupted).
+  4. Language/literature-related content (partially visible).
+  5. Bodo language/literature development and related areas (partly visible).
+  6. Bodo language — origin, language family, spread/development, structure and current status.
+  7. Bodo language and related language communities/interactions.
+  8. Bodo culture — material/non-material culture, society, festivals and customs.
+  9. Traditional knowledge and practices.
+  10. Assam and neighbouring communities/cultural traditions.
+  The PDF contains some readable Bodo text, but headings and body text are mixed and corrupted; the above are only provisional navigation clues, not verified unit titles or full syllabus topics. Keep PARTIAL until Bodo-capable page-image review. The portal offers no English PDF for this code.
+
+### 7.32 Sub-batch 16 outcome and remaining UGC NET work
+
+- Five official PDFs (codes 90–94) were opened. Codes 90–93 are CONTENT_READ at source-text level; code 94 Bodo remains PARTIAL due to Hindi-only source and mixed/corrupted Bodo extraction.
+- Code 90 title must be reconciled: current-cycle subject name is expanded compared with legacy PDF title “International and Area Studies”. Treat as one code with two provenance-labelled names, and seek confirmation whether the existing syllabus PDF remains the applicable syllabus for the full current title.
+- Next actual subject is code 95 Santali. The next current-cycle additions are 100 Yoga, 101 Sindhi, 102 Hindu Studies, 103 Indian Knowledge System, 104 Disaster Management, 105 Ayurveda Biology, 106 Forestry and 107 Statistics. Codes 96–99 are absent from the current UGC portal's sequence. Continue with code 95, then 100–104 as the next five actual subjects.
+- Overall UGC NET remains PARTIAL. Paper-I and final reconciliation of the December 2026 official subject list (87 subjects) against all available syllabus PDFs remain. The legacy portal has subjects not necessarily in the current 87-subject list and the current list has additions; distinguish current-cycle applicability from historical/legacy portal availability. Complete page provenance, revision/hash metadata and language/OCR QA before database approval.
