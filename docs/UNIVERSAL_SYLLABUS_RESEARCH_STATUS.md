@@ -1648,3 +1648,128 @@ Observed official content and QA:
   5. Complete Paper-I syllabus reading and page provenance.
   6. Then do the pending native-script/OCR and page-map QA for PARTIAL subjects.
 - Database and app-code integration remain NOT STARTED and require explicit user approval after reconciliation and quality review.
+
+
+### 7.37 Current-cycle reconciliation — UGC-NET December 2026 official 87 Paper-II subjects (28 November 2026)
+
+Primary authority: UGC-NET December 2026 Information Bulletin, Annexure-II, printed pages 45–47:
+- Official PDF: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+- Official UGC syllabus portal named by the bulletin: https://www.ugcnetonline.in/syllabus-new.php
+- Official subject list page: https://www.ugcnetonline.in/subjects.php
+
+The bulletin's Annexure-II was checked against the actual official table, not inferred from the legacy portal. It contains exactly **87 Paper-II subject rows**. The serial numbers are 1–87 and are not the same as subject codes. The exact order, official subject titles (minor line-wrap simplifications only), codes and this project's first-pass content status are recorded below.
+
+| S. No. | Official subject title (shortened only where necessary) | Code | First-pass status |
+|---:|---|---:|---|
+| 1 | Adult Education / Continuing Education / Andragogy / Non-Formal Education | 46 | CONTENT_READ |
+| 2 | Anthropology | 7 | CONTENT_READ |
+| 3 | Arab Culture and Islamic Studies | 49 | CONTENT_READ |
+| 4 | Arabic | 29 | PARTIAL |
+| 5 | Archaeology | 67 | CONTENT_READ |
+| 6 | Assamese | 36 | PARTIAL |
+| 7 | Bengali | 19 | PARTIAL |
+| 8 | Bodo | 94 | PARTIAL |
+| 9 | Buddhist, Jaina, Gandhian and Peace Studies | 60 | CONTENT_READ |
+| 10 | Chinese | 32 | PARTIAL |
+| 11 | Commerce | 8 | CONTENT_READ |
+| 12 | Comparative Literature | 72 | CONTENT_READ |
+| 13 | Comparative Study of Religions | 62 | CONTENT_READ |
+| 14 | Computer Science and Applications | 87 | CONTENT_READ |
+| 15 | Criminology | 68 | CONTENT_READ |
+| 16 | Defence and Strategic Studies | 11 | CONTENT_READ |
+| 17 | Dogri | 33 | PARTIAL |
+| 18 | Economics / Rural Economics / Co-operation / Demography / Development Planning / Development Studies / Econometrics / Applied Economics / Development Economics / Business Economics | 1 | CONTENT_READ |
+| 19 | Education | 9 | CONTENT_READ |
+| 20 | Electronic Science | 88 | CONTENT_READ |
+| 21 | English | 30 | CONTENT_READ |
+| 22 | Environmental Sciences | 89 | CONTENT_READ |
+| 23 | Folk Literature | 71 | CONTENT_READ |
+| 24 | Forensic Science | 82 | CONTENT_READ |
+| 25 | French (French Version) | 39 | CONTENT_READ |
+| 26 | Geography | 80 | CONTENT_READ |
+| 27 | German | 44 | CONTENT_READ |
+| 28 | Gujarati | 37 | PARTIAL |
+| 29 | Hindi | 20 | PARTIAL |
+| 30 | Hindu Studies | 102 | PARTIAL |
+| 31 | History | 6 | CONTENT_READ |
+| 32 | Home Science | 12 | CONTENT_READ |
+| 33 | Human Rights and Duties | 92 | CONTENT_READ |
+| 34 | Indian Culture | 50 | CONTENT_READ |
+| 35 | Indian Knowledge System | 103 | CONTENT_READ |
+| 36 | Japanese | 45 | CONTENT_READ |
+| 37 | Kannada | 21 | PARTIAL |
+| 38 | Kashmiri | 84 | PARTIAL |
+| 39 | Konkani | 85 | PARTIAL |
+| 40 | Labour Welfare / Personnel Management / Industrial Relations / Labour and Social Welfare / Human Resource Management | 55 | CONTENT_READ |
+| 41 | Law | 58 | CONTENT_READ |
+| 42 | Library and Information Science | 59 | CONTENT_READ |
+| 43 | Linguistics | 31 | CONTENT_READ |
+| 44 | Maithili | 18 | PARTIAL |
+| 45 | Malayalam | 22 | PARTIAL |
+| 46 | Management (including Business Administration, Marketing, Industrial Relations and Personnel Management, Financial Management and Co-operative Management) | 17 | PARTIAL |
+| 47 | Manipuri | 35 | PARTIAL |
+| 48 | Marathi | 38 | PARTIAL |
+| 49 | Mass Communication and Journalism | 63 | CONTENT_READ |
+| 50 | Museology & Conservation | 66 | CONTENT_READ |
+| 51 | Music | 16 | PARTIAL |
+| 52 | Nepali | 34 | PARTIAL |
+| 53 | Oriya | 23 | PARTIAL |
+| 54 | Pali | 83 | CONTENT_READ |
+| 55 | Performing Art – Dance/Drama/Theatre | 65 | CONTENT_READ |
+| 56 | Persian | 42 | PARTIAL |
+| 57 | Philosophy | 3 | CONTENT_READ |
+| 58 | Physical Education | 47 | CONTENT_READ |
+| 59 | Political Science | 2 | CONTENT_READ |
+| 60 | Politics including International Relations/International Studies including Defence/Strategic Studies, West Asian, Southeast Asian, African, South Asian, Soviet and American Studies | 90 | PARTIAL |
+| 61 | Population Studies | 15 | CONTENT_READ |
+| 62 | Prakrit | 91 | CONTENT_READ |
+| 63 | Psychology | 4 | CONTENT_READ |
+| 64 | Public Administration | 14 | CONTENT_READ |
+| 65 | Punjabi | 24 | PARTIAL |
+| 66 | Rajasthani | 43 | PARTIAL |
+| 67 | Russian | 41 | CONTENT_READ |
+| 68 | Sanskrit | 25 | CONTENT_READ |
+| 69 | Sanskrit Traditional Subjects (including the listed traditional specialisations) | 73 | PARTIAL |
+| 70 | Santali | 95 | PARTIAL |
+| 71 | Sindhi | 101 | PARTIAL |
+| 72 | Social Medicine & Community Health | 81 | CONTENT_READ |
+| 73 | Social Work | 10 | CONTENT_READ |
+| 74 | Sociology | 5 | CONTENT_READ |
+| 75 | Spanish | 40 | CONTENT_READ |
+| 76 | Tamil | 26 | PARTIAL |
+| 77 | Telugu | 27 | PARTIAL |
+| 78 | Tourism Administration and Management | 93 | CONTENT_READ |
+| 79 | Tribal and Regional Language/Literature | 70 | CONTENT_READ |
+| 80 | Urdu | 28 | PARTIAL |
+| 81 | Visual Art (including Drawing & Painting/Sculpture/Graphics/Applied Art/History of Art) | 79 | CONTENT_READ |
+| 82 | Women Studies | 74 | CONTENT_READ |
+| 83 | Yoga | 100 | CONTENT_READ |
+| 84 | Disaster Management | 104 | CONTENT_READ |
+| 85 | Ayurveda Biology | 105 | CONTENT_READ |
+| 86 | Forestry | 106 | CONTENT_READ |
+| 87 | Statistics | 107 | CONTENT_READ |
+
+**Count validation:** 87 rows; 87 unique subject codes. First-pass status: 57 CONTENT_READ, 30 PARTIAL; no current-cycle row is marked fully VERIFIED yet. CONTENT_READ means the official linked PDF's text was read, not that source version, all page ranges, OCR, language equivalence and current-cycle applicability have passed final QA.
+
+#### Key reconciliation findings
+
+1. **Paper-I is compulsory for every candidate.** The December 2026 bulletin states this explicitly at the end of Annexure-II. It is not one of the 87 Paper-II subject rows. The bulletin describes Paper-I as 50 questions / 100 marks and Paper-II as 100 questions / 200 marks, in a single 180-minute combined sitting with no break. The official bulletin directs candidates to the UGC portal for all subject syllabi; it does not reproduce the complete Paper-I syllabus text. The legacy UGC portal has the General Paper on Teaching and Research Aptitude (code 00) syllabus. Earlier extraction read its ten units, but Paper-I still needs page-map, PDF hash/revision metadata and current applicability QA. Keep it as a separate compulsory common paper, not as an 88th Paper-II subject.
+
+2. **The legacy syllabus portal contains more historical subject codes than the current December 2026 list.** Only the 87 rows above are current-cycle Paper-II choices. Legacy-only codes and absent numeric gaps must not become active current exams merely because an older PDF or code exists. Codes absent from Annexure-II (including 13, 48, 51–54, 61, 64, 69, 75–78, 86, 96–99) are not current-cycle subject rows. Do not create placeholders.
+
+3. **Current list includes old codes in non-numeric order and newly added subjects 100–107.** The subject code is an identifier, not a serial number. New/current additions 102 Hindu Studies, 103 Indian Knowledge System, 104 Disaster Management, 105 Ayurveda Biology, 106 Forestry and 107 Statistics are present in the 87-row list and have official portal PDFs; 100 Yoga and 101 Sindhi are also included. Code 73 Sanskrit Traditional Subjects is a distinct current subject from code 25 Sanskrit.
+
+4. **Code 90 title/syllabus mismatch needs authority confirmation.** Annexure-II uses the expanded current title covering Politics, IR/International Studies, Defence/Strategic Studies and several area studies; the legacy code 90 PDF header is “International and Area Studies”. Keep one subject code 90 with both source-labelled names. The legacy PDF is content-read, but do not certify it as fully equivalent to every expanded current title component without an authoritative clarification or a newer official syllabus document. Status remains PARTIAL for current-scope approval.
+
+5. **Language-specific official source gaps are material.** Several current subjects have only Hindi or native-script portal PDFs, and extraction remains incomplete for codes 16–29, 32–38, 42–43, 73, 84–85, 94–95, 101–102. These are not absent syllabi; they are source-content QA gaps. Do not fill them with coaching websites or guessed topics.
+
+6. **Paper-I and Paper-II must stay distinct in the Universal Syllabus Registry.** Paper-I is the shared compulsory General Paper on Teaching and Research Aptitude; Paper-II is selected from the 87 official subject entries. The app data model should not treat Paper-I as an 88th Paper-II subject or duplicate its syllabus under every subject.
+
+#### Reconciliation outcome and next QA actions
+
+- Current-cycle subject enumeration: COMPLETE_FIRST_PASS — all 87 Annexure-II rows matched to code/title records.
+- Official syllabus PDF first-pass reading: 57 CONTENT_READ / 30 PARTIAL.
+- Paper-I: ten-unit text previously read; source/page/version QA pending.
+- Remaining high-priority work: native-script page review, OCR correction against original pages, exact unit/topic page ranges, PDF hashes and revision dates, comparison of language variants (French, Sindhi, etc.), and confirmation of code 90's expanded scope.
+- Recheck current UGC portal and any NTA/UGC corrigenda before marking final VERIFIED; this is a time-sensitive current-cycle dataset.
+- Universal Syllabus Database and app-code integration remain NOT STARTED. No app code, Firestore, Room schema, UI, scoring engine or ranking code was changed.
