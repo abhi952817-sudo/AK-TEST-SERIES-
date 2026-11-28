@@ -501,10 +501,6 @@ function validateAndMergeAnswerKeys(testData, rawQuestions, privateKeyData) {
       return {
         ...q,
         correctAnswer: trusted.correctAnswer,
-        acceptedAnswers: Array.isArray(trusted.acceptedAnswers)
-          ? trusted.acceptedAnswers
-          : (Array.isArray(trusted.correctAnswer) ? trusted.correctAnswer : undefined),
-        scoringStatus: String(trusted.scoringStatus || trusted.answerStatus || "NORMAL").trim().toUpperCase(),
         explanation: trusted.explanation || q.explanation || ""
       };
     } else {
