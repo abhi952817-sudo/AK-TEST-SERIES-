@@ -122,3 +122,92 @@ Only records with explicit approved/published status and public/official visibil
 - A separate feature/universal-gemini-ai-10-phase-2026-11-08 branch contains substantial Gemini changes, but it is highly divergent from main and includes unrelated ranking/scoring, Room schema, backend, UI and rules changes. It is not safe to merge wholesale.
 - That feature branch has draft-only Admin PDF routing and analysis work, but student upload integration, secure persistence, authoritative syllabus promotion, Recent Tests UI and full verification are not yet established.
 - No claim of successful Android build, emulator rules tests or end-to-end PDF testing is made by this architecture document.
+
+## Phase 9 — Publication-triggered multilingual translation (2026-11-28)
+
+### Product rule: private uploads are never auto-translated
+- A Student private upload is processed only for that Student's own workflow and remains in its detected/source language(s). Do not spend AI tokens translating it merely because it was uploaded.
+- An Admin private draft follows the same rule: extraction and review do not trigger public-language translation.
+- Translation is triggered only by an explicit, authorized transition into public publication. A preview, save-draft, upload, extraction retry, approval-only transition, or private share must not trigger it.
+- The original uploaded PDF and original extracted source-language content are immutable. Translation creates separate derived language variants; it never overwrites the source.
+
+### Publication translation workflow
+1. The authenticated owner requests publication and selects/accepts the currently enabled public language set from versioned Admin configuration. Do not hardcode a permanent language list.
+2. A trusted backend publication orchestrator verifies ownership, role, content eligibility, moderation/approval, source provenance, and the exact public-language configuration version. Client-side flags are not authorization.
+3. The orchestrator resolves the AI identity from the authenticated publisher: Admin publisher -> Admin's authorized server-side provider/model configuration and server-held credentials; Student publisher -> that Student's authorized BYOK/provider/model configuration, retrieved only through the approved secure credential path. Never trust a client-supplied owner UID, role, credential, or arbitrary model override.
+4. The same Universal AI Router, provider adapter contract, and versioned Translation Prompt are used for both roles. Only credential/configuration resolution differs. Do not create separate translation implementations for Admin and Student.
+5. Translate source content into every enabled public language that is not already present and valid. Detect source language at document/page/question level; preserve bilingual or mixed-language source segments rather than needlessly retranslating them.
+6. Validate every variant against the source: question count/order, option count/order, IDs, numbers, units, formulas, symbols, negation, diagrams/labels, tables, and answer-key references must remain aligned. Translation must never generate, infer, alter, or expose answer keys.
+7. Persist each language variant as a private publication candidate with source hash, language, provider/model, prompt version, configuration version, timestamps, confidence, validation report and review state.
+8. Publish atomically only when all required public languages have passed validation and the existing moderation/publication policy succeeds. If any required translation fails or is uncertain, keep publication pending/blocked for review; do not silently publish a partial language set.
+9. Retries are idempotent by source version + target language + prompt version + provider/model configuration. A changed source or language configuration creates a new translation job/version; it does not mutate an already published source or variant.
+10. Public reads expose only approved public language variants. Private source PDFs, extraction payloads, credentials, answer keys and unpublished translations remain access-controlled.
+
+### Suggested data contract (audit existing collections before creating anything)
+- publicationRequest: contentId, publisherUid, publisherRole, sourceVersion, requestedAt, languageConfigVersion, status, translationJobIds.
+- translationVariant: contentId, sourceVersion, sourceLanguage, targetLanguage, translatedPayloadRef, providerId, modelId, promptVersion, confidence, validationStatus, reviewStatus, createdAt.
+- publicContent: stable content identity plus only approved language-variant references and publication metadata. Do not copy private source files or answer keys into this public record.
+- Store large source/translated assets in access-controlled Storage paths; Firestore stores metadata and references. Exact collection names and paths must be reconciled with the current schema and rules before implementation.
+
+### Required security and failure tests
+- Student A cannot read, publish, or translate Student B's private upload.
+- A Student publication uses only Student A's authorized provider configuration; an Admin publication uses only the Admin server-side configuration.
+- A client cannot impersonate Admin, select another user's credentials, or force a different publisher identity.
+- Upload/save-draft/approval-only/private-share never invokes translation.
+- Explicit public publication invokes one translation job per missing enabled language, with idempotent retries.
+- Provider quota exhaustion, timeout, invalid JSON, OCR uncertainty, translation drift, or validation failure blocks publication without partial public leakage.
+- Source PDF and source text remain byte/content-identical after translation and retries.
+- Public readers cannot access private source files, extraction drafts, credentials or answer keys.
+- Firestore/Storage rules and callable-function tests must prove the above before enabling the workflow.
+
+### Current implementation status
+- This section defines the required behavior and integration contract; it is not evidence that publication-triggered translation code, secure student credential retrieval, Firestore schema, Storage paths, or emulator tests are already implemented.
+- The current storage.rules snapshot allows PDF writes only to Admins under /LiveTests and /pdfs; a private Student PDF path and owner-only rules are not established by that file. Do not enable Student PDF upload or public translation until the actual upload path, provider-key storage, publication callable and rules are audited together.
+- Keep this work independent of scoring, negative-marking, ranking, and answer-key evaluation contracts.
+
+### Credential-boundary clarification
+- Student BYOK translation must execute through the Student's device-local Universal AI Router/provider adapter using the UID-scoped Android Keystore-backed credential. The Student API key must never be sent to a Cloud Function, Firestore, Storage, logs, or the publication request.
+- The Student device submits only the translated candidate payload plus provider/model provenance and validation metadata to the trusted publication endpoint. The backend independently validates publisher ownership, publication eligibility, required language coverage and payload schema before publishing.
+- Admin translation may execute server-side through the Admin's authorized provider/model configuration and Secret Manager-held credentials. Never route an Admin secret through the Android client.
+- If the Student's device is offline, the selected provider is unavailable, or its quota is exhausted, publication remains pending; do not silently substitute the Admin model or another user's credentials.
+
+## Phase 9A — Main-branch integration audit (2026-11-28)
+
+Audit scope: read-only inspection of current `main` files and current PR #26 head. No production Firebase access, emulator execution, Android build, or runtime upload/publish test was performed.
+
+### Confirmed current-state findings
+
+| Area | Evidence on `main` | Result |
+|---|---|---|
+| Admin PDF upload UI | `app/src/main/java/Com/ak/testseries/exam/UniversalExamAdminScreen.kt` | Admin UI selects a PDF and runs `UniversalPdfPipeline`; this screen's publish action delegates to the injected `onPublishTest` callback. The screen itself does not implement a publication/translation transaction. |
+| PDF extraction AI | `app/src/main/java/Com/ak/testseries/exam/UniversalPdfPipeline.kt` | Current path calls `FirebaseAiService.generateJson` first, then an optional direct Gemini API-key fallback. This is not yet the shared five-provider router contract and is not a dedicated translation service. |
+| Prompt language behavior | `app/src/main/java/Com/ak/testseries/exam/UniversalAIContext.kt` | Generation prompt can request Hindi fields based on `examConfig.language`; this is generation/extraction behavior, not a publish-only translation gate. It does not implement arbitrary configured public-language fan-out. |
+| Student private PDF Storage | `storage.rules` | `/LiveTests/{fileName}` and `/pdfs/{fileName}` are Admin-write-only. No UID-scoped private Student PDF path is defined. The default rule is Admin-only. |
+| Shared student tests | `firestore.rules` `/Shared_Community_Tests/{testId}` | Authenticated users can read documents; owner/uploader can create and update. This is a community-share collection, not a safe private upload vault. Do not store private drafts or answer-bearing source payloads there. |
+| Firestore publication orchestration | `backend_functions/index.js` | No publication-triggered translation callable/orchestrator was found in the inspected exports. Existing `Shared_Community_Tests` references are attempt/solution lookup and retired-demo cleanup, not a translation workflow. |
+| Student BYOK secure storage | Main source search | The expected canonical Android Keystore-backed UID-scoped provider credential store was not located in the inspected Main paths. Earlier reconciliation documentation describes it as a required port, not proof it is implemented. |
+| Universal provider router | Main source search | No canonical `UniversalAiRouter.kt` / provider interface at the expected paths. Current PDF pipeline's Gemini-specific transport remains. |
+| Student private tests UI | `PrivateTestsVaultScreen.kt` | Existing vault filters locally available tests by uploader/owner and offers community sharing. It does not prove that source PDF bytes are uploaded to a UID-private Firebase Storage path. |
+
+### Required corrections before enabling publication translation
+
+1. Build and test the private PDF upload path first: `private_uploads/{uid}/{uploadId}/source.pdf`, owner-only client reads, create-only source writes, strict PDF MIME/size limits, and no public URL. Decide explicit deletion/retention behavior. Admin/server access must be narrowly scoped and audited.
+2. Keep private source PDFs, extracted source text, private tests and answer keys out of `/Shared_Community_Tests`. Use a separate private owner-scoped draft record and private Storage objects.
+3. Add a single publication state machine and callable authorization boundary. The server derives UID/role from Auth, checks ownership, ban/account status, Admin approval/moderation and versioned enabled-language config. A client-side `isPublic` flag or callback is never sufficient authorization.
+4. For Student BYOK, translation runs on the Student device through the selected local provider adapter; the raw key stays in Android Keystore and is never sent to backend. The backend receives only candidate translations/provenance metadata and validates ownership/schema/language coverage/publication eligibility. Provider/model provenance from a client is self-reported, not cryptographically attested; do not present it as independently verified.
+5. For Admin publication, translation runs through the Admin-authorized server-side provider adapter with Secret Manager credentials. Never embed or send Admin secrets to the app.
+6. Use one provider-neutral translation prompt/schema/validator for both roles. The role changes credential resolution and execution location, not translation logic.
+7. Add versioned language configuration, immutable source hash, idempotent job keys, review state and atomic public activation. A failed or low-confidence required language blocks publication; no partial language set becomes public.
+8. Add Storage/Firestore emulator rules tests, callable unit tests, Android BYOK/key-isolation tests and end-to-end publication tests before enabling any Student PDF upload or public translation. No rule relaxation or production deployment is authorized by this audit.
+9. Remove the current Admin screen's immediate “Published” success toast unless the downstream callback returns confirmed success; the current callback is fire-and-forget from this screen and the toast is not proof of backend publication.
+
+### Gate status
+
+- Private Student PDF upload to Firebase: **NOT IMPLEMENTED / NOT VERIFIED** in inspected Main paths.
+- Publish-only translation trigger: **NOT IMPLEMENTED / NOT VERIFIED**.
+- Admin-vs-Student model/credential routing: **NOT IMPLEMENTED / NOT VERIFIED**.
+- Shared provider-neutral translation prompt + validator: **NOT IMPLEMENTED / NOT VERIFIED**.
+- Atomic multilingual public publication: **NOT IMPLEMENTED / NOT VERIFIED**.
+- Main-branch security/emulator and Android tests for this feature: **NOT RUN**.
+
+This audit records blockers and the safe implementation order; it does not authorize claiming the feature is complete. Scoring, negative marking, ranking, answer-key evaluation and their tests remain out of scope.
