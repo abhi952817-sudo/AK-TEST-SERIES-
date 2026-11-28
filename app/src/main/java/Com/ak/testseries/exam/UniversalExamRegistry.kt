@@ -1480,17 +1480,19 @@ object UniversalExamRegistry {
         val duration = allPapers.sumOf { it.durationMinutes }
 
         val firstSec = paper?.subjects?.firstOrNull()?.sections?.firstOrNull()
-        val pos = firstSec?.positiveMarks ?: 4.0
-        val neg = firstSec?.negativeMarks ?: 1.0
 
         val qText = if (totalCompQs < totalPaperQs) "$totalCompQs/$totalPaperQs Qs" else "$totalCompQs Qs"
         val marksText = if (totalMarks == totalMarks.toLong().toDouble()) "${totalMarks.toLong()} Marks" else "$totalMarks Marks"
         val durationText = "${duration} Mins"
-        val posText = if (pos == pos.toLong().toDouble()) pos.toLong().toString() else String.format(java.util.Locale.US, "%.2f", pos).trimEnd('0').trimEnd('.')
-        val negText = if (neg == neg.toLong().toDouble()) neg.toLong().toString() else String.format(java.util.Locale.US, "%.2f", neg).trimEnd('0').trimEnd('.')
-        val markingText = if (neg == 0.0) "(+$posText, 0 -ve)" else "(+$posText, -$negText)"
+        val markingText = firstSec?.let { section ->
+            val pos = section.positiveMarks
+            val neg = section.negativeMarks
+            val posText = if (pos == pos.toLong().toDouble()) pos.toLong().toString() else String.format(java.util.Locale.US, "%.2f", pos).trimEnd('0').trimEnd('.')
+            val negText = if (neg == neg.toLong().toDouble()) neg.toLong().toString() else String.format(java.util.Locale.US, "%.2f", neg).trimEnd('0').trimEnd('.')
+            if (neg == 0.0) "(+$posText, 0 -ve)" else "(+$posText, -$negText)"
+        } ?: "Marking policy pending verification"
 
-        return "$qText • $marksText • $durationText $markingText"
+        return "$qText • $marksText • $durationText • $markingText"
     }
 
     fun getExamDisplaySubtitleByName(examName: String): String {
