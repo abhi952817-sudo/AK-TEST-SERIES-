@@ -1899,3 +1899,61 @@ Detailed source observations:
 - The official portal also supplies exact English/Hindi PDF pairs for 36 Assamese, 37 Gujarati and 38 Marathi. These should be used for the next language-subject batch; the source pages must be read before promoting their status.
 - The current-cycle December 2026 87-subject enumeration is unchanged. These five subjects are in that list.
 - No code or database work was performed. Only this research status Markdown file is updated.
+
+
+### 7.43 Official UGC NET language-subject PDF QA — codes 36–38 (28 November 2026)
+
+Official source links were verified on the UGC syllabus index:
+- Index: https://www.ugcnetonline.in/syllabus-new.php
+- Subject list: https://www.ugcnetonline.in/subjects.php
+
+| Code | Subject | Official PDF | First-pass result |
+|---:|---|---|---|
+| 36 | Assamese | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/36/Assamese_Assamese.pdf | PARTIAL — ten units visible, Assamese legacy-font extraction is corrupted |
+| 37 | Gujarati | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/37/Gujarati_Gujarati_PDF.pdf | PARTIAL — ten unit blocks visible but almost all Gujarati topic text is lost in extraction |
+| 38 | Marathi | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/38/Marathi_%20Marathi.pdf | CONTENT_READ — four printed pages; all ten units and detailed Marathi topics extracted, with some OCR character substitutions |
+
+Detailed observations:
+
+- **36 Assamese:** Official PDF header confirms Code 36 and Subject Assamese. Ten unit blocks are visible:
+  1. Assamese Folklore.
+  2. Assamese Literature — Early and Medieval Period.
+  3. Assamese Literature — Modern Period.
+  4. Assamese Culture.
+  5. Ethnic and Tribal Culture of Assam.
+  6. Literary Theory — Eastern.
+  7. Literary Theory — Western.
+  8. Assamese Language and Linguistic Study.
+  9. Languages of Assam and Linguistic Study.
+  10. Comparative Literature and Translation.
+  Detailed extracted content includes Assamese folk songs/stories/proverbs, literary periods/authors, cultural history and performance, ethnic groups, poetics, literary criticism, Assamese language origin/dialects/lexicon/grammar/script, languages of Assam, comparative literature and translation. However, the PDF uses a legacy Assamese font and extraction produces corrupted glyph sequences, so exact Assamese titles, author names, prescribed works and topic wording are not safe to normalize from this text. Keep PARTIAL; page-image/native-script review required.
+
+- **37 Gujarati:** Official PDF header confirms Subject Gujarati, Code 37. The extraction exposes Unit 1 through Unit 10 and some subpart labels, but most Gujarati text is omitted or rendered as punctuation/commas. The returned text is insufficient to identify the exact unit titles and detailed topic list reliably. Do not guess or translate from memory. Keep PARTIAL; use page images and Gujarati-script transcription, then cross-check all ten units against the original PDF.
+
+- **38 Marathi:** Official PDF header confirms Subject Marathi, Code 38. Four printed pages were extracted and all ten units read:
+  1. Language, Forms of Language Expression and Linguistics.
+  2. Concept of Culture and Literary Production.
+  3. Concept of Indianness and Translation Studies.
+  4. Folklore and Special Literary Movements.
+  5. Study of Literary History.
+  6. Nature of Literary Movements.
+  7. Literary Trends.
+  8. Literary Theory and Bhakti Traditions.
+  9. Close Study of Literary Forms.
+  10. Selected Literary Works.
+  The PDF provides extensive detailed subtopics, including Marathi language/grammar/dialects/sociolinguistics, oral and print literary culture, translation and influence studies, folklore, Dalit/rural/Adivasi/feminist and other literary movements, literary historiography, poetics/Bhakti traditions, genres, criticism and a prescribed selected-works list. The OCR has character substitutions in Marathi text (for example, several ष/श and मात्रा-like errors); preserve the source page images as authority and do not silently “correct” named works/authors. Status CONTENT_READ at text level; native Marathi proofreading and exact page-to-topic mapping remain.
+
+### 7.44 UGC NET language-subject follow-up outcome — codes 31–38
+
+- Code 31 Linguistics English: CONTENT_READ; Hindi counterpart remains PARTIAL.
+- Code 32 Chinese: PARTIAL.
+- Code 33 Dogri: PARTIAL.
+- Code 34 Nepali: PARTIAL.
+- Code 35 Manipuri: PARTIAL.
+- Code 36 Assamese: PARTIAL.
+- Code 37 Gujarati: PARTIAL.
+- Code 38 Marathi: CONTENT_READ at source-text level; native-script proofreading/page mapping pending.
+- The official index lists single shared PDF URLs for several native-language subjects rather than separate English/Hindi files; do not count a duplicated link in both portal columns as two independent translations.
+- Current December 2026 subject enumeration remains 87 Paper-II subjects; no new subject rows are added by this QA.
+- Remaining language-script QA is still open for codes 16–29, 32–38, 42–43, 73, 84–85, 94–95, 101–102 and any other entries with OCR/metadata gaps. Paper-I Hindi/English comparison and page provenance also remain.
+- No app code, database, Room schema, UI, scoring or ranking code was changed. Only this Markdown research status file was appended.
