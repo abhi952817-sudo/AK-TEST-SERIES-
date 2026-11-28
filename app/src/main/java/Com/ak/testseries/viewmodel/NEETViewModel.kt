@@ -3869,12 +3869,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val timeSpentTotal = questions.size * 45L
-            val breakdown = Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
-                targetExam = test.targetExam,
-                questions = questions,
-                userAnswers = answersMap,
-                timeSpentSeconds = timeSpentTotal
-            )
+            val breakdown = if (test.examId == "neet_ug") {
+                Com.ak.testseries.exam.NeetUgScoringEngine.evaluateTestAttempt(
+                    test = test,
+                    questions = questions,
+                    userAnswers = answersMap,
+                    timeSpentSeconds = timeSpentTotal
+                )
+            } else {
+                Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
+                    targetExam = test.targetExam,
+                    questions = questions,
+                    userAnswers = answersMap,
+                    timeSpentSeconds = timeSpentTotal
+                )
+            }
 
             val correct = breakdown.correctCount
             val incorrect = breakdown.wrongCount
@@ -4093,12 +4102,21 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val timeSpentTotal = (questions.size * 60L) - _examTimeRemaining.value
 
                 // Dynamic scoring evaluation engine for local/offline preview
-                val breakdown = Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
-                    targetExam = test.targetExam,
-                    questions = questions,
-                    userAnswers = answers,
-                    timeSpentSeconds = timeSpentTotal
-                )
+                val breakdown = if (test.examId == "neet_ug") {
+                    Com.ak.testseries.exam.NeetUgScoringEngine.evaluateTestAttempt(
+                        test = test,
+                        questions = questions,
+                        userAnswers = answers,
+                        timeSpentSeconds = timeSpentTotal
+                    )
+                } else {
+                    Com.ak.testseries.exam.ExamScoringEngine.evaluateTestAttempt(
+                        targetExam = test.targetExam,
+                        questions = questions,
+                        userAnswers = answers,
+                        timeSpentSeconds = timeSpentTotal
+                    )
+                }
                 
                 val localCorrect = breakdown.correctCount
                 val localIncorrect = breakdown.wrongCount
@@ -5252,16 +5270,29 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 val correctAns = qObj.optString("correctAnswer", "")
                 val exp = qObj.optString("explanation", "")
                 
-                answerKeys.add(mapOf(
+                val keyRecord = mutableMapOf<String, Any>(
                     "id" to qId,
                     "correctAnswer" to correctAns,
                     "explanation" to exp
-                ))
+                )
+                val scoringStatus = qObj.optString("scoringStatus", "NORMAL").trim().uppercase()
+                if (scoringStatus != "NORMAL") keyRecord["scoringStatus"] = scoringStatus
+                val acceptedArray = qObj.optJSONArray("acceptedAnswers")
+                if (acceptedArray != null) {
+                    val accepted = (0 until acceptedArray.length())
+                        .map { acceptedArray.optString(it).trim().uppercase() }
+                        .filter { it.isNotBlank() }
+                    if (accepted.isNotEmpty()) keyRecord["acceptedAnswers"] = accepted
+                }
+                answerKeys.add(keyRecord)
 
-                // Public copy without answer keys
+                // Public copy without answer keys or grading-exception controls.
                 val publicObj = org.json.JSONObject(qObj.toString())
                 publicObj.remove("correctAnswer")
                 publicObj.remove("explanation")
+                publicObj.remove("scoringStatus")
+                publicObj.remove("answerStatus")
+                publicObj.remove("acceptedAnswers")
                 publicArray.put(publicObj)
             }
             Pair(publicArray.toString(), answerKeys)
@@ -5312,9 +5343,11 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                 "uploaderId" to newTest.uploaderId,
                 "targetExam" to newTest.targetExam,
                 "examId" to (newTest.examId ?: newTest.targetExam),
+                "examYear" to if (newTest.examId == "neet_ug") "2026" else "",
                 "stageId" to newTest.stageId,
                 "paperId" to newTest.paperId,
-                "scoringVersion" to (newTest.scoringVersion ?: 1),
+                "scoringVersion" to if (newTest.examId == "neet_ug") "neet-ug-2026-v1" else (newTest.scoringVersion ?: 1),
+                "durationMinutes" to newTest.durationMinutes,
                 "chapter" to newTest.chapter,
                 "topic" to newTest.topic,
                 "timestamp" to newTest.timestamp,
