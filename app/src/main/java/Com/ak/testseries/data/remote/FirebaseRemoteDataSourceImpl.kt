@@ -117,7 +117,7 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             examId = doc.getString("examId"),
                             stageId = doc.getString("stageId"),
                             paperId = doc.getString("paperId"),
-                            scoringVersion = doc.getLong("scoringVersion")?.toInt() ?: doc.getString("scoringVersion")?.substringAfterLast("-v")?.toIntOrNull() ?: doc.getString("scoringVersion")?.toIntOrNull()
+                            scoringVersion = doc.getLong("scoringVersion")?.toInt()
                         )
                     } catch (e: Exception) { null }
                 }
@@ -174,7 +174,7 @@ class FirebaseRemoteDataSourceImpl : RemoteDataSource {
                             examId = doc.getString("examId"),
                             stageId = doc.getString("stageId"),
                             paperId = doc.getString("paperId"),
-                            scoringVersion = doc.getLong("scoringVersion")?.toInt() ?: doc.getString("scoringVersion")?.substringAfterLast("-v")?.toIntOrNull() ?: doc.getString("scoringVersion")?.toIntOrNull()
+                            scoringVersion = doc.getLong("scoringVersion")?.toInt()
                         )
                     } catch (e: Exception) { null }
                 }
