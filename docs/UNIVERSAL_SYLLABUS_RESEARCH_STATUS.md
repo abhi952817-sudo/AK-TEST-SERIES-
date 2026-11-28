@@ -2400,3 +2400,40 @@ The three official FAQ PDFs returned connection errors when fetched. The officia
 - Parallel Fetch read the official 8-page CEN 04/2026 FAQ and attempted the official candidate portal PDFs; the latter returned connection errors.
 - Firecrawl search did not run because the connected account had insufficient credits. No result is attributed to Firecrawl.
 - No application source, syllabus database, scoring engine, ranking code, or UI was changed.
+
+
+### 7.55 UGC NET language-subject source recheck and official-index reconciliation (28 November 2026)
+
+This pass used the live official UGC NET syllabus index and its exact linked PDF endpoints. No syllabus status is promoted solely because the PDF opened; extraction completeness and native-script legibility remain separate gates.
+
+#### 7.55.1 Official index facts confirmed
+
+- Official syllabus page: https://www.ugcnetonline.in/syllabus-new.php
+- The page labels the set “Updated Syllabi of UGC-NET (Applicable from June 2019 UGC-NET Onwards)”.
+- The official table lists Paper-I code 00 separately and Paper-II subjects at scattered codes. It confirms that codes 32–37 are Chinese, Dogri, Nepali, Manipuri, Assamese and Gujarati, respectively; code 13 is absent from the official subject list.
+- The same table exposes one linked PDF for each of codes 32–37 (the English/Hindi columns point to the same regional-language PDF), so no alternate English translation was found there.
+- Code 101 Sindhi has two official links: Arabic-script PDF and Hindi PDF. Both have now been opened; neither extraction is reliable enough to normalize the complete subject.
+- Official subject index: https://www.ugcnetonline.in/subjects.php. It lists 87 Paper-II subject codes through 107 Statistics, plus Paper-I 00; this is an index count, not a claim that all PDFs are verified.
+
+#### 7.55.2 Fresh official PDF extraction outcomes
+
+- **32 Chinese:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/32/ChineseChinese_PDF.pdf. This pass exposes Units 7–10 with substantial English topic text, while Chinese-script lines are garbled. Units 1–6 were not exposed by the current extraction. Retain PARTIAL; do not fill earlier units from memory or external coaching sources.
+- **33 Dogri:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/33/Dogri_Dogri.pdf. The Devanagari/Dogri extraction exposes detailed content for Units I–IV, but the returned text ends during Unit IV and does not establish complete ten-unit coverage. Several characters/words are OCR-corrupted. Retain PARTIAL; request full page-image review and complete remaining pages.
+- **34 Nepali:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/34/Nepali_Nepali_PDF.pdf. The extraction exposes five printed pages and all ten broad parts: poetry; prose narrative; drama/film studies; essay/criticism; literary history; general linguistics; Nepali linguistics; criticism theory; folklore/Nepali folklore; world-literature survey/research methods. However, the text is encoded in a legacy-font transliteration stream (e.g. “g]kfnL”), not dependable Unicode Nepali. Retain PARTIAL until native-script page-image/manual review confirms exact wording and topics.
+- **35 Manipuri:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/35/Manipuri_Manipuri_Only.pdf. Ten unit headings and broad areas are exposed, but the Meitei/Manipuri legacy-font text is not reliably readable in extracted form. Retain PARTIAL; no transliteration or topic correction has been guessed.
+- **36 Assamese:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/36/Assamese_Assamese.pdf. All ten unit headings and substantial topic text are exposed, including Assamese folk literature, literary periods, culture/ethnography, literary theory, language/linguistics, comparative literature and translation. The legacy-font extraction renders as mojibake rather than reliable Assamese Unicode. Retain PARTIAL pending page-image/native Assamese proofreading; do not treat apparent OCR text as canonical.
+- **37 Gujarati:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/37/Gujarati_Gujarati_PDF.pdf. The current parser exposes ten unit labels but almost all Gujarati topic text is missing/collapsed into punctuation. Retain PARTIAL. The official index links this same PDF in both language columns; no English alternative was found.
+- **101 Sindhi:** official Arabic-script PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/101/Sindhi_Arabic.pdf and Hindi PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/101/Sindhi_Hindi.pdf. The Arabic PDF mixes Sindhi, Arabic, Latin and unrelated glyph fragments; the Hindi PDF previously exposed only incomplete fragments from early units. Neither establishes a complete, reliable unit/topic map. Retain PARTIAL and keep each source-language extraction separate.
+
+#### 7.55.3 Code 73 Sanskrit Traditional Subjects — no unsafe backfill
+
+- The current official syllabus remains the Hindi-only PDF at https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/73/Sanskrit%20Traditional%20Subjects_Hindi_Only.pdf.
+- Search also surfaced older UGC-hosted question papers for code 73 (including 2013, 2015 and 2017 papers). These are examination papers, not the current syllabus document; they cannot replace the official syllabus or prove the complete list of current route topics.
+- Retain PARTIAL. Preserve the official portal's multi-route scope (including Jyotisha/Siddhanta Jyotisha, Vyakarana/Navya Vyakarana, Mimamsa, Navya Nyaya, Sankhya-Yoga, comparative philosophy, Shukla Yajurveda, Madhva Vedanta, Dharma Shastra, Sahitya, Purana-Itihasa, Agama and Advaita Vedanta). Do not flatten or backfill missing branches from past question papers.
+
+#### 7.55.4 Research accounting and next actions
+
+- No status promotion in this pass. UGC NET tally therefore remains 59 CONTENT_READ / 28 PARTIAL as last recorded in section 7.53.8; this is a working extraction tally, not final VERIFIED count.
+- Highest-value next action for these records is rendered-page/native-script QA, not more attempts to infer from OCR: obtain PDF page images, identify embedded font/encoding, and manually transcribe/compare each page while retaining raw source text and page provenance.
+- Continue the other UGC NET PARTIAL subjects using exact links from the official index. Separately continue official RRB retrieval for NTPC detailed CENs and the ALP/JE corrigendum PDFs; do not promote from mirror copies.
+- No application source, syllabus database, UI, Room/Firestore schema, scoring engine, ranking code or test policy was changed.
