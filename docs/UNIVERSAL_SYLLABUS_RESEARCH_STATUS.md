@@ -1471,3 +1471,90 @@ Observed official content and QA:
 - Code 90 title must be reconciled: current-cycle subject name is expanded compared with legacy PDF title “International and Area Studies”. Treat as one code with two provenance-labelled names, and seek confirmation whether the existing syllabus PDF remains the applicable syllabus for the full current title.
 - Next actual subject is code 95 Santali. The next current-cycle additions are 100 Yoga, 101 Sindhi, 102 Hindu Studies, 103 Indian Knowledge System, 104 Disaster Management, 105 Ayurveda Biology, 106 Forestry and 107 Statistics. Codes 96–99 are absent from the current UGC portal's sequence. Continue with code 95, then 100–104 as the next five actual subjects.
 - Overall UGC NET remains PARTIAL. Paper-I and final reconciliation of the December 2026 official subject list (87 subjects) against all available syllabus PDFs remain. The legacy portal has subjects not necessarily in the current 87-subject list and the current list has additions; distinguish current-cycle applicability from historical/legacy portal availability. Complete page provenance, revision/hash metadata and language/OCR QA before database approval.
+
+
+### 7.33 UGC NET subject-PDF extraction — sub-batch 17 (codes 95, 100, 101, 102, 103; 28 November 2026)
+
+Official subject mappings and portal-linked PDF URLs checked:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 official bulletin, Annexure-II: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+Official PDFs opened:
+- 95 Santali — Hindi-only PDF: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/95/Santali_Hindi_Only.pdf
+- 100 Yoga — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/100/Yoga_English.pdf
+- 101 Sindhi — Arabic-script PDF: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/101/Sindhi_Arabic.pdf
+- 102 Hindu Studies — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/102/Hindu%20Studies_Engish.pdf
+- 103 Indian Knowledge System — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/103/Indian_Knowledge_System_english.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 95 | Santali | Not confirmed | PARTIAL — ten unit blocks and substantial Hindi/Bengali-script content extracted; OCR corrupts many Santali words, prescribed titles and names |
+| 100 | Yoga | Printed markers 1–9 visible | CONTENT_READ — all ten units and detailed topics extracted |
+| 101 | Sindhi | Not confirmed | PARTIAL — Arabic-script PDF opened; extraction mixes Arabic, Latin and unrelated glyphs, not reliable for syllabus transcription |
+| 102 | Hindu Studies | Not confirmed | PARTIAL — ten unit blocks and substantial topic text extracted, but OCR/encoding corruption affects exact Sanskrit terms and some headings |
+| 103 | Indian Knowledge System | 16 | CONTENT_READ — all ten units and detailed topic lists extracted with printed page markers 1–16 |
+
+Observed official content and QA:
+
+- **95 Santali:** Official PDF header confirms Code No. 95 and Subject: Santali. The Hindi-only PDF exposes ten units:
+  1. Ethnology.
+  2. Linguistics and Grammar.
+  3. Indian Literature.
+  4. Theory of Literature.
+  5. Folk Literature.
+  6. Santali Poetry Literature.
+  7. Santali Prose Literature.
+  8. Santali Magazines.
+  9. Adivasi leaders and literary figures.
+  10. History of the Santals.
+  The extracted text is mostly Hindi with Santali terms, names and titles, but OCR substitutions affect proper nouns and prescribed literary works. The ten-unit outline is visible; detailed text needs Hindi/Santali native-language QA against rendered pages. Keep PARTIAL. Preserve the Hindi-only source limitation.
+
+- **100 Yoga:** Official PDF header confirms Code No. 100; printed page markers 1–9 are visible. All ten units were read:
+  1. Fundamentals of Yoga: History and Various Schools of Yoga.
+  2. Yoga Texts I: Principal Upanishads, Bhagavad Gita and Yoga Vasishtha.
+  3. Yoga Texts II: Yoga Upanishads.
+  4. Patanjala Yoga Sutra.
+  5. Hatha Yoga Texts.
+  6. Allied Sciences: General Psychology, Human Biology, Diet and Nutrition.
+  7. Yoga and Health.
+  8. Therapeutic Yoga.
+  9. Applications of Yoga.
+  10. Practical Yoga — Shatkarma, Asana, Pranayama, Mudra, Bandha, Dhyana and Surya Namaskara.
+  Detailed prescribed texts, concepts, teaching/therapy applications and practical practice lists were extracted. Preserve source-authored practice lists and unit structure; do not add non-source exercises or health claims. Printed page markers 1–9 are visible; status CONTENT_READ. Final PDF hash/revision metadata remains.
+
+- **101 Sindhi:** Official portal links separate Arabic-script and Hindi PDFs; this pass opened the Arabic-script version. The header confirms Subject: Sindhi, Code No. 101, but text extraction is heavily corrupted and interleaves Arabic, Latin and unrelated glyphs. No reliable unit/topic transcription can be certified from this output. Keep PARTIAL; next QA should inspect the Hindi version as an alternate official source and compare with the Arabic-script original, not substitute an unofficial translation.
+
+- **102 Hindu Studies:** Official PDF header confirms Subject: Hindu Studies, Code No. 102. The extraction reveals ten units:
+  1. Tattva Vimarśa.
+  2. Dharma and Karma Vimarśa.
+  3. Punarjanma-Bandhana-Mokṣa Vimarśa.
+  4. Pramāṇa Siddhānta.
+  5. Vāda-Paramparā.
+  6. Applicability of Western Methods for Understanding Indian Texts.
+  7. Rāmāyaṇa.
+  8. Mahābhārata.
+  9. Sanskrit Paricaya.
+  10. Other Allied Topics.
+  Substantial topic text is present, including darśana, dharma/karma, pramāṇa, debate methodology, textual studies, epics and Sanskrit language/literature. However, the OCR output has severe transliteration/character errors, duplicated inconsistent spellings and some broken section labels. Keep PARTIAL until Sanskrit/English transliteration is checked against rendered PDF pages; do not silently correct or normalize technical terms without evidence.
+
+- **103 Indian Knowledge System:** Official PDF header confirms Code No. 103; 16 printed pages with markers 1–16. All ten units were read:
+  1. Indian Philosophical Systems — part (a).
+  2. Indian Philosophical Systems — part (b).
+  3. Astronomy.
+  4. Health and Well-being.
+  5. Architecture.
+  6. Mathematics.
+  7. Chemistry and Metallurgy.
+  8. Life Sciences, Agriculture and Ecology.
+  9. Kala.
+  10. Ancient India and World.
+  Detailed topics cover traditional knowledge systems, Vedic and other philosophical traditions, astronomy/calendars, Ayurveda/Siddha/Yoga, architecture/water systems, Śulbasūtra mathematics and Kerala school, historical chemistry/metallurgy, agriculture/animal science/food/ecology, performing/visual arts and the influence of Indian knowledge in Asia/Europe. Preserve source language, diacritics, named texts and all unit substructures. Printed page markers 1–16 provide full source pagination. Status CONTENT_READ.
+
+### 7.34 Sub-batch 17 outcome and remaining UGC NET work
+
+- Five official PDFs (codes 95, 100, 101, 102, 103) were opened.
+- Yoga (100) and Indian Knowledge System (103) are CONTENT_READ. Santali (95), Sindhi (101) and Hindu Studies (102) remain PARTIAL because of language/script/OCR quality.
+- Code 101 has an official Hindi alternative; compare it in a later language QA pass with the Arabic-script source. Code 95 is Hindi-only. Code 102's technical Sanskrit terms require source-page verification.
+- Next actual current-cycle subjects: 104 Disaster Management, 105 Ayurveda Biology, 106 Forestry, 107 Statistics. Only four subjects remain in the December 2026 subject additions; do not invent a fifth code. The next step is to read all four official PDFs and reconcile the current-cycle 87-subject list.
+- Overall UGC NET remains PARTIAL. Paper-I still needs a full source-content pass; several current subjects still have partial script extraction, and the older portal includes legacy subjects that must be separated from the December 2026 87-subject list. Complete source-version reconciliation, page mapping, PDF hashes and language QA before database approval.
