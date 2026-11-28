@@ -1451,13 +1451,6 @@ object UniversalExamRegistry {
                 }
             }
         }
-        // Fallback for Section B when subject is generic or not matched
-        if (secClean == "section_b" || secClean.contains("section b")) {
-            // Section B fallback is retained only for the legacy JEE family.
-            // NEET UG 2026 has 180 compulsory questions and no optional Section B.
-            val isJee = config.shortName.equals("JEE", ignoreCase = true) || config.examId.contains("jee", ignoreCase = true)
-            if (isJee) return 5
-        }
         return null
     }
 
