@@ -257,22 +257,16 @@ function hasMultipleMarkingSchemes(examName) {
   return name.includes("nda") || name.includes("cds") || name.includes("gate") || name.includes("mts") || name.includes("jee adv") || name === "jee_advanced" || name.includes("cat");
 }
 
-function getMaximumAttemptQuestionsCountForSection(examName, sectionNameOrId, subjectName = "") {
-  const name = String(examName || "").trim().toLowerCase();
-  const sec = String(sectionNameOrId || "").trim().toLowerCase();
-
-  if (sec === "section_b" || sec.includes("section b") || sec.includes("sec_b")) {
-    if (name.includes("neet")) return 10;
-    if (name.includes("jee")) return 5;
-  }
-  return null;
-}
-
 /**
  * Authoritative Evaluation of Test Attempt
  */
 function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSeconds = 0) {
-  const exam = String(targetExam || "NEET");
+  if (typeof targetExam !== "string" || targetExam.trim().length === 0) {
+    const error = new Error("A canonical targetExam is required; refusing to assume NEET.");
+    error.code = "invalid-argument";
+    throw error;
+  }
+  const exam = targetExam.trim();
   const baseScheme = getMarkingSchemeForExam(exam);
   const isMultiScheme = hasMultipleMarkingSchemes(exam);
   const isCat = exam.toLowerCase().includes("cat");
@@ -284,8 +278,6 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
   let positiveMarksEarned = 0.0;
   let negativeMarksPenalty = 0.0;
   let maxPossible = 0.0;
-
-  const sectionAttemptCounts = {};
 
   for (const q of questions) {
     const qId = q.id;
@@ -309,27 +301,14 @@ function evaluateTestAttempt(targetExam, questions, userAnswers, timeSpentSecond
     if (!userOpt || userOpt === "SKIPPED") {
       unansweredCount++;
     } else {
-      const secKey = `${String(q.subject || '').toLowerCase().trim()}_${String(q.section || '').toLowerCase().trim()}`;
-      const secLimit = getMaximumAttemptQuestionsCountForSection(exam, q.section, q.subject);
-      const currentAttempts = sectionAttemptCounts[secKey] || 0;
-
-      if (secLimit !== null && currentAttempts >= secLimit) {
-        // Surplus question beyond section limit - ignored per exam rules
-        unansweredCount++;
+      if (!isKeyVerified) {
+        // Unverified answer key: 0 marks and no penalty
+      } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
+        correctCount++;
+        positiveMarksEarned += scheme.pos;
       } else {
-        if (secLimit !== null) {
-          sectionAttemptCounts[secKey] = currentAttempts + 1;
-        }
-
-        if (!isKeyVerified) {
-          // Unverified answer key: 0 marks and no penalty
-        } else if (isUserAnswerCorrect(userOpt, correctOpt, isTitaOrNumerical)) {
-          correctCount++;
-          positiveMarksEarned += scheme.pos;
-        } else {
-          wrongCount++;
-          negativeMarksPenalty += effectiveNegMark;
-        }
+        wrongCount++;
+        negativeMarksPenalty += effectiveNegMark;
       }
     }
   }
@@ -499,7 +478,6 @@ module.exports = {
   getMarkingSchemeForExam,
   getMarkingSchemeForQuestion,
   hasMultipleMarkingSchemes,
-  getMaximumAttemptQuestionsCountForSection,
   evaluateTestAttempt,
   calculatePopulationPercentile,
   calculateScorePercentileFromCounts,
