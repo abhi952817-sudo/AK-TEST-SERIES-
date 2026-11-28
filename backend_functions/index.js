@@ -558,7 +558,13 @@ exports.getUserRankingDetails = functions.https.onCall(async (data, context) => 
 
   const userId = context.auth.uid;
   const { targetExam } = data || {};
-  const canonicalExam = normalizeExamKey(targetExam || "NEET");
+  if (typeof targetExam !== "string" || targetExam.trim().length === 0) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "A targetExam is required for ranking; refusing to assume NEET."
+    );
+  }
+  const canonicalExam = normalizeExamKey(targetExam);
 
   const userDoc = await db.collection("Users_Data").doc(userId).get();
   if (!userDoc.exists) {
