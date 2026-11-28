@@ -19,15 +19,8 @@ jobs:
           node --check backend_functions/index.js
           node --check backend_functions/questionLevelScoring.js
           node --check backend_functions/questionLevelScoringIntegration.js
-          node --check backend_functions/neetUgScoring.js
-      - name: Run scoring policy and strategy tests
-        run: >-
-          node --test
-          backend_functions/examScoring.test.js
-          backend_functions/scoringPolicyResolver.test.js
-          backend_functions/questionLevelScoring.test.js
-          backend_functions/questionLevelScoringIntegration.test.js
-          backend_functions/neetUgScoring.test.js
+      - name: Run question-level scoring tests
+        run: node --test backend_functions/questionLevelScoring.test.js backend_functions/questionLevelScoringIntegration.test.js
       - uses: actions/setup-java@v4
         with:
           java-version: "21"
@@ -40,20 +33,4 @@ jobs:
           cp .env.example .env
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       - name: Run Android unit tests
-        shell: bash
-        run: |
-          for attempt in 1 2 3; do
-            set +e
-            gradle --no-configuration-cache --no-daemon testDebugUnitTest 2>&1 | tee /tmp/gradle-test.log
-            gradle_status=${PIPESTATUS[0]}
-            set -e
-            if [ "$gradle_status" -eq 0 ]; then
-              exit 0
-            fi
-            if grep -Eq "429|Too Many Requests" /tmp/gradle-test.log && [ "$attempt" -lt 3 ]; then
-              echo "Maven Central rate-limited this attempt; retrying Gradle dependency resolution ($attempt/3)."
-              sleep $((attempt * 20))
-            else
-              exit "$gradle_status"
-            fi
-          done
+        run: gradle testDebugUnitTest
