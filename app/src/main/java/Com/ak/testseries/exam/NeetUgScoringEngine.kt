@@ -49,7 +49,7 @@ object NeetUgScoringEngine {
             require(questions.size == FULL_LENGTH_QUESTIONS) {
                 "A full-length NEET 2026 paper must contain exactly 180 questions."
             }
-            require(test.durationMinutes == 0 || test.durationMinutes == 180) {
+            require(test.durationMinutes == 180) {
                 "A full-length NEET 2026 paper must use the official 180-minute duration."
             }
         }
