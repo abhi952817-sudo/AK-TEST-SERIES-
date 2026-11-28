@@ -122,3 +122,45 @@ Only records with explicit approved/published status and public/official visibil
 - A separate feature/universal-gemini-ai-10-phase-2026-11-08 branch contains substantial Gemini changes, but it is highly divergent from main and includes unrelated ranking/scoring, Room schema, backend, UI and rules changes. It is not safe to merge wholesale.
 - That feature branch has draft-only Admin PDF routing and analysis work, but student upload integration, secure persistence, authoritative syllabus promotion, Recent Tests UI and full verification are not yet established.
 - No claim of successful Android build, emulator rules tests or end-to-end PDF testing is made by this architecture document.
+
+## Phase 9 — Publication-triggered multilingual translation (2026-11-28)
+
+### Product rule: private uploads are never auto-translated
+- A Student private upload is processed only for that Student's own workflow and remains in its detected/source language(s). Do not spend AI tokens translating it merely because it was uploaded.
+- An Admin private draft follows the same rule: extraction and review do not trigger public-language translation.
+- Translation is triggered only by an explicit, authorized transition into public publication. A preview, save-draft, upload, extraction retry, approval-only transition, or private share must not trigger it.
+- The original uploaded PDF and original extracted source-language content are immutable. Translation creates separate derived language variants; it never overwrites the source.
+
+### Publication translation workflow
+1. The authenticated owner requests publication and selects/accepts the currently enabled public language set from versioned Admin configuration. Do not hardcode a permanent language list.
+2. A trusted backend publication orchestrator verifies ownership, role, content eligibility, moderation/approval, source provenance, and the exact public-language configuration version. Client-side flags are not authorization.
+3. The orchestrator resolves the AI identity from the authenticated publisher: Admin publisher -> Admin's authorized server-side provider/model configuration and server-held credentials; Student publisher -> that Student's authorized BYOK/provider/model configuration, retrieved only through the approved secure credential path. Never trust a client-supplied owner UID, role, credential, or arbitrary model override.
+4. The same Universal AI Router, provider adapter contract, and versioned Translation Prompt are used for both roles. Only credential/configuration resolution differs. Do not create separate translation implementations for Admin and Student.
+5. Translate source content into every enabled public language that is not already present and valid. Detect source language at document/page/question level; preserve bilingual or mixed-language source segments rather than needlessly retranslating them.
+6. Validate every variant against the source: question count/order, option count/order, IDs, numbers, units, formulas, symbols, negation, diagrams/labels, tables, and answer-key references must remain aligned. Translation must never generate, infer, alter, or expose answer keys.
+7. Persist each language variant as a private publication candidate with source hash, language, provider/model, prompt version, configuration version, timestamps, confidence, validation report and review state.
+8. Publish atomically only when all required public languages have passed validation and the existing moderation/publication policy succeeds. If any required translation fails or is uncertain, keep publication pending/blocked for review; do not silently publish a partial language set.
+9. Retries are idempotent by source version + target language + prompt version + provider/model configuration. A changed source or language configuration creates a new translation job/version; it does not mutate an already published source or variant.
+10. Public reads expose only approved public language variants. Private source PDFs, extraction payloads, credentials, answer keys and unpublished translations remain access-controlled.
+
+### Suggested data contract (audit existing collections before creating anything)
+- publicationRequest: contentId, publisherUid, publisherRole, sourceVersion, requestedAt, languageConfigVersion, status, translationJobIds.
+- translationVariant: contentId, sourceVersion, sourceLanguage, targetLanguage, translatedPayloadRef, providerId, modelId, promptVersion, confidence, validationStatus, reviewStatus, createdAt.
+- publicContent: stable content identity plus only approved language-variant references and publication metadata. Do not copy private source files or answer keys into this public record.
+- Store large source/translated assets in access-controlled Storage paths; Firestore stores metadata and references. Exact collection names and paths must be reconciled with the current schema and rules before implementation.
+
+### Required security and failure tests
+- Student A cannot read, publish, or translate Student B's private upload.
+- A Student publication uses only Student A's authorized provider configuration; an Admin publication uses only the Admin server-side configuration.
+- A client cannot impersonate Admin, select another user's credentials, or force a different publisher identity.
+- Upload/save-draft/approval-only/private-share never invokes translation.
+- Explicit public publication invokes one translation job per missing enabled language, with idempotent retries.
+- Provider quota exhaustion, timeout, invalid JSON, OCR uncertainty, translation drift, or validation failure blocks publication without partial public leakage.
+- Source PDF and source text remain byte/content-identical after translation and retries.
+- Public readers cannot access private source files, extraction drafts, credentials or answer keys.
+- Firestore/Storage rules and callable-function tests must prove the above before enabling the workflow.
+
+### Current implementation status
+- This section defines the required behavior and integration contract; it is not evidence that publication-triggered translation code, secure student credential retrieval, Firestore schema, Storage paths, or emulator tests are already implemented.
+- The current storage.rules snapshot allows PDF writes only to Admins under /LiveTests and /pdfs; a private Student PDF path and owner-only rules are not established by that file. Do not enable Student PDF upload or public translation until the actual upload path, provider-key storage, publication callable and rules are audited together.
+- Keep this work independent of scoring, negative-marking, ranking, and answer-key evaluation contracts.
