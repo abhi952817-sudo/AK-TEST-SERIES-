@@ -547,3 +547,97 @@ Observed source content and QA:
 - The official syllabus table labels code 23 “Oriya” while the official subject list and PDF header identify “Odia”; the discrepancy recorded in sub-batch 5 remains an open metadata normalization item.
 - Overall UGC NET remains PARTIAL. Codes 16–29 are not all fully verified; Paper-I and the full set of 87 Paper-II subjects still require a consolidated audit of PDF versions, page provenance, topic completeness and language/OCR quality. Do not mark the UGC NET dataset approved.
 - Next subject-code batch for research sequencing: codes **31–35** — Linguistics, Chinese, Dogri, Nepali and Manipuri. Verify each current official portal entry and PDF before extraction; preserve language-specific sources and any missing/changed links as explicit gaps.
+
+
+### 7.13 UGC NET subject-PDF extraction — sub-batch 7 (codes 31–35; 28 November 2026)
+
+Official subject-code mapping and all five PDF endpoints were checked against the UGC NET Bureau's official syllabus portal and subject list:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+
+The official June 2026 NTA subject list independently includes codes 031–035:
+- https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/04/20260430737599423.pdf
+
+Official linked PDFs opened and extracted:
+- 31 Linguistics — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/31/Linguistics_English.pdf
+- 32 Chinese — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/32/ChineseChinese_PDF.pdf
+- 33 Dogri — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/33/Dogri_Dogri.pdf
+- 34 Nepali — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/34/Nepali_Nepali_PDF.pdf
+- 35 Manipuri — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/35/Manipuri_Manipuri_Only.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 31 | Linguistics | 13 | CONTENT_READ — all ten units and detailed English text extracted with page markers 1–13; final topic normalization and source revision metadata remain |
+| 32 | Chinese | Not confirmed | PARTIAL — official PDF opened, but extraction exposed only portions of Units 7–10 and mixed/corrupted text; Units 1–6 and full topic transcription need rendered-page review |
+| 33 | Dogri | Not confirmed | PARTIAL — official Dogri PDF opened and substantial Devanagari text across Units I–X extracted; OCR contains damaged words/numbers and no reliable page-to-unit mapping yet |
+| 34 | Nepali | 5 | PARTIAL — all ten broad Parts/Units are present, but legacy-font text extraction is transliterated/corrupted and cannot support exact Nepali topic transcription |
+| 35 | Manipuri | Not confirmed | PARTIAL — official PDF opened and ten unit blocks are visible, but Meitei/Manipuri script is rendered in a legacy-font encoding that is not reliably readable as Unicode |
+
+Observed official content and QA:
+
+- **31 Linguistics:** The official PDF header confirms Subject: LINGUISTICS, Code No. 31. All ten units were read across physical pages 1–13:
+  1. Language and Linguistics — nature of language, approaches, language analysis, and relation to other disciplines.
+  2. Phonetics and Phonology — articulatory/acoustic phonetics, IPA, descriptive and generative phonology.
+  3. Morphology — morphemes, morphological analysis, word formation and morphosyntax.
+  4. Syntax — traditional/structural and generative syntax, movement, binding, case and minimalist programme.
+  5. Semantics and Pragmatics — meaning, sense/reference, truth conditions, speech acts, deixis, presupposition, implicature and discourse.
+  6. Historical Linguistics — sound change, morphosyntactic/semantic change, reconstruction, language contact and dialect geography.
+  7. Sociolinguistics — variation, multilingualism, language planning, ecology/endangerment and methodology.
+  8. Areal Typology and South Asian Language Families — language universals, typology, South Asian families and India as a linguistic area.
+  9. Interdisciplinary and Applied Linguistics I — psycholinguistics, language acquisition/processing, language learning/teaching and contrastive analysis.
+  10. Interdisciplinary and Applied Linguistics II — translation, lexicography, computational linguistics, stylistics and language/media.
+  English extraction is detailed and page-marked. Preserve the printed page ranges during normalization; do not collapse the two applied-linguistics units. The extracted source did not establish a current revision/publication date, so metadata QA remains.
+
+- **32 Chinese:** The official PDF header confirms Subject: CHINESE, Code No. 32. The extraction returned visible material for:
+  - Unit 7: Civilization, History and Philosophical Thoughts.
+  - Unit 8: India–China Relations.
+  - Unit 9: Socio-Economic-Political Development in the People’s Republic of China.
+  - Unit 10: International Relations and Current Affairs.
+  Several lines are mixed with corrupted Chinese-font output, and Units 1–6 were not returned in the extracted content. Therefore this is not a complete reading of the PDF. Keep PARTIAL; inspect the rendered PDF pages or obtain a reliable Chinese-script extraction before mapping any missing unit content.
+
+- **33 Dogri:** The official PDF header confirms UGC NET Bureau, Subject: Dogri, Code No. 33. Substantial Devanagari/Dogri text was extracted for ten units:
+  1. Language and linguistics.
+  2. Dogri grammar/morphology, parts of speech and script.
+  3. Dogri poetry and poetic forms/authors.
+  4. Dogri short story and its themes/styles/authors.
+  5. Dogri novel and novelists.
+  6. Dogri prose, essays, sketches, biography, memoir and autobiography.
+  7. Dogri theatre, stage/radio drama and one-act plays.
+  8. Literary criticism, Indian and Western critical schools, and Dogri criticism.
+  9. Folklore and folk arts.
+  10. Translation and translated literature.
+  The PDF text contains OCR substitutions and damaged dates/terms (for example, some year digits are clearly unreliable), so these headings are provisional navigation labels, not a final verbatim syllabus transcription. No dependable physical page count or unit-to-page mapping was established in this pass. Keep PARTIAL until Dogri-language review and rendered-page QA.
+
+- **34 Nepali:** The official PDF header confirms Subject: NEPALI, Code No. 34; parser reports five physical pages. Ten Parts were extracted:
+  1. Poetry.
+  2. Prose narrative.
+  3. Drama and film studies.
+  4. Essay and criticism.
+  5. Literary history.
+  6. General linguistics.
+  7. Nepali linguistics.
+  8. Critical theory.
+  9. Folkloristics and Nepali folklore.
+  10. Survey of world literature and research methodology.
+  The PDF's Nepali text is rendered through a legacy-font/transliteration sequence (for example, “g]kfnL”), not dependable Unicode Nepali. Detailed wording, prescribed works/names and exact page mapping must be verified against page images by a Nepali-capable reviewer. Keep PARTIAL.
+
+- **35 Manipuri:** The official PDF header confirms Subject: MANIPURI, Code No. 35. Ten unit blocks are visible:
+  1. Old Manipuri literature.
+  2. Medieval Manipuri literature.
+  3. Modern Manipuri literature.
+  4. History of Manipuri literature and culture.
+  5. Folkloristics and Manipuri folklore.
+  6. Western literary criticism and theory.
+  7. Indian poetics.
+  8. Theoretical and applied Manipuri linguistics.
+  9. Translation of works from other Indian languages into Manipuri.
+  10. Translation of Manipuri works into other Indian languages.
+  These are broad headings translated from the extracted legacy-font text; the original script is not reliably rendered as Unicode and detailed subtopics cannot be safely transcribed from this extraction. Keep PARTIAL; page-image/manual Manipuri-script review is required. Physical page count and unit-page mapping remain unconfirmed.
+
+### 7.14 Sub-batch 7 outcome and remaining UGC NET work
+
+- Codes 31–35 have all been matched to the official portal and their official PDF endpoints opened.
+- Code 31 Linguistics is CONTENT_READ at detailed text level (13 pages, all ten units); topic normalization and metadata QA remain.
+- Codes 32 Chinese, 33 Dogri, 34 Nepali and 35 Manipuri remain PARTIAL because the current extraction is incomplete, encoding-damaged or lacks reliable page mapping. Their missing detail must not be filled from third-party coaching sources.
+- Official subject-list sequence continues with codes 36–40: Assamese, Gujarati, Marathi, French and Spanish. The next batch must first verify whether each subject has an English/Hindi or language-specific official PDF link on the current UGC portal; do not assume endpoint filenames.
+- Overall UGC NET remains PARTIAL. Paper-I and the complete set of 87 Paper-II subjects still require consolidation of official syllabus versions, reliable unit/topic transcription, source-page mappings, PDF hashes/revision metadata and language/OCR QA. The 2019-applicable syllabus portal and newer 2026 subject list must be reconciled before approval.
