@@ -2240,3 +2240,114 @@ The user has now explicitly confirmed the intended implementation order after th
 6. Preserve the existing guardrail not to touch scoring-engine/policy-resolver/contracts/negative-marking/ranking work while implementing syllabus.
 
 This order is the user's launch-priority plan, not a claim that NEET UG implementation has started.
+
+
+### 7.53 UGC NET alternate-language source recovery and official subject-index closure check (28 November 2026)
+
+This pass used the official UGC NET index as the controlling subject inventory and re-opened alternate official language PDFs for previously partial entries. It also checked RRB notification listings and the RRB candidate portal for the remaining railway PDF gaps. No application code or database was changed.
+
+#### 7.53.1 UGC NET official subject inventory — numeric range closed at code 107
+
+Official controlling index:
+https://www.ugcnetonline.in/syllabus-new.php
+
+The live official index states that the displayed syllabi apply from June 2019 UGC-NET onwards and lists Paper-I code 00 separately from Paper-II subject codes. The final active Paper-II rows are:
+- 100 Yoga
+- 101 Sindhi
+- 102 Hindu Studies
+- 103 Indian Knowledge System
+- 104 Disaster Management
+- 105 Ayurveda Biology
+- 106 Forestry
+- 107 Statistics
+
+The final row on the official page is code 107 Statistics. There are no active Paper-II codes above 107 on this index. The official index contains gaps (for example 48, 51–54, 56–57, 61, 64, 69, 75–78, 86, 96–99); gaps are not missing syllabus records and must not be filled with invented subjects. Paper-I code 00 is common to candidates and is not one of the 87 Paper-II subjects. The current 87-subject Paper-II inventory therefore has a closed official numeric range through 107.
+
+Official source table provides these additional details:
+- Code 39 French has both English and French PDF endpoints.
+- Code 101 Sindhi has Arabic-script and Hindi PDF endpoints.
+- Code 102 Hindu Studies has English endpoint filename “Hindu Studies_Engish.pdf” (the misspelling is present in the official link) and a Hindi endpoint.
+- Code 73 Sanskrit Traditional Subjects has only the Hindi-only PDF endpoint on the official index.
+- Code 94 Bodo and code 95 Santali are Hindi-only endpoints on the official index.
+
+#### 7.53.2 Code 39 French — bilingual cross-check improved; retain CONTENT_READ
+
+Official PDFs:
+- English: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/39/French_English.pdf
+- French: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/39/French_French.pdf
+
+Both official versions were opened and read. English version exposes five printed pages; French version exposes six printed pages. The ten unit headings align across both language versions:
+1. Medieval to 18th Century French Literature
+2. 19th to 20th Century French Literature
+3. Francophone Postcolonial Literature
+4. Translation Studies
+5. Translation in Practice
+6. History/Geography/Social and Political Life of France
+7. Arts and Culture of France
+8. Linguistics
+9. Written Comprehension and Language Use
+10. Didactics of Languages and Cultures
+
+Detailed topic text is available in both versions. Some names and wording differ in translation/OCR, so the English and French texts should be retained as separate source-language evidence and not merged blindly. Code 39 remains CONTENT_READ; exact revision metadata and final page-level cross-language discrepancy QA remain open.
+
+#### 7.53.3 Codes 40, 41, 44 and 45 — official PDF re-open and content confirmed
+
+- **40 Spanish:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/40/Spanish_Spanish.pdf — 4 printed pages; all ten units and detailed topic text read. CONTENT_READ retained.
+- **41 Russian:** official English PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/41/Russian_English.pdf — all ten units and extensive detailed topic text read, including practical Russian, phonetics/phonology, lexicology, morphology, syntax, translation/teaching, culture/civilization, literary trends, authors/works, folklore and close reading. Exact printed page count was not exposed by the parser in this pass; CONTENT_READ retained.
+- **44 German:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/44/German_German.pdf — all ten German-language unit headings and topic groups read: Sprachkönnen, Sprachgebrauch, Sprachkompetenz, Literatur, Literaturgeschichte, Literatur- und Kulturwissenschaft, Linguistik, Übersetzungswissenschaft, Didaktik/wissenschaftliches Schreiben, Landeskunde. Exact printed page count/revision metadata remain pending; CONTENT_READ retained.
+- **45 Japanese:** official PDF https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/45/Japanese_Japanese_Only.pdf — 3 printed pages; all ten units read, with Japanese and English topic descriptions. CONTENT_READ retained.
+
+These four records were already CONTENT_READ in the prior file; this is a fresh source-text recheck, not four new subject entries.
+
+#### 7.53.4 Code 101 Sindhi — Hindi alternate source improves language coverage but remains PARTIAL
+
+Official index-linked Hindi PDF:
+https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/101/Sindhi_Hindi.pdf
+
+The Hindi endpoint opened, but extraction returned only a short, visibly incomplete portion of the syllabus (early units 1–4 fragments) and contains mixed Devanagari/Sindhi text, broken words and OCR substitutions. It does not expose a complete reliable ten-unit structure or all detailed topics in this pass. Retain PARTIAL. Do not combine the incomplete Hindi extraction with the previously noisy Arabic-script extraction to fabricate missing content. A Sindhi-script/native-font visual review is still required.
+
+#### 7.53.5 Code 102 Hindu Studies — English alternate source supports PARTIAL → CONTENT_READ at source-text level
+
+Official index-linked English PDF (official filename spelling preserved):
+https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/102/Hindu%20Studies_Engish.pdf
+
+This official English endpoint was opened and yielded substantially more content than the Hindi endpoint. The parser exposes the ten-unit structure and detailed text for the syllabus, including:
+1. Tattva Vimarsha
+2. Dharma and Karma Vimarsha
+3. Punarjanma–Bandhan–Moksha Vimarsha
+4. Pramana Siddhanta
+5. Vada-Parampara
+6. Applicability of Western Methods for Understanding Indian Texts
+7. Ramayana
+8. Mahabharata
+9. Sanskrit Parichaya
+10. Other Allied Topics
+
+The English PDF extraction contains OCR/encoding substitutions in IAST/Sanskrit diacritics and some technical terms; a second rendered-text pass provides clearer English spellings for much of Units 1–5, but several later Sanskrit passages remain imperfect. The Hindi endpoint remains severely corrupted. Latest status is promoted to **CONTENT_READ (English extraction level)**, not VERIFIED. Preserve the raw official PDF text, record uncertain transliterations as unresolved, and require page-image/native Sanskrit review plus PDF hash/revision metadata before final verification. Do not infer corrected Sanskrit spellings where OCR is ambiguous.
+
+#### 7.53.6 Code 73 Sanskrit Traditional Subjects — remains PARTIAL
+
+Official Hindi-only PDF:
+https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/73/Sanskrit%20Traditional%20Subjects_Hindi_Only.pdf
+
+Fresh extraction exposes partial material from Veda, Vyakarana, Sahitya, Dharmaśāstra, Mimamsa, Nyaya-Vaisheshika, Vedanta and Sarvadarshana routes, but many lines are corrupted, repeated unit numbers appear, and the portal's full set of traditional-subject specializations is not represented as a clean complete tree in the extraction. Retain PARTIAL. The subject must remain multi-route/branch-aware; do not flatten the different traditional subjects into a single fabricated linear syllabus.
+
+#### 7.53.7 RRB official-source follow-up — listing evidence only, no unsupported PDF promotion
+
+- Official RRB Mumbai notification page for CEN 04/2026 was successfully parsed in the earlier pass and explicitly lists “Corrigendum No.1 of CEN No. 04/2026” dated 18-08-2026, with English/Hindi view controls. In this pass, live re-fetch attempts to RRB Ahmedabad, Chandigarh and Mumbai listing pages failed with connection/network/timeout errors. The original corrigendum PDF still has not been opened from an official host.
+- Official RRB candidate portal https://www.rrbapply.gov.in/ lists FAQ PDF endpoints for CEN 06/2026 NTPC Graduate and CEN 07/2026 NTPC Undergraduate. The FAQ PDF endpoints returned connection errors in this pass.
+- The official RRB knowledge-centre compilation https://rrb.indianrailways.gov.in/bhopal/image/1784273269968syllabus_final.pdf/knowledgecenter was opened and read (36 pages). It includes broad NTPC Graduate and NTPC Undergraduate syllabus sections, but its own disclaimer expressly says the compilation is based on previous CENs, may differ from the actual prescribed syllabus, and candidates must refer only to the relevant detailed CEN. Therefore it is **not accepted as the authoritative 2026 CEN syllabus source** and does not promote NTPC 06/2026 or 07/2026 beyond PARTIAL/DEFERRED_NOT_BLOCKING.
+- The RRB 06/2026 detailed-notice URL remains a “Final Draft” resource route and fetch attempts fail; the CEN 07/2026 direct official PDF route returns a request-rejected response. Non-RRB-hosted copies were surfaced by search, but are not primary-source evidence and were not used to mark syllabus content VERIFIED.
+- ALP CEN 01/2026 Corrigendum No.1 dated 10-11-2026 still lacks an opened original official RRB PDF. Secondary sources repeat a vacancy increase from 11,127 to 14,627 and claim other terms unchanged; retain that as provisional only. The original CEN syllabus remains CONTENT_READ from the official RRB Ajmer-hosted PDF, with corrigendum verification outstanding.
+
+#### 7.53.8 Revised UGC NET status tally
+
+After the official English alternate PDF for code 102 was read, the latest recorded Paper-II status tally is **59 CONTENT_READ / 28 PARTIAL** (87 total subjects). This is a status tally, not a claim of 87 VERIFIED syllabi. CONTENT_READ means source text has been extracted sufficiently for normalization; every one of the 87 subjects still requires final source revision/hash/page provenance QA. PARTIAL entries require OCR, missing-content or native-script review before they can be normalized.
+
+#### 7.53.9 Tools and boundary
+
+- Parallel Search and Fetch were used for official UGC index verification, UGC PDF extraction, RRB listing checks and official RRB knowledge-centre compilation.
+- GitHub was used to read the current Main status file before the append-only update.
+- Liner deep research could not run because the connected account returned insufficient credits; no research result is attributed to it.
+- Firecrawl search could not run because the connected account returned insufficient credits; no research result is attributed to it.
+- No app code, UI, Room/Firestore schema, database, scoring, ranking or other application source was modified.
