@@ -14,10 +14,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
-      - name: Check question-level scoring JavaScript
-        run: node --check backend_functions/questionLevelScoring.js
+      - name: Check scoring integration JavaScript
+        run: |
+          node --check backend_functions/index.js
+          node --check backend_functions/questionLevelScoring.js
+          node --check backend_functions/questionLevelScoringIntegration.js
       - name: Run question-level scoring tests
-        run: node --test backend_functions/questionLevelScoring.test.js
+        run: node --test backend_functions/questionLevelScoring.test.js backend_functions/questionLevelScoringIntegration.test.js
       - uses: actions/setup-java@v4
         with:
           java-version: "21"
