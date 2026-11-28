@@ -1091,3 +1091,93 @@ Observed official content and QA:
 - Code 64 is absent from the official list and must not be invented.
 - Next five actual subjects after code 68: code 70 Tribal and Regional Language/Literature, 71 Folk Literature, 72 Comparative Literature, 73 Sanskrit Traditional Subjects, 74 Women Studies. Code 69 is absent; verify the code 73 Hindi-only source and preserve its language limitation.
 - Overall UGC NET remains PARTIAL. The current-cycle 87-subject list must still be reconciled against the full portal list, including codes 79–95 and new codes 100–107. Paper-I, exact page provenance, version/hash metadata and language/OCR QA remain before approval.
+
+
+### 7.25 UGC NET subject-PDF extraction — sub-batch 13 (codes 70–74; 28 November 2026)
+
+Official subject mappings and portal-linked PDF paths were verified against:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 official bulletin, Annexure-II: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+Code 69 is absent from the official subject list. The next five actual subjects are 70, 71, 72, 73 and 74.
+
+Official PDFs opened:
+- 70 Tribal and Regional Language/Literature — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/70/Tribal%20ans%20Regional%20Languages_English.pdf
+- 71 Folk Literature — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/71/Folk%20Literature_English.pdf
+- 72 Comparative Literature — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/72/Comparative%20Literature_English.pdf
+- 73 Sanskrit Traditional Subjects — Hindi-only PDF: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/73/Sanskrit%20Traditional%20Subjects_Hindi_Only.pdf
+- 74 Women Studies — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/74/Women%20Studies_English.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 70 | Tribal and Regional Language/Literature | Printed markers 1–4 | CONTENT_READ — all ten units and detailed topics extracted |
+| 71 | Folk Literature | Printed markers 1–4 visible | CONTENT_READ — all ten units and detailed theoretical/topic lists extracted |
+| 72 | Comparative Literature | 5 | CONTENT_READ — all ten units and detailed topics extracted with page markers 1–5 |
+| 73 | Sanskrit Traditional Subjects | Not confirmed | PARTIAL — Hindi-only PDF opened; Devanagari extraction is damaged and only portions of the unit structure/topics are reliably readable |
+| 74 | Women Studies | 4 | CONTENT_READ — all ten units and detailed topics extracted with page markers 1–4 |
+
+Observed official content and QA:
+
+- **70 Tribal and Regional Language/Literature:** Official PDF header confirms Code No. 70. Four printed pages are visible and all ten units were read:
+  1. General Ethnology.
+  2. General Linguistics.
+  3. Indian Literature.
+  4. Theory of Literature.
+  5. Folk Literature of Tribal and Regional Languages.
+  6. Culture of Tribal and Regional Language Areas.
+  7. Arts of Tribal and Regional Language Areas.
+  8. Poetry of Tribal and Regional Languages.
+  9. Prose Literature of Tribal and Regional Languages.
+  10. Heroes of Tribal and Regional Language Areas.
+  The source has a specific Jharkhand and neighbouring-state focus in its ethnology/linguistics units and lists named community figures, languages, genres, arts and regional practices. Preserve that scope; do not generalize it into a generic pan-India tribal-language syllabus. Physical printed page markers 1–4 provide the initial page map. Status CONTENT_READ; final exact subtopic-page mapping and metadata remain.
+
+- **71 Folk Literature:** Official PDF header confirms Code No. 71. All ten units were read:
+  1. Folklore: Definition, Concept and Classification.
+  2. Historiography of Folkloristics.
+  3. Folk Literature.
+  4. Theories of Folklore I: Diachronic Approaches.
+  5. Theories of Folklore II: Synchronic Approaches.
+  6. Folklife and Cultural Performances.
+  7. Public Folklore and Mass Media.
+  8. Folklore and Globalisation.
+  9. Indian Folk Cultural Practices.
+  10. Fieldwork, Documentation and Archival Practices.
+  Detailed theory coverage includes evolutionary/devolutionary/diffusion approaches; structural, functional, psychological, contextual, poststructural, postmodern and semiotic approaches; performance theory; globalisation; Indian folk practices; field methods, documentation, preservation, ethics and copyright. Printed page markers 1–4 appear in the extraction. Status CONTENT_READ; final unit-page mapping and source metadata remain.
+
+- **72 Comparative Literature:** Official PDF header confirms Code No. 72; five physical/printed pages are visible. All ten units were read:
+  1. Conceptual Framework of Comparative Literature.
+  2. Literary Historiography.
+  3. History of Comparative Literature.
+  4. Translation in Comparative Context.
+  5. Poetics and Literary Theory.
+  6. Indian Literature I.
+  7. Indian Literature II.
+  8. Literary Modes, Genres and Themes.
+  9. Interdisciplinarity and Intermediality.
+  10. Literary Dialogues.
+  The document covers French/German/Russian/Tel Aviv schools, Indian and world literature, translation politics/reception, Indian/Perso-Arabic/Western poetics, classical/medieval/modern Indian literatures, genre theory, cross-media and intertextual/adaptation approaches. Printed page map: Units I–II p.1; Unit III–V p.2; Units VI–VIII p.3; Unit IX–X p.4; p.5 appears as trailing page marker with no additional extracted syllabus text. Verify this apparent blank/trailing page in the original PDF. Status CONTENT_READ.
+
+- **73 Sanskrit Traditional Subjects:** Official portal lists subject code 73 as Sanskrit Traditional Subjects, with multiple traditional specialisations (including Jyotisha/Siddhanta Jyotisha, Navya Vyakarana/Vyakarana, Mimamsa, Navya Nyaya, Sankhya Yoga, Tulanatmaka Darsana, Shukla Yajurveda, Madhva Vedanta, Dharma Sastra, Sahitya, Purana-itihasa and Agama). The linked PDF is Hindi-only. Its header identifies Code No. 73 and पारम्परिकसंस्कृतविषयः. Extracted text reveals sections including Veda, Vyakarana, Dharmaśāstra, Mīmāṃsā, Nyāya-Vaiśeṣika, Vedānta, Sarvadarśana and Sahitya, but Devanagari OCR is substantially corrupted and the unit numbering/content is inconsistent or missing in places. It is not safe to claim a complete ten-unit transcription. Keep PARTIAL; require page-image/manual Sanskrit-Hindi review. Preserve the portal's Hindi-only language limitation and the subject's multiple-specialisation scope.
+
+- **74 Women Studies:** Official PDF header confirms Code No. 74; four physical pages with markers 1–4. All ten units were read:
+  1. Introduction to Women’s Studies.
+  2. Feminist Thinkers and Theories.
+  3. Gender and Education.
+  4. Women, Work and Employment.
+  5. Gender and Entrepreneurship.
+  6. Women and Health.
+  7. Women Empowerment and Development.
+  8. Women, Law and Governance.
+  9. Gender and Media.
+  10. Feminist Research Methodology.
+  Detailed topics include gender concepts/movements, feminist theories, education disparities, labour/economy, entrepreneurship and SHGs, women's health, development frameworks/indices, constitutional/legal rights, media representation and feminist research approaches. Preserve the source's listed legal frameworks and policy references as published syllabus content; check currency separately during later legal metadata QA. Status CONTENT_READ.
+
+### 7.26 Sub-batch 13 outcome and remaining UGC NET work
+
+- Five official portal-linked PDFs (codes 70, 71, 72, 73, 74) were opened and read.
+- Codes 70, 71, 72 and 74 are CONTENT_READ at the source-text level. Code 73 remains PARTIAL due to Hindi-only source and damaged/incomplete extraction.
+- Code 73 must be represented as one subject with its listed traditional specialisations, not split into invented separate UGC NET subject codes. Its Hindi-only PDF and the source's incomplete OCR need manual verification.
+- Code 69 is absent from the official subject list and must not be invented.
+- Next actual subject codes after 74 are 79, 80, 81, 82 and 83: Visual Arts, Geography, Social Medicine & Community Health, Forensic Science and Pali. Codes 75–78 are absent from the official portal's subject list; do not create placeholders.
+- Overall UGC NET remains PARTIAL. The portal's legacy subject list continues beyond code 74, and the current-cycle 87-subject list includes newer codes 100–107. Continue source verification for codes 79–95 and 100–107, then reconcile the entire current-cycle list, Paper-I and subject PDF versions/page provenance before database approval.
