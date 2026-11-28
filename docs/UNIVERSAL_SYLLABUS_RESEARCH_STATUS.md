@@ -897,3 +897,103 @@ Observed official content and QA:
 - The December 2026 official subject list includes these subjects/codes. The portal links code 46/47 and 49/50 official English/Hindi resources; this pass read the English PDFs only.
 - Next subject sequence after code 50 is code 55 Labour Welfare / Personnel Management / Industrial Relations / Labour and Social Welfare / Human Resource Management. Codes 51–54 are absent from the official UGC subject list. Do not create records for missing codes. Next research should continue from code 55 and verify subsequent official entries in groups of up to five actual subjects.
 - Overall UGC NET remains PARTIAL. The official current-cycle 87-subject list and older syllabus portal need a subject-by-subject reconciliation, including new codes 100–107 and any other current subjects without legacy portal PDFs. Paper-I, all 87 current Paper-II subjects, page provenance, PDF version/hash metadata and language/OCR QA remain before final approval.
+
+
+### 7.21 UGC NET subject-PDF extraction — sub-batch 11 (codes 55, 58, 59, 60, 62; 28 November 2026)
+
+The official syllabus portal's actual link table was scraped and checked against the UGC NET subject list and the December 2026 bulletin:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+- https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+**Code sequence:** Codes 51–54 and 61 are absent from the UGC subject list; they are not missing exam records to invent. The next five actual subjects after code 50 are 55, 58, 59, 60 and 62.
+
+Official English PDFs opened and read:
+- 55 Labour Welfare / Personnel Management / Industrial Relations / Labour and Social Welfare / Human Resource Management — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/55/Labour%20Welfare_English.pdf
+- 58 Law — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/58/Law_English.pdf
+- 59 Library and Information Science — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/59/Library%20and%20Information%20Science_English.pdf
+- 60 Buddhist, Jaina, Gandhian and Peace Studies — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/60/Buddhist%20Jaina%20Gandhian%20and%20Peace%20Studies_eNGLISH.pdf
+- 62 Comparative Study of Religions — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/62/Comparative%20Study%20of%20Religions_English.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 55 | Labour Welfare / Personnel Management / Industrial Relations / Labour and Social Welfare / Human Resource Management | Not confirmed | CONTENT_READ — all ten units and detailed syllabus text extracted |
+| 58 | Law | Not confirmed | CONTENT_READ — all ten units and detailed numbered topics extracted |
+| 59 | Library and Information Science | Not confirmed | CONTENT_READ — all ten units and detailed syllabus text extracted |
+| 60 | Buddhist, Jaina, Gandhian and Peace Studies | Printed markers 1–5 visible | CONTENT_READ — all ten units and detailed topic lists extracted; exact final physical page count still to confirm |
+| 62 | Comparative Study of Religions | Not confirmed | CONTENT_READ — all ten units and detailed syllabus text extracted |
+
+Observed official content and QA:
+
+- **55 Labour Welfare / Personnel Management / Industrial Relations / Labour and Social Welfare / Human Resource Management:** Official PDF header confirms Code No. 55. All ten units were read:
+  1. Principles and Practices of Management.
+  2. Human Resource Management.
+  3. Human Resource Development and International HRM.
+  4. Organisational Behaviour.
+  5. Industrial Relations and Trade Unions.
+  6. Industrial Disputes.
+  7. Labour Legislation.
+  8. Wages.
+  9. Labour Welfare and Social Security.
+  10. Labour Market.
+  Detailed content includes management approaches/functions; HR planning, recruitment, development, performance and compensation; HRD/IHRM; organisational behaviour; collective bargaining/trade unions; industrial disputes; specified labour statutes; wage theories/statutes; occupational health/safety/social security; and Indian labour-market composition/dynamics. Preserve named legislation and its stated enactment years as source-authored syllabus entries. Physical page count and unit-page map remain to be recorded. Status CONTENT_READ.
+
+- **58 Law:** Official PDF header confirms Subject: Law, Code No. 58. All ten units and their numbered topic lists were read:
+  1. Jurisprudence.
+  2. Constitutional and Administrative Law.
+  3. Public International Law and International Humanitarian Law.
+  4. Law of Crimes.
+  5. Law of Torts and Consumer Protection.
+  6. Commercial Law.
+  7. Family Law.
+  8. Environment and Human Rights Law.
+  9. Intellectual Property Rights and Information Technology Law.
+  10. Comparative Public Law and Systems of Governance.
+  The source gives ten numbered areas per unit, including statutes, constitutional institutions, legal concepts, international instruments, IPR and comparative jurisdictions. Retain exact law/statute references and do not silently update the syllabus to newer legislation unless a newer official UGC/NTA source explicitly revises it. Physical page count and unit-page mapping were not established in this pass. Status CONTENT_READ.
+
+- **59 Library and Information Science:** Official PDF header confirms Code No. 59. All ten units were read:
+  1. Information, communication, information science and information society.
+  2. Libraries, legislation, profession, associations, education, users and information literacy.
+  3. Information sources, reference sources, databases and resource evaluation.
+  4. Information services, mobile/Web 2.0/3.0 services, networks and consortia.
+  5. Knowledge organisation, classification, cataloguing, bibliographic standards, metadata, indexing, abstracting and retrieval.
+  6. Library management, HR/finance/project/quality/facilities/knowledge management and marketing.
+  7. Computer and network technologies, internet protocols, security and multimedia.
+  8. Library automation, digitisation, digital libraries, repositories, AI/robotics, semantic web and data technologies.
+  9. Research methods, data analysis, citation tools, bibliometrics/scientometrics/webometrics and research trends.
+  10. Types of library/information systems and services for different communities.
+  Detailed subtopics and named systems/standards (e.g. DDC, UDC, CC, MARC 21, RDA, FRBR, Dublin Core, Z39.50, INFLIBNET, DELNET and others) were extracted. Preserve exact acronyms and the source's own spellings pending QA. Physical page count/unit-page mapping not confirmed. Status CONTENT_READ.
+
+- **60 Buddhist, Jaina, Gandhian and Peace Studies:** Official PDF header confirms Code No. 60. Printed page markers 1–5 are visible in the extracted source. All ten units were read:
+  1. Life of Gautama Buddha, origin of Buddhism, councils, schools, canonical literature and major scholars.
+  2. Buddhist teachings, philosophical concepts, meditation and contemporary thinkers.
+  3. Buddhist educational institutions, art/architecture, pilgrimage, revival and social/economic impact.
+  4. Jain history, Tirthankaras, sects, mantra/teachings, Agama literature and Acharyas.
+  5. Jain vows, metaphysics, karma, knowledge, Anekantavada/Syadvada, yoga and liberation.
+  6. Jain art/architecture, iconography, society, ecology/science and learning centres.
+  7. Mahatma Gandhi's life and South African experience.
+  8. Gandhian social, political, economic and religious thought; state/democracy and economics.
+  9. Gandhi's role in the freedom movement and Partition.
+  10. Peace studies, peace movements, conflict resolution, human security and terrorism.
+  The source's printed markers show page breaks, but Unit X continues on the final extracted page; exact physical page count and unit-to-page ranges need final check. Keep CONTENT_READ, with page provenance QA pending.
+
+- **62 Comparative Study of Religions (proposed title in PDF: Religious Studies):** Official PDF header confirms Code No. 62 and states “Proposed Title: Religious Studies”. All ten units were read:
+  1. Study of Religion — definitions, theories, aims, dimensions and interdisciplinary relationships.
+  2. Pre-historical Religious Forms — early expressions, concepts of the holy, myths/rituals, ancient civilizations and Zoroastrianism.
+  3. Modern Trends in the Study of Religion — approaches, critiques/challenges and contemporary interfaith/social/ecological concerns.
+  4. Hinduism.
+  5. Jainism.
+  6. Buddhism.
+  7. Judaism.
+  8. Christianity.
+  9. Islam.
+  10. Sikhism.
+  The source contains detailed traditions, texts, doctrines, movements and named religious figures. Preserve the official subject code/name and record “Religious Studies” as a source-proposed alternate title, not a new subject. Physical page count and unit-page mapping were not established. Status CONTENT_READ.
+
+### 7.22 Sub-batch 11 outcome and remaining UGC NET work
+
+- Five official subject PDFs (codes 55, 58, 59, 60, 62) were opened and all ten units in each were read.
+- All five are CONTENT_READ at the source-text level. Final PDF physical page counts, exact unit-page maps and source revision/hash metadata remain.
+- Code 62's PDF proposes the title “Religious Studies”; preserve the official code 62 and existing subject name “Comparative Study of Religions”, with the proposed title stored as an alias/source note.
+- Official subject sequence after code 62 continues with code 63 Mass Communication and Journalism, 65 Performing Art – Dance/Drama/Theatre, 66 Museology & Conservation, 67 Archaeology and 68 Criminology. Code 64 is absent; do not invent a subject. Continue with the next five actual listed subjects.
+- Overall UGC NET remains PARTIAL. Paper-I and current-cycle 87 Paper-II subject coverage are not yet fully verified. The older syllabus portal does expose additional subjects beyond the earlier batches, but every current-cycle subject still needs a source-availability/content check, including codes 100–107. Complete reconciliation, page provenance, revision/hash metadata and OCR/language QA are still required before database approval.
