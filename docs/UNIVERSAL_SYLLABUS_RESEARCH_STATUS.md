@@ -1773,3 +1773,37 @@ The bulletin's Annexure-II was checked against the actual official table, not in
 - Remaining high-priority work: native-script page review, OCR correction against original pages, exact unit/topic page ranges, PDF hashes and revision dates, comparison of language variants (French, Sindhi, etc.), and confirmation of code 90's expanded scope.
 - Recheck current UGC portal and any NTA/UGC corrigenda before marking final VERIFIED; this is a time-sensitive current-cycle dataset.
 - Universal Syllabus Database and app-code integration remain NOT STARTED. No app code, Firestore, Room schema, UI, scoring engine or ranking code was changed.
+
+
+### 7.38 Compulsory common paper — Paper-I / Code 00 (28 November 2026)
+
+Official portal source:
+- Syllabus index: https://www.ugcnetonline.in/syllabus-new.php
+- English PDF: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/00-Paper-I/Paper-I_English.pdf
+- Hindi PDF: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/00-Paper-I/Paper-I_Hindi.pdf
+
+The official UGC portal labels the document “Updated Syllabi of UGC-NET (Applicable from June 2019 UGC-NET Onwards)” and identifies Code 00 as “General Paper on Teaching & Research Aptitude (Paper-I)”. The English PDF was opened and all four printed pages read.
+
+| Unit | Official heading | Main source content |
+|---:|---|---|
+| I | Teaching Aptitude | Teaching concepts/objectives/levels; learner characteristics; factors affecting teaching; higher-education teaching methods; teaching support systems; evaluation systems |
+| II | Research Aptitude | Research meaning/types/characteristics; positivism/post-positivism; methods; research steps; thesis/article writing and referencing; ICT; research ethics |
+| III | Comprehension | Passage-based reading comprehension and questions |
+| IV | Communication | Meaning/types/characteristics; verbal/non-verbal/intercultural/group/classroom communication; barriers; mass media and society |
+| V | Mathematical Reasoning and Aptitude | Types of reasoning; number/letter series; codes/relationships; fractions, time-distance, ratio/proportion, percentage, profit/loss, interest/discounting and averages |
+| VI | Logical Reasoning | Argument structures, categorical propositions, mood/figure, fallacies, language/connotation/denotation, deductive/inductive reasoning, analogies, Venn diagrams, Indian logic and pramāṇas, inference/vyāpti/hetvābhāsa |
+| VII | Data Interpretation | Data sources/acquisition/classification; quantitative/qualitative data; charts/graphs/maps; data interpretation; data and governance |
+| VIII | Information and Communication Technology (ICT) | Abbreviations/terminology; internet/intranet/email/audio-video conferencing; digital initiatives in higher education; ICT and governance |
+| IX | People, Development and Environment | Sustainable development goals; human-environment interaction; pollution/waste/climate change; health impacts; natural/energy resources; hazards/disasters/mitigation; environmental laws, policies and international agreements |
+| X | Higher Education System | Ancient Indian higher learning; post-independence development; learning programmes; professional/technical/skill education; value/environment education; policies/governance/administration |
+
+**Source notes:** The PDF states five questions of two marks each are to be set from each module. It also includes an accommodation note for equivalent passage-based questions when graphical/pictorial questions are set for sighted candidates. Preserve both notes as exam-structure metadata, not syllabus topics.
+
+**Status:** CONTENT_READ — all ten units and four printed pages extracted. Paper-I is compulsory and common to all 87 current-cycle Paper-II subjects; it is not an 88th Paper-II subject. Remaining QA: compare the Hindi PDF with the English version, record PDF hashes/revision metadata, confirm no later UGC/NTA revision or corrigendum, and map every topic to its exact printed page.
+
+### 7.39 Current-cycle first-pass status after Paper-I
+
+- Paper-II: all 87 current-cycle subject rows matched to the official December 2026 Annexure-II; 57 are CONTENT_READ and 30 are PARTIAL.
+- Paper-I: separate compulsory code 00, ten units, four-page English PDF CONTENT_READ; Hindi-language comparison and metadata QA remain.
+- Overall UGC-NET first-pass research is not fully VERIFIED. The remaining work is quality assurance rather than inventing additional current-cycle subject codes: page mapping, source hashes/revision dates, native-script/OCR correction, alternate-language comparisons, and confirmation of code 90's expanded scope.
+- Do not mark the Universal Syllabus Database ready until all 30 PARTIAL Paper-II records and Paper-I QA are closed or explicitly approved with a documented partial-source exception.
