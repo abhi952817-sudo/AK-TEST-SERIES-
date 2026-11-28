@@ -2875,3 +2875,39 @@ The current NTA June 2025 information bulletin independently lists the correspon
 - Next: continue native-script remediation with the next five PARTIAL language subjects (codes 27 Telugu, 28 Urdu, 29 Arabic, 32 Chinese and 33 Dogri), then reconcile all remaining PARTIAL records and complete page/hash/revision provenance.
 
 No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
+
+### 7.64 NEET UG — official 2026 source recovery and Hindi-source verification (28 November 2026)
+
+This pass reused the existing NEET UG research record and recovered the exact current official source links from the NTA NEET website. Scope remains syllabus collection only; no bilingual topic mapping, database design or application implementation was started.
+
+#### 7.64.1 Official English syllabus source
+
+- NTA official syllabus landing page: https://neet.nta.nic.in/document/syllabus-for-neet-ug-2026-examination
+- Direct official PDF: https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/01/202601081066816297.pdf
+- NTA official notice / NMC-UGMEB communication: https://www.nta.ac.in/Download/Notice/Notice_20260108180635.pdf
+- The NTA landing page identifies the document as “Syllabus for NEET (UG)-2026 Examination” and links the same 853 KB PDF as its accessible/download version. The landing page reports a last-updated date of 19 September 2026.
+- The PDF includes the UGMEB/NMC public notice dated 22 December 2025, which states that UGMEB finalized the NEET (UG)-2026 syllabus for academic session 2026–27. NTA's communication is dated 8 January 2026.
+- The syllabus content is arranged under Physics, Chemistry and Biology. The extracted official document exposes the subject unit sequence and detailed topic text; the recorded syllabus structure is 20 Physics units, 20 Chemistry units and 10 Biology units. Biology includes the relevant Botany/Zoology content within the Biology units; do not create extra official subject papers from that split.
+- The source PDF text has been opened and read for this recovery pass. Exact per-topic printed-page mapping, complete line-by-line transcription QA, PDF byte hash and any later corrigendum check remain open before final VERIFIED status.
+
+#### 7.64.2 Hindi-language official-source check
+
+- The NTA 2026 syllabus landing page links one syllabus PDF only; that linked PDF is in English.
+- The official NTA/NEET page confirms that the NEET (UG)-2026 question paper is offered in Hindi among its examination languages. This is evidence about question-paper language availability, not evidence that NMC/NTA published a separate Hindi syllabus PDF.
+- Searches of the official NTA and NMC domains in this pass did not locate a separate official Hindi-language NEET (UG)-2026 syllabus PDF. Therefore Hindi syllabus source status is **OFFICIAL_HINDI_PDF_NOT_LOCATED**, not “unavailable forever” and not “official Hindi translation verified”.
+- Hindi-language syllabus pages found on third-party education sites are secondary reproductions/translations. They may be retained only as discovery leads; they must not be represented as official NMC/NTA PDFs or used to override the English source.
+- Do not create a Hindi translation or bilingual topic mapping in this collection phase. First finish collecting the official source set; if no official Hindi PDF is located after the source search is closed, record that limitation explicitly and keep any later Hindi rendering clearly labelled as a translation, not an official source.
+
+#### 7.64.3 Applicable version and current-cycle caution
+
+- The latest official NEET syllabus source located in this pass is the 2026 edition finalized by UGMEB/NMC on 22 December 2025 and published by NTA on 8 January 2026.
+- No official NEET (UG)-2027 syllabus PDF was located in the official NTA/NMC sources checked in this pass. Do not label the 2026 PDF as the official 2027 syllabus unless a competent authority publishes or confirms that version.
+- Recheck NTA/NMC official notices for any new edition, corrigendum or clarification before declaring the source set closed.
+
+#### 7.64.4 Collection-phase status
+
+- English official source: **SOURCE_RECOVERED_AND_TEXT_READ; PAGE/HASH/CORRIGENDUM_QA_PENDING**.
+- Hindi official source: **NOT_LOCATED_IN_OFFICIAL_SOURCES_CHECKED**.
+- Complete structured topic capture and proofing: **PENDING**.
+- No bilingual mapping, syllabus IDs, database records, UI, application code or scoring/ranking changes were made.
+
