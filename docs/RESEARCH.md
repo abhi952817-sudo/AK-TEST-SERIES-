@@ -2723,3 +2723,44 @@ The previous recorded UGC NET tally was 59 CONTENT_READ / 28 PARTIAL across 87 P
 Next five subjects for native-script remediation: code 34 Nepali, 35 Manipuri, 36 Assamese, 37 Gujarati and 42 Persian. Keep each Paper-II subject separate and do not infer missing text from coaching sources or previous question papers.
 
 No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
+
+
+### 7.60 UGC NET Paper-II — native-script remediation batch 3 (codes 34, 35, 36, 37, 42) — 28 November 2026
+
+The official UGC NET syllabus index and five linked official PDFs were checked for the third native-script remediation batch. All five subject identities and code mappings match the official index. Extraction quality remains insufficient for final verification.
+
+#### 7.60.1 Official index links
+
+Official index: https://www.ugcnetonline.in/syllabus-new.php
+
+- Code 34 Nepali: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/34/Nepali_Nepali_PDF.pdf
+- Code 35 Manipuri: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/35/Manipuri_Manipuri_Only.pdf
+- Code 36 Assamese: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/36/Assamese_Assamese.pdf
+- Code 37 Gujarati: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/37/Gujarati_Gujarati_PDF.pdf
+- Code 42 Persian: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/42/Persian_Persian.pdf
+
+#### 7.60.2 Subject-by-subject findings
+
+| Code | Subject | Extraction and structure | Status decision |
+|---:|---|---|---|
+| 34 | Nepali | PDF identifies Nepali, Code 34. Text is encoded through a legacy Roman-font mapping (non-standard transliteration strings such as “g]kfnL”), not clean Unicode Devanagari. Ten broad parts are visible: poetry; prose narrative; drama/film studies; essay/criticism; literary history; general linguistics; Nepali linguistics; critical theory; folklore; world-literature survey/research methods. Substantial subtopic text is present but cannot be trusted as an exact native-script transcription. | Remains PARTIAL; recover the legacy font mapping or inspect page images and transcribe in Nepali script. |
+| 35 | Manipuri | PDF identifies Manipuri, Code 35. Ten units (I–X) are visible, covering old/new Manipuri literature, literature and cultural history, folklore, literary criticism/theory, Indian poetics, theoretical/applied Manipuri linguistics, and translated literature. However, the Meitei/Manipuri text is rendered as legacy-font mojibake (for example, garbled “Úå[>i¡” sequences), so exact wording and topic names are not safely readable. | Remains PARTIAL; page-image/native Meitei script QA required. |
+| 36 | Assamese | PDF identifies Assamese, Code 36. Ten unit headings and topic blocks are visible in a legacy-font-encoded Assamese form. Readable structural areas include Assamese folk literature; Assamese cultural/ethnic history; literary theory (Eastern and Western); Assamese language and linguistic study; comparative literature and translation. Many Assamese glyphs are represented by corrupted sequences, so exact topic transcription is unreliable. | Remains PARTIAL; inspect rendered pages and transcribe native Assamese wording. |
+| 37 | Gujarati | PDF identifies Gujarati, Code 37, and exposes Unit 1 through Unit 10 labels with subsection markers. Most Gujarati topic text has been dropped entirely from extraction (commas/blank placeholders remain); the returned text cannot establish subject content. | Remains PARTIAL; page-image/native Gujarati review is required before recovering topics. |
+| 42 | Persian | Official PDF identifies Persian, Code 42. Eight numbered PDF pages and ten unit labels (I–X) are visible. The Persian/Arabic-script extraction is directionally/encoding corrupted and many lines are not reliably readable. The final unit heading includes Persianate culture, but full topic transcription requires script-aware review. | Remains PARTIAL; inspect page images, transcribe right-to-left Persian text and map each topic to its printed page. |
+
+#### 7.60.3 Status and tally
+
+- Code 34 Nepali: PARTIAL (unchanged).
+- Code 35 Manipuri: PARTIAL (unchanged).
+- Code 36 Assamese: PARTIAL (unchanged).
+- Code 37 Gujarati: PARTIAL (unchanged).
+- Code 42 Persian: PARTIAL (unchanged).
+- No promotions in this batch. UGC NET Paper-II running tally remains **60 CONTENT_READ / 27 PARTIAL** (87 subjects total); Paper-I code 00 remains separate.
+- None of these records may be marked VERIFIED based only on unit labels or corrupted OCR.
+
+#### 7.60.4 Next batch
+
+Next five UGC NET PARTIAL subjects: code 43 Rajasthani, 84 Kashmiri, 85 Konkani, 94 Bodo and 95 Santali. Preserve source-script identity, all unit divisions and language-specific provenance.
+
+No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
