@@ -2,6 +2,8 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   NEET_UG_2026_POLICY,
   evaluateNeetUgAttempt
@@ -134,4 +136,22 @@ test("NEET rejects missing or unsupported policy identity and unsupported questi
 
 test("NEET rejects answer IDs that do not belong to the official question list", () => {
   assert.throws(() => evaluateNeetUgAttempt(testData(), [question("q1")], { other: "A" }), /unknown question IDs/);
+});
+
+const sharedGolden = JSON.parse(fs.readFileSync(
+  path.join(__dirname, "../app/src/test/resources/scoring/neet_ug_2026_golden.json"),
+  "utf8"
+));
+
+test("shared Kotlin/Node golden fixtures produce the same NEET 2026 scores", () => {
+  for (const fixture of sharedGolden.cases) {
+    const result = evaluateNeetUgAttempt(
+      testData({ questionsCount: fixture.questions.length }),
+      fixture.questions,
+      fixture.answers
+    );
+    for (const [field, expected] of Object.entries(fixture.expected)) {
+      assert.equal(result[field], expected, fixture.id + " -> " + field);
+    }
+  }
 });
