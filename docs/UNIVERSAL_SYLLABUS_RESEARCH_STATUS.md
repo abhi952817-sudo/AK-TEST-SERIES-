@@ -641,3 +641,90 @@ Observed official content and QA:
 - Codes 32 Chinese, 33 Dogri, 34 Nepali and 35 Manipuri remain PARTIAL because the current extraction is incomplete, encoding-damaged or lacks reliable page mapping. Their missing detail must not be filled from third-party coaching sources.
 - Official subject-list sequence continues with codes 36–40: Assamese, Gujarati, Marathi, French and Spanish. The next batch must first verify whether each subject has an English/Hindi or language-specific official PDF link on the current UGC portal; do not assume endpoint filenames.
 - Overall UGC NET remains PARTIAL. Paper-I and the complete set of 87 Paper-II subjects still require consolidation of official syllabus versions, reliable unit/topic transcription, source-page mappings, PDF hashes/revision metadata and language/OCR QA. The 2019-applicable syllabus portal and newer 2026 subject list must be reconciled before approval.
+
+
+### 7.15 UGC NET subject-PDF extraction — sub-batch 8 (codes 36–40; 28 November 2026)
+
+Official subject names, codes and PDF endpoints were verified against:
+- UGC NET Bureau syllabus portal: https://www.ugcnetonline.in/syllabus-new.php
+- UGC NET Bureau subject list: https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 Information Bulletin, Annexure-II (official subject list): https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+Official PDF endpoints opened:
+- 36 Assamese — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/36/Assamese_Assamese.pdf
+- 37 Gujarati — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/37/Gujarati_Gujarati_PDF.pdf
+- 38 Marathi — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/38/Marathi_%20Marathi.pdf
+- 39 French (French Version) — English syllabus PDF: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/39/French_English.pdf; French-language PDF is separately linked by the portal at https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/39/French_French.pdf
+- 40 Spanish — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/40/Spanish_Spanish.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 36 | Assamese | Not confirmed | PARTIAL — ten unit headings and extensive Assamese text extracted, but legacy font/encoding makes the body unreliable for exact topic transcription |
+| 37 | Gujarati | Not confirmed | PARTIAL — official header and ten unit labels extracted; Gujarati body text is largely lost in PDF text extraction |
+| 38 | Marathi | 4 | PARTIAL — all ten units and substantial Marathi topic content read; OCR/character substitutions affect exact wording and prescribed-work names |
+| 39 | French (French Version) | 5 | CONTENT_READ — all ten units and detailed English syllabus content extracted with page markers 1–5; French-language linked version remains to be compared for equivalence |
+| 40 | Spanish | 4 | CONTENT_READ — all ten units and detailed Spanish syllabus content extracted with page markers 1–4 |
+
+Observed official content and QA:
+
+- **36 Assamese:** Official PDF header confirms UNIVERSITY GRANT COMMISSION NET BUREAU, Code No. 36, Subject: Assamese. Ten units were extracted:
+  1. Assamese folklore.
+  2. Assamese literature — early and medieval periods.
+  3. Assamese literature — modern periods.
+  4. Assamese culture.
+  5. Ethnic groups and folk culture of Assam.
+  6. Eastern/Oriental literary theory (rasa, metre and figures of speech).
+  7. Western literary theory and critical movements.
+  8. Assamese language and linguistic study.
+  9. Languages of Assam and their study.
+  10. Comparative literature and translation.
+  The source text contains substantial Assamese content, but the legacy-font extraction maps the script to corrupted Latin/symbol sequences. The broad headings can be used as provisional navigation only; exact text, subtopics and unit-page mapping need Assamese-script page-image review. Keep PARTIAL.
+
+- **37 Gujarati:** Official PDF header confirms UNIVERSITY GRANTS COMMISSION / NET BUREAU, Subject: Gujarati, Code No. 37. Ten unit labels (Unit 1 through Unit 10) are visible, but almost all Gujarati body text is extracted as commas/blank glyphs and fragments. This is not sufficient to identify or transcribe the actual topics. Do not infer a Gujarati literature syllabus from other sources or from adjacent subject patterns. Keep PARTIAL until a Gujarati-capable reviewer inspects the rendered pages or a reliable Unicode text layer is obtained. Physical page count and unit-page mapping were not confirmed.
+
+- **38 Marathi:** Official PDF header confirms Subject: MARATHI, Code No. 38; parser reports four physical pages. All ten units were read:
+  1. Language, forms of language expression and linguistics — language, grammar, phonology/linguistics, sociolinguistics, dialects, technology and communication.
+  2. Concept of culture and literary production — oral/written literary culture, performance, publishing, readership, institutions and social reform.
+  3. Concept of Indianness and translation studies — Indian literature, inter-language relations, translation/adaptation, influence and literary forms.
+  4. Folklore and special literary movements — folk literature, Dalit literature and rural literature.
+  5. Study of literary history — concepts, approaches and Marathi literary history through 2015.
+  6. Nature of literary movements — Bhakti, language/literary reform, Dalit, rural, Adivasi, feminist, farmers' movements and related literary reception.
+  7. Literary streams — modern, urban, Adivasi, feminist, Jain, Christian, Muslim, people’s, Marxist, science, minority, children’s and workers’ literature.
+  8. Literary theory and Bhakti traditions — poetics and major religious/literary traditions.
+  9. Close study of literary genres — poetry, fiction, drama, autobiography, travel writing, essays and criticism.
+  10. Selected literary works — a prescribed list of Marathi texts/authors.
+  The Marathi text layer is readable in broad terms but has systematic character substitutions (for example, repeated replacements in words), and some titles/names are distorted. Keep PARTIAL until exact Marathi wording and prescribed-work names are checked against rendered pages. Preserve the four-page source range and unit page locations during normalization.
+
+- **39 French:** Official English PDF header confirms UGC NET Bureau, Code No. 39, Subject: French; five physical pages. All ten units were read:
+  1. Medieval to 18th-century French Literature — Medieval, Renaissance, Classicism, Baroque and Enlightenment.
+  2. 19th- to 20th-century French Literature — Realism, Romanticism, Symbolism, Surrealism, New Wave, Existentialism, Postmodernism, women’s writing and migrant literature.
+  3. Francophone Postcolonial Literature — Canada, Asia-Pacific, Maghreb, Indian Ocean, Caribbean and Francophone Africa.
+  4. Translation Studies — translation theories, definitions, linguistic/interpreting approaches, concepts, pedagogy, terminology and ideology/politics.
+  5. Translation in Practice — French↔English translation and practical translation difficulties/procedures.
+  6. History, Geography, Social and Political Life of France.
+  7. Arts and Culture in France — visual arts, music, fashion, cinema, sports, press and gastronomy.
+  8. Linguistics — core concepts, phonetics/phonology, morphology, syntax, varieties/registers, enunciation, pragmatics and discourse.
+  9. Written Comprehension and Language Use.
+  10. Didactics of Languages and Cultures — language-teaching methodology, communicative/actional approaches, materials, intercultural learning, evaluation, CECR, FOS and TICE.
+  The PDF includes suggested reading lists; these must be kept distinct from examinable unit topics. The syllabus portal also provides a French-language PDF, which was not yet compared with this English version. Status CONTENT_READ for the English official syllabus text; French-version equivalence and revision metadata remain QA tasks.
+
+- **40 Spanish:** Official PDF header confirms UGC NET Bureau, Subject: SPANISH, Code No. 40; four physical pages with explicit page markers 1–4. All ten units were read:
+  1. Grammatical Aspects, Linguistics, Methodology and Translation.
+  2. Advanced Use of Spanish Language — proverbs, idioms, synonyms/antonyms, metaphors/similes and text analysis.
+  3. Spain: Pre-history and Medieval Literature and Culture.
+  4. Early Modern Spain.
+  5. 18th- and 19th-century Spain: Modernity and Tradition.
+  6. 20th- and 21st-century Contemporary Spain.
+  7. Latin America from Pre-Hispanic to Colonial Period.
+  8. Independence, Formation of Nation States, Caudillos and Caciques.
+  9. 20th-century Latin America.
+  10. Contemporary Latin America.
+  Each unit has five listed subareas in the official PDF. The page markers support Unit I–III on p.1, IV–VI on p.2, VII–VIII on p.3 and IX–X on p.4. Keep CONTENT_READ at the published content level; final source revision metadata remains pending.
+
+### 7.16 Sub-batch 8 outcome and remaining UGC NET work
+
+- All five official code/name mappings and portal-linked PDF endpoints (36–40) were checked; all five official PDFs opened.
+- Codes 39 French and 40 Spanish are CONTENT_READ. Code 38 Marathi remains PARTIAL pending exact Marathi-script QA. Codes 36 Assamese and 37 Gujarati remain PARTIAL due to legacy-font/encoding loss.
+- The UGC NET syllabus portal explicitly distinguishes French (French Version) and links both English and French PDFs. Preserve both source documents under the same official subject code 39 and compare them before final approval; do not create two separate exam subjects.
+- Next research batch is codes **41–45**: Russian, Persian, Rajasthani, German and Japanese. Verify the current official portal's language-specific PDF links before fetching.
+- Overall UGC NET remains PARTIAL. The official December 2026 subject list, the June 2019-applicable syllabus portal, Paper-I and all 87 Paper-II subject records still need reconciliation, exact source-page provenance, PDF revision/hash metadata and language/OCR QA. No UGC NET dataset should be marked approved yet.
