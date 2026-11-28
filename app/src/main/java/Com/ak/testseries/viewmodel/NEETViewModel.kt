@@ -1592,9 +1592,10 @@ class NEETViewModel(application: Application) : AndroidViewModel(application) {
                     "uploaderId" to (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""),
                     "status" to if (questions.isNotEmpty()) "Published" else "Under Review",
                     "examId" to liveExamConfig.examId,
+                    "examYear" to if (liveExamConfig.examId == "neet_ug") "2026" else "",
                     "stageId" to liveStage.stageId,
                     "paperId" to livePaper.paperId,
-                    "scoringVersion" to 1,
+                    "scoringVersion" to if (liveExamConfig.examId == "neet_ug") "neet-ug-2026-v1" else 1,
                     "processingStatus" to if (questions.isNotEmpty()) "Ready" else "Pending Extraction",
                     "questionsVerified" to questions.isNotEmpty()
                 )
