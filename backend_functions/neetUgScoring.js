@@ -198,6 +198,13 @@ function evaluateNeetUgAttempt(testData, questions, userAnswers, timeSpentSecond
 
     const answer = extractAnswer(userAnswers[id]);
     const status = String(question.scoringStatus || question.answerStatus || "NORMAL").trim().toUpperCase();
+    const allowedStatuses = new Set([
+      "NORMAL", "MULTIPLE_CORRECT", "MULTI_CORRECT",
+      "ALL_OPTIONS_CORRECT", "ALL_CORRECT", ...BONUS_STATUSES
+    ]);
+    if (!allowedStatuses.has(status)) {
+      throw scoringError("Unsupported NEET answer-key status: " + status);
+    }
 
     if (BONUS_STATUSES.has(status)) {
       rawScore += policy.positiveMarks;
