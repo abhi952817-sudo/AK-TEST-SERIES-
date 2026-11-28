@@ -477,7 +477,7 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     );
   }
 
-  const countsTowardRanking = testData.countsTowardRanking === true && (testData.isOfficial === true || testData.isPublic === true);
+  let countsTowardRanking = testData.countsTowardRanking === true && (testData.isOfficial === true || testData.isPublic === true);
   const rawExamIdentity = testData.examId || testData.targetExam;
   const isTrustedCommunityTest = testDoc.ref.parent.id === "Shared_Community_Tests";
   const normalizedExam = normalizeExamKey(rawExamIdentity);
@@ -649,7 +649,11 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
     ? {
         ...questionLevelResult,
         wrongCount: questionLevelResult.wrongCount,
-        accuracyPercent: null,
+        accuracyPercent: questionLevelResult.partialCount > 0
+          ? null
+          : (questionLevelResult.attemptedCount > 0
+              ? Math.round((questionLevelResult.correctCount / questionLevelResult.attemptedCount) * 10000) / 100
+              : 0),
         percentile: 0.0,
         timeSpentSeconds: cleanTimeSpent,
         usesQuestionLevelMarks: true
@@ -661,6 +665,12 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
         cleanTimeSpent,
         { useQuestionLevelMarks }
       );
+
+  // Partial-credit ranking/tie-break semantics are not yet approved. Preserve the
+  // authoritative score, but keep such attempts out of competitive aggregates.
+  if (questionLevelResult && questionLevelResult.partialCount > 0) {
+    countsTowardRanking = false;
+  }
 
   const attemptDocId = attemptSessionToken.trim();
   const attemptsRef = userRef.collection("Attempts");
