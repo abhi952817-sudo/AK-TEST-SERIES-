@@ -1285,3 +1285,92 @@ Observed official content and QA:
 - Code 80 Geography was extracted fully in this pass; it had previously only been known as a portal-linked source.
 - Next actual subjects after code 83 are 84 Kashmiri, 85 Konkani, 87 Computer Science and Applications, 88 Electronic Science and 89 Environmental Sciences. Code 86 is absent; do not create a placeholder. Verify the language-only source files for Kashmiri/Konkani and English-only PDFs for codes 87–89.
 - Overall UGC NET remains PARTIAL. Remaining legacy portal subjects include codes 84–95 (with gaps) and current-cycle additional subjects 100–107. Continue in batches of five actual subject codes, then reconcile against the December 2026 official subject list of 87 subjects and verify Paper-I. No database approval until source versions, page provenance, hashes and language/OCR QA are complete.
+
+
+### 7.29 UGC NET subject-PDF extraction — sub-batch 15 (codes 84, 85, 87, 88, 89; 28 November 2026)
+
+Official subject mappings and portal-linked PDF endpoints verified:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 official bulletin, Annexure-II: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+Code 86 is absent from the official list. The next five actual subjects are 84, 85, 87, 88 and 89.
+
+Official PDFs opened:
+- 84 Kashmiri — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/84/Kashmiri_Kashmiri_Only.pdf
+- 85 Konkani — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/85/Konkani_Konkani_Only.pdf
+- 87 Computer Science and Applications — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/87/Computer%20Science%20and%20Applications_English%20Only.pdf
+- 88 Electronic Science — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/88/Electronics%20Science_English%20Only.pdf
+- 89 Environmental Sciences — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/89/Environmental%20Science_English%20Only.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 84 | Kashmiri | Not confirmed | PARTIAL — ten unit blocks are visible but script extraction is severely corrupted/unreadable |
+| 85 | Konkani | 5 | PARTIAL — all ten units and substantial Konkani text are present; legacy-font/encoding corruption prevents reliable verbatim transcription |
+| 87 | Computer Science and Applications | Not confirmed | CONTENT_READ — all ten units and detailed topic lists extracted |
+| 88 | Electronic Science | 3 | CONTENT_READ — all ten units and detailed topic text extracted with page markers 1–3 |
+| 89 | Environmental Sciences | 10 | CONTENT_READ — all ten units and detailed syllabus text extracted with page markers 1–10 |
+
+Observed official content and QA:
+
+- **84 Kashmiri:** Official PDF header confirms Subject: Kashmiri, Code No. 84. The PDF text extraction shows ten unit blocks (Unit i through Unit x), but the source script/font is rendered as repeated symbols and unreadable glyph sequences. It is not safe to infer the actual unit topics from this extraction. Keep PARTIAL; require Kashmiri-script page-image review or a reliable native-script text layer. Do not mark any unit/topic verified from the garbled output.
+
+- **85 Konkani:** Official PDF header confirms Subject: Konkani, Code No. 85; five physical pages with page markers 1–5. All ten units and extensive Konkani text are present:
+  1. Linguistic/scientific study and history of Konkani language.
+  2. Grammar.
+  3. History of Konkani literature.
+  4. Narrative prose genres.
+  5. Expressive/poetic literary genres.
+  6. Dramatic literary genres.
+  7. Humorous and reflective prose forms.
+  8. Literary theory and criticism.
+  9. Folklore.
+  10. Comparative literary study and translation.
+  The PDF uses a legacy Konkani/Devanagari font; extracted characters are systematically substituted (for example, words appear in distorted Devanagari/Marathi-like glyph sequences). The ten unit structure and broad labels can be retained as provisional navigation, but detailed topic names, dates and prescribed texts require native Konkani page-image QA. Keep PARTIAL.
+
+- **87 Computer Science and Applications:** Official PDF header confirms Code No. 87. All ten units were read:
+  1. Discrete Structures and Optimization.
+  2. Computer System Architecture.
+  3. Programming Languages and Computer Graphics.
+  4. Database Management Systems.
+  5. System Software and Operating System.
+  6. Software Engineering.
+  7. Data Structures and Algorithms.
+  8. Theory of Computation and Compilers.
+  9. Data Communication and Computer Networks.
+  10. Artificial Intelligence.
+  Detailed content includes logic, set/graph/group theory, optimization, digital logic/architecture, C/C++/web programming, graphics, relational/NoSQL/big-data systems, operating systems, software lifecycle/testing, algorithms/complexity, automata/compilers, network protocols/security/cloud/IoT, AI search/knowledge/planning/NLP/agents/fuzzy systems/GA/ANN. Preserve the official unit boundaries and all listed subtopics; do not silently modernize the syllabus by adding new topics. Page count and exact page-to-unit mapping were not established. Status CONTENT_READ.
+
+- **88 Electronic Science:** Official PDF header confirms Code No. 88; printed page markers 1–3. All ten units were read:
+  1. Semiconductor devices and materials.
+  2. IC fabrication, thin-film devices, MOS/VLSI and CCD.
+  3. Network analysis, transforms, signals and DSP.
+  4. Analog circuits, amplifiers, oscillators, OPAMPs and control circuits.
+  5. Digital logic, sequential circuits, converters, FPGA and HDL.
+  6. 8086 microprocessor and 8051 microcontroller/embedded systems.
+  7. Electromagnetics, transmission lines, waveguides, antennas, microwave devices and radar.
+  8. Analog/digital communication, information theory, optical/mobile/satellite communication and IoT.
+  9. Power electronics, motors, SMPS/UPS and control systems.
+  10. Transducers, measurement instrumentation, biomedical instruments and IoT sensors.
+  Detailed technical text is legible; preserve all ten unit boundaries and source terminology. Status CONTENT_READ.
+
+- **89 Environmental Sciences:** Official PDF header confirms Code No. 89; ten physical/printed pages with markers 1–10. All ten units were read:
+  1. Fundamentals of Environmental Sciences.
+  2. Environmental Chemistry.
+  3. Environmental Biology.
+  4. Environmental Geosciences.
+  5. Energy and Environment.
+  6. Environmental Pollution and Control.
+  7. Solid and Hazardous Waste Management.
+  8. Environmental Assessment, Management and Legislation.
+  9. Statistical Approaches and Modelling in Environmental Sciences.
+  10. Contemporary Environmental Issues.
+  Detailed content includes environmental systems, chemistry/analytical methods, ecology/biodiversity/toxicology/biotechnology, geoscience/hydrology/hazards, energy systems, air/water/soil/noise/radioactive pollution, waste processing, EIA/risk assessment/laws/conventions, statistical/model methods and current Indian/global environmental issues. Preserve dated policy/law references as published and separately flag currency review; do not silently replace source text. Page markers 1–10 provide full source pagination. Status CONTENT_READ.
+
+### 7.30 Sub-batch 15 outcome and remaining UGC NET work
+
+- All five official PDFs (codes 84, 85, 87, 88, 89) were opened.
+- Codes 87, 88 and 89 are CONTENT_READ. Codes 84 Kashmiri and 85 Konkani remain PARTIAL due to script/font extraction failures; manual language review is needed.
+- Code 86 is absent from the official subject list and must not be invented.
+- Next actual subjects after 89 are 90 Politics including International Relations/International Studies and area studies, 91 Prakrit, 92 Human Rights and Duties, 93 Tourism Administration and Management, and 94 Bodo. Verify the official source link and source-language constraints for each. Code 90 has an older portal title “International and Area Studies” while the current subject list uses the expanded Politics/IR/area-studies title; preserve both with provenance rather than creating duplicate exam subjects.
+- Overall UGC NET remains PARTIAL. Continue with codes 90–94, then 95 Santali and current-cycle codes 100–107. Reconcile all 87 current subjects, Paper-I and exact official syllabus sources/versions/page provenance before database approval.
