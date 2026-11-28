@@ -2838,3 +2838,40 @@ Official index: https://www.ugcnetonline.in/syllabus-new.php
 The native-script remediation batches have now rechecked the major previously PARTIAL groups, but several records still need page-image transcription. Remaining work includes code 101 Sindhi; codes 21–24, 26–29, 32–37, 42–43, 84–85 and 94; plus any other PARTIAL subjects in the current 87-subject register. Also complete source hash, revision date, page count, exact topic-page provenance and official corrigendum/source-list checks for every subject before final VERIFIED.
 
 No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
+
+
+
+### 7.63 UGC NET Paper-II — native-script PDF extraction cross-check batch 1 (codes 21–24, 26) — 28 November 2026
+
+This pass compared the five official UGC NET PDF links with independently indexed extraction output. The official UGC syllabus index identifies these as the subject PDFs applicable under its “Updated Syllabi ... Applicable from June 2019 UGC-NET Onwards” listing. The independent extraction is useful for checking page/unit structure, but it is not a substitute for reading the native-script page images. No status was promoted.
+
+#### 7.63.1 Official source mapping
+
+Official index: https://www.ugcnetonline.in/syllabus-new.php
+
+- Code 21 Kannada: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/21/Kannada_Kannada.pdf
+- Code 22 Malayalam: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/22/Malayalam_Malayalam.pdf
+- Code 23 Odia (index historically labels the subject “Oriya”): https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/23/Odia_Odia.pdf
+- Code 24 Punjabi: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/24/Punjabi_Punjabi.pdf
+- Code 26 Tamil: https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/26/Tamil_Tamil_PDF.pdf
+
+The current NTA June 2025 information bulletin independently lists the corresponding subject names/codes (Kannada 21, Malayalam 22, Oriya 23, Punjabi 24, Tamil 26) and directs candidates to the UGC syllabus site. This validates the exam subject-code mapping, not the detailed syllabus transcription.
+
+#### 7.63.2 Cross-extraction findings
+
+| Code | Subject | Additional extraction evidence | Status decision |
+|---:|---|---|---|
+| 21 | Kannada | Search-indexed extraction of the official PDF exposes 16 numbered pages and all ten unit labels (ಘಟಕ 1–10). Subsection numbering is visible, but most Kannada topic strings are lost or reduced to punctuation/blank glyphs. A third-party-hosted copy also exposes fragments but contains legacy-font/encoding damage and includes historical sample-question/exam-pattern material; it must not be treated as the current syllabus source. | Remains PARTIAL. Ten-unit/page structure is corroborated, but exact Kannada topics require page-image transcription and proofing. |
+| 22 | Malayalam | Official PDF extraction exposes readable Malayalam topic fragments and clear references to Units 3, 7, 9 and 10, with subject areas such as literary periods/genres, research and cultural studies, linguistics, literary theory and aesthetics. However, many characters are substituted or malformed, and the excerpt is not a complete page-by-page transcription. | Remains PARTIAL. Use the PDF images for full Malayalam text, unit-by-unit transcription and proofreading. |
+| 23 | Odia | The official PDF is discoverable, but the independent extraction returns only a short corrupted header-like fragment (“UqC NET ...”) and no usable unit/topic text. | Remains PARTIAL. OCR/text extraction provides no additional content; page-image inspection is required. |
+| 24 | Punjabi | Official PDF extraction visibly identifies the subject and exposes Unit I through Unit X labels and subsection structure. Most Punjabi content is rendered as symbol/character noise, so the text cannot establish reliable topic wording. | Remains PARTIAL. Preserve ten-unit structure; transcribe from rendered official pages in Punjabi script. |
+| 26 | Tamil | Official PDF extraction exposes Tamil-language topic details, including literary genres, classical/medieval works, devotional literature, commentators and modern literary movements. However, the extracted Tamil uses legacy-font substitutions (for example, malformed glyph sequences in otherwise readable lines); a partial excerpt cannot verify every unit or exact title/name. | Remains PARTIAL. Page-image/native Tamil QA and named-work/person proofreading are still required. |
+
+#### 7.63.3 Reconciliation and next action
+
+- No status promotions in this pass. UGC NET Paper-II tally remains **60 CONTENT_READ / 27 PARTIAL** across 87 subjects; Paper-I code 00 remains separate.
+- Kannada’s ten-unit structure and 16-page extraction, Malayalam’s readable but corrupted unit fragments, Punjabi’s ten-unit labels, and Tamil’s recoverable topic fragments are structural leads only. Do not convert them into a normalized syllabus until native-script proofreading is complete.
+- Third-party copies are not used to override the official UGC PDF. In particular, any legacy exam-format/sample-question pages found in mirrors must not be mistaken for the current syllabus structure.
+- Next: continue native-script remediation with the next five PARTIAL language subjects (codes 27 Telugu, 28 Urdu, 29 Arabic, 32 Chinese and 33 Dogri), then reconcile all remaining PARTIAL records and complete page/hash/revision provenance.
+
+No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
