@@ -419,6 +419,32 @@ class ExamScoringEngineTest {
     }
 
     @Test
+    fun testNeetVariablePracticeQuestionCountsUseSamePerQuestionPolicy() {
+        for (count in listOf(12, 45, 90, 180, 200)) {
+            val questions = (1..count).map { index ->
+                createQuestion(
+                    id = "neet_practice_$index",
+                    correctAnswer = "A",
+                    subject = "Physics",
+                    section = if (index % 2 == 0) "SECTION_B" else "SECTION_A"
+                )
+            }
+            val answers = questions.associate { it.id to "A" }
+            val result = ExamScoringEngine.evaluateTestAttempt(
+                targetExam = "NEET UG",
+                questions = questions,
+                userAnswers = answers,
+                timeSpentSeconds = 300
+            )
+            assertEquals(count, result.totalQuestions)
+            assertEquals(count, result.attemptedCount)
+            assertEquals(count, result.correctCount)
+            assertEquals(count * 4.0, result.finalScore, 0.001)
+            assertEquals(count * 4.0, result.maxScore, 0.001)
+        }
+    }
+
+    @Test
     fun testFormatMarkHelper() {
         assertEquals("4", ExamScoringEngine.formatMark(4.0))
         assertEquals("0", ExamScoringEngine.formatMark(0.0))
