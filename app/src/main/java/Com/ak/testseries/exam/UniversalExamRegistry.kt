@@ -15,7 +15,7 @@ object UniversalExamRegistry {
     }
 
     private fun registerDefaultExams() {
-        // 1. NEET UG (Medical Entrance)
+        // 1. NEET UG — 2026 official pattern (NTA Information Bulletin, Chapter 4)
         register(
             ExamConfig(
                 examId = "neet_ug",
@@ -25,6 +25,11 @@ object UniversalExamRegistry {
                 language = "Bilingual (English & Hindi)",
                 defaultOptionCount = 4,
                 verified = true,
+                examYear = "2026",
+                scoringVersion = "neet-ug-2026-v1",
+                sourceUrl = "https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/02/202602231394640855.pdf",
+                sourceTitle = "NEET (UG)-2026 Information Bulletin",
+                verifiedAt = "2026-11-20T00:00:00Z",
                 difficultyRatio = DifficultyRatio(easyPercent = 45, mediumPercent = 40, hardPercent = 15),
                 supportedQuestionTypes = listOf(
                     QuestionType.DIRECT_MCQ,
@@ -34,14 +39,14 @@ object UniversalExamRegistry {
                     QuestionType.DIAGRAM_LABELING,
                     QuestionType.GRAPH
                 ),
-                aiSystemInstruction = "You are the Chief Academic Examiner for NEET UG. Strictly adhere to NCERT Class 11 & 12 curriculum for Physics, Chemistry, and Biology (Botany & Zoology). Emphasize NCERT factual accuracy, biochemical cycles, diagrammatic interpretations, genetics crosses, and conceptual numericals. Eliminate out-of-syllabus graduate concepts.",
+                aiSystemInstruction = "You are the Chief Academic Examiner for NEET UG. Strictly adhere to the official NEET UG 2026 syllabus and NCERT Class 11 & 12 curriculum for Physics, Chemistry, and Biology (Botany & Zoology). Use four-option single-correct MCQs and apply the official +4/-1/0 marking scheme.",
                 patternRules = listOf(
-                    "+4 marks for correct answer, -1 mark penalty for incorrect answer",
-                    "Section A: 35 compulsory questions per subject",
-                    "Section B: 15 questions per subject (students attempt any 10)",
-                    "Total 720 marks (180 questions attempted out of 200)",
-                    "Duration 200 minutes (3 hours 20 minutes)",
-                    "Strict bilingual formatting in English and Hindi"
+                    "2026 pattern: 180 compulsory questions in 180 minutes",
+                    "Physics: 45 questions, 180 marks",
+                    "Chemistry: 45 questions, 180 marks",
+                    "Biology (Botany & Zoology): 90 questions, 360 marks",
+                    "Total: 180 questions, 720 marks; no optional Section B",
+                    "Correct: +4, incorrect: -1, unanswered: 0"
                 ),
                 stages = listOf(
                     StageConfig(
@@ -51,41 +56,29 @@ object UniversalExamRegistry {
                             PaperConfig(
                                 paperId = "neet_paper_1",
                                 paperName = "NEET Single Paper",
-                                durationMinutes = 200,
+                                durationMinutes = 180,
                                 totalMarks = 720.0,
                                 subjects = listOf(
                                     SubjectConfig(
                                         "physics", "Physics",
-                                        listOf(
-                                            SectionConfig("phy_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("phy_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
-                                        )
+                                        listOf(SectionConfig("phy_main", "Physics", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "chemistry", "Chemistry",
-                                        listOf(
-                                            SectionConfig("chem_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("chem_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
-                                        )
+                                        listOf(SectionConfig("chem_main", "Chemistry", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "botany", "Botany",
-                                        listOf(
-                                            SectionConfig("bot_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("bot_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
-                                        )
+                                        listOf(SectionConfig("bot_main", "Biology - Botany", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
                                     ),
                                     SubjectConfig(
                                         "zoology", "Zoology",
-                                        listOf(
-                                            SectionConfig("zoo_sec_a", "Section A", 35, 35, 4.0, 1.0, QuestionType.MCQ_SINGLE),
-                                            SectionConfig("zoo_sec_b", "Section B", 15, 10, 4.0, 1.0, QuestionType.MCQ_SINGLE)
+                                        listOf(SectionConfig("zoo_main", "Biology - Zoology", 45, 45, 4.0, 1.0, QuestionType.MCQ_SINGLE))
+                                    )
+                                )
                             )
                         )
                     )
-                )
-            )
-        )
                 )
             )
         )
@@ -1402,9 +1395,6 @@ object UniversalExamRegistry {
     fun getMaximumAttemptQuestionsCountForSubject(examName: String, subjectNameOrId: String): Int? {
         val config = findExamByNameOrShortName(examName) ?: return null
         val clean = subjectNameOrId.trim()
-        if (clean.equals("biology", ignoreCase = true) && (config.shortName.equals("NEET", ignoreCase = true) || config.examId.contains("neet", ignoreCase = true))) {
-            return 90
-        }
         val allPapers = config.stages.flatMap { it.papers }
         val subject = allPapers.flatMap { it.subjects }.find {
             it.subjectId.equals(clean, ignoreCase = true) ||
@@ -1452,13 +1442,6 @@ object UniversalExamRegistry {
                     }
                 }
             }
-        }
-        // Fallback for Section B when subject is generic or not matched
-        if (secClean == "section_b" || secClean.contains("section b")) {
-            val isNeet = config.shortName.equals("NEET", ignoreCase = true) || config.examId.contains("neet", ignoreCase = true)
-            if (isNeet) return 10
-            val isJee = config.shortName.equals("JEE", ignoreCase = true) || config.examId.contains("jee", ignoreCase = true)
-            if (isJee) return 5
         }
         return null
     }
