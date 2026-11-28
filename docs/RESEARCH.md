@@ -2541,3 +2541,44 @@ CONTENT_READ means the applicable official source text has been read sufficientl
 - Keep the existing restriction: do not modify scoring engine, policy resolver, scoring contracts, negative marking, ranking logic or scoring tests.
 
 **Audit conclusion:** The 25-exam registry inventory is reconciled, but the research is **not complete and none of the 25 exams is finally VERIFIED**. Four exam records remain PARTIAL/DEFERRED_NOT_BLOCKING, and all 21 CONTENT_READ records still have some combination of metadata, page-provenance, normalization, corrigendum or official-source-limit checks outstanding.
+
+
+### 7.56 NTPC 2026 source-retrieval follow-up — secondary copies found; official PDF access still blocked (28 November 2026)
+
+This pass rechecked the two NTPC 2026 detailed CENs after the Final Gap Audit. It found complete-looking third-party-hosted copies and extracted their CBT pattern sections as provisional research leads. It did **not** establish primary-source verification.
+
+#### 7.56.1 Official-source attempts and results
+
+- Official RRB candidate portal: https://www.rrbapply.gov.in/ — the live portal exposes FAQ links under CEN 06/2026 and CEN 07/2026.
+  - CEN 06/2026 Graduate FAQ (English): https://rrbapply.gov.in/assets/forms/FAQs_CEN_07_2026_NTPC_G_English.pdf
+  - CEN 06/2026 Graduate FAQ (Hindi): https://rrbapply.gov.in/assets/forms/FAQs_CEN_07_2026_NTPC_G_Hindi.pdf
+  - CEN 07/2026 Undergraduate FAQ (English): https://rrbapply.gov.in/assets/forms/FAQ_07_2026_NTPC_UG.pdf
+- The official FAQ PDF fetches returned connection errors.
+- Official CEN 06/2026 RRB resource route surfaced:
+  https://rrb.indianrailways.gov.in/chandigarh/image/1791375679144CEN_06_2026_NTPC_G.pdf/examsDocuments
+  The route resolves in search excerpts as “Final Draft CEN 06_2026 6Oct26” and its visible text says the detailed CEN will be uploaded to the unified RRB website. The full PDF was not obtained/read from this official route.
+- Official CEN 07/2026 RRB resource route:
+  https://rrb.indianrailways.gov.in/-/image/1791999622770Final_CEN_07-2026_14.10.2026_English.pdf/examsDocuments
+  The live fetch returned “Request Rejected”; no official PDF bytes or complete text were obtained.
+- A direct download attempt of the official CEN 07 route also failed.
+
+#### 7.56.2 Secondary-host copies — provisional cross-check only
+
+The following full-notification copies were accessible on a non-RRB domain and their syllabus/pattern excerpts were extracted:
+- CEN 06/2026 Graduate, 54-page copy: https://rank.qmaths.in/pdfs/rrb-ntpc-graduate-cen-06-2026/RRB-NTPC-Graduate-CEN-06-2026-Detailed-Notification.pdf
+- CEN 07/2026 Undergraduate, 57-page copy: https://rank.qmaths.in/pdfs/rrb-ntpc-ug-cen-07-2026/RRB-NTPC-Undergraduate-CEN-07-2026-Detailed-Notification.pdf
+
+The extracted excerpts identify the following provisional page map and pattern:
+- **CEN 06/2026 Graduate:** recruitment process and CBT stages at printed p.19; CBT-1 pattern at p.19–20 (90 minutes, 100 questions: General Awareness 40, Mathematics 30, General Intelligence & Reasoning 30); CBT-2 pattern at p.20 (90 minutes, 120 questions: General Awareness 50, Mathematics 35, General Intelligence & Reasoning 35); topic-list continuation begins in the p.20–21 region. The copy states 1/3 negative marking.
+- **CEN 07/2026 Undergraduate:** recruitment process at printed p.19; CBT-1 pattern at p.20 (90 minutes, 100 questions: General Awareness 40, Mathematics 30, General Intelligence & Reasoning 30); CBT-2 pattern at p.20–21 (90 minutes, 120 questions; excerpt confirms the same subject groups and the table begins on p.21); topic-list and continuation appear across printed pp.21–22. The copy states 1/3 negative marking.
+
+These excerpts are not sufficient to normalize the complete topic lists. More importantly, the PDFs are hosted by a third party. Their page counts, dates and visible CEN text are useful cross-check clues only; no file hash, official-host byte identity or official corrigendum chain has been verified.
+
+#### 7.56.3 Status decision
+
+- CEN 06/2026 Graduate: remains **PARTIAL / DEFERRED_NOT_BLOCKING**.
+- CEN 07/2026 Undergraduate: remains **PARTIAL / DEFERRED_NOT_BLOCKING**.
+- Do not promote either record based on the third-party copies, and do not import the provisional page map as final source provenance.
+- Next required evidence: obtain the complete original English notification from an official RRB host, verify the matching official listing and corrigenda, then compare its pages and text against these secondary copies. Only after that should the complete syllabus topics be normalized and cited page by page.
+
+No application code, UI, database, scoring engine, ranking logic or exam policy was changed.
