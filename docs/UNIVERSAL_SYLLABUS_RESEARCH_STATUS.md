@@ -1558,3 +1558,93 @@ Observed official content and QA:
 - Code 101 has an official Hindi alternative; compare it in a later language QA pass with the Arabic-script source. Code 95 is Hindi-only. Code 102's technical Sanskrit terms require source-page verification.
 - Next actual current-cycle subjects: 104 Disaster Management, 105 Ayurveda Biology, 106 Forestry, 107 Statistics. Only four subjects remain in the December 2026 subject additions; do not invent a fifth code. The next step is to read all four official PDFs and reconcile the current-cycle 87-subject list.
 - Overall UGC NET remains PARTIAL. Paper-I still needs a full source-content pass; several current subjects still have partial script extraction, and the older portal includes legacy subjects that must be separated from the December 2026 87-subject list. Complete source-version reconciliation, page mapping, PDF hashes and language QA before database approval.
+
+
+### 7.35 UGC NET current-cycle final four syllabus PDFs — codes 104–107 (28 November 2026)
+
+The December 2026 official subject list identifies these four remaining current-cycle subject additions:
+- 104 Disaster Management — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/104/Disaster_Management_English.pdf
+- 105 Ayurveda Biology — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/105/Ayurveda_Biology_English.pdf
+- 106 Forestry — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/106/Final%20Edited%20UGC-%20NET%20Forestry%20Syllabus-English.pdf
+- 107 Statistics — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/107/Syllabus_Statistics_UGC_NET_English.pdf
+
+Official source checks:
+- UGC NET Bureau syllabus portal: https://www.ugcnetonline.in/syllabus-new.php
+- UGC NET Bureau subject list: https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 Information Bulletin, Annexure-II: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 104 | Disaster Management | Not confirmed | CONTENT_READ — all ten units and detailed topics extracted; source contains duplicate Unit VII numbering |
+| 105 | Ayurveda Biology | 10 | CONTENT_READ — all ten units and detailed topics extracted with printed page markers 1–10 |
+| 106 | Forestry | Not confirmed | CONTENT_READ — all ten units and detailed topics extracted |
+| 107 | Statistics | Not confirmed | CONTENT_READ — all ten units and detailed topics extracted |
+
+Observed official content and QA:
+
+- **104 Disaster Management:** Official PDF header confirms Code No. 104 and states ten units:
+  1. Introduction to Disaster Management.
+  2. Research Methodology for Disaster Management.
+  3. Legal Framework, Policies and Governance.
+  4. Society, Development and Disasters.
+  5. Community Based Disaster Risk Reduction and Disaster Management.
+  6. Health and Disasters.
+  7. Environment, Ecology and Climate Change Aspects.
+  8. Remote Sensing and Geographic Information System.
+  9. Information & Communications Technology and Other Emerging Technologies.
+  10. Emergency Response and Management.
+  Detailed content was extracted for all ten units, including risk/vulnerability, natural and human-induced hazards, research, legal/policy arrangements, vulnerable populations, community DRR, disaster health/epidemiology, environment/climate/occupational safety, remote sensing/GIS, ICT/sensors/AI/UAV/social media, emergency response/health services/risk communication/media/shelters.
+  **Source numbering anomaly:** The syllabus overview labels both “Environment, Ecology and Climate Change Aspects” and “Remote Sensing and Geographic Information System” as Unit VII, while the detailed contents and ten-unit count make the latter Unit VIII. Preserve the literal source label in provenance and record a QA note; do not silently edit the official source. Status CONTENT_READ; PDF page count, exact unit-page map and revision/hash metadata remain.
+
+- **105 Ayurveda Biology:** Official PDF header confirms Code No. 105; printed page markers 1–10. All ten units were read:
+  1. History and Development of Ayurveda.
+  2. Philosophy and Fundamental Principles of Ayurveda.
+  3. Sharira Rachna and Kriya.
+  4. Padartha Vijnana and Dravya Vijnana.
+  5. Rasa Shastra, Bheshajya Kalpana and Ayurvedic Pharmacopeia.
+  6. Disease Biology, Microbiology and Immunology.
+  7. Genetics, Ayurgenomics, Cell and Molecular Biology.
+  8. Physiology, Biochemistry and Nanotechnology.
+  9. Biodiversity and Environmental Health, IPR and Entrepreneurship.
+  10. Research Methodology, Biostatistics and Ayurveda-informatics.
+  Extensive detailed subtopics, classical terminology, pharmacopeia/legal references, research/biostatistics and Ayurveda-informatics topics were extracted. Preserve Sanskrit diacritics and the original technical vocabulary; do not infer clinical guidance from this academic syllabus. Printed page markers 1–10 provide source pagination. Status CONTENT_READ.
+
+- **106 Forestry:** Official PDF header confirms Subject: Forestry, Code 106; ten units:
+  1. General Forestry.
+  2. Silviculture.
+  3. Agroforestry and Social Forestry.
+  4. Forest Products and Utilization.
+  5. Forest Biology and Tree Improvement.
+  6. Forest Resource Management.
+  7. Climate Change and Environmental Conservation.
+  8. Remote Sensing and Geographic Information System.
+  9. Forest Policies, Legislations and Conventions.
+  10. Research Methodologies and Statistical Applications.
+  Detailed content was read for forest types/resources, silviculture/regeneration/plantations, economic tree species, agroforestry, trees outside forests, nursery/propagation, forest products/NTFPs/medicinal plants, forest biology/genetics/biotechnology, biodiversity/wildlife/biometry/watersheds/ecosystem services/forest protection, climate change, RS/GIS, policy/law/conventions and statistical methods. Preserve long species lists, named policies and legal titles. Page count and exact page-to-unit map were not established. Status CONTENT_READ.
+
+- **107 Statistics:** Official PDF header confirms Subject: Statistics, Code 107; ten units:
+  1. Probability and Distributions.
+  2. Real Analysis and Matrix Algebra.
+  3. Sampling Methods and Design of Experiments.
+  4. Estimation Theory.
+  5. Testing of Hypotheses.
+  6. Linear Estimation, Regression Analysis and Econometrics.
+  7. Time Series.
+  8. Multivariate Analysis.
+  9. Stochastic Processes.
+  10. Indian Statistical System and Research Methodology.
+  Detailed text was extracted for probability/distributions/limit theorems, real analysis/matrix algebra, sampling and experimental designs, point/interval/nonparametric estimation, hypothesis tests, regression/econometrics, time series, multivariate methods, stochastic processes, Indian statistical institutions/statisticians and R programming. Preserve mathematical notation and source subtopic boundaries. Page count and page-to-unit map not established. Status CONTENT_READ.
+
+### 7.36 UGC NET current-cycle subject-PDF collection — first-pass outcome
+
+- All four remaining current-cycle PDF endpoints (104–107) were opened and all ten units in each were read.
+- All four are CONTENT_READ at source-text level. Code 104 has a source numbering anomaly (duplicate Unit VII); code 105 has full printed pagination 1–10; codes 106–107 need page-count and exact page mapping.
+- This completes the first-pass reading of all four additional current-cycle subject PDFs 104–107. It does **not** yet mean all 87 current-cycle subjects are fully verified: codes 16–29 and other language/script-dependent subjects still have PARTIAL extraction, Paper-I requires a complete content/page pass, and current-cycle subject names must be reconciled against the legacy portal.
+- Next phase is a **current-cycle 87-subject reconciliation and gap audit**:
+  1. Read the December 2026 official Annexure-II subject list completely and enumerate all 87 subject names/codes.
+  2. Match each current subject to the corresponding official portal PDF(s), including all language versions and multiple papers/sections.
+  3. Compare the 87 current entries with the 2019-applicable legacy syllabus portal; mark current, legacy-only, newly added, renamed/expanded, and no official syllabus PDF found.
+  4. Produce a per-subject content-read/partial/pending matrix; do not assume that all old portal subjects remain eligible in December 2026.
+  5. Complete Paper-I syllabus reading and page provenance.
+  6. Then do the pending native-script/OCR and page-map QA for PARTIAL subjects.
+- Database and app-code integration remain NOT STARTED and require explicit user approval after reconciliation and quality review.
