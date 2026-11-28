@@ -301,26 +301,28 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
   const attemptsRef = userRef.collection("Attempts");
 
   // 5b. Compute population-based percentile on this test if it qualifies for competitive ranking
-  let testTotalCandidates = 0;
-  let testHigherCount = 0;
-  let testRank = 0;
-  let attemptPercentile = 0.0;
+  // Null means ranking is unavailable or not applicable; never fabricate rank 0.
+  let testTotalCandidates = null;
+  let testRank = null;
+  let attemptPercentile = null;
 
   if (countsTowardRanking) {
     try {
       const testEntriesRef = db.collection("Test_Leaderboards").doc(cleanTestId).collection("Entries");
       const higherSnap = await testEntriesRef.where("score", ">", evalResult.finalScore).count().get();
-      testHigherCount = higherSnap.data().count;
-
       const totalSnap = await testEntriesRef.count().get();
-      const existingCount = totalSnap.data().count;
-      testRank = testHigherCount + 1;
-      testTotalCandidates = Math.max(1, existingCount + 1);
-      attemptPercentile = calculatePopulationPercentile(testRank, testTotalCandidates);
+      const rankingSnapshot = createRankingSnapshot(
+        higherSnap.data().count,
+        totalSnap.data().count
+      );
+      if (rankingSnapshot) {
+        testRank = rankingSnapshot.testRank;
+        testTotalCandidates = rankingSnapshot.testTotalCandidates;
+        attemptPercentile = rankingSnapshot.percentile;
+      }
     } catch (e) {
-      testRank = 0;
-      testTotalCandidates = 0;
-      attemptPercentile = 0.0;
+      // Preserve unavailable ranking explicitly. The score/attempt can still be saved.
+      console.error("Per-test ranking unavailable; storing null rank fields:", e);
     }
   }
 
@@ -354,9 +356,9 @@ exports.submitTestAttemptServerSide = functions.https.onCall(async (data, contex
           score: existing.score,
           rawScore: existing.rawScore || existing.score,
           maxScore: existing.maxScore,
-          percentile: existing.percentile || 0.0,
-          testRank: existing.testRank || 1,
-          testTotalCandidates: existing.testTotalCandidates || 1,
+          percentile: existing.percentile ?? null,
+          testRank: existing.testRank ?? null,
+          testTotalCandidates: existing.testTotalCandidates ?? null,
           accuracy: existing.accuracy,
           correctCount: existing.correctCount,
           incorrectCount: existing.incorrectCount,
