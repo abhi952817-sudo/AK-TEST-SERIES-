@@ -38,7 +38,7 @@ data class TestEntity(
     val uploaderId: String = "anonymous", // e.g. 98%
 
     // Deep Mapping Extensions
-    val targetExam: String = "NEET",
+    val targetExam: String = "",
     val durationMinutes: Int = 0,
     val classLevel: String = "All", // "11th", "12th", "Dropper", "All"
     val chapter: String = "All",
