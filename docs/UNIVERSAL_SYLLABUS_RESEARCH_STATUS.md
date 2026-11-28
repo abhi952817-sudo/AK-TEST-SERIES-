@@ -1181,3 +1181,107 @@ Observed official content and QA:
 - Code 69 is absent from the official subject list and must not be invented.
 - Next actual subject codes after 74 are 79, 80, 81, 82 and 83: Visual Arts, Geography, Social Medicine & Community Health, Forensic Science and Pali. Codes 75–78 are absent from the official portal's subject list; do not create placeholders.
 - Overall UGC NET remains PARTIAL. The portal's legacy subject list continues beyond code 74, and the current-cycle 87-subject list includes newer codes 100–107. Continue source verification for codes 79–95 and 100–107, then reconcile the entire current-cycle list, Paper-I and subject PDF versions/page provenance before database approval.
+
+
+### 7.27 UGC NET subject-PDF extraction — sub-batch 14 (codes 79–83; 28 November 2026)
+
+Official subject names and PDF endpoints were verified against:
+- https://www.ugcnetonline.in/syllabus-new.php
+- https://www.ugcnetonline.in/subjects.php
+- UGC-NET December 2026 official bulletin, Annexure-II: https://cdnbbsr.s3waas.gov.in/s301eee509ee2f68dc6014898c309e86bf/uploads/2026/10/202610081852912625.pdf
+
+Official English PDFs opened and read:
+- 79 Visual Arts — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/79/Visual%20Art_English.pdf
+- 80 Geography — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/80/Geography_English.pdf
+- 81 Social Medicine & Community Health — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/81/Social%20Med.%20and%20Comm.Health_English.pdf
+- 82 Forensic Science — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/82/Forensic%20Science_English.pdf
+- 83 Pali — https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/83/Pali_English.pdf
+
+| Code | Official subject | PDF pages | Extraction status |
+|---:|---|---:|---|
+| 79 | Visual Arts (including Drawing & Painting/Sculpture/Graphics/Applied Art/History of Art) | 11 | CONTENT_READ — ten common units plus five elective syllabi read |
+| 80 | Geography | Not confirmed | CONTENT_READ — all ten units and detailed topic lists extracted |
+| 81 | Social Medicine & Community Health | 4 printed pages visible | CONTENT_READ — all ten units and detailed topics extracted |
+| 82 | Forensic Science | Not confirmed | CONTENT_READ — all ten units and detailed topics extracted |
+| 83 | Pali | Not confirmed | CONTENT_READ — all ten units and detailed prescribed texts/topics extracted |
+
+Observed official content and QA:
+
+- **79 Visual Arts:** Official PDF header confirms Code No. 79; the 11-page source includes ten common units and five elective syllabi. Common Units:
+  1. Fundamentals of Visual Art.
+  2. Forms of Visual Arts and their inter-relationship with other creative expression.
+  3. Traditional media, materials and techniques.
+  4. Modern techniques and contemporary visual practices.
+  5. Indian and Western aesthetics and art appreciation.
+  6. Western art history from prehistory to postmodern art.
+  7. Indian art history from prehistory to the 19th century.
+  8. Contemporary Indian art (20th/21st century), design, visual communication and art education.
+  9. Art of the Far East, South-East/Central Asia and Ancient Near East.
+  10. Traditional community, folk, tribal and craft visual practices.
+  The official PDF then provides separate elective syllabi:
+  - Elective I: Art History (including iconography, Indian sculpture/architecture/painting, Western art and Asian art).
+  - Elective II: Drawing and Painting (aesthetics, history, material/method, art schools and art education).
+  - Elective III: Applied Art (graphic design, advertising, typography, campaigns, packaging, media and digital production).
+  - Elective IV: Printmaking / Graphic Art (aesthetics/history, techniques/materials, artists and print-related issues).
+  - Elective V: Sculpture (elements/aesthetics, media and processes, assemblage/installation, monumental and contemporary sculpture).
+  Preserve the ten-unit common core and five elective routes as separate structures. Do not collapse the elective syllabi into the common unit list. All 11 printed pages were read, including extensive prescribed artists, movements, texts and techniques. Status CONTENT_READ; final page-to-elective map and revision/hash metadata remain.
+
+- **80 Geography:** Official PDF header confirms Subject: Geography, Code No. 80. All ten units were read:
+  1. Geomorphology.
+  2. Climatology.
+  3. Oceanography.
+  4. Geography of Environment.
+  5. Population and Settlement Geography.
+  6. Geography of Economic Activities and Regional Development.
+  7. Cultural, Social and Political Geography.
+  8. Geographic Thought.
+  9. Geographical Techniques.
+  10. Geography of India.
+  Detailed text covers geomorphic/climatic/oceanic processes and hazards, ecosystems and environmental policy, population theories/migration/settlements/urban models, economic/agricultural/industrial/transport geography, cultural/social/political geography, geographic traditions, GIS/remote sensing/GPS/statistics, and Indian physical/human/economic geography. Preserve named models, theorists and technical methods as source-authored syllabus content. Page count and exact unit-page mapping were not established in this pass. Status CONTENT_READ.
+
+- **81 Social Medicine & Community Health:** Official PDF header confirms Code No. 81; printed page markers 1–4 are visible. All ten units were read:
+  1. Evolution and Basic Concepts of Public Health/Social Medicine/Community Health.
+  2. Evolution of Health Policies and Health Services in India.
+  3. General Epidemiology and Biostatistics.
+  4. Social Sciences and Health.
+  5. Epidemiology of Common Health Problems in India and National Health Programmes.
+  6. Basic Determinants of Health (environment, nutrition and social determinants).
+  7. Demography, Family Welfare and Reproductive/Child Health.
+  8. Health Education, IEC/BCC and Information Technology in Health.
+  9. Health Systems Research, Planning and Management and Recent Advances in Public Health.
+  10. International Health.
+  The source contains policy years, named laws/programmes, epidemiological methods, health systems and international health topics. Printed page markers provide an initial page map; final topic-to-page mapping and source metadata remain. Status CONTENT_READ.
+
+- **82 Forensic Science:** Official PDF header confirms Code No. 82. All ten units were read:
+  1. Forensic Science foundations, physical evidence, crime scene, investigations, courts, laboratories, constitutional rights and profiling methods.
+  2. Forensic analytical instrumentation and techniques (microscopy, spectroscopy, chromatography, mass spectrometry, electrophoresis and immunoassays).
+  3. Blood/body-fluid evidence, blood grouping, DNA profiling/phenotyping/RNA profiling and wildlife forensics.
+  4. Alcohol, toxicology, poisons, drugs and chemical analyses.
+  5. Firearms, ammunition, ballistics, tool marks and restoration of erased markings.
+  6. Fire/arson, explosives, explosion investigation and forensic photography.
+  7. Hair/fibres, pollens/diatoms, soil/dust, paint, glass, concrete and computer/mobile forensics.
+  8. Fingerprints, track marks, biometrics and voice analysis.
+  9. Questioned documents, inks/papers, handwriting, signatures and forgery examination.
+  10. Forensic medicine, post-mortem changes, injuries, skeletal identification, dental evidence and forensic entomology.
+  Detailed technical and legal topic text was extracted. Preserve the official published scope; do not treat the PDF as operational instructions. Page count and unit-page mapping were not confirmed. Status CONTENT_READ.
+
+- **83 Pali (Language and Literature):** Official PDF header confirms Subject: Pali (Language and Literature), Code No. 83. All ten units and prescribed texts were read:
+  1. Biography of the Buddha based on Pali sources; first, second and third Buddhist Councils.
+  2. Pali grammar, language history, alphabets and grammatical structures.
+  3. Vinayapiṭaka selections: Mahāvagga, Cullavagga and Pātimokkha.
+  4. Selected Dīghanikāya, Majjhimanikāya, Saṃyuttanikāya and Aṅguttaranikāya texts; Suttapiṭaka overview.
+  5. Dhammapada, Suttanipāta, Therīgāthā and Jātaka selections; Khuddakanikāya overview.
+  6. Dhammasaṅgaṇī and Abhidhammatthasaṅgaha; Abhidhamma literature.
+  7. Milindapañha.
+  8. Visuddhimagga and Aṭṭhakathā literature; Buddhadatta, Buddhaghosa and Dhammapāla.
+  9. Vaṃsa literature and Pali kāvya literature.
+  10. Buddhist philosophical concepts.
+  Preserve canonical titles, prescribed chapters/texts and Pali diacritics accurately; the PDF is in English with Pali terms. Page count and exact page mapping were not established. Status CONTENT_READ.
+
+### 7.28 Sub-batch 14 outcome and remaining UGC NET work
+
+- All five official PDFs (codes 79–83) were opened and read.
+- All five are CONTENT_READ at source-text level. Code 79 includes five elective syllabi in addition to its common ten units; all must be represented as separate elective routes. Code 81 exposes printed pages 1–4; other page counts/unit-page maps need final QA.
+- Code 80 Geography was extracted fully in this pass; it had previously only been known as a portal-linked source.
+- Next actual subjects after code 83 are 84 Kashmiri, 85 Konkani, 87 Computer Science and Applications, 88 Electronic Science and 89 Environmental Sciences. Code 86 is absent; do not create a placeholder. Verify the language-only source files for Kashmiri/Konkani and English-only PDFs for codes 87–89.
+- Overall UGC NET remains PARTIAL. Remaining legacy portal subjects include codes 84–95 (with gaps) and current-cycle additional subjects 100–107. Continue in batches of five actual subject codes, then reconcile against the December 2026 official subject list of 87 subjects and verify Paper-I. No database approval until source versions, page provenance, hashes and language/OCR QA are complete.
