@@ -2191,3 +2191,52 @@ The official RRB Mumbai index also exposes notification-category rows for both C
 - GitHub was used to read this research status file before any permitted status-file update.
 - Liner search and Firecrawl search/scrape/browser actions could not run because their connected-app credit allowances were exhausted. No claim is made that those services completed research.
 - No app code, Firestore/Room database, UI, scoring, ranking, or other repository file was modified. Research remains read-only except for this append-only status update.
+
+
+### 7.52 UGC NET OCR remediation pass and launch implementation priority (28 November 2026)
+
+This pass re-opened official UGC NET source PDFs for partial language subjects and checked the official syllabus index and current status rows before deciding what should be appended. It also re-read the already recorded code groups 58–80 to avoid duplicate entries. No new subject entries were created for codes 58, 59, 60, 62, 63, 65, 66, 67, 68, 70, 71, 72, 74, 79 or 80 because their source-text research was already present in this status file.
+
+#### 7.52.1 Official source recheck — partial language subjects
+
+Official UGC NET syllabus index (current page states syllabi are applicable from June 2019 onwards):
+https://www.ugcnetonline.in/syllabus-new.php
+
+| Code | Subject | Official PDF | Latest extraction result | Status decision |
+|---:|---|---|---|---|
+| 84 | Kashmiri | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/84/Kashmiri_Kashmiri_Only.pdf | Fresh extraction still returns heavily corrupted legacy-font glyphs across ten unit blocks. Unit boundaries are visible but exact topic wording cannot be safely transcribed. | PARTIAL; no promotion |
+| 85 | Konkani | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/85/Konkani_Konkani_Only.pdf | Fresh pass confirms 5 printed pages and ten unit/section blocks. Konkani text is readable only with systematic character substitutions in the extraction; do not silently auto-correct. | PARTIAL; page-count evidence improved, native-script review remains |
+| 94 | Bodo | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/94/Bodo_Hindi_Only.pdf | Fresh extraction returns substantial Devanagari/Bodo text, but several words, numbers and script transitions remain corrupted. | PARTIAL; no promotion |
+| 95 | Santali | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/95/Santali_Hindi_Only.pdf | Fresh pass exposes all ten unit headings and substantial Hindi-readable topic text: Ethnology; Linguistics and Grammar; Indian Literature; Theory of Literature; Folk Literature; Santali Poetry Literature; Santali Prose Literature; Santali Magazines; Adivasi leaders and literary figures; History of the Santals. Named works, personal names and some OCR substitutions still need proofreading. | Retain CONTENT_READ (Hindi-source text level); not VERIFIED |
+| 102 | Hindu Studies | https://www.ugcnetonline.in/showPdf.php?p1=NTA_All_R_Syllabus/102/Hindu%20Studies_Hindi.pdf | Fresh extraction still produces severely corrupted legacy-font Hindi/Sanskrit text. Unit divisions are partly visible but exact terms cannot be safely normalized. | PARTIAL; no promotion |
+
+The official index lists code 84 and 85 as single-language PDF endpoints, code 94 and 95 as Hindi-only endpoints, and code 102 as a Hindi endpoint. No alternative English PDF was discovered for these subjects in this pass. A reliable full-text result from an unofficial mirror is not sufficient to replace the official PDF.
+
+#### 7.52.2 Official index and subject coverage notes
+
+- The official UGC portal's active subject-code list contains gaps; missing numeric codes must not be invented as subjects.
+- The official index confirms subject 90's portal row has a long title covering Politics/International Relations/International Studies and regional-area studies, while its linked PDF title is “International and Area Studies”. Preserve the portal subject name and record the PDF title as a source-title alias/discrepancy; do not silently rename the exam subject.
+- Code 79 Visual Arts includes ten common units plus separate elective routes; the existing record already notes that the elective branches must remain separate.
+- Code 73 Sanskrit Traditional Subjects remains PARTIAL; do not flatten the portal's multiple traditional-subject routes into one invented generic chapter tree.
+- The current 87 Paper-II subject count and the Paper-I code 00 must continue to be reconciled against the live official index, not against a continuous numeric code assumption.
+
+#### 7.52.3 Research tool outcome
+
+- Parallel official-page fetch was used for the current UGC NET syllabus index and subject-list page.
+- Parallel official-PDF fetch was used for the fresh extraction of codes 84, 85, 94, 95 and 102.
+- GitHub was used to inspect the existing status file and check current rows before appending.
+- Search/fetch did not produce a readable primary RRB corrigendum PDF or the full NTPC 2026 PDF contents in this pass; these railway gaps remain open.
+- No claim is made that a connected app with exhausted credits completed work.
+
+#### 7.52.4 User-confirmed post-research launch sequence
+
+The user has now explicitly confirmed the intended implementation order after the complete syllabus research/consolidation is finished:
+
+1. First implementation priority is the **main exam module: NEET UG**. Implement its syllabus data/model and syllabus UI integration first, so the app can move toward launch.
+2. Keep the implementation aligned with the approved Universal Syllabus architecture: shared engine/hierarchy, exam-specific syllabus data and version/source provenance; do not create a NEET-only duplicate architecture.
+3. After the NEET UG syllabus path is integrated and tested, extend the same shared implementation pattern to the remaining exams.
+4. The full official syllabus research, source/page QA, gap audit and consolidation must be completed before the implementation phase begins.
+5. No implementation is authorized by this planning note. Do not edit application code, UI, Room/Firestore schema or database during the current research phase. Start NEET UG implementation only after the research completion checkpoint and the user's explicit go-ahead.
+6. Preserve the existing guardrail not to touch scoring-engine/policy-resolver/contracts/negative-marking/ranking work while implementing syllabus.
+
+This order is the user's launch-priority plan, not a claim that NEET UG implementation has started.
