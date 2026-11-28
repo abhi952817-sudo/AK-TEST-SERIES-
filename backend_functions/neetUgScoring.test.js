@@ -4,6 +4,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { validateAndMergeAnswerKeys } = require("./examScoring");
 const {
   NEET_UG_2026_POLICY,
   createNeetScoringFingerprint,
@@ -166,4 +167,29 @@ test("NEET scoring fingerprint is order-independent and changes with trusted ans
   const changedKey = createNeetScoringFingerprint(data, [one, { ...two, correctAnswer: "C" }]);
   assert.equal(original, reordered);
   assert.notEqual(original, changedKey);
+});
+
+test("protected answer-key exceptions survive server merge and drive NEET scoring", () => {
+  const sourceQuestions = [{
+    id: "dropped_q",
+    subject: "Biology",
+    questionType: "MCQ_SINGLE"
+  }];
+  const merged = validateAndMergeAnswerKeys(
+    { countsTowardRanking: true, isOfficial: true, isPublic: true },
+    sourceQuestions,
+    { questions: [{ id: "dropped_q", correctAnswer: "", scoringStatus: "DROPPED" }] }
+  );
+  assert.equal(merged.questions[0].scoringStatus, "DROPPED");
+  const result = evaluateNeetUgAttempt(testData(), merged.questions, {});
+  assert.equal(result.bonusCount, 1);
+  assert.equal(result.finalScore, 4);
+});
+
+test("unknown NEET answer-key exception statuses fail closed", () => {
+  assert.throws(() => evaluateNeetUgAttempt(
+    testData(),
+    [question("q1", "Physics", { scoringStatus: "UNREVIEWED_BONUS" })],
+    { q1: "A" }
+  ), /Unsupported NEET answer-key status/);
 });
